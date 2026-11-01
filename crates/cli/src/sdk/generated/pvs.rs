@@ -114,7 +114,7 @@ pub enum Commands {
     #[command(
         name = "wait-operation",
         about = "Waits until an operation is done or `--timeout` has passed, whichever comes first, and returns it as it is then",
-        long_about = "Waits until an operation is done or `--timeout` has passed, whichever comes first, and returns it as it is then.\n\nThe operation is one an `origin pvs` command answered with, such as the one `--no-wait` prints. Without `--timeout`, the command waits until the operation is done; Ctrl-C stops the waiting, not the operation. It prints the operation, and exits with status 1 when the operation failed, or isn't done when `--timeout` passes."
+        long_about = "Waits until an operation is done or `--timeout` has passed, whichever comes first, and returns it as it is then. It only reads, so a client may repeat it after a transport error.\n\nThe operation is one an `origin pvs` command answered with, such as the one `--no-wait` prints. Without `--timeout`, the command waits until the operation is done; Ctrl-C stops the waiting, not the operation. It prints the operation, and exits with status 1 when the operation failed, or isn't done when `--timeout` passes."
     )]
     WaitOperation(WaitOperationArgs),
 }
