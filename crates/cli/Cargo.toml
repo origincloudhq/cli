@@ -18,6 +18,7 @@ path = "src/lib.rs"
 
 [dependencies]
 origincloud-oauth-login = { path = "../oauth-login" }
+origincloud-mcp = { path = "../mcp" }
 origincloud-core.workspace = true
 origincloud-pvs.workspace = true
 origincloud-location.workspace = true
@@ -26,6 +27,8 @@ chrono.workspace = true
 clap.workspace = true
 expanduser = "1"
 graphql_client.workspace = true
+# `origin mcp serve` serves the MCP tools on standard input and output.
+rmcp = { workspace = true, features = ["transport-io"] }
 http.workspace = true
 reqwest.workspace = true
 serde.workspace = true

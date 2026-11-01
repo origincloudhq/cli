@@ -53,10 +53,10 @@ use prost_reflect::{
 use crate::docs::{self, Comments, Vocabulary};
 use crate::policy::Policy;
 
-const OPERATION: &str = "google.longrunning.Operation";
-const EMPTY: &str = "google.protobuf.Empty";
-const FIELD_MASK: &str = "google.protobuf.FieldMask";
-const DURATION: &str = "google.protobuf.Duration";
+pub(crate) const OPERATION: &str = "google.longrunning.Operation";
+pub(crate) const EMPTY: &str = "google.protobuf.Empty";
+pub(crate) const FIELD_MASK: &str = "google.protobuf.FieldMask";
+pub(crate) const DURATION: &str = "google.protobuf.Duration";
 
 /// The service whose package holds every service's operation methods:
 /// `origincloud.longrunning.{version}`. Each service serves them at its own
@@ -68,10 +68,10 @@ const DURATION_TYPE: &str = "::origincloud_core::protobuf::Duration";
 const DURATION_FORMAT: &str = "\n\nSuch as `30s` or `1m`.";
 
 // `google.api.FieldBehavior` values.
-const REQUIRED: i32 = 2;
-const OUTPUT_ONLY: i32 = 3;
-const IMMUTABLE: i32 = 5;
-const IDENTIFIER: i32 = 8;
+pub(crate) const REQUIRED: i32 = 2;
+pub(crate) const OUTPUT_ONLY: i32 = 3;
+pub(crate) const IMMUTABLE: i32 = 5;
+pub(crate) const IDENTIFIER: i32 = 8;
 
 /// The generated commands of one group, and the methods left without one.
 pub struct Generated {
@@ -128,14 +128,14 @@ struct Command {
 }
 
 /// The service a package names: `pvs` for `origincloud.pvs.v1beta1`.
-fn service_of(package: &str) -> &str {
+pub(crate) fn service_of(package: &str) -> &str {
     package.split('.').nth(1).unwrap_or_default()
 }
 
 /// The Rust SDK module of a package: `::origincloud_pvs::v1beta1`, and
 /// `::origincloud_core::longrunning::v1beta1` for the operations package,
 /// which the core crate holds.
-fn sdk_module(package: &str) -> String {
+pub(crate) fn sdk_module(package: &str) -> String {
     let version = package.rsplit('.').next().unwrap_or_default();
     let service = service_of(package);
     if service == OPERATIONS {
@@ -146,7 +146,7 @@ fn sdk_module(package: &str) -> String {
 }
 
 /// The client type of a service: `VolumeClient` for `VolumeService`.
-fn client_name(service: &prost_reflect::ServiceDescriptor) -> String {
+pub(crate) fn client_name(service: &prost_reflect::ServiceDescriptor) -> String {
     format!(
         "{}Client",
         service
@@ -157,7 +157,10 @@ fn client_name(service: &prost_reflect::ServiceDescriptor) -> String {
 }
 
 /// The services of `package`, in file order.
-fn services_of(pool: &DescriptorPool, package: &str) -> Vec<prost_reflect::ServiceDescriptor> {
+pub(crate) fn services_of(
+    pool: &DescriptorPool,
+    package: &str,
+) -> Vec<prost_reflect::ServiceDescriptor> {
     let mut files: Vec<_> = pool
         .files()
         .filter(|f| f.package_name() == package)
@@ -327,7 +330,7 @@ pub fn generate(
 }
 
 /// `code`, formatted, once it parses.
-fn unparse(code: &str) -> Result<String> {
+pub(crate) fn unparse(code: &str) -> Result<String> {
     let file = syn::parse_file(code)
         .map_err(|e| anyhow::anyhow!("the generated code doesn't parse: {e}\n{code}"))?;
     Ok(prettyplease::unparse(&file))
@@ -590,7 +593,7 @@ fn resources(pool: &DescriptorPool) -> BTreeMap<String, Resource> {
     out
 }
 
-fn message_extension(
+pub(crate) fn message_extension(
     pool: &DescriptorPool,
     options: &DynamicMessage,
     name: &str,
@@ -605,7 +608,7 @@ fn message_extension(
     }
 }
 
-fn behaviors(pool: &DescriptorPool, field: &FieldDescriptor) -> Vec<i32> {
+pub(crate) fn behaviors(pool: &DescriptorPool, field: &FieldDescriptor) -> Vec<i32> {
     let Some(ext) = pool.get_extension_by_name("google.api.field_behavior") else {
         return Vec::new();
     };
@@ -691,7 +694,10 @@ fn pattern_of_template(template: &str) -> Option<String> {
 
 /// The message an operation's result is, for a method answering with an
 /// operation.
-fn operation_result(pool: &DescriptorPool, m: &MethodDescriptor) -> Option<MessageDescriptor> {
+pub(crate) fn operation_result(
+    pool: &DescriptorPool,
+    m: &MethodDescriptor,
+) -> Option<MessageDescriptor> {
     let info = message_extension(pool, &m.options(), "google.longrunning.operation_info")?;
     let name = info
         .get_field_by_name("response_type")?
@@ -848,7 +854,7 @@ fn kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
 
 /// The path of a type relative to its package's module: `Volume`, or
 /// `volume::State` for one nested in a message.
-fn rust_type_path(package: &str, full_name: &str) -> String {
+pub(crate) fn rust_type_path(package: &str, full_name: &str) -> String {
     let local = full_name
         .strip_prefix(package)
         .and_then(|rest| rest.strip_prefix('.'))
