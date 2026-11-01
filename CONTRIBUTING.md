@@ -94,15 +94,33 @@ requires of nested and repeated fields, which the flags' one-line help says
 and the command repeats on standard error, naming the keys it resets;
 `--no-{field}` empties a field that isn't required. A repeated scalar or
 resource name is a repeatable flag, refusing an element given twice in an
-`UNORDERED_LIST`. A field the generator can't make a flag of, such as a
-oneof or a map other than `map<string, string>`, fails generation, naming
-the method and the field: nothing is left out silently.
+`UNORDERED_LIST`.
+
+A field with explicit presence (proto3 `optional`) is an `Option` flag, and
+a key of a nested message the same: sent when given, zero included, left
+out when not; in an update, `--no-{field}` unsets it, naming it in the mask
+as setting it does. A oneof of a request or of the resource it carries is
+one flag per member, in a clap group allowing one at most; a member that is
+a message has both of a message field's forms, both in the group. A oneof
+whose members are all required is a choice a create must make (a required
+group); one mixing required and optional members breaks the API's rules and
+fails generation. The request carries the member given; an update names
+every member in the mask, so that the one it sets replaces whichever was
+set, and empties an optional oneof with `--no-{oneof}`. The MCP tools don't
+support oneofs yet: a method with one has no tool, which their coverage
+test reports. A oneof inside a nested message is set through the JSON form, which
+refuses two of its members. A field the generator can't make a flag of,
+such as a map other than `map<string, string>` or an optional resource
+name, fails generation, naming the method and the field: nothing is left
+out silently.
 
 The published API doesn't have such fields yet, so the tests use a service
 of their own, `testing/scratch/`: a firewall whose rules are a repeated
 nested message, with repeated scalars and references, a list whose order the
-API doesn't keep, a nested message, timestamps, a struct, and a message
-nested two levels deep, with enums, maps, lists and references of its own.
+API doesn't keep, a nested message, timestamps, a struct, optional fields,
+oneofs of the request, of the resource and of a nested message, and a
+message nested two levels deep, with enums, maps, lists and references of
+its own.
 `scripts/generate.sh` generates its SDK crate's code with the Rust SDK's own
 generator, at the commit `Cargo.lock` pins, into
 `testing/scratch/sdk/src/generated/`, the crate's manifest from the one that

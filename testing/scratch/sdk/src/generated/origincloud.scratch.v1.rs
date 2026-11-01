@@ -38,6 +38,38 @@ pub struct Firewall {
     /// Data of your own about the firewall.
     #[prost(message, optional, tag = "10")]
     pub metadata: ::core::option::Option<::origincloud_core::protobuf::Struct>,
+    /// The most connections the firewall tracks at once; no limit when unset.
+    #[prost(int32, optional, tag = "11")]
+    pub max_connections: ::core::option::Option<i32>,
+    /// Whether the firewall refuses what no rule matches; the zone's default
+    /// when unset.
+    #[prost(bool, optional, tag = "12")]
+    pub strict: ::core::option::Option<bool>,
+    /// The protocol of a rule that names none; TCP when unset.
+    #[prost(enumeration = "rule::Protocol", optional, tag = "13")]
+    pub default_protocol: ::core::option::Option<i32>,
+    /// A note of your own; none when unset.
+    #[prost(string, optional, tag = "14")]
+    pub note: ::core::option::Option<::prost::alloc::string::String>,
+    /// Where the firewall sends a copy of what it denies.
+    #[prost(oneof = "firewall::Mirror", tags = "15, 16, 17")]
+    pub mirror: ::core::option::Option<firewall::Mirror>,
+}
+/// Nested message and enum types in `Firewall`.
+pub mod firewall {
+    /// Where the firewall sends a copy of what it denies.
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Mirror {
+        /// A network that receives the copies.
+        #[prost(string, tag = "15")]
+        MirrorNetwork(::prost::alloc::string::String),
+        /// An address that receives the copies, such as `10.0.0.9:4789`.
+        #[prost(string, tag = "16")]
+        MirrorAddress(::prost::alloc::string::String),
+        /// A log that receives them.
+        #[prost(message, tag = "17")]
+        MirrorLog(super::Logging),
+    }
 }
 /// A network a firewall can guard.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -74,6 +106,10 @@ pub struct Rule {
     /// When the rule stops matching.
     #[prost(message, optional, tag = "8")]
     pub not_after: ::core::option::Option<::origincloud_core::protobuf::Timestamp>,
+    /// The rule's priority among rules of the same port; the order given when
+    /// unset.
+    #[prost(int32, optional, tag = "9")]
+    pub priority: ::core::option::Option<i32>,
 }
 /// Nested message and enum types in `Rule`.
 pub mod rule {
@@ -142,6 +178,22 @@ pub struct Match {
         ::prost::alloc::string::String,
         i32,
     >,
+    /// Where the packets come from.
+    #[prost(oneof = "r#match::Source", tags = "6, 7")]
+    pub source: ::core::option::Option<r#match::Source>,
+}
+/// Nested message and enum types in `Match`.
+pub mod r#match {
+    /// Where the packets come from.
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Source {
+        /// A CIDR block, such as `10.0.0.0/8`.
+        #[prost(string, tag = "6")]
+        SourceCidr(::prost::alloc::string::String),
+        /// A tag the sending instances have.
+        #[prost(string, tag = "7")]
+        SourceTag(::prost::alloc::string::String),
+    }
 }
 /// A header and its value.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -179,6 +231,22 @@ pub struct CreateFirewallRequest {
     /// The firewall to create.
     #[prost(message, optional, tag = "2")]
     pub firewall: ::core::option::Option<Firewall>,
+    /// Who hears when the firewall is ready: exactly one.
+    #[prost(oneof = "create_firewall_request::Notify", tags = "3, 4")]
+    pub notify: ::core::option::Option<create_firewall_request::Notify>,
+}
+/// Nested message and enum types in `CreateFirewallRequest`.
+pub mod create_firewall_request {
+    /// Who hears when the firewall is ready: exactly one.
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Notify {
+        /// An email address.
+        #[prost(string, tag = "3")]
+        NotifyEmail(::prost::alloc::string::String),
+        /// A number of seconds to wait for the firewall instead, then answer.
+        #[prost(int32, tag = "4")]
+        NotifyAfterSeconds(i32),
+    }
 }
 /// The request for UpdateFirewall.
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -204,6 +272,9 @@ impl serde::Serialize for CreateFirewallRequest {
         if self.firewall.is_some() {
             len += 1;
         }
+        if self.notify.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer
             .serialize_struct("origincloud.scratch.v1.CreateFirewallRequest", len)?;
         if !self.parent.is_empty() {
@@ -211,6 +282,16 @@ impl serde::Serialize for CreateFirewallRequest {
         }
         if let Some(v) = self.firewall.as_ref() {
             struct_ser.serialize_field("firewall", v)?;
+        }
+        if let Some(v) = self.notify.as_ref() {
+            match v {
+                create_firewall_request::Notify::NotifyEmail(v) => {
+                    struct_ser.serialize_field("notifyEmail", v)?;
+                }
+                create_firewall_request::Notify::NotifyAfterSeconds(v) => {
+                    struct_ser.serialize_field("notifyAfterSeconds", v)?;
+                }
+            }
         }
         struct_ser.end()
     }
@@ -221,11 +302,20 @@ impl<'de> serde::Deserialize<'de> for CreateFirewallRequest {
     where
         D: serde::Deserializer<'de>,
     {
-        const FIELDS: &[&str] = &["parent", "firewall"];
+        const FIELDS: &[&str] = &[
+            "parent",
+            "firewall",
+            "notify_email",
+            "notifyEmail",
+            "notify_after_seconds",
+            "notifyAfterSeconds",
+        ];
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Parent,
             Firewall,
+            NotifyEmail,
+            NotifyAfterSeconds,
             __SkipField__,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -255,6 +345,12 @@ impl<'de> serde::Deserialize<'de> for CreateFirewallRequest {
                         match value {
                             "parent" => Ok(GeneratedField::Parent),
                             "firewall" => Ok(GeneratedField::Firewall),
+                            "notifyEmail" | "notify_email" => {
+                                Ok(GeneratedField::NotifyEmail)
+                            }
+                            "notifyAfterSeconds" | "notify_after_seconds" => {
+                                Ok(GeneratedField::NotifyAfterSeconds)
+                            }
                             _ => Ok(GeneratedField::__SkipField__),
                         }
                     }
@@ -281,6 +377,7 @@ impl<'de> serde::Deserialize<'de> for CreateFirewallRequest {
             {
                 let mut parent__ = None;
                 let mut firewall__ = None;
+                let mut notify__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Parent => {
@@ -295,6 +392,32 @@ impl<'de> serde::Deserialize<'de> for CreateFirewallRequest {
                             }
                             firewall__ = map_.next_value()?;
                         }
+                        GeneratedField::NotifyEmail => {
+                            if notify__.is_some() {
+                                return Err(
+                                    serde::de::Error::duplicate_field("notifyEmail"),
+                                );
+                            }
+                            notify__ = map_
+                                .next_value::<::std::option::Option<_>>()?
+                                .map(create_firewall_request::Notify::NotifyEmail);
+                        }
+                        GeneratedField::NotifyAfterSeconds => {
+                            if notify__.is_some() {
+                                return Err(
+                                    serde::de::Error::duplicate_field("notifyAfterSeconds"),
+                                );
+                            }
+                            notify__ = map_
+                                .next_value::<
+                                    ::std::option::Option<
+                                        ::pbjson::private::NumberDeserialize<_>,
+                                    >,
+                                >()?
+                                .map(|x| create_firewall_request::Notify::NotifyAfterSeconds(
+                                    x.0,
+                                ));
+                        }
                         GeneratedField::__SkipField__ => {
                             let _ = map_.next_value::<serde::de::IgnoredAny>()?;
                         }
@@ -303,6 +426,7 @@ impl<'de> serde::Deserialize<'de> for CreateFirewallRequest {
                 Ok(CreateFirewallRequest {
                     parent: parent__.unwrap_or_default(),
                     firewall: firewall__,
+                    notify: notify__,
                 })
             }
         }
@@ -352,6 +476,21 @@ impl serde::Serialize for Firewall {
         if self.metadata.is_some() {
             len += 1;
         }
+        if self.max_connections.is_some() {
+            len += 1;
+        }
+        if self.strict.is_some() {
+            len += 1;
+        }
+        if self.default_protocol.is_some() {
+            len += 1;
+        }
+        if self.note.is_some() {
+            len += 1;
+        }
+        if self.mirror.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer
             .serialize_struct("origincloud.scratch.v1.Firewall", len)?;
         if !self.name.is_empty() {
@@ -384,6 +523,35 @@ impl serde::Serialize for Firewall {
         if let Some(v) = self.metadata.as_ref() {
             struct_ser.serialize_field("metadata", v)?;
         }
+        if let Some(v) = self.max_connections.as_ref() {
+            struct_ser.serialize_field("maxConnections", v)?;
+        }
+        if let Some(v) = self.strict.as_ref() {
+            struct_ser.serialize_field("strict", v)?;
+        }
+        if let Some(v) = self.default_protocol.as_ref() {
+            let v = rule::Protocol::try_from(*v)
+                .map_err(|_| serde::ser::Error::custom(
+                    format!("Invalid variant {}", * v),
+                ))?;
+            struct_ser.serialize_field("defaultProtocol", &v)?;
+        }
+        if let Some(v) = self.note.as_ref() {
+            struct_ser.serialize_field("note", v)?;
+        }
+        if let Some(v) = self.mirror.as_ref() {
+            match v {
+                firewall::Mirror::MirrorNetwork(v) => {
+                    struct_ser.serialize_field("mirrorNetwork", v)?;
+                }
+                firewall::Mirror::MirrorAddress(v) => {
+                    struct_ser.serialize_field("mirrorAddress", v)?;
+                }
+                firewall::Mirror::MirrorLog(v) => {
+                    struct_ser.serialize_field("mirrorLog", v)?;
+                }
+            }
+        }
         struct_ser.end()
     }
 }
@@ -406,6 +574,18 @@ impl<'de> serde::Deserialize<'de> for Firewall {
             "expire_time",
             "expireTime",
             "metadata",
+            "max_connections",
+            "maxConnections",
+            "strict",
+            "default_protocol",
+            "defaultProtocol",
+            "note",
+            "mirror_network",
+            "mirrorNetwork",
+            "mirror_address",
+            "mirrorAddress",
+            "mirror_log",
+            "mirrorLog",
         ];
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
@@ -419,6 +599,13 @@ impl<'de> serde::Deserialize<'de> for Firewall {
             CreateTime,
             ExpireTime,
             Metadata,
+            MaxConnections,
+            Strict,
+            DefaultProtocol,
+            Note,
+            MirrorNetwork,
+            MirrorAddress,
+            MirrorLog,
             __SkipField__,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -460,6 +647,21 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                                 Ok(GeneratedField::ExpireTime)
                             }
                             "metadata" => Ok(GeneratedField::Metadata),
+                            "maxConnections" | "max_connections" => {
+                                Ok(GeneratedField::MaxConnections)
+                            }
+                            "strict" => Ok(GeneratedField::Strict),
+                            "defaultProtocol" | "default_protocol" => {
+                                Ok(GeneratedField::DefaultProtocol)
+                            }
+                            "note" => Ok(GeneratedField::Note),
+                            "mirrorNetwork" | "mirror_network" => {
+                                Ok(GeneratedField::MirrorNetwork)
+                            }
+                            "mirrorAddress" | "mirror_address" => {
+                                Ok(GeneratedField::MirrorAddress)
+                            }
+                            "mirrorLog" | "mirror_log" => Ok(GeneratedField::MirrorLog),
                             _ => Ok(GeneratedField::__SkipField__),
                         }
                     }
@@ -490,6 +692,11 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                 let mut create_time__ = None;
                 let mut expire_time__ = None;
                 let mut metadata__ = None;
+                let mut max_connections__ = None;
+                let mut strict__ = None;
+                let mut default_protocol__ = None;
+                let mut note__ = None;
+                let mut mirror__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Name => {
@@ -562,6 +769,70 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                             }
                             metadata__ = map_.next_value()?;
                         }
+                        GeneratedField::MaxConnections => {
+                            if max_connections__.is_some() {
+                                return Err(
+                                    serde::de::Error::duplicate_field("maxConnections"),
+                                );
+                            }
+                            max_connections__ = map_
+                                .next_value::<
+                                    ::std::option::Option<
+                                        ::pbjson::private::NumberDeserialize<_>,
+                                    >,
+                                >()?
+                                .map(|x| x.0);
+                        }
+                        GeneratedField::Strict => {
+                            if strict__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("strict"));
+                            }
+                            strict__ = map_.next_value()?;
+                        }
+                        GeneratedField::DefaultProtocol => {
+                            if default_protocol__.is_some() {
+                                return Err(
+                                    serde::de::Error::duplicate_field("defaultProtocol"),
+                                );
+                            }
+                            default_protocol__ = map_
+                                .next_value::<::std::option::Option<rule::Protocol>>()?
+                                .map(|x| x as i32);
+                        }
+                        GeneratedField::Note => {
+                            if note__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("note"));
+                            }
+                            note__ = map_.next_value()?;
+                        }
+                        GeneratedField::MirrorNetwork => {
+                            if mirror__.is_some() {
+                                return Err(
+                                    serde::de::Error::duplicate_field("mirrorNetwork"),
+                                );
+                            }
+                            mirror__ = map_
+                                .next_value::<::std::option::Option<_>>()?
+                                .map(firewall::Mirror::MirrorNetwork);
+                        }
+                        GeneratedField::MirrorAddress => {
+                            if mirror__.is_some() {
+                                return Err(
+                                    serde::de::Error::duplicate_field("mirrorAddress"),
+                                );
+                            }
+                            mirror__ = map_
+                                .next_value::<::std::option::Option<_>>()?
+                                .map(firewall::Mirror::MirrorAddress);
+                        }
+                        GeneratedField::MirrorLog => {
+                            if mirror__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("mirrorLog"));
+                            }
+                            mirror__ = map_
+                                .next_value::<::std::option::Option<_>>()?
+                                .map(firewall::Mirror::MirrorLog);
+                        }
                         GeneratedField::__SkipField__ => {
                             let _ = map_.next_value::<serde::de::IgnoredAny>()?;
                         }
@@ -578,6 +849,11 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                     create_time: create_time__.unwrap_or_default(),
                     expire_time: expire_time__,
                     metadata: metadata__,
+                    max_connections: max_connections__,
+                    strict: strict__,
+                    default_protocol: default_protocol__,
+                    note: note__,
+                    mirror: mirror__,
                 })
             }
         }
@@ -967,6 +1243,9 @@ impl serde::Serialize for Match {
         if !self.port_protocols.is_empty() {
             len += 1;
         }
+        if self.source.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer
             .serialize_struct("origincloud.scratch.v1.Match", len)?;
         if !self.headers.is_empty() {
@@ -1006,6 +1285,16 @@ impl serde::Serialize for Match {
                 .collect::<std::result::Result<_, _>>()?;
             struct_ser.serialize_field("portProtocols", &v)?;
         }
+        if let Some(v) = self.source.as_ref() {
+            match v {
+                r#match::Source::SourceCidr(v) => {
+                    struct_ser.serialize_field("sourceCidr", v)?;
+                }
+                r#match::Source::SourceTag(v) => {
+                    struct_ser.serialize_field("sourceTag", v)?;
+                }
+            }
+        }
         struct_ser.end()
     }
 }
@@ -1022,6 +1311,10 @@ impl<'de> serde::Deserialize<'de> for Match {
             "protocols",
             "port_protocols",
             "portProtocols",
+            "source_cidr",
+            "sourceCidr",
+            "source_tag",
+            "sourceTag",
         ];
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
@@ -1030,6 +1323,8 @@ impl<'de> serde::Deserialize<'de> for Match {
             Methods,
             Protocols,
             PortProtocols,
+            SourceCidr,
+            SourceTag,
             __SkipField__,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -1064,6 +1359,10 @@ impl<'de> serde::Deserialize<'de> for Match {
                             "portProtocols" | "port_protocols" => {
                                 Ok(GeneratedField::PortProtocols)
                             }
+                            "sourceCidr" | "source_cidr" => {
+                                Ok(GeneratedField::SourceCidr)
+                            }
+                            "sourceTag" | "source_tag" => Ok(GeneratedField::SourceTag),
                             _ => Ok(GeneratedField::__SkipField__),
                         }
                     }
@@ -1089,6 +1388,7 @@ impl<'de> serde::Deserialize<'de> for Match {
                 let mut methods__ = None;
                 let mut protocols__ = None;
                 let mut port_protocols__ = None;
+                let mut source__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Headers => {
@@ -1137,6 +1437,22 @@ impl<'de> serde::Deserialize<'de> for Match {
                                     .collect(),
                             );
                         }
+                        GeneratedField::SourceCidr => {
+                            if source__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sourceCidr"));
+                            }
+                            source__ = map_
+                                .next_value::<::std::option::Option<_>>()?
+                                .map(r#match::Source::SourceCidr);
+                        }
+                        GeneratedField::SourceTag => {
+                            if source__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("sourceTag"));
+                            }
+                            source__ = map_
+                                .next_value::<::std::option::Option<_>>()?
+                                .map(r#match::Source::SourceTag);
+                        }
                         GeneratedField::__SkipField__ => {
                             let _ = map_.next_value::<serde::de::IgnoredAny>()?;
                         }
@@ -1148,6 +1464,7 @@ impl<'de> serde::Deserialize<'de> for Match {
                     methods: methods__.unwrap_or_default(),
                     protocols: protocols__.unwrap_or_default(),
                     port_protocols: port_protocols__.unwrap_or_default(),
+                    source: source__,
                 })
             }
         }
@@ -1291,6 +1608,9 @@ impl serde::Serialize for Rule {
         if self.not_after.is_some() {
             len += 1;
         }
+        if self.priority.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer
             .serialize_struct("origincloud.scratch.v1.Rule", len)?;
         if self.protocol != 0 {
@@ -1321,6 +1641,9 @@ impl serde::Serialize for Rule {
         if let Some(v) = self.not_after.as_ref() {
             struct_ser.serialize_field("notAfter", v)?;
         }
+        if let Some(v) = self.priority.as_ref() {
+            struct_ser.serialize_field("priority", v)?;
+        }
         struct_ser.end()
     }
 }
@@ -1341,6 +1664,7 @@ impl<'de> serde::Deserialize<'de> for Rule {
             "match",
             "not_after",
             "notAfter",
+            "priority",
         ];
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
@@ -1352,6 +1676,7 @@ impl<'de> serde::Deserialize<'de> for Rule {
             Allow,
             Match,
             NotAfter,
+            Priority,
             __SkipField__,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -1389,6 +1714,7 @@ impl<'de> serde::Deserialize<'de> for Rule {
                             "allow" => Ok(GeneratedField::Allow),
                             "match" => Ok(GeneratedField::Match),
                             "notAfter" | "not_after" => Ok(GeneratedField::NotAfter),
+                            "priority" => Ok(GeneratedField::Priority),
                             _ => Ok(GeneratedField::__SkipField__),
                         }
                     }
@@ -1417,6 +1743,7 @@ impl<'de> serde::Deserialize<'de> for Rule {
                 let mut allow__ = None;
                 let mut r#match__ = None;
                 let mut not_after__ = None;
+                let mut priority__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Protocol => {
@@ -1475,6 +1802,18 @@ impl<'de> serde::Deserialize<'de> for Rule {
                             }
                             not_after__ = map_.next_value()?;
                         }
+                        GeneratedField::Priority => {
+                            if priority__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("priority"));
+                            }
+                            priority__ = map_
+                                .next_value::<
+                                    ::std::option::Option<
+                                        ::pbjson::private::NumberDeserialize<_>,
+                                    >,
+                                >()?
+                                .map(|x| x.0);
+                        }
                         GeneratedField::__SkipField__ => {
                             let _ = map_.next_value::<serde::de::IgnoredAny>()?;
                         }
@@ -1489,6 +1828,7 @@ impl<'de> serde::Deserialize<'de> for Rule {
                     allow: allow__.unwrap_or_default(),
                     r#match: r#match__,
                     not_after: not_after__,
+                    priority: priority__,
                 })
             }
         }

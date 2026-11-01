@@ -45,6 +45,8 @@ async fn a_create_sends_nested_and_repeated_fields() {
         &server,
         &[
             "create-firewall",
+            "--notify-email",
+            "ops@example.com",
             "--project",
             "p",
             "--zone",
@@ -119,6 +121,8 @@ async fn a_json_flag_sets_a_field_two_levels_deep() {
         &server,
         &[
             "create-firewall",
+            "--notify-email",
+            "ops@example.com",
             "--project",
             "p",
             "--zone",
@@ -146,7 +150,15 @@ async fn a_json_flag_sets_a_field_two_levels_deep() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_json_flag_refuses_a_field_the_message_doesnt_have() {
     let server = recording(echo).await;
-    let create = ["create-firewall", "--project", "p", "--zone", "z"];
+    let create = [
+        "create-firewall",
+        "--project",
+        "p",
+        "--zone",
+        "z",
+        "--notify-email",
+        "ops@example.com",
+    ];
     for (flag, value, says) in [
         (
             "--rules-json",
@@ -220,7 +232,15 @@ async fn a_json_flag_refuses_a_field_the_message_doesnt_have() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_bad_nested_value_is_refused_before_any_request() {
     let server = recording(echo).await;
-    let create = ["create-firewall", "--project", "p", "--zone", "z"];
+    let create = [
+        "create-firewall",
+        "--project",
+        "p",
+        "--zone",
+        "z",
+        "--notify-email",
+        "ops@example.com",
+    ];
     for (args, says) in [
         (&["--rule", "port=443"][..], "protocol is required"),
         (&["--rule", "protocol=ICMP"], "isn't one of TCP, UDP"),
@@ -398,7 +418,17 @@ async fn refused(server: &Recording, args: &[&str], says: &str) {
     assert!(stderr.contains(says), "{says}: {stderr}");
 }
 
-const CREATE: [&str; 5] = ["create-firewall", "--project", "p", "--zone", "z"];
+/// A create without the choice of whom to notify, which `CREATE` makes.
+const BASE: [&str; 5] = ["create-firewall", "--project", "p", "--zone", "z"];
+const CREATE: [&str; 7] = [
+    "create-firewall",
+    "--project",
+    "p",
+    "--zone",
+    "z",
+    "--notify-email",
+    "ops@example.com",
+];
 
 /// A JSON value's enums are checked as their KEY=VALUE form checks them,
 /// in a field, a list and a map: a name of the enum's, or its number, never
@@ -726,4 +756,272 @@ fn the_one_line_help_says_a_field_is_replaced_whole() {
     assert!(update
         .get_arguments()
         .any(|a| a.get_long() == Some("no-logging")));
+}
+
+/// A field with explicit presence (proto3 `optional`) is sent when given,
+/// zero or empty included, and left out when not; an update sets it or,
+/// with `--no-…`, unsets it, naming it in the mask either way. A key of a
+/// nested message works the same.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_optional_field_is_set_or_unset() {
+    let server = recording(echo).await;
+    success(
+        &scratch(
+            &server,
+            &[
+                &CREATE[..],
+                &[
+                    "--rule",
+                    "protocol=TCP,priority=0",
+                    "--rule",
+                    "protocol=UDP",
+                    "--max-connections",
+                    "0",
+                    "--strict",
+                    "false",
+                    "--default-protocol",
+                    "UDP",
+                    "--note",
+                    "",
+                ],
+            ]
+            .concat(),
+        )
+        .await,
+    );
+    success(
+        &scratch(
+            &server,
+            &[&CREATE[..], &["--rule", "protocol=TCP"]].concat(),
+        )
+        .await,
+    );
+    let given = body(&server.requests()[0]);
+    assert_eq!(given["maxConnections"], 0);
+    assert_eq!(given["strict"], false);
+    assert_eq!(given["defaultProtocol"], "UDP");
+    assert_eq!(given["note"], "");
+    assert_eq!(
+        given["rules"],
+        json!([{"protocol": "TCP", "priority": 0}, {"protocol": "UDP"}])
+    );
+    let left_out = body(&server.requests()[1]);
+    for field in ["maxConnections", "strict", "defaultProtocol", "note"] {
+        assert!(left_out.get(field).is_none(), "{field}: {left_out}");
+    }
+
+    let update = |extra: &[&'static str]| [&["update-firewall"][..], &FIREWALL, extra].concat();
+    success(&scratch(&server, &update(&["--max-connections", "0"])).await);
+    success(&scratch(&server, &update(&["--no-max-connections", "--no-strict"])).await);
+    let requests = server.requests();
+    let mask = |r: &Received| {
+        let mut paths: Vec<String> = r
+            .query_values("updateMask")
+            .iter()
+            .flat_map(|v| v.split(',').map(str::to_owned).collect::<Vec<_>>())
+            .collect();
+        paths.sort();
+        paths
+    };
+    assert_eq!(mask(&requests[2]), ["maxConnections"]);
+    assert_eq!(body(&requests[2])["maxConnections"], 0);
+    assert_eq!(mask(&requests[3]), ["maxConnections", "strict"]);
+    let unset = body(&requests[3]);
+    assert!(
+        unset.get("maxConnections").is_none() && unset.get("strict").is_none(),
+        "{unset}"
+    );
+
+    refused(
+        &server,
+        &update(&["--max-connections", "5", "--no-max-connections"]),
+        "cannot be used with",
+    )
+    .await;
+    assert_eq!(server.requests().len(), 4);
+}
+
+/// A oneof's members are one flag each, of which at most one is given, or
+/// exactly one when they are all required; the request carries the one
+/// given. An update names every member in the mask, so that the one it sets
+/// replaces whichever was set, and `--no-{oneof}` sets none. A member that
+/// is a message has both forms of a message field.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_oneof_is_one_flag_of_its_members() {
+    let server = recording(echo).await;
+    for extra in [
+        &[
+            "--mirror-network",
+            "n-1",
+            "--notify-email",
+            "ops@example.com",
+        ][..],
+        &[
+            "--mirror-address",
+            "10.0.0.9:4789",
+            "--notify-email",
+            "ops@example.com",
+        ],
+        &[
+            "--mirror-log",
+            "enabled=true",
+            "--notify-after-seconds",
+            "0",
+        ],
+        &[
+            "--mirror-log-json",
+            r#"{"samplePercent": 5}"#,
+            "--notify-after-seconds",
+            "30",
+        ],
+    ] {
+        let args = [&BASE[..], &["--rule", "protocol=TCP"], extra].concat();
+        success(&scratch(&server, &args).await);
+    }
+    let requests = server.requests();
+    assert_eq!(
+        body(&requests[0])["mirrorNetwork"],
+        "projects/p/zones/z/networks/n-1"
+    );
+    assert_eq!(body(&requests[1])["mirrorAddress"], "10.0.0.9:4789");
+    assert_eq!(requests[1].query_values("notifyEmail"), ["ops@example.com"]);
+    assert_eq!(body(&requests[2])["mirrorLog"], json!({"enabled": true}));
+    assert_eq!(requests[2].query_values("notifyAfterSeconds"), ["0"]);
+    assert_eq!(body(&requests[3])["mirrorLog"], json!({"samplePercent": 5}));
+    assert_eq!(requests[3].query_values("notifyAfterSeconds"), ["30"]);
+    for (i, r) in requests.iter().enumerate() {
+        let sent = body(r);
+        let members = ["mirrorNetwork", "mirrorAddress", "mirrorLog"]
+            .iter()
+            .filter(|m| sent.get(**m).is_some())
+            .count();
+        assert_eq!(members, 1, "{i}: {sent}");
+    }
+
+    // An update: every member in the mask, the one given in the body; a
+    // message member says which keys it resets; `--no-mirror` empties it.
+    let update = |extra: &[&'static str]| [&["update-firewall"][..], &FIREWALL, extra].concat();
+    let every = ["mirrorAddress", "mirrorLog", "mirrorNetwork"];
+    let mask = |r: &Received| {
+        let mut paths: Vec<String> = r
+            .query_values("updateMask")
+            .iter()
+            .flat_map(|v| v.split(',').map(str::to_owned).collect::<Vec<_>>())
+            .collect();
+        paths.sort();
+        paths
+    };
+    success(&scratch(&server, &update(&["--mirror-address", "10.0.0.9:4789"])).await);
+    let output = scratch(&server, &update(&["--mirror-log", "enabled=true"])).await;
+    success(&output);
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains(
+            "--mirror-log leaves out sample_percent: the update replaces mirror_log whole, so it resets them."
+        ),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    success(&scratch(&server, &update(&["--no-mirror"])).await);
+    let requests = server.requests();
+    for r in &requests[4..7] {
+        assert_eq!(mask(r), every);
+    }
+    assert_eq!(
+        body(&requests[4]),
+        json!({"name": "projects/p/zones/z/firewalls/f", "mirrorAddress": "10.0.0.9:4789"})
+    );
+    assert_eq!(
+        body(&requests[5]),
+        json!({"name": "projects/p/zones/z/firewalls/f", "mirrorLog": {"enabled": true}})
+    );
+    assert_eq!(
+        body(&requests[6]),
+        json!({"name": "projects/p/zones/z/firewalls/f"})
+    );
+
+    for (args, says) in [
+        (
+            [&CREATE[..], &["--rule", "protocol=TCP", "--mirror-address", "a", "--mirror-network", "n"]].concat(),
+            "cannot be used with",
+        ),
+        (
+            [&CREATE[..], &["--rule", "protocol=TCP", "--mirror-address", "a", "--mirror-log-json", "{}"]].concat(),
+            "cannot be used with",
+        ),
+        (
+            [&BASE[..], &["--rule", "protocol=TCP", "--notify-email", "a", "--notify-after-seconds", "1"]].concat(),
+            "cannot be used with",
+        ),
+        // A choice of exactly one: a create must make it.
+        (
+            [&BASE[..], &["--rule", "protocol=TCP"]].concat(),
+            "the following required arguments were not provided",
+        ),
+        (update(&["--mirror-address", "a", "--mirror-log", "enabled=true"]), "cannot be used with"),
+        (update(&["--mirror-address", "a", "--no-mirror"]), "cannot be used with"),
+        (
+            [
+                &CREATE[..],
+                &[
+                    "--rules-json",
+                    r#"[{"protocol": "TCP", "match": {"sourceCidr": "10.0.0.0/8", "sourceTag": "web"}}]"#,
+                ],
+            ]
+            .concat(),
+            "[0].match.sourceTag and [0].match.sourceCidr are both of Match's choice source: give one",
+        ),
+    ] {
+        refused(&server, &args, says).await;
+    }
+    assert_eq!(server.requests().len(), 7);
+
+    // A member given as `null` is no member: it is left out.
+    success(
+        &scratch(
+            &server,
+            &[
+                &CREATE[..],
+                &[
+                    "--rules-json",
+                    r#"[{"protocol": "TCP", "match": {"sourceCidr": "10.0.0.0/8", "sourceTag": null}}]"#,
+                ],
+            ]
+            .concat(),
+        )
+        .await,
+    );
+    assert_eq!(
+        body(&server.requests()[7])["rules"],
+        json!([{"protocol": "TCP", "match": {"sourceCidr": "10.0.0.0/8"}}])
+    );
+}
+
+/// The help of a oneof's flags and an optional field's `--no-` flag.
+#[test]
+fn the_help_of_choices_and_optional_fields() {
+    let root = origincloud_cli::command();
+    let group = root.find_subcommand("scratch").unwrap();
+    let arg = |command: &str, flag: &str| {
+        group
+            .find_subcommand(command)
+            .unwrap()
+            .get_arguments()
+            .find(|a| a.get_long() == Some(flag))
+            .unwrap_or_else(|| panic!("{command} has no --{flag}"))
+            .clone()
+    };
+    let help = |a: &clap::Arg| a.get_help().map(ToString::to_string).unwrap_or_default();
+    let long = |a: &clap::Arg| {
+        a.get_long_help()
+            .map(ToString::to_string)
+            .unwrap_or_default()
+    };
+    assert_eq!(
+        help(&arg("update-firewall", "no-strict")),
+        "Unsets `--strict`; the API's default applies"
+    );
+    assert!(help(&arg("update-firewall", "mirror-log")).contains("replaced whole"));
+    assert!(long(&arg("create-firewall", "notify-email")).contains("give exactly one"));
+    assert!(long(&arg("create-firewall", "mirror-address")).contains("give at most one"));
+    assert!(long(&arg("update-firewall", "mirror-address")).contains("`--no-mirror` sets none"));
 }

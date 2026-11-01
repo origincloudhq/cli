@@ -599,12 +599,19 @@ mod tests {
     }
 
     fn generated(roots: &[&Path]) -> Result<BTreeMap<PathBuf, Vec<u8>>> {
+        generated_with(roots, &policy::Policy::default())
+    }
+
+    fn generated_with(
+        roots: &[&Path],
+        policy: &policy::Policy,
+    ) -> Result<BTreeMap<PathBuf, Vec<u8>>> {
         let compiled = compile(roots, fixtures())?;
         let regional = services(&compiled.pool)?
             .into_keys()
             .map(|s| (s, true))
             .collect();
-        generate(&compiled, &regional, &policy::Policy::default())
+        generate(&compiled, &regional, policy)
     }
 
     fn file(files: &BTreeMap<PathBuf, Vec<u8>>, name: &str) -> String {
@@ -649,6 +656,24 @@ mod tests {
             "pub no_logging: bool,",
             "notice_reset(\"--logging\", \"logging\"",
             "notice_replaced(\"--rule\", \"rules\", items.len());",
+            // Explicit presence: set or unset, in a create, an update and a key.
+            "pub max_connections: Option<i32>,",
+            "max_connections: args.max_connections,",
+            "pub no_max_connections: bool,",
+            "pub strict: Option<bool>,",
+            "out.priority = Some(key_scalar::<i32>(\"priority\", value)?)",
+            // A oneof: one flag per member, at most one given, its member's
+            // name in the mask.
+            "clap::ArgGroup::new(\"mirror\").multiple(false).args([\"mirror_network\", \"mirror_address\", \"mirror_log\", \"mirror_log_json\"])",
+            "Some(::origincloud_scratch::v1::firewall::Mirror::MirrorLog(value))",
+            "paths.push(\"mirror_address\".to_owned());",
+            "::origincloud_scratch::v1::create_firewall_request::Notify::NotifyEmail(",
+            // A choice of exactly one, which a create must make.
+            "clap::ArgGroup::new(\"notify\").required(true).multiple(false)",
+            // An update can empty an optional choice, and names every member
+            // of one in the mask.
+            "pub no_mirror: bool,",
+            "paths.push(\"mirror_network\".to_owned()); paths.push(\"mirror_address\".to_owned()); paths.push(\"mirror_log\".to_owned());",
             // A list the API keeps unordered has each element once.
             "unique(&args.alias, \"--alias\")?;",
             "paths.push(\"rules\".to_owned());",
@@ -719,8 +744,8 @@ mod tests {
                 "the map inners isn't map<string, string>",
             ),
             (
-                "oneof choice { string a = 2; int32 b = 3; }",
-                "the field a is in a oneof",
+                "optional string thing = 2 [(google.api.resource_reference).type = \"odd.origincloudapis.eu/Thing\"];",
+                "the optional field thing is a resource name",
             ),
             (
                 "repeated bool flags = 2;",
@@ -732,6 +757,7 @@ mod tests {
                 syntax = "proto3";
                 package origincloud.odd.v1;
                 import "google/api/annotations.proto";
+                import "google/api/resource.proto";
                 // Odd things.
                 service OddService {{
                   // Makes one.
@@ -740,6 +766,13 @@ mod tests {
                   }}
                 }}
                 message Inner {{ string value = 1; }}
+                message Thing {{
+                  option (google.api.resource) = {{
+                    type: "odd.origincloudapis.eu/Thing"
+                    pattern: "things/{{thing}}"
+                  }};
+                  string name = 1;
+                }}
                 message MakeOddRequest {{ string label = 1; {field} }}
                 "#
             );
@@ -752,6 +785,129 @@ mod tests {
             assert!(err.contains(why), "{why}: {err}");
             assert!(err.contains("[[exclude]]"), "{err}");
         }
+    }
+
+    const CHOICES: &str = r#"
+        syntax = "proto3";
+        package origincloud.choices.v1;
+        import "google/api/annotations.proto";
+        import "google/api/field_behavior.proto";
+        // Choices.
+        service ChoiceService {
+          // Makes one.
+          rpc MakeChoice(MakeChoiceRequest) returns (MakeChoiceRequest) {
+            option (google.api.http) = {post: "/v1/choices" body: "*"};
+          }
+        }
+        message MakeChoiceRequest {
+          string label = 1;
+          oneof pick {
+            string first = 2 [(google.api.field_behavior) = REQUIRED];
+            int32 second = 3 [(google.api.field_behavior) = OPTIONAL_OR_REQUIRED];
+          }
+        }
+    "#;
+
+    /// A oneof's members are all required, a choice of exactly one, or all
+    /// optional: a mix breaks the API's rules and fails generation.
+    #[test]
+    fn a_oneof_mixing_required_and_optional_members_fails_generation() {
+        let mixed = CHOICES.replace("OPTIONAL_OR_REQUIRED", "OPTIONAL");
+        let dir = api("choices/v1/choices.proto", &mixed);
+        let err = generated(&[dir.path()]).unwrap_err().to_string();
+        assert!(
+            err.contains("the oneof pick has required members and optional ones"),
+            "{err}"
+        );
+        let required = CHOICES.replace("OPTIONAL_OR_REQUIRED", "REQUIRED");
+        let dir = api("choices/v1/choices.proto", &required);
+        let files = generated(&[dir.path()]).unwrap();
+        let flat: String = file(&files, "choices.rs").split_whitespace().collect();
+        assert!(flat.contains(
+            "clap::ArgGroup::new(\"pick\").required(true).multiple(false).args([\"first\",\"second\"])"
+        ));
+    }
+
+    /// Leaving a request oneof's first member out keeps the oneof, with its
+    /// other members.
+    #[test]
+    fn excluding_a_oneofs_first_member_keeps_the_others() {
+        let source = CHOICES
+            .replace(" [(google.api.field_behavior) = REQUIRED]", "")
+            .replace(" [(google.api.field_behavior) = OPTIONAL_OR_REQUIRED]", "");
+        let dir = api("choices/v1/choices.proto", &source);
+        let policy: policy::Policy = toml::from_str(
+            r#"
+            [[exclude]]
+            service = "choices"
+            method = "MakeChoice"
+            field = "first"
+            why = "the test leaves it out"
+            "#,
+        )
+        .unwrap();
+        let files = generated_with(&[dir.path()], &policy).unwrap();
+        let code = file(&files, "choices.rs");
+        let flat: String = code.split_whitespace().collect();
+        assert!(!code.contains("long = \"first\""), "{code}");
+        assert!(code.contains("long = \"second\""), "{code}");
+        assert!(
+            flat.contains("make_choice_request::Pick::Second(value)"),
+            "{code}"
+        );
+        assert!(flat.contains("pick,"), "{code}");
+    }
+
+    /// The MCP tools don't support oneofs yet: a method with one has no tool,
+    /// which their coverage test reports, rather than one that can't be
+    /// called because it requires every member of a choice of one.
+    #[test]
+    fn a_method_with_a_oneof_has_no_tool_yet() {
+        let compiled = compile(&[&scratch()], fixtures()).unwrap();
+        let comments = docs::Comments::new(&compiled.fds);
+        let generated = tools::generate(
+            &compiled.pool,
+            &comments,
+            &policy::Policy::default(),
+            "origincloud.scratch.v1",
+            None,
+        )
+        .unwrap();
+        let skipped = generated.skipped.join("\n");
+        for method in ["CreateFirewall", "UpdateFirewall"] {
+            assert!(
+                skipped.contains(&format!("FirewallService.{method}")),
+                "{method}: {skipped}"
+            );
+        }
+        assert!(
+            skipped.contains("which tools don't support yet"),
+            "{skipped}"
+        );
+        assert!(!skipped.contains("GetFirewall"), "{skipped}");
+        // The required members of a choice aren't all required of a tool:
+        // there is no tool.
+        assert!(
+            !generated.code.contains("notifyEmail"),
+            "{}",
+            generated.code
+        );
+        let required = CHOICES.replace("OPTIONAL_OR_REQUIRED", "REQUIRED");
+        let dir = api("choices/v1/choices.proto", &required);
+        let compiled = compile(&[dir.path()], fixtures()).unwrap();
+        let comments = docs::Comments::new(&compiled.fds);
+        let generated = tools::generate(
+            &compiled.pool,
+            &comments,
+            &policy::Policy::default(),
+            "origincloud.choices.v1",
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            generated.skipped,
+            ["origincloud.choices.v1.ChoiceService.MakeChoice: first is in the oneof pick, which tools don't support yet"]
+        );
     }
 
     #[test]
