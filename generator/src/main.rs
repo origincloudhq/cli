@@ -649,6 +649,18 @@ mod tests {
             "pub no_logging: bool,",
             "notice_reset(\"--logging\", \"logging\"",
             "notice_replaced(\"--rule\", \"rules\", items.len());",
+            // Explicit presence: set or unset, in a create, an update and a key.
+            "pub max_connections: Option<i32>,",
+            "max_connections: args.max_connections,",
+            "pub no_max_connections: bool,",
+            "pub strict: Option<bool>,",
+            "out.priority = Some(key_scalar::<i32>(\"priority\", value)?)",
+            // A oneof: one flag per member, at most one given, its member's
+            // name in the mask.
+            "clap::ArgGroup::new(\"mirror\").multiple(false).args([\"mirror_network\", \"mirror_address\", \"mirror_log\", \"mirror_log_json\"])",
+            "Some(::origincloud_scratch::v1::firewall::Mirror::MirrorLog(value))",
+            "paths.push(\"mirror_address\".to_owned());",
+            "::origincloud_scratch::v1::create_firewall_request::Notify::NotifyEmail(",
             // A list the API keeps unordered has each element once.
             "unique(&args.alias, \"--alias\")?;",
             "paths.push(\"rules\".to_owned());",
@@ -719,8 +731,8 @@ mod tests {
                 "the map inners isn't map<string, string>",
             ),
             (
-                "oneof choice { string a = 2; int32 b = 3; }",
-                "the field a is in a oneof",
+                "optional string thing = 2 [(google.api.resource_reference).type = \"odd.origincloudapis.eu/Thing\"];",
+                "the optional field thing is a resource name",
             ),
             (
                 "repeated bool flags = 2;",
@@ -732,6 +744,7 @@ mod tests {
                 syntax = "proto3";
                 package origincloud.odd.v1;
                 import "google/api/annotations.proto";
+                import "google/api/resource.proto";
                 // Odd things.
                 service OddService {{
                   // Makes one.
@@ -740,6 +753,13 @@ mod tests {
                   }}
                 }}
                 message Inner {{ string value = 1; }}
+                message Thing {{
+                  option (google.api.resource) = {{
+                    type: "odd.origincloudapis.eu/Thing"
+                    pattern: "things/{{thing}}"
+                  }};
+                  string name = 1;
+                }}
                 message MakeOddRequest {{ string label = 1; {field} }}
                 "#
             );

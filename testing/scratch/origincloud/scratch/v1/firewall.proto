@@ -3,8 +3,8 @@ syntax = "proto3";
 // A service that exists only in this repository's tests. Its resource has
 // the kinds of fields the generator turns into flags beyond the published
 // API's: repeated scalars and references, a list whose order isn't kept, a
-// nested message, a repeated nested message, and a message nested two
-// levels deep.
+// nested message, a repeated nested message, a message nested two levels
+// deep, fields with explicit presence (proto3 `optional`), and oneofs.
 package origincloud.scratch.v1;
 
 import "google/api/annotations.proto";
@@ -84,6 +84,31 @@ message Firewall {
 
   // Data of your own about the firewall.
   google.protobuf.Struct metadata = 10;
+
+  // The most connections the firewall tracks at once; no limit when unset.
+  optional int32 max_connections = 11;
+
+  // Whether the firewall refuses what no rule matches; the zone's default
+  // when unset.
+  optional bool strict = 12;
+
+  // The protocol of a rule that names none; TCP when unset.
+  optional Rule.Protocol default_protocol = 13;
+
+  // A note of your own; none when unset.
+  optional string note = 14;
+
+  // Where the firewall sends a copy of what it denies.
+  oneof mirror {
+    // A network that receives the copies.
+    string mirror_network = 15 [(google.api.resource_reference).type = "scratch.origincloudapis.eu/Network"];
+
+    // An address that receives the copies, such as `10.0.0.9:4789`.
+    string mirror_address = 16;
+
+    // A log that receives them.
+    Logging mirror_log = 17;
+  }
 }
 
 // A network a firewall can guard.
@@ -135,6 +160,10 @@ message Rule {
 
   // When the rule stops matching.
   google.protobuf.Timestamp not_after = 8;
+
+  // The rule's priority among rules of the same port; the order given when
+  // unset.
+  optional int32 priority = 9;
 }
 
 // A match on headers.
@@ -153,6 +182,15 @@ message Match {
 
   // The protocol each port name stands for.
   map<string, Rule.Protocol> port_protocols = 5;
+
+  // Where the packets come from.
+  oneof source {
+    // A CIDR block, such as `10.0.0.0/8`.
+    string source_cidr = 6;
+
+    // A tag the sending instances have.
+    string source_tag = 7;
+  }
 }
 
 // A header and its value.
@@ -192,6 +230,15 @@ message CreateFirewallRequest {
 
   // The firewall to create.
   Firewall firewall = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // Who hears when the firewall is ready.
+  oneof notify {
+    // An email address.
+    string notify_email = 3;
+
+    // A number of seconds to wait for the firewall instead, then answer.
+    int32 notify_after_seconds = 4;
+  }
 }
 
 // The request for UpdateFirewall.

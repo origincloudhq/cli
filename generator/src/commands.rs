@@ -889,6 +889,9 @@ enum Kind2 {
     Duration,
     /// `google.protobuf.Timestamp`, as RFC 3339.
     Timestamp,
+    /// A number, a string, a boolean or an enum with explicit presence
+    /// (proto3 `optional`): set, or unset.
+    Optional(Box<Kind2>),
     /// A nested message: `--{field} KEY=VALUE,...` and `--{field}-json`.
     Message(Nested),
     /// A repeated nested message: `--{singular} KEY=VALUE,...`, repeated,
@@ -980,12 +983,32 @@ fn enum_kind(e: &prost_reflect::EnumDescriptor) -> Result<(String, Vec<String>),
 }
 
 fn kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
-    if field.containing_oneof().is_some() {
-        return Err(format!(
-            "the field {} is in a oneof, or has explicit presence",
-            field.name()
-        ));
+    match field.containing_oneof() {
+        // A oneof's members are flags of the oneof's group: see `oneof_flags`.
+        Some(oneof) if !oneof.is_synthetic() => Err(format!(
+            "the field {} is in the oneof {}, which only a request's or a resource's own fields \
+             can be",
+            field.name(),
+            oneof.name()
+        )),
+        // Explicit presence (proto3 `optional`).
+        Some(_) => match kind_of(cx, field)? {
+            k @ (Kind2::Scalar(_) | Kind2::Bool | Kind2::Enum(..)) => {
+                Ok(Kind2::Optional(Box::new(k)))
+            }
+            // Already set or unset.
+            k @ (Kind2::Duration | Kind2::Timestamp | Kind2::Message(_)) => Ok(k),
+            _ => Err(format!(
+                "the optional field {} is a resource name, which isn't supported",
+                field.name()
+            )),
+        },
+        None => kind_of(cx, field),
     }
+}
+
+/// A field's kind, whatever oneof it is in.
+fn kind_of(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
     let resource = |t: &str| {
         cx.resources
             .get(t)
@@ -1048,7 +1071,22 @@ fn kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
 /// form: a number, a string, a boolean, an enum, a duration or a resource
 /// name; `None` for what only its JSON form sets.
 fn key_kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Option<Kind2> {
-    if field.is_list() || field.is_map() || field.containing_oneof().is_some() {
+    match field.containing_oneof() {
+        // A oneof's members only the JSON form sets.
+        Some(oneof) if !oneof.is_synthetic() => None,
+        Some(_) => match key_kind_of(cx, field)? {
+            k @ (Kind2::Scalar(_) | Kind2::Bool | Kind2::Enum(..)) => {
+                Some(Kind2::Optional(Box::new(k)))
+            }
+            k @ (Kind2::Duration | Kind2::Timestamp) => Some(k),
+            _ => None,
+        },
+        None => key_kind_of(cx, field),
+    }
+}
+
+fn key_kind_of(cx: &Cx<'_>, field: &FieldDescriptor) -> Option<Kind2> {
+    if field.is_list() || field.is_map() {
         return None;
     }
     if let Some((t, false)) = reference(cx.pool, field) {
@@ -1110,7 +1148,11 @@ fn nested(cx: &Cx<'_>, m: &MessageDescriptor) -> Result<Nested, String> {
         let mut arms = Vec::new();
         for key in &keys {
             let (name, id) = (&key.name, &key.ident);
-            let value = match &key.kind {
+            let (kind, present) = match &key.kind {
+                Kind2::Optional(inner) => (inner.as_ref(), true),
+                other => (other, false),
+            };
+            let value = match kind {
                 Kind2::Scalar("String") | Kind2::Reference(_) => "value.to_owned()".to_owned(),
                 Kind2::Scalar(ty) => format!("key_scalar::<{ty}>({name:?}, value)?"),
                 Kind2::Bool => format!("key_bool({name:?}, value)?"),
@@ -1121,6 +1163,11 @@ fn nested(cx: &Cx<'_>, m: &MessageDescriptor) -> Result<Nested, String> {
                     values.iter().map(|v| format!("{v:?}")).collect::<Vec<_>>().join(", ")
                 ),
                 _ => unreachable!("a key is a scalar, an enum, a duration or a name"),
+            };
+            let value = if present {
+                format!("Some({value})")
+            } else {
+                value
             };
             arms.push(format!("{name:?} => out.{id} = {value},"));
         }
@@ -1233,6 +1280,8 @@ struct Build {
     /// Whether the handler completes resource names, such as those a
     /// nested message's keys give, without a name-part flag.
     needs_names: bool,
+    /// The flags of each oneof, by its name: at most one is given.
+    oneofs: Vec<(String, Vec<String>)>,
 }
 
 impl Build {
@@ -1400,6 +1449,24 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             continue;
         }
 
+        // A oneof's members, at its first.
+        if let Some(oneof) = field.containing_oneof().filter(|o| !o.is_synthetic()) {
+            if oneof
+                .fields()
+                .next()
+                .is_some_and(|first| first.number() == field.number())
+            {
+                let members: Vec<FieldDescriptor> =
+                    oneof.fields().filter(|m| !excluded(m.name())).collect();
+                let docs: Vec<String> = members.iter().map(|m| help(&comment(m))).collect();
+                if !members.is_empty() {
+                    let var = oneof_flags(cx, &mut b, &oneof, &members, &docs, None)?;
+                    b.request.push(init(&ident(oneof.name()), &var));
+                }
+            }
+            continue;
+        }
+
         if let Some(body) = body_message(cx, &field) {
             let resource = resource_of(cx, &body)
                 .ok_or_else(|| format!("{} declares no resource", body.full_name()))?;
@@ -1414,6 +1481,40 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             for f in body.fields() {
                 let path = format!("{name}.{}", f.name());
                 let fb = behaviors(cx.pool, &f);
+                // A oneof's members, at its first.
+                if let Some(oneof) = f.containing_oneof().filter(|o| !o.is_synthetic()) {
+                    if oneof
+                        .fields()
+                        .next()
+                        .is_some_and(|first| first.number() == f.number())
+                    {
+                        let members: Vec<FieldDescriptor> = oneof
+                            .fields()
+                            .filter(|m| {
+                                !excluded(&format!("{name}.{}", m.name()))
+                                    && !behaviors(cx.pool, m).contains(&OUTPUT_ONLY)
+                                    && !(update && behaviors(cx.pool, m).contains(&IMMUTABLE))
+                            })
+                            .collect();
+                        let docs: Vec<String> = members.iter().map(|m| help(&comment(m))).collect();
+                        if !members.is_empty() {
+                            if update {
+                                updates.push(oneof_flags(
+                                    cx,
+                                    &mut b,
+                                    &oneof,
+                                    &members,
+                                    &docs,
+                                    Some(&local),
+                                )?);
+                            } else {
+                                let var = oneof_flags(cx, &mut b, &oneof, &members, &docs, None)?;
+                                inits.push(init(&ident(oneof.name()), &var));
+                            }
+                        }
+                    }
+                    continue;
+                }
                 if fb.contains(&OUTPUT_ONLY) || excluded(&path) {
                     continue;
                 }
@@ -1468,7 +1569,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                     )?);
                 }
             }
-            let rest = if inits.len() < body.fields().count() {
+            let rest = if inits.len() < struct_fields(&body) {
                 ", ..::core::default::Default::default()"
             } else {
                 ""
@@ -1577,7 +1678,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     }
 
     let request_ty = format!("{}::{}", cx.sdk, request.name());
-    let total = request.fields().count();
+    let total = struct_fields(&request);
     let rest = if b.request.len() < total {
         ", ..::core::default::Default::default()"
     } else {
@@ -1781,6 +1882,14 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         let _ = writeln!(
             code,
             "#[command(group(clap::ArgGroup::new(\"changes\").required(true).multiple(true).args([{}])))]",
+            ids.join(", ")
+        );
+    }
+    for (oneof, ids) in &b.oneofs {
+        let ids: Vec<String> = ids.iter().map(|i| format!("{i:?}")).collect();
+        let _ = writeln!(
+            code,
+            "#[command(group(clap::ArgGroup::new({oneof:?}).multiple(false).args([{}])))]",
             ids.join(", ")
         );
     }
@@ -2190,6 +2299,19 @@ fn value(
                 expr
             }
         }
+        Kind2::Optional(inner) => {
+            let (ty, attrs, expr) = optional_flag(inner, &fid);
+            let mut attrs = attrs;
+            required_attr(&mut attrs);
+            b.add_flag(Flag {
+                ident: fid.clone(),
+                long,
+                doc: format!("{doc}\n\nUnset when not given."),
+                ty,
+                attrs,
+            })?;
+            expr
+        }
         Kind2::Message(n) | Kind2::Messages(n) => {
             let repeated = matches!(k, Kind2::Messages(_));
             let statements = message_flags(b, n, field, repeated, required, false, unordered, doc)?;
@@ -2395,6 +2517,39 @@ fn update_field(
                 )
             }
         }
+        Kind2::Optional(inner) => {
+            let (ty, attrs, expr) = optional_flag(inner, &fid);
+            let none = format!("no_{}", name.to_snake_case());
+            let unset = if required {
+                String::new()
+            } else {
+                format!(" `--no-{long}` unsets it.")
+            };
+            b.add_flag(Flag {
+                ident: fid.clone(),
+                long: long.clone(),
+                doc: format!("{comment}\n\nLeft as it is when not given.{unset}"),
+                ty,
+                attrs,
+            })?;
+            b.update_ids.push(arg_id(&fid).to_owned());
+            if required {
+                format!("if args.{fid}.is_some() {{ {} }}", set(&expr))
+            } else {
+                b.add_flag(Flag {
+                    ident: none.clone(),
+                    long: format!("no-{long}"),
+                    doc: format!("Unset its {}.", name.replace('_', " ")),
+                    ty: "bool".to_owned(),
+                    attrs: vec![format!("conflicts_with = {:?}", arg_id(&fid))],
+                })?;
+                b.update_ids.push(none.clone());
+                format!(
+                    "if args.{none} || args.{fid}.is_some() {{ {} }}",
+                    set(&expr)
+                )
+            }
+        }
         Kind2::Message(n) | Kind2::Messages(n) => {
             let repeated = matches!(k, Kind2::Messages(_));
             let statements =
@@ -2461,6 +2616,221 @@ fn update_field(
             )
         }
     })
+}
+
+/// The fields of a message's Rust struct: its fields outside a oneof, and
+/// one per oneof, which holds whichever of its members is set.
+fn struct_fields(message: &MessageDescriptor) -> usize {
+    let plain = message
+        .fields()
+        .filter(|f| f.containing_oneof().is_none_or(|o| o.is_synthetic()))
+        .count();
+    let oneofs = message.oneofs().filter(|o| !o.is_synthetic()).count();
+    plain + oneofs
+}
+
+/// A field with explicit presence (proto3 `optional`): its flag's type and
+/// attributes, and the expression of its value, `Some` when given.
+fn optional_flag(inner: &Kind2, fid: &str) -> (String, Vec<String>, String) {
+    match inner {
+        Kind2::Scalar(ty) => (
+            format!("Option<{ty}>"),
+            Vec::new(),
+            format!("args.{fid}{}", clone_of(ty)),
+        ),
+        Kind2::Bool => (
+            "Option<bool>".to_owned(),
+            vec![
+                "value_name = \"true|false\"".to_owned(),
+                "action = clap::ArgAction::Set".to_owned(),
+            ],
+            format!("args.{fid}"),
+        ),
+        Kind2::Enum(path, values) => {
+            let quoted: Vec<String> = values.iter().map(|v| format!("{v:?}")).collect();
+            (
+                "Option<String>".to_owned(),
+                vec![format!("value_parser = [{}]", quoted.join(", "))],
+                format!("args.{fid}.as_deref().and_then({path}::from_str_name).map(|v| v as i32)"),
+            )
+        }
+        _ => unreachable!("an optional field's flag is a number, a string, a boolean or an enum"),
+    }
+}
+
+/// The flags of a oneof's members, one each, of which at most one is given
+/// (a clap group), and the value: in a create, statements binding the
+/// oneof's Rust field to the member given, whose name this returns; in an
+/// update (`body`, the resource changed), one statement setting it and
+/// naming that member in the mask.
+fn oneof_flags(
+    cx: &Cx<'_>,
+    b: &mut Build,
+    oneof: &prost_reflect::OneofDescriptor,
+    members: &[FieldDescriptor],
+    docs: &[String],
+    body: Option<&str>,
+) -> Result<String, String> {
+    let message = oneof.parent_message();
+    let module: Vec<String> = rust_type_path(message.package_name(), message.full_name())
+        .split("::")
+        .map(|s| s.to_snake_case())
+        .collect();
+    let enum_path = format!(
+        "{}::{}::{}",
+        sdk_module(message.package_name()),
+        module.join("::"),
+        oneof.name().to_upper_camel_case()
+    );
+    let flags: Vec<String> = members
+        .iter()
+        .map(|m| format!("`--{}`", m.name().to_kebab_case()))
+        .collect();
+    let note = format!(
+        "\n\nOne of {}: give at most one.{}",
+        flags.join(", "),
+        if body.is_some() {
+            " Setting it replaces whichever of them is set."
+        } else {
+            ""
+        }
+    );
+    let mut ids = Vec::new();
+    let mut statements = Vec::new();
+    let mut arms = Vec::new();
+    for (m, doc) in members.iter().zip(docs) {
+        let fid = ident(m.name());
+        let long = m.name().to_kebab_case();
+        let doc = format!("{doc}{note}");
+        let simple = |b: &mut Build, ty: String, attrs: Vec<String>| {
+            b.add_flag(Flag {
+                ident: fid.clone(),
+                long: long.clone(),
+                doc: doc.clone(),
+                ty,
+                attrs,
+            })
+        };
+        let expr = match kind_of(cx, m)? {
+            k @ (Kind2::Scalar(_) | Kind2::Bool | Kind2::Enum(..)) => {
+                let (ty, attrs, expr) = optional_flag(&k, &fid);
+                simple(b, ty, attrs)?;
+                ids.push(arg_id(&fid).to_owned());
+                expr
+            }
+            Kind2::Duration => {
+                simple(
+                    b,
+                    format!("Option<{DURATION_TYPE}>"),
+                    vec![
+                        "value_name = \"DURATION\"".to_owned(),
+                        "value_parser = duration".to_owned(),
+                    ],
+                )?;
+                ids.push(arg_id(&fid).to_owned());
+                format!("args.{fid}")
+            }
+            Kind2::Timestamp => {
+                simple(
+                    b,
+                    format!("Option<{TIMESTAMP_TYPE}>"),
+                    vec![
+                        "value_name = \"TIME\"".to_owned(),
+                        "value_parser = timestamp".to_owned(),
+                    ],
+                )?;
+                ids.push(arg_id(&fid).to_owned());
+                format!("args.{fid}")
+            }
+            Kind2::Reference(resource) => {
+                let leaf = leaf_of(&resource.pattern);
+                b.add_components(&resource.pattern, Some(&leaf));
+                b.add_flag(Flag {
+                    ident: fid.clone(),
+                    long: long.clone(),
+                    doc: reference_doc(&doc, &resource.pattern, &leaf),
+                    ty: "Option<String>".to_owned(),
+                    attrs: vec![format!("value_name = {:?}", leaf.to_uppercase())],
+                })?;
+                b.learn.push(format!(
+                    "names.learn({:?}, {long:?}, args.{fid}.as_deref())?;",
+                    resource.pattern
+                ));
+                ids.push(arg_id(&fid).to_owned());
+                format!(
+                    "args.{fid}.as_deref().map(|v| names.name({:?}, Some(({long:?}, v)))).transpose()?",
+                    resource.pattern
+                )
+            }
+            Kind2::Message(n) => {
+                let before = b.flags.len();
+                statements.extend(message_flags(
+                    b,
+                    &n,
+                    m,
+                    false,
+                    false,
+                    false,
+                    false,
+                    docs_of(&doc),
+                )?);
+                for flag in &mut b.flags[before..] {
+                    if !flag.doc.contains(&note) {
+                        flag.doc.push_str(&note);
+                    }
+                    ids.push(arg_id(&flag.ident).to_owned());
+                }
+                fid.clone()
+            }
+            _ => {
+                return Err(format!(
+                    "the oneof {} has the member {}, a list or a map",
+                    oneof.name(),
+                    m.name()
+                ))
+            }
+        };
+        arms.push((expr, m.name().to_upper_camel_case(), m.name().to_owned()));
+    }
+    b.oneofs.push((oneof.name().to_owned(), ids.clone()));
+    match body {
+        None => {
+            let var = ident(oneof.name());
+            let mut chain: Vec<String> = arms
+                .iter()
+                .map(|(expr, variant, _)| {
+                    format!("if let Some(value) = {expr} {{ Some({enum_path}::{variant}(value)) }}")
+                })
+                .collect();
+            chain.push("{ None }".to_owned());
+            // An if-let chain, since a member's value may need `?`.
+            statements.push(format!(
+                "#[allow(clippy::manual_map)] let {var} = {};",
+                chain.join(" else ")
+            ));
+            b.prelude.extend(statements);
+            Ok(var)
+        }
+        Some(body) => {
+            b.update_ids.extend(ids);
+            let field = ident(oneof.name());
+            let chain: Vec<String> = arms
+                .iter()
+                .map(|(expr, variant, name)| {
+                    format!(
+                        "if let Some(value) = {expr} {{ {body}.{field} = Some({enum_path}::{variant}(value)); paths.push({name:?}.to_owned()); }}"
+                    )
+                })
+                .collect();
+            Ok(format!("{} {}", statements.join(" "), chain.join(" else ")))
+        }
+    }
+}
+
+/// A member's help, without the note `oneof_flags` adds to every flag of a
+/// message member itself.
+fn docs_of(doc: &str) -> &str {
+    doc.split("\n\nOne of ").next().unwrap_or(doc)
 }
 
 /// A repeated scalar field's flag: its type, its help, and the expression
@@ -2545,6 +2915,7 @@ fn completions(b: &mut Build, n: &Nested, var: &str, flag: &str) -> Vec<String> 
 /// What a key's help adds about its value.
 fn key_hint(kind: &Kind2) -> String {
     match kind {
+        Kind2::Optional(inner) => format!("{} Unset when not given.", key_hint(inner)),
         Kind2::Enum(_, values) => {
             let quoted: Vec<String> = values.iter().map(|v| format!("`{v}`")).collect();
             format!(" One of {}.", quoted.join(", "))

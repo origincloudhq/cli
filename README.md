@@ -134,6 +134,14 @@ every method of the API, with the API's own descriptions as help:
   each element, in order: `--security-group sg-1 --security-group sg-2`.
   Where the API doesn't keep a list's order, the flag's help says so, and an
   element given twice is refused.
+- **Optional fields.** A field the API marks optional is left out when its
+  flag isn't given, and sent when it is, zero or empty included
+  (`--max-connections 0`). An update sets it, or with `--no-` and its name
+  (`--no-max-connections`) unsets it.
+- **Choices.** A oneof, a choice of fields of which a request carries at most
+  one, is one flag per field, and giving two is refused: `--mirror-network`,
+  `--mirror-address` or `--mirror-log`. An update sets the one given, which
+  replaces whichever was set.
 - **Nested fields.** A field holding a message is one flag whose value is
   comma-separated `KEY=VALUE` pairs, the keys being the message's field
   names, with `_` or `-`; a repeated one takes one flag per element:

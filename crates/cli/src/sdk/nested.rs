@@ -164,6 +164,7 @@ fn check_message(
         return Err(format!("{}: {value} isn't an object", at(path)));
     };
     let mut seen: Vec<(u32, &str)> = Vec::new();
+    let mut chosen: Vec<(String, &str)> = Vec::new();
     for (key, value) in object {
         let here = join(path, key);
         let field = field_of(message, key)
@@ -172,6 +173,20 @@ fn check_message(
             return Err(format!("{here} is {} again", join(path, before)));
         }
         seen.push((field.number(), key));
+        // At most one member of a oneof; `null` sets none.
+        if let Some(oneof) = field.containing_oneof().filter(|o| !o.is_synthetic()) {
+            if !value.is_null() {
+                if let Some((_, other)) = chosen.iter().find(|(o, _)| o == oneof.name()) {
+                    return Err(format!(
+                        "{here} and {} are both of {}'s choice {}: give one",
+                        join(path, other),
+                        message.name(),
+                        oneof.name()
+                    ));
+                }
+                chosen.push((oneof.name().to_owned(), key));
+            }
+        }
         check_field(value, &field, &here, depth)?;
     }
     Ok(())
