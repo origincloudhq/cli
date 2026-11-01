@@ -447,6 +447,18 @@ async fn a_json_value_is_checked_value_by_value() {
             "[0].cidr: 10 isn't a string",
         ),
         (
+            r#"[{"protocol": "TCP", "idleTimeout": "30"}]"#,
+            r#"[0].idleTimeout: "30" isn't a duration"#,
+        ),
+        (
+            r#"[{"protocol": "TCP", "idleTimeout": 30}]"#,
+            "[0].idleTimeout: 30 isn't a duration",
+        ),
+        (
+            r#"[{"protocol": "TCP", "notAfter": "2026-11-01"}]"#,
+            r#"[0].notAfter: "2026-11-01" isn't an RFC 3339 time"#,
+        ),
+        (
             r#"[{"protocol": "TCP", "protocol": "UDP"}]"#,
             "[0].protocol is given twice",
         ),

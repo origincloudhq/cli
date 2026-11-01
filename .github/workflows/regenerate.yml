@@ -123,8 +123,9 @@ jobs:
         run: |
           set -euo pipefail
           status=0
-          scripts/update.sh 2> "${RUNNER_TEMP}/update.err" || status=$?
-          cat "${RUNNER_TEMP}/update.err" >&2
+          # Both streams: generate.sh says FAILED on standard output.
+          scripts/update.sh > "${RUNNER_TEMP}/update.log" 2>&1 || status=$?
+          cat "${RUNNER_TEMP}/update.log"
           if [[ "${status}" -eq 0 ]]; then
             exit 0
           fi
@@ -137,7 +138,7 @@ jobs:
           delimiter="FAILURE_${RANDOM}${RANDOM}${RANDOM}"
           {
             echo "FAILURE<<${delimiter}"
-            grep -v '^\s*$' "${RUNNER_TEMP}/update.err" | tail -n 40
+            { grep -v '^\s*$' "${RUNNER_TEMP}/update.log" || true; } | tail -n 40
             echo "${delimiter}"
           } >> "$GITHUB_ENV"
 
@@ -145,7 +146,7 @@ jobs:
         run: |
           set -euo pipefail
           open="$(gh pr list --head "${BRANCH}" --base main --state open --json number,isCrossRepository --jq 'map(select(.isCrossRepository | not))[0].number // empty')"
-          if [[ "${BASE}" == main && -z "$(git status --porcelain)" ]]; then
+          if [[ "${BASE}" == main && -z "$(git status --porcelain)" && -z "${FAILURE:-}" ]]; then
             echo "already current"
             # The branch goes only as the Base step found it, and its pull
             # request closes with it; one pushed to meanwhile stays.
@@ -157,6 +158,20 @@ jobs:
               else
                 echo "::warning::${BRANCH} changed during the run; left as it is"
               fi
+            fi
+            exit 0
+          fi
+
+          # A failure before anything moved has nothing to push: the branch
+          # and its pull request stay as they are, which hears of it.
+          if [[ -n "${FAILURE:-}" && -z "$(git status --porcelain)" ]]; then
+            if [[ -n "${open}" ]]; then
+              fence='```'
+              gh pr comment "${open}" --body "A run failed before moving anything; scripts/update.sh said:
+
+          ${fence}
+          ${FAILURE}
+          ${fence}"
             fi
             exit 0
           fi

@@ -239,14 +239,26 @@ fn check_value(
 ) -> Result<(), String> {
     use serde_json::Value as J;
     match field.kind() {
-        Kind::Message(m) => {
+        Kind::Message(m) => match m.full_name() {
             // The well-known types have JSON forms of their own: a duration
-            // or a timestamp is a string, a struct any object.
-            if m.package_name() == "google.protobuf" {
-                return Ok(());
-            }
-            check_message(value, &m, here, depth + 1)
-        }
+            // or a timestamp is a string of its own form, which the SDK's
+            // decoder would refuse without saying where; a struct is any
+            // object.
+            "google.protobuf.Duration" => match value {
+                J::String(s) if is_duration(s) => Ok(()),
+                _ => Err(format!(
+                    "{here}: {value} isn't a duration: expected seconds with an `s`, such as \"30s\" or \"1.5s\""
+                )),
+            },
+            "google.protobuf.Timestamp" => match value {
+                J::String(s) if chrono::DateTime::parse_from_rfc3339(s).is_ok() => Ok(()),
+                _ => Err(format!(
+                    "{here}: {value} isn't an RFC 3339 time, such as \"2026-11-01T12:00:00Z\""
+                )),
+            },
+            _ if m.package_name() == "google.protobuf" => Ok(()),
+            _ => check_message(value, &m, here, depth + 1),
+        },
         Kind::Enum(e) => {
             let names: Vec<String> = e
                 .values()
@@ -331,6 +343,24 @@ fn check_value(
             }
         }
     }
+}
+
+/// Whether `text` is a duration in the API's JSON: whole seconds, with up
+/// to nine fractional digits, and an `s`, such as `30s` or `-1.5s`, within
+/// the ten thousand years a duration holds.
+fn is_duration(text: &str) -> bool {
+    let Some(number) = text.strip_suffix('s') else {
+        return false;
+    };
+    let unsigned = number.strip_prefix('-').unwrap_or(number);
+    let (whole, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));
+    let digits = |s: &str| s.bytes().all(|b| b.is_ascii_digit());
+    !whole.is_empty()
+        && digits(whole)
+        && digits(fraction)
+        && fraction.len() <= 9
+        && !(unsigned.contains('.') && fraction.is_empty())
+        && whole.parse::<u64>().is_ok_and(|s| s <= 315_576_000_000)
 }
 
 /// A JSON value with no object giving a key twice, which `serde_json`
@@ -599,6 +629,25 @@ mod tests {
             required_keys(&pairs, &["protocol"]),
             Err("protocol is required".to_owned())
         );
+    }
+
+    #[test]
+    fn a_json_duration_is_seconds_with_an_s() {
+        for ok in ["30s", "1.5s", "-1.000000001s", "0s", "315576000000s"] {
+            assert!(is_duration(ok), "{ok}");
+        }
+        for bad in [
+            "30",
+            "1m",
+            "1.s",
+            ".5s",
+            "1.0000000001s",
+            "s",
+            "315576000001s",
+            "+1s",
+        ] {
+            assert!(!is_duration(bad), "{bad}");
+        }
     }
 
     #[test]
