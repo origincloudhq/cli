@@ -1,0 +1,10 @@
+query Permissions {
+    iam {
+        permissions {
+            key
+            service
+            resourceType
+            action
+        }
+    }
+}

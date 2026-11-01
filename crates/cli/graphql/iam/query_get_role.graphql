@@ -1,0 +1,19 @@
+query GetRole($roleUrn: Urn!) {
+    iam {
+        role(roleUrn: $roleUrn) {
+            __typename
+            ... on IamBuiltinRole {
+                id
+                urn
+                name
+                description
+                permissions {
+                    key
+                    service
+                    resourceType
+                    action
+                }
+            }
+        }
+    }
+}

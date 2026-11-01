@@ -1,0 +1,11 @@
+query Organisations {
+    admin {
+        organisations {
+            orgId
+            name
+            status
+            createdAt
+            createdBy
+        }
+    }
+}

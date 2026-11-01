@@ -1,0 +1,14 @@
+mutation AssociateFloatingIp($input: NetworkAssociateFloatingIpInput!) {
+    network {
+        associateFloatingIp(input: $input) {
+            id
+            urn
+            availabilityZone
+            address
+            networkInterfaceUrn
+            privateAddress
+            createdAt
+            createdBy
+        }
+    }
+}

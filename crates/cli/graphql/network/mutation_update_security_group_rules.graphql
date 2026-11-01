@@ -1,0 +1,24 @@
+mutation UpdateSecurityGroupRules($input: NetworkUpdateSecurityGroupRulesInput!) {
+    network {
+        updateSecurityGroupRules(input: $input) {
+            id
+            urn
+            vpcId
+            isDefault
+            ingressRules {
+                protocol
+                port
+                source
+                description
+            }
+            egressRules {
+                protocol
+                port
+                destination
+                description
+            }
+            createdAt
+            createdBy
+        }
+    }
+}

@@ -1,0 +1,11 @@
+mutation AssociateRouteTable($input: NetworkAssociateRouteTableInput!) {
+    network {
+        associateRouteTable(input: $input) {
+            id
+            urn
+            vpcId
+            routeTableUrn
+            aclUrn
+        }
+    }
+}

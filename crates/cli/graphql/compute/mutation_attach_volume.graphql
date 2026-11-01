@@ -1,0 +1,13 @@
+mutation AttachVolume($input: ComputeAttachVolumeInput!) {
+    compute {
+        attachVolume(input: $input) {
+            id
+            urn
+            instanceUrn
+            volumeUrn
+            deviceName
+            isRootDevice
+            status
+        }
+    }
+}

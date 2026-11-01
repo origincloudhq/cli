@@ -1,0 +1,29 @@
+query ListSecurityGroups($input: NetworkListSecurityGroupsInput!) {
+    network {
+        securityGroups(input: $input) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            vpcId
+            isDefault
+            ingressRules {
+                protocol
+                port
+                source
+                description
+            }
+            egressRules {
+                protocol
+                port
+                destination
+                description
+            }
+            createdAt
+            createdBy
+        }
+    }
+}

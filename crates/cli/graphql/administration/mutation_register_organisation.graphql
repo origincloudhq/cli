@@ -1,0 +1,13 @@
+mutation RegisterOrganisation($input: AdminRegisterOrganisationInput!) {
+    admin {
+        registerOrganisation(input: $input) {
+            id
+            urn
+            orgId
+            name
+            status
+            createdAt
+            createdBy
+        }
+    }
+}

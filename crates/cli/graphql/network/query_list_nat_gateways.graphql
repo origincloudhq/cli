@@ -1,0 +1,18 @@
+query ListNatGateways($input: NetworkListNatGatewaysInput!) {
+    network {
+        natGateways(input: $input) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            vpcId
+            subnetId
+            floatingIpId
+            addressFamily
+            createdAt
+        }
+    }
+}

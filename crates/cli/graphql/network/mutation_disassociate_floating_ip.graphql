@@ -1,0 +1,5 @@
+mutation DisassociateFloatingIp($input: NetworkDisassociateFloatingIpInput!) {
+    network {
+        disassociateFloatingIp(input: $input)
+    }
+}

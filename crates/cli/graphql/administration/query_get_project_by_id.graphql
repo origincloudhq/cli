@@ -1,0 +1,12 @@
+query ProjectById($orgId: OrgId!, $projectId: ProjectId!) {
+    admin {
+        project(orgId: $orgId, projectId: $projectId) {
+            urn
+            orgId
+            projectId
+            name
+            createdAt
+            createdBy
+        }
+    }
+}

@@ -1,0 +1,8 @@
+mutation ChangeInstanceType($input: ComputeChangeInstanceTypeInput!) {
+    compute {
+        changeInstanceType(input: $input) {
+            accepted
+            message
+        }
+    }
+}

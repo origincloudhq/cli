@@ -1,0 +1,11 @@
+query ListKeyPairs($input: ComputeListKeyPairsInput!) {
+    compute {
+        keyPairs(input: $input) {
+            urn
+            keyPairId
+            name
+            publicKey
+            createdBy
+        }
+    }
+}

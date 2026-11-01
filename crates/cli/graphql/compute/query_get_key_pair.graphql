@@ -1,0 +1,11 @@
+query GetKeyPair($keyPairUrn: Urn!) {
+    compute {
+        keyPair(keyPairUrn: $keyPairUrn) {
+            urn
+            keyPairId
+            name
+            publicKey
+            createdBy
+        }
+    }
+}

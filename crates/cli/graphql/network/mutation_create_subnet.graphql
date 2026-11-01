@@ -1,0 +1,34 @@
+mutation CreateSubnet($input: NetworkCreateSubnetInput!) {
+    network {
+        createSubnet(input: $input) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            vpcId
+            availabilityZone
+            ipv6DnsServers
+            ipv6Network {
+                availableSubnets
+                networkCidr
+                subnetPrefixLength
+                totalSubnets
+            }
+            ipv6Router
+            ipv4DnsServers
+            ipv4Network {
+                availableSubnets
+                networkCidr
+                subnetPrefixLength
+                totalSubnets
+            }
+            ipv4Router
+
+            createdAt
+            createdBy
+        }
+    }
+}

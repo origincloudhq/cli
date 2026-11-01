@@ -1,0 +1,29 @@
+query GetSecurityGroup($securityGroupUrn: Urn!) {
+    network {
+        securityGroup(securityGroupUrn: $securityGroupUrn) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            vpcId
+            isDefault
+            ingressRules {
+                protocol
+                port
+                source
+                description
+            }
+            egressRules {
+                protocol
+                port
+                destination
+                description
+            }
+            createdAt
+            createdBy
+        }
+    }
+}

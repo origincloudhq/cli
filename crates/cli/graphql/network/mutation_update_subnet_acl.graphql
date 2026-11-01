@@ -1,0 +1,29 @@
+mutation UpdateSubnetAcl($input: NetworkUpdateSubnetAclInput!) {
+    network {
+        updateSubnetAcl(input: $input) {
+            id
+            urn
+            vpcId
+            aclUrn
+            availabilityZone
+            ipv6Network {
+                networkCidr
+                totalSubnets
+                availableSubnets
+                subnetPrefixLength
+            }
+            ipv6Router
+            ipv6DnsServers
+            ipv4Network {
+                networkCidr
+                totalSubnets
+                availableSubnets
+                subnetPrefixLength
+            }
+            ipv4Router
+            ipv4DnsServers
+            createdAt
+            createdBy
+        }
+    }
+}

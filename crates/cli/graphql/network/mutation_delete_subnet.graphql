@@ -1,0 +1,5 @@
+mutation DeleteSubnet($input: NetworkDeleteSubnetInput!) {
+    network {
+        deleteSubnet(input: $input)
+    }
+}

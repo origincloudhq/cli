@@ -1,0 +1,5 @@
+mutation RemoveMember($input: IamRemoveMemberInput!) {
+    iam {
+        removeMember(input: $input)
+    }
+}

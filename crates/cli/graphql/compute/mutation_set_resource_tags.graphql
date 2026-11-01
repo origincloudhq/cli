@@ -1,0 +1,8 @@
+mutation SetComputeResourceTags($input: ComputeSetResourceTagsInput!) {
+    compute {
+        setResourceTags(input: $input) {
+            key
+            value
+        }
+    }
+}

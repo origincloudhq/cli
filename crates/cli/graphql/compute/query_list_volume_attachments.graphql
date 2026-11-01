@@ -1,0 +1,13 @@
+query ListVolumeAttachments($input: ComputeListVolumeAttachmentsInput!) {
+    compute {
+        volumeAttachments(input: $input) {
+            id
+            urn
+            instanceUrn
+            volumeUrn
+            deviceName
+            isRootDevice
+            status
+        }
+    }
+}

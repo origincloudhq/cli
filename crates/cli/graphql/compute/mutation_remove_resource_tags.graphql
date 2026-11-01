@@ -1,0 +1,8 @@
+mutation RemoveComputeResourceTags($input: ComputeRemoveResourceTagsInput!) {
+    compute {
+        removeResourceTags(input: $input) {
+            key
+            value
+        }
+    }
+}

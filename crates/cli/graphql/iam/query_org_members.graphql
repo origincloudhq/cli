@@ -1,0 +1,15 @@
+query OrgMembers($input: IamOrgMembersInput!) {
+    iam {
+        orgMembers(input: $input) {
+            principal
+            user {
+                userId
+                firstName
+                lastName
+                email
+                enabled
+            }
+            roleUrns
+        }
+    }
+}

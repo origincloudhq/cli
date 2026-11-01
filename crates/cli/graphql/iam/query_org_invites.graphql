@@ -1,0 +1,12 @@
+query OrgInvites($input: IamOrgInvitesInput!) {
+    iam {
+        orgInvites(input: $input) {
+            id
+            orgId
+            email
+            roleUrn
+            invitedBy
+            createdAt
+        }
+    }
+}

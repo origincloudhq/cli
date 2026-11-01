@@ -1,0 +1,13 @@
+query GetDnsPolicy($dnsPolicyUrn: Urn!) {
+    network {
+        dnsPolicy(dnsPolicyUrn: $dnsPolicyUrn) {
+            id
+            urn
+            isDefault
+            relayEnabled
+            upstreamServers
+            createdAt
+            createdBy
+        }
+    }
+}

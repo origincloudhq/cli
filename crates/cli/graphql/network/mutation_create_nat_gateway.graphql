@@ -1,0 +1,18 @@
+mutation CreateNatGateway($input: NetworkCreateNatGatewayInput!) {
+    network {
+        createNatGateway(input: $input) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            vpcId
+            subnetId
+            floatingIpId
+            addressFamily
+            createdAt
+        }
+    }
+}

@@ -1,0 +1,3757 @@
+enum ActionResult {
+	SUCCEED
+	PENDING
+	FAILED
+	REJECTED
+}
+
+input AdminAddSupportCaseMessageInput {
+	orgId: OrgId!
+	id: SupportCaseId!
+	body: String!
+}
+
+input AdminClearProjectQuotaLimitInput {
+	orgId: OrgId!
+	projectId: ProjectId!
+	dimension: ProjectQuotaDimension!
+}
+
+input AdminConfirmPaymentMethodSetupInput {
+	orgId: OrgId!
+	id: BillingAccountId!
+}
+
+input AdminCreateBillingAccountInput {
+	orgId: OrgId!
+	displayName: String!
+	billingAddress: BillingAddressInput!
+	invoiceEmail: String!
+	vatId: String
+	contactPerson: String!
+}
+
+input AdminCreateOrganisationInput {
+	"""
+	The organisation's display name, typically the company name.
+	"""
+	name: String!
+}
+
+input AdminCreateProjectInput {
+	orgId: OrgId!
+	idPrefix: String
+	name: String!
+}
+
+input AdminDeleteBillingAccountInput {
+	orgId: OrgId!
+	id: BillingAccountId!
+}
+
+input AdminDeleteOrganisationInput {
+	orgId: OrgId!
+}
+
+input AdminDeleteProjectInput {
+	orgId: OrgId!
+	projectId: ProjectId!
+}
+
+input AdminLinkProjectToBillingAccountInput {
+	orgId: OrgId!
+	projectId: ProjectId!
+	billingAccountId: BillingAccountId!
+}
+
+input AdminListBillingAccountsInput {
+	orgId: OrgId!
+}
+
+input AdminListProjectsInput {
+	orgId: OrgId!
+}
+
+input AdminListSupportCasesInput {
+	orgId: OrgId!
+	"""
+	How many cases to skip, newest-first. Defaults to `0`; a negative
+	value is read as `0`. Page forward by adding the `limit` you were
+	served, while `hasMore` is true.
+	"""
+	offset: Int
+	"""
+	Page size. Defaults to 100 and is clamped to `1..=500`; the page
+	echoes the `limit` actually served, so asking for more than the
+	maximum is visible in the response rather than silent.
+	"""
+	limit: Int
+}
+
+input AdminListUsageRecordsInput {
+	orgId: OrgId!
+	projectId: ProjectId!
+	from: DateTime!
+	to: DateTime!
+}
+
+input AdminOpenSupportCaseInput {
+	orgId: OrgId!
+	"""
+	Omit for a general/org-wide case not tied to one specific project.
+	"""
+	projectId: ProjectId
+	subject: String!
+	description: String!
+	"""
+	Where every notification for this case's lifetime is sent.
+	"""
+	contactEmail: String!
+}
+
+"""
+Input for organisation-wide cost: the same window and bucketing as a
+single project's cost query, without a project filter. The project axis
+becomes a grouping in the response instead.
+"""
+input AdminOrgUsageCostInput {
+	orgId: OrgId!
+	from: DateTime!
+	to: DateTime!
+	granularity: UsageCostGranularityInput!
+}
+
+"""
+Everything an organisation needs to exist and be billable: its name, and
+the billing profile its default billing account is created with.
+"""
+input AdminRegisterOrganisationInput {
+	"""
+	The organisation's display name, typically the company name.
+	"""
+	name: String!
+	"""
+	The postal address invoices are issued to. Stored on the default
+	billing account created with the organisation.
+	"""
+	billingAddress: BillingAddressInput!
+	"""
+	Where invoices and billing notices are sent. Must be a valid email
+	address, or the request fails naming `invoice_email`.
+	"""
+	invoiceEmail: String!
+	"""
+	VAT identification number, if the organisation has one.
+	"""
+	vatId: String
+	"""
+	The person invoices are addressed to.
+	"""
+	contactPerson: String!
+}
+
+input AdminSetProjectQuotaLimitInput {
+	orgId: OrgId!
+	projectId: ProjectId!
+	dimension: ProjectQuotaDimension!
+	"""
+	The budget for the dimension. Must be zero or greater, and no
+	greater than the organisation's limit for the same dimension.
+	"""
+	value: Int!
+}
+
+input AdminSetSpendLimitInput {
+	orgId: OrgId!
+	billingAccountId: BillingAccountId!
+	"""
+	Decimal string, e.g. "500.00".
+	"""
+	limitEur: String!
+	"""
+	e.g. `[80, 100]` - percentages of `limit_eur` that trigger an alert.
+	"""
+	alertThresholdsPercent: [Int!]!
+	notificationEmails: [String!]!
+}
+
+input AdminSpendLimitInput {
+	orgId: OrgId!
+	billingAccountId: BillingAccountId!
+}
+
+input AdminStartPaymentMethodSetupInput {
+	orgId: OrgId!
+	id: BillingAccountId!
+}
+
+input AdminUpdateBillingAccountDisplayNameInput {
+	orgId: OrgId!
+	id: BillingAccountId!
+	"""
+	The new display name. Must not be empty or whitespace-only.
+	"""
+	displayName: String!
+}
+
+input AdminUpdateBillingAccountProfileInput {
+	orgId: OrgId!
+	id: BillingAccountId!
+	billingAddress: BillingAddressInput!
+	invoiceEmail: String!
+	vatId: String
+	contactPerson: String!
+}
+
+input AdminUpdateOrganisationInput {
+	orgId: OrgId!
+	name: String!
+}
+
+input AdminUpdateProjectInput {
+	orgId: OrgId!
+	projectId: ProjectId!
+	name: String!
+}
+
+input AdminUpdateSupportCaseStatusInput {
+	orgId: OrgId!
+	id: SupportCaseId!
+	status: SupportCaseStatusValue!
+}
+
+input AdminUsageCostInput {
+	orgId: OrgId!
+	projectId: ProjectId!
+	from: DateTime!
+	to: DateTime!
+	granularity: UsageCostGranularityInput!
+}
+
+type AdministrationMutationSchema {
+	"""
+	Creates an organisation from its name alone, for callers that manage
+	billing themselves: its default billing account starts without a
+	billing profile and the organisation cannot be invoiced until
+	`updateBillingAccountProfile` is called on that account.
+	`registerOrganisation` does both in one call.
+	"""
+	createOrganisation(input: AdminCreateOrganisationInput!): Organisation!
+	"""
+	Creates an organisation together with the billing profile its default
+	billing account is created with, so the organisation is billable from
+	the start. The caller becomes the organisation's owner and billing
+	administrator. Fails naming `invoice_email` when the invoice address
+	is not a valid email address, and then creates nothing.
+	"""
+	registerOrganisation(input: AdminRegisterOrganisationInput!): Organisation!
+	createProject(input: AdminCreateProjectInput!): Project!
+	updateOrganisation(input: AdminUpdateOrganisationInput!): Organisation!
+	updateProject(input: AdminUpdateProjectInput!): Project!
+	"""
+	Switches which billing account pays for this project. Requires
+	`admin.project.attach`, which an organisation owner holds by
+	default - distinct from the permissions governing billing accounts
+	themselves.
+	
+	There is no unlink counterpart: a project always has a billing
+	account, so this replaces the current one rather than clearing it.
+	"""
+	linkProjectToBillingAccount(input: AdminLinkProjectToBillingAccountInput!): Project!
+	"""
+	Refuses while the project still owns any resource: an instance that
+	is not terminated, an image, a key pair, a volume or snapshot that is
+	not deleted, a NAT gateway, a Floating IP, a VPC, or a DNS policy
+	other than the project's default one. The refusal names every kind
+	still owned, in the order to remove them. Nothing you can delete
+	yourself is deleted on your behalf.
+	
+	Removes the project's default DNS policy and every role assignment
+	scoped to the project, for every member and service account,
+	together with the project. Org-wide role assignments are unaffected.
+	"""
+	deleteProject(input: AdminDeleteProjectInput!): Boolean!
+	"""
+	Refuses unless every project in the organisation has already been
+	deleted.
+	
+	Billing accounts the organisation still owns are left untouched, so
+	an organisation can be deleted while billing accounts with no linked
+	projects remain.
+	"""
+	deleteOrganisation(input: AdminDeleteOrganisationInput!): Boolean!
+	"""
+	Billing account permissions are governed by `roles/billing/*` grants
+	and are never included in an organisation owner's default
+	permissions.
+	
+	Unlike creating an organisation or project, this grants the caller no
+	role: reaching it at all means already holding
+	`admin.billing_account.create`, which carries access to the resulting
+	account too. An organisation's creator holds
+	`roles/billing/administrator` from the moment the organisation
+	exists; anyone else needs that grant assigned explicitly.
+	"""
+	createBillingAccount(input: AdminCreateBillingAccountInput!): BillingAccount!
+	deleteBillingAccount(input: AdminDeleteBillingAccountInput!): Boolean!
+	"""
+	Replaces every profile field together - fields you omit are cleared,
+	not preserved. Requires the same access as any other
+	billing-account write.
+	"""
+	updateBillingAccountProfile(input: AdminUpdateBillingAccountProfileInput!): BillingAccount!
+	"""
+	Changes a billing account's display name and nothing else — the
+	billing profile is untouched. Works on any of the organisation's
+	billing accounts, the default one included. An empty or
+	whitespace-only name is refused with a `BAD_REQUEST` naming
+	`display_name`. Requires the same access as any other
+	billing-account write.
+	"""
+	updateBillingAccountDisplayName(input: AdminUpdateBillingAccountDisplayNameInput!): BillingAccount!
+	"""
+	Begins adding a payment method to a billing account. Returns the
+	payment provider's hosted page to redirect the browser to - card
+	details are entered there and never pass through this API. After
+	the hosted flow returns to the console, call
+	`confirmPaymentMethodSetup` to verify and record the result.
+	Starting again replaces any earlier unfinished setup. Refused with
+	a `BAD_REQUEST` naming `billing_account_id` when the account needs
+	no payment method (`paymentMethodStatus` is `NOT_REQUIRED`).
+	Requires the same access as any other billing-account write.
+	"""
+	startPaymentMethodSetup(input: AdminStartPaymentMethodSetupInput!): PaymentMethodSetup!
+	"""
+	Completes a payment method setup after the hosted flow returned to
+	the console. The result is verified with the payment provider
+	server-side and only a finished setup is recorded - the redirect
+	alone proves nothing. On success the account's
+	`paymentMethodStatus` becomes `VERIFIED` and billable resources
+	can be created. An unfinished or abandoned setup is refused with a
+	`BAD_REQUEST` naming `billing_account_id` and the account is
+	unchanged - finish the hosted page, or start a new setup. Requires
+	the same access as any other billing-account write.
+	"""
+	confirmPaymentMethodSetup(input: AdminConfirmPaymentMethodSetupInput!): BillingAccount!
+	"""
+	Sets the organisation's spend limit. Setting it again replaces the
+	existing limit rather than failing or adding a second one.
+	
+	Requires `admin.spend_limit.update`, which an organisation owner can
+	grant - it does not require billing-account access.
+	"""
+	setSpendLimit(input: AdminSetSpendLimitInput!): SpendLimit!
+	clearSpendLimit(input: AdminSpendLimitInput!): Boolean!
+	"""
+	Sets one dimension of a project's quota. A project quota is a
+	budget the organisation imposes on itself - useful to stop one
+	project consuming the whole organisation's allowance. The value may
+	not be negative and may not exceed the organisation's limit for the
+	same dimension; a value above that ceiling is rejected rather than
+	silently capped. Budgets of several projects may sum to more than
+	the organisation's quota - they are budgets, not reservations, and
+	the organisation's own limit is always enforced as well.
+	"""
+	setProjectQuotaLimit(input: AdminSetProjectQuotaLimitInput!): ProjectQuota!
+	"""
+	Clears one dimension of a project's quota - the project is then
+	bounded only by the organisation's quota for that dimension.
+	Clearing a dimension that has no budget set succeeds and changes
+	nothing.
+	"""
+	clearProjectQuotaLimit(input: AdminClearProjectQuotaLimitInput!): ProjectQuota!
+	"""
+	Opens a new support case. `contact_email` is taken from this request
+	rather than from your account, and is where every notification about
+	this case is sent for its lifetime - so supply an address you want
+	to receive replies on.
+	"""
+	openSupportCase(input: AdminOpenSupportCaseInput!): SupportCase!
+	"""
+	Appends a message to the conversation. The case's `contact_email` is
+	notified only when the author is someone other than whoever opened
+	the case, so you are not emailed about your own replies.
+	"""
+	addSupportCaseMessage(input: AdminAddSupportCaseMessageInput!): SupportCaseMessage!
+	"""
+	Changes a case's resolution state. The case's `contact_email` is
+	always notified, whoever made the change.
+	"""
+	updateSupportCaseStatus(input: AdminUpdateSupportCaseStatusInput!): SupportCase!
+}
+
+type AdministrationQuerySchema {
+	projects(input: AdminListProjectsInput!): [Project!]!
+	project(orgId: OrgId!, projectId: ProjectId!): Project
+	"""
+	The countries a billing address may use, with their display names
+	and whether a VAT id is mandatory. Deliberately unauthenticated:
+	the registration form needs it before any organisation exists.
+	"""
+	billingCountries: [BillingCountryObject!]!
+	"""
+	Billing accounts are governed by their own `roles/billing/*` grants,
+	not by project or organisation roles. Being a project Owner is not
+	sufficient to read them.
+	"""
+	billingAccounts(input: AdminListBillingAccountsInput!): [BillingAccount!]!
+	billingAccount(orgId: OrgId!, id: BillingAccountId!): BillingAccount
+	billingAccountLinkedProjects(orgId: OrgId!, id: BillingAccountId!): [Project!]!
+	organisations: [Organisation!]!
+	organisation(orgId: OrgId!): Organisation
+	"""
+	The organisation's effective quota: the platform defaults with any
+	overrides applied, plus current usage for each `max*` dimension, so
+	a caller can see both the limit and how much of it is consumed.
+	Usage can trail a change by up to half a minute.
+	
+	Readable by anyone with read access to the organisation - this is
+	where you read your own organisation's limits.
+	"""
+	organisationQuota(orgId: OrgId!): OrganisationQuota!
+	"""
+	The project-scoped sibling of `organisationQuota`, with one
+	difference: a project has no platform-assigned limits. Each `max*`
+	field is the project's own optional budget - null means no
+	project-level limit for that dimension, leaving the organisation's
+	quota as the only bound. Budgets are set and cleared with
+	`setProjectQuotaLimit`/`clearProjectQuotaLimit`.
+	"""
+	projectQuota(orgId: OrgId!, projectId: ProjectId!): ProjectQuota!
+	"""
+	Closed usage intervals for a project overlapping `[from, to]` - the
+	raw metering records the project's cost is derived from. Readable by
+	anyone with read access to the project's organisation.
+	"""
+	usageRecords(input: AdminListUsageRecordsInput!): [UsageRecord!]!
+	"""
+	Priced cost for a project within `[from, to)`, bucketed by hour or
+	day and grouped by service then product key. Requires the same
+	access as `usageRecords`.
+	"""
+	usageCost(input: AdminUsageCostInput!): UsageCostReport!
+	"""
+	The org-wide counterpart to `usageCost`: every project in the
+	organisation within `[from, to)`, returning both the
+	service/product-key breakdown and a per-project split, so an
+	org-level cost view needs one call rather than one per project.
+	
+	All-or-nothing: a caller who can read the organisation's usage reads
+	every project's cost in it, not only the projects they are
+	individually granted.
+	"""
+	orgUsageCost(input: AdminOrgUsageCostInput!): OrgUsageCostReport!
+	"""
+	The configured spend limit, if one is set, together with the current
+	calendar month's real spend. Spend is computed fresh on every call
+	rather than served from a cache.
+	
+	Requires `admin.spend_limit.get`, which an organisation owner can
+	grant - it does not require billing-account access.
+	"""
+	spendLimitStatus(input: AdminSpendLimitInput!): SpendLimitStatus!
+	"""
+	One page of the organisation's support cases, newest first. An
+	organisation's own owner or viewer can read them by default.
+	
+	Returns a page envelope rather than a bare list: the result is
+	capped, and `total`/`hasMore` tell you whether more remain.
+	"""
+	supportCases(input: AdminListSupportCasesInput!): SupportCasePage!
+	supportCase(orgId: OrgId!, id: SupportCaseId!): SupportCase
+	"""
+	One page of the conversation, oldest first. Requires the same access
+	as reading the case itself - a message is not independently
+	readable without it.
+	
+	Returns a page envelope rather than a bare list: the result is
+	capped, and `total`/`hasMore` tell you whether more remain.
+	"""
+	supportCaseMessages(		orgId: OrgId!,		id: SupportCaseId!,
+		"""
+		How many messages to skip, oldest-first. Defaults to 0; a negative value is read as 0.
+		"""
+		offset: Int,
+		"""
+		Page size. Defaults to 100 and is clamped to 1..=500; the page echoes the limit actually served.
+		"""
+		limit: Int
+	): SupportCaseMessagePage!
+}
+
+"""
+The outcome of an audited action. Only `SUCCESS` entries are recorded
+today; `DENIED` is part of the schema already so that logging denied
+attempts later is not a breaking change.
+"""
+enum AuditLogOutcomeType {
+	SUCCESS
+	DENIED
+}
+
+type BillingAccount {
+	id: ID!
+	urn: Urn!
+	billingAccountId: BillingAccountId!
+	"""
+	Human-readable name, rendered into spend-limit alert emails. The
+	account an organisation is provisioned with starts out named
+	`default`; any account, that one included, can be renamed with
+	`updateBillingAccountDisplayName`.
+	"""
+	displayName: String!
+	"""
+	The postal address invoices are issued to. Set from the start on a
+	billing account created with `createBillingAccount`, and on the
+	default one provisioned by `registerOrganisation`; `null` on the
+	default account of an organisation created with the name-only
+	`createOrganisation` until `updateBillingAccountProfile` is called.
+	"""
+	billingAddress: BillingAddressObject
+	invoiceEmail: String
+	vatId: String
+	contactPerson: String
+	"""
+	Whether this account can pay for resources: `NONE` until a payment
+	method is added and verified (creating billable resources is
+	refused in that state), `VERIFIED` once one is on file, or
+	`NOT_REQUIRED` when billing is handled by the platform operator
+	and no payment method is applicable.
+	"""
+	paymentMethodStatus: PaymentMethodStatusValue!
+	"""
+	The verified payment method's card brand (for example `visa`).
+	`null` until a payment method is verified, and for payment methods
+	that are not cards.
+	"""
+	paymentMethodBrand: String
+	"""
+	The verified payment method's last four digits. `null` until a
+	payment method is verified, and for payment methods that are not
+	cards.
+	"""
+	paymentMethodLast4: String
+	orgId: OrgId!
+	organisation: Organisation
+	createdAt: DateTime!
+	createdBy: Principal!
+}
+
+scalar BillingAccountId
+
+"""
+A billing address. Mirrors the address returned on a billing account
+field-for-field.
+"""
+input BillingAddressInput {
+	street: String!
+	city: String!
+	postalCode: String!
+	country: String!
+}
+
+"""
+A billing account's postal address.
+"""
+type BillingAddressObject {
+	street: String!
+	city: String!
+	postalCode: String!
+	country: String!
+}
+
+"""
+A country the platform can issue invoices for. Drives the billing
+address country selection: submit `code`, display `name`, and require
+a VAT id whenever `vatIdRequired` is set.
+"""
+type BillingCountryObject {
+	"""
+	ISO 3166-1 alpha-2 code - the value the billing address mutations
+	expect in `country`.
+	"""
+	code: String!
+	"""
+	English display name.
+	"""
+	name: String!
+	"""
+	Whether a VAT id is mandatory for this country. Invoicing outside
+	Germany is business-to-business only, so every non-German country
+	requires one.
+	"""
+	vatIdRequired: Boolean!
+}
+
+type CommandRequestStatus {
+	accepted: Boolean!
+	message: String!
+}
+
+input ComputeAttachVolumeInput {
+	instanceUrn: Urn!
+	volumeUrn: Urn!
+	"""
+	The guest device name to expose the volume under (`vda`..`vdz`).
+	Assigned by the platform when omitted.
+	"""
+	deviceName: String
+}
+
+input ComputeBlockDeviceSpecInput {
+	"""
+	The guest device name this disk appears under on every instance
+	launched from the image: a bare `vda`..`vdz` (not `vdc`, and not a
+	`/dev/` path), unique within the image. Any other value is refused.
+	"""
+	deviceName: String!
+	snapshotUrn: Urn
+	sizeInGib: Int!
+}
+
+"""
+What the instance's root disk should be, where it differs from the
+image's own. Applies to the boot volume only; extra data disks are
+created and attached separately.
+"""
+input ComputeBootVolumeInput {
+	"""
+	Size of the root disk, in GiB. Omit for the image's own size, which
+	is also the smallest accepted value: a smaller size is refused
+	rather than quietly raised, so the disk is always the size that was
+	asked for and billed. The extra space is yours to partition; most
+	images grow their root filesystem into it on first boot.
+	"""
+	sizeInGib: Int
+	"""
+	Performance tier for the root disk, e.g. `gp1`. Omit for the
+	default. Validated against the tiers currently on offer, so a tier
+	this returns today can stop being accepted; read `pvs.storageClasses`
+	for the live list rather than hard-coding one.
+	"""
+	storageClass: String
+}
+
+input ComputeChangeInstanceTypeInput {
+	instanceUrn: Urn!
+	"""
+	The type to change to, e.g. `gp1.core.4`. Must be one the platform
+	currently offers; read `instanceTypes` and pick one whose `available`
+	is true. A type that is no longer offered is refused with
+	`PRODUCT_UNAVAILABLE`.
+	"""
+	instanceType: String!
+}
+
+input ComputeCreateImageInput {
+	projectUrn: Urn!
+	description: String!
+	"""
+	The account instances launched from this image log in as - the
+	non-root user created at first boot, holding the launch's SSH key.
+	A POSIX username: lowercase letters, digits, underscore and hyphen,
+	at most 32 characters, starting with a letter or underscore, and
+	not `root`. Defaults to `cloud` when omitted.
+	"""
+	defaultUser: String
+	"""
+	The guest device name of the disk the image boots from: a bare
+	`vda`..`vdz` (not `vdc`, and not a `/dev/` path), and one of the
+	names in `blockDeviceSpecs`. Any other value is refused.
+	"""
+	rootDeviceName: String!
+	blockDeviceSpecs: [ComputeBlockDeviceSpecInput!]!
+	"""
+	Tags to create the image with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input ComputeDeleteImageInput {
+	imageUrn: Urn!
+}
+
+input ComputeDeleteKeyPairInput {
+	keyPairUrn: Urn!
+}
+
+input ComputeDetachVolumeInput {
+	instanceUrn: Urn!
+	volumeUrn: Urn!
+}
+
+input ComputeGenerateKeyPairInput {
+	projectUrn: Urn!
+	name: String!
+}
+
+type ComputeGeneratedKeyPair {
+	id: ID!
+	urn: Urn!
+	keyPairId: String!
+	name: String!
+	publicKey: String!
+	createdBy: Principal!
+	"""
+	The generated OpenSSH private key, in PEM form. Returned only here,
+	only once: the platform stores only the public half, so this can
+	never be retrieved again through `keyPair`/`keyPairs`. Save it now.
+	"""
+	privateKey: String!
+}
+
+type ComputeImage {
+	id: ID!
+	urn: Urn!
+	imageId: String!
+	description: String!
+	architecture: ImageArchitectureValue!
+	platform: ImagePlatformValue!
+	"""
+	The account to log in as on an instance launched from this image:
+	the non-root user created at first boot, holding the launch's SSH
+	key.
+	"""
+	defaultUser: String!
+	status: ImageStatusValue!
+	createdBy: Principal!
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+}
+
+type ComputeImageFamily {
+	id: ID!
+	urn: Urn!
+	"""
+	The name to pass to `launchInstance` as `imageFamily`, e.g.
+	`"ubuntu-22-04-minimal"`. Stable: it is never renamed, and never
+	reused for a different definition.
+	"""
+	slug: String!
+	"""
+	Who publishes the upstream release, e.g. `"Canonical"`.
+	"""
+	vendor: String!
+	"""
+	The operating system this family tracks, e.g. `"ubuntu"`.
+	"""
+	os: String!
+	"""
+	The release, e.g. `"22.04"`.
+	"""
+	osVersion: String!
+	description: String!
+	"""
+	When the upstream vendor stops supporting this release, if a date is
+	known. Advisory: launches are not refused on it, and instances
+	already running are unaffected. Treat it as notice to plan a move to
+	a newer family.
+	"""
+	supportEndsAt: DateTime
+}
+
+input ComputeImportKeyPairInput {
+	projectUrn: Urn!
+	name: String!
+	"""
+	Full OpenSSH public key line, e.g. `ssh-ed25519 AAAA... comment`.
+	"""
+	publicKey: String!
+}
+
+type ComputeInstance {
+	id: ID!
+	urn: Urn!
+	instanceId: String!
+	availabilityZone: String!
+	"""
+	Whether the platform can currently confirm this instance is
+	working, which is a different question from `status`: `status` is
+	what was asked for or confirmed, this is what is observed. Neither
+	implies the other — a `RUNNING` instance on an unreachable host is
+	still `RUNNING`.
+	"""
+	healthChecks: InstanceHealthChecks!
+	status: InstanceStatusValue!
+	"""
+	Why the instance is in `FAILED`: the host refused or never confirmed
+	a start, stop or shutdown, the instance could not be placed on a
+	machine, or a volume or network interface it needs could not be
+	created or attached.
+	
+	Also set on a `STOPPED` instance that went down because the machine
+	it was running on failed. A `STOPPED` instance you stopped yourself,
+	that shut itself down, or that the platform stopped to move it to
+	another machine carries none. `null` for every other status, and
+	starting the instance clears it.
+	
+	Always a curated classification, never raw hypervisor output or
+	another service's internal error text.
+	
+	`null` on a `FAILED` instance means it failed before reasons were
+	recorded, not that the reason is unknown - every route into `FAILED`
+	records one now.
+	"""
+	statusReason: String
+	"""
+	The resolved instance type this instance was launched with, e.g.
+	`"gp1.core.2"`.
+	"""
+	instanceType: String!
+	createdBy: Principal!
+	"""
+	When the instance was created. Use it to derive uptime.
+	"""
+	createdAt: DateTime!
+	"""
+	The account to log in as: the non-root user created on this
+	instance at first boot and holding its SSH key. Fixed at launch -
+	the value given then, or the image's `defaultUser` - and the name to
+	put in front of the `@`.
+	"""
+	loginUser: String!
+	"""
+	The SSH key pair this instance was launched with.
+	"""
+	keyPairUrn: Urn!
+	"""
+	Which network interfaces this instance has attached. Each carries
+	only the interface's URN - for addresses, security groups and the
+	rest, follow up with `network { networkInterface(urn) }`.
+	"""
+	networkInterfaceAttachments: [ComputeNetworkInterfaceAttachment!]!
+	"""
+	Which volumes this instance has attached, including which one is the
+	boot volume (`isRootDevice`).
+	"""
+	volumeAttachments: [ComputeVolumeAttachment!]!
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+}
+
+type ComputeInstanceType {
+	"""
+	The canonical instance-type identifier, e.g. `"gp1.core.2"` - pass
+	this directly as `instanceType` on `launchInstance`.
+	"""
+	instanceType: String!
+	"""
+	The hardware/architecture kind identifier, e.g. `"gp1"`.
+	"""
+	kind: String!
+	"""
+	The CPU-allocation-mode literal, e.g. `"core"` for dedicated,
+	guaranteed vCPU vs. a future `"burst"` (shared, budget-metered) tier -
+	same physical CPU/host either way, different provisioning tier, not
+	a different chip.
+	"""
+	cpuAllocationMode: String!
+	vcpu: Int!
+	"""
+	Memory this instance type provides, in MiB.
+	"""
+	memoryMib: Int!
+	"""
+	The most an instance of this type can read and write across all its
+	volumes together, in megabits per second, reads and writes summed.
+	Attaching more volumes shares this cap rather than raising it.
+	`null` when the type has no cap. Applied when the instance starts.
+	"""
+	storageBandwidthMbit: Int
+	"""
+	The rate, in megabits per second, an instance of this type can burst
+	to above `storageBandwidthMbit`. The burst allowance is 60 seconds of
+	traffic at this rate, spent at the excess over the cap, so from a full
+	allowance a burst lasts 60 × burst ÷ (burst − cap) seconds: two
+	minutes when the burst is twice the cap. Staying under the cap
+	refills it. `null` when the type allows no burst or has no cap.
+	"""
+	storageBurstBandwidthMbit: Int
+	"""
+	Whether a new instance can be launched as this type right now. A type
+	that is listed but not available is no longer offered: `launchInstance`
+	and `changeInstanceType` refuse it with `PRODUCT_UNAVAILABLE`.
+	Instances already running as it keep running and keep reporting it.
+	"""
+	available: Boolean!
+}
+
+type ComputeKeyPair {
+	id: ID!
+	urn: Urn!
+	keyPairId: String!
+	name: String!
+	publicKey: String!
+	createdBy: Principal!
+}
+
+input ComputeLaunchInstanceInput {
+	projectUrn: Urn!
+	"""
+	Mutually exclusive with `imageFamily` - exactly one must be set.
+	"""
+	imageUrn: Urn
+	"""
+	Launch from whichever public image is currently designated current
+	for this family, e.g. `"ubuntu-22-04-minimal"`. Mutually exclusive
+	with `imageUrn` - set exactly one.
+	"""
+	imageFamily: String
+	"""
+	Subnet the primary network interface is created in. Omit to use the
+	project's default subnet, which is created on first use in a VPC that
+	already has an Internet Gateway attached, with a public IP
+	auto-assigned to the instance's interface.
+	"""
+	subnetUrn: Urn
+	"""
+	SSH key pair to inject into the guest's login user. Required - a
+	launch with no key pair is rejected rather than falling back to a
+	shared key.
+	"""
+	keyPairUrn: Urn!
+	"""
+	The account to create on the guest and inject the key pair into,
+	overriding the image's `defaultUser` for this instance only. A POSIX
+	username: lowercase letters, digits, underscore and hyphen, at most
+	32 characters, starting with a letter or underscore, and not `root`.
+	Omit to take the image's `defaultUser`. Whichever applies is fixed
+	for the instance's life and reported as its `loginUser`.
+	"""
+	loginUser: String
+	"""
+	The instance type to launch, e.g. `"gp1.core.2"` - see the
+	`instanceTypes` query for the full live catalog, and pick one whose
+	`available` is true. Validated server-side: an unknown value is
+	rejected as invalid input, and one that exists but is no longer
+	offered with `PRODUCT_UNAVAILABLE`.
+	"""
+	instanceType: String!
+	"""
+	Storage backend for this instance's volumes. Only `"pvs"` - durable
+	and network-attached - can be launched into, and it is the default,
+	so this can be omitted.
+	
+	`"host_local"` is rejected: it cannot carry an instance's root disk,
+	because that disk is seeded from the image and a machine only holds
+	the images already copied onto it. Local disk is for extra data
+	volumes, which need no image.
+	"""
+	volumeBackend: String
+	"""
+	Overrides for the volume the instance boots from. Omit for the
+	image's own size on the default storage class.
+	"""
+	bootVolume: ComputeBootVolumeInput
+	"""
+	Security groups to attach to the primary network interface. Omitted
+	or empty defaults to the VPC's default security group.
+	"""
+	securityGroupUrns: [Urn!]
+	"""
+	Tags to create the instance with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input ComputeListImagesInput {
+	projectUrn: Urn!
+}
+
+input ComputeListInstancesInput {
+	projectUrn: Urn!
+}
+
+input ComputeListKeyPairsInput {
+	projectUrn: Urn!
+}
+
+input ComputeListVolumeAttachmentsInput {
+	"""
+	The project to look in. Must be the project `volumeUrn` belongs to.
+	"""
+	projectUrn: Urn!
+	"""
+	The volume whose attachments to list.
+	"""
+	volumeUrn: Urn!
+}
+
+type ComputeMutationSchema {
+	"""
+	Sets tags on an instance or one of the project's own images. A key
+	the resource already carries gets the new value; its other tags are
+	left alone. Returns all of the resource's tags. Requires the
+	resource's `update` permission.
+	"""
+	setResourceTags(input: ComputeSetResourceTagsInput!): [ResourceTag!]!
+	"""
+	Removes tags from an instance or one of the project's own images by
+	key; a key it does not carry is ignored. Returns the tags left.
+	Requires the resource's `update` permission.
+	"""
+	removeResourceTags(input: ComputeRemoveResourceTagsInput!): [ResourceTag!]!
+	createImage(input: ComputeCreateImageInput!): ComputeImage!
+	"""
+	Updates a customer-owned image. Public images cannot be written
+	through this API - a public-shaped URN is refused rather than
+	silently ignored.
+	"""
+	updateImage(input: ComputeUpdateImageInput!): ComputeImage!
+	"""
+	Deletes a customer-owned image. Platform-provided images cannot be
+	deleted through this API - a public-shaped URN is refused.
+	"""
+	deleteImage(input: ComputeDeleteImageInput!): CommandRequestStatus!
+	importKeyPair(input: ComputeImportKeyPairInput!): ComputeKeyPair!
+	"""
+	Generates an SSH key pair on the platform: the public half is stored
+	and usable at launch exactly like an imported key, and the private
+	half is returned in this response and never again. Use this when you
+	do not already have a key to import. The key is `ssh-ed25519`.
+	"""
+	generateKeyPair(input: ComputeGenerateKeyPairInput!): ComputeGeneratedKeyPair!
+	deleteKeyPair(input: ComputeDeleteKeyPairInput!): CommandRequestStatus!
+	launchInstance(input: ComputeLaunchInstanceInput!): ComputeInstance!
+	"""
+	Starts a stopped or failed instance. It keeps its identity, its
+	addresses and its volumes; a durable-backed instance may come back
+	on a different machine.
+	
+	Asking for an instance that is already running reports success and
+	changes nothing. Asking for one that is already starting re-sends
+	the request it is waiting on rather than issuing a second one, so a
+	retry can never disturb a guest that is coming up.
+	
+	Refused while the instance is still initializing — it starts on its
+	own once its volumes and network interface are ready — and while it
+	is stopping or terminating.
+	"""
+	startInstance(input: ComputeStartInstanceInput!): CommandRequestStatus!
+	"""
+	Changes a stopped instance's type, so it starts again at a
+	different size.
+	
+	The instance must be stopped, and must not still hold capacity on a
+	host — an instance that stopped because it failed keeps its host
+	until it is terminated, and changing its type then would leave the
+	platform accounting for a size it never had.
+	
+	Nothing else about the instance changes: it keeps its identity, its
+	address and its volumes. Growing to a larger type is checked against
+	the same vCPU quota a launch is; shrinking is not.
+	"""
+	changeInstanceType(input: ComputeChangeInstanceTypeInput!): CommandRequestStatus!
+	stopInstance(input: ComputeStopInstanceInput!): CommandRequestStatus!
+	terminateInstance(input: ComputeTerminateInstanceInput!): CommandRequestStatus!
+	"""
+	Attaches an available volume to an instance, running or stopped. The
+	volume must be in the instance's own project and availability zone.
+	When `deviceName` is omitted the platform assigns the first free
+	device name; either way the returned attachment reports the name the
+	guest sees the disk under.
+	
+	On a stopped instance the attachment is returned `ATTACHED`, and the
+	disk appears inside the guest at the next start. On a running instance
+	the disk is added live: the attachment is returned `ATTACHING`, moves
+	to `ATTACHED` once the guest sees the device, and to `FAILED` if the
+	device could not be added - in which case the volume is released.
+	Where live attach is not available, a running instance is refused
+	with a conflict asking you to stop it first.
+	
+	Fails when the instance is neither running nor stopped, when the
+	volume is not available, or when the requested device name is taken.
+	"""
+	attachVolume(input: ComputeAttachVolumeInput!): ComputeVolumeAttachment!
+	"""
+	Detaches a volume from an instance, running or stopped. The volume
+	becomes available again - attachable to another instance, or
+	deletable - and the attachment is kept for history in `DETACHED`
+	state with its volume reference cleared.
+	
+	On a running instance the device is removed live: the attachment
+	reports `DETACHING` until the guest releases it, and the volume
+	becomes available only after that. If the guest does not release it,
+	the attachment returns to `ATTACHED` and the volume stays attached.
+	Where live detach is not available, a running instance is refused
+	with a conflict asking you to stop it first.
+	
+	The instance's root volume cannot be detached.
+	"""
+	detachVolume(input: ComputeDetachVolumeInput!): ComputeVolumeAttachment!
+}
+
+type ComputeNetworkInterfaceAttachment {
+	"""
+	This attachment's own identity - not the interface it attaches, which
+	is `networkInterfaceUrn` below.
+	"""
+	id: ID!
+	urn: Urn!
+	"""
+	`null` only while the interface is still being created for this
+	attachment (`INTERFACE_REQUESTED`), which is a moment during launch.
+	Every later state carries it, including the terminal ones - a
+	released interface keeps the id it had, so a detached attachment
+	still says which interface it was.
+	"""
+	networkInterfaceUrn: Urn
+	deviceIndex: Int!
+	status: InterfaceAttachmentStatusValue!
+}
+
+type ComputePublicImage {
+	id: ID!
+	urn: Urn!
+	imageId: String!
+	description: String!
+	architecture: ImageArchitectureValue!
+	platform: ImagePlatformValue!
+	"""
+	The account to log in as on an instance launched from this image:
+	the non-root user created at first boot, holding the launch's SSH
+	key.
+	"""
+	defaultUser: String!
+	status: ImageStatusValue!
+	"""
+	The family this image belongs to, e.g. `"ubuntu-22-04-minimal"`, if
+	any.
+	"""
+	family: String
+	"""
+	Whether `family` currently resolves to this image. Always `false`
+	when `family` is unset.
+	"""
+	isFamilyCurrent: Boolean!
+	createdBy: Principal!
+}
+
+type ComputeQuerySchema {
+	images(input: ComputeListImagesInput!): [ImageType!]!
+	"""
+	A single image by URN. A customer-owned image requires
+	`compute.image.get` on it; a public image requires no permission.
+	
+	A public-shaped URN cannot be used to read a customer-owned image -
+	it simply resolves to `null`.
+	"""
+	image(imageUrn: Urn!): ImageType
+	keyPairs(input: ComputeListKeyPairsInput!): [ComputeKeyPair!]!
+	keyPair(keyPairUrn: Urn!): ComputeKeyPair
+	instances(input: ComputeListInstancesInput!): [ComputeInstance!]!
+	instance(instanceUrn: Urn!): ComputeInstance
+	"""
+	The attachments that reference a volume, each naming its instance -
+	how to find which instance holds a volume that is `INUSE` without
+	listing every instance in the project.
+	
+	The attachment holding the volume is the one whose `id` equals the
+	volume's `claimRef`, and its `instanceUrn` is the instance. Normally
+	that is the only entry, with status `ATTACHED`. Others appear while
+	an attach or detach is in progress, after an attach that `FAILED`,
+	and when a release was abandoned: a `RELEASE_ABANDONED` attachment
+	may still hold the volume, and the platform has stopped trying to
+	free it. Attachments that were detached are not listed.
+	
+	`volumeUrn` must belong to `projectUrn`. A volume in another project
+	returns an empty list, exactly as a volume that does not exist does.
+	Requires `compute.instance.list` on the project.
+	"""
+	volumeAttachments(input: ComputeListVolumeAttachmentsInput!): [ComputeVolumeAttachment!]!
+	"""
+	The full live catalog of instance types - kind, CPU allocation mode,
+	vCPU, derived memory, and whether each can be launched right now.
+	Pick one whose `available` is true and pass its `instanceType`
+	string to `launchInstance`.
+	
+	Platform-wide and not scoped to an organisation or project; no
+	permission is required. Every catalogued type is listed, including
+	ones no longer offered - an instance running as one still reports
+	that type, so it has to be describable. Check `available` rather
+	than assuming everything returned can be launched.
+	"""
+	instanceTypes: [ComputeInstanceType!]!
+	"""
+	Every image family currently on offer, ordered by name.
+	
+	A family is a stable name that resolves to whichever image is
+	current for it, so passing one to `launchInstance` as `imageFamily`
+	gets the latest build without pinning an `imageId` that falls behind
+	as soon as the family is rebuilt. Families that are no longer
+	offered are not listed and resolve nothing; images already launched
+	from them are unaffected.
+	
+	Platform-wide and not scoped to an organisation or project; no
+	permission is required.
+	"""
+	imageFamilies: [ComputeImageFamily!]!
+}
+
+input ComputeRemoveResourceTagsInput {
+	resourceUrn: Urn!
+	keys: [String!]!
+}
+
+input ComputeSetResourceTagsInput {
+	resourceUrn: Urn!
+	tags: [ResourceTagInput!]!
+}
+
+input ComputeStartInstanceInput {
+	instanceUrn: Urn!
+}
+
+input ComputeStopInstanceInput {
+	instanceUrn: Urn!
+}
+
+input ComputeTerminateInstanceInput {
+	instanceUrn: Urn!
+}
+
+input ComputeUpdateImageInput {
+	imageUrn: Urn!
+	description: String!
+}
+
+type ComputeVolumeAttachment {
+	"""
+	This attachment's own identity - not the volume it attaches, which is
+	`volumeUrn` below.
+	"""
+	id: ID!
+	urn: Urn!
+	"""
+	The instance this attachment belongs to. Always set, including while
+	the volume is still being provisioned and after it has been detached,
+	so an attachment reached through the `volumeAttachments` query always
+	leads back to its instance.
+	"""
+	instanceUrn: Urn!
+	"""
+	`null` while the backing volume is still being provisioned, and again
+	once detached - the attachment is kept for history with the volume
+	reference cleared.
+	"""
+	volumeUrn: Urn
+	deviceName: String!
+	isRootDevice: Boolean!
+	status: VolumeAttachmentStatusValue!
+}
+
+"""
+Implement the DateTime<Utc> scalar
+
+The input/output is a string in RFC3339 format.
+"""
+scalar DateTime
+
+type FederatedMutationSchema {
+	iam: IamMutationSchema!
+	admin: AdministrationMutationSchema!
+	compute: ComputeMutationSchema!
+	network: NetworkMutationSchema!
+	pvs: StorageMutationSchema!
+}
+
+type FederatedQuerySchema {
+	iam: IamQuerySchema!
+	admin: AdministrationQuerySchema!
+	compute: ComputeQuerySchema!
+	network: NetworkQuerySchema!
+	pvs: StorageQuerySchema!
+	observability: ObservabilityQuerySchema!
+}
+
+input IamAuditLogEntriesInput {
+	orgId: OrgId!
+	"""
+	Narrows to entries for a single project - omit for every entry in
+	the org (default).
+	"""
+	projectId: ProjectId
+	"""
+	How many entries to skip, newest first. Defaults to `0`; a
+	negative value is read as `0`. Page forward by adding the
+	`limit` you were served, while `hasMore` is true.
+	"""
+	offset: Int
+	"""
+	Page size. Defaults to 100 and is clamped to `1..=500`; the page
+	echoes the `limit` actually served, so asking for more than the
+	maximum is visible in the response rather than silent.
+	"""
+	limit: Int
+}
+
+type IamAuditLogEntry {
+	id: String!
+	orgId: OrgId!
+	projectId: ProjectId
+	"""
+	The principal that performed (or attempted) the action.
+	"""
+	actor: Principal!
+	"""
+	A dotted action key, e.g. `"iam.service_account.create"`.
+	"""
+	action: String!
+	"""
+	Free-form identifier of the resource acted on, e.g.
+	`"service_account:<uuid>"` - see the domain model's own doc
+	comment for why this isn't the namespaced `Urn` type.
+	"""
+	target: String
+	outcome: AuditLogOutcomeType!
+	occurredAt: DateTime!
+	"""
+	Action-specific context, serialized as a JSON string - kept opaque
+	at the GraphQL layer rather than modeled per-action.
+	"""
+	details: String!
+}
+
+type IamAuditLogEntryPage {
+	"""
+	This page's entries, newest first.
+	"""
+	entries: [IamAuditLogEntry!]!
+	"""
+	Entries matching the query across every page, not just this one -
+	the "500 of how many?" a bare list could never answer.
+	"""
+	total: Int!
+	"""
+	The offset actually served. Equals the requested one unless it was
+	negative, in which case it is `0`.
+	"""
+	offset: Int!
+	"""
+	The page size actually served, after clamping into `1..=500` - not
+	necessarily the one requested.
+	"""
+	limit: Int!
+	"""
+	Whether entries exist beyond this page. When `true`, request
+	`offset + limit` to continue; when `false`, you have read the
+	trail to its end.
+	"""
+	hasMore: Boolean!
+}
+
+type IamBuiltinGroup {
+	id: ID!
+	urn: Urn!
+	name: String!
+	description: String!
+}
+
+type IamBuiltinRole {
+	id: ID!
+	"""
+	The role's URN, `urn:origin:cloud:iam::::builtin/role/<id>`, as a grant of
+	this role shows it in `roleUrn` and `roleUrns`.
+	"""
+	urn: Urn!
+	name: String!
+	description: String!
+	"""
+	Every permission this role grants, including billing-account
+	permissions - not only the ones an organisation owner or viewer holds
+	by default.
+	"""
+	permissions: [Permission!]!
+}
+
+type IamConditionalRoleLink {
+	roleUrn: Urn!
+}
+
+input IamCreateServiceAccountInput {
+	orgId: OrgId!
+	name: String!
+}
+
+union IamGroupType = IamBuiltinGroup
+
+input IamHasPermissionInput {
+	onResourceUrn: Urn!
+	principal: Principal!
+	permissionKey: PermissionKey!
+}
+
+input IamInviteMemberInput {
+	orgId: OrgId!
+	email: String!
+	roleUrn: Urn!
+}
+
+input IamListGroupsInput {
+	orgId: OrgId!
+}
+
+input IamListRolesInput {
+	orgId: OrgId!
+}
+
+type IamMutationSchema {
+	"""
+	`projectId` narrows the grant to one project; omit it for an
+	org-wide grant. Either way this requires org-level
+	`iam.role.assign` - the project scope selects what the grant covers,
+	it is not a separate permission.
+	
+	Fails as forbidden when the role carries a permission the caller
+	does not hold itself at that scope: org-wide grants count for any
+	scope, a project grant only for its own project.
+	
+	Fails as a bad request on `principal` when it is a revoked service
+	account.
+	"""
+	assignRole(input: IamRoleAssignmentInput!): ActionResult!
+	"""
+	Removes one role grant at exactly the given scope: `projectId`
+	selects a project-scoped grant, omitting it the org-wide one.
+	
+	Fails as forbidden when the role carries a permission the caller
+	does not hold itself at that scope, as `assignRole` does.
+	
+	Fails with not found, changing nothing, when the principal holds no
+	grant of that role at exactly that scope.
+	
+	Fails with a conflict when it would remove the organisation's last
+	org-wide `roles/owner` grant. Grant `roles/owner` to another member
+	first; a project-scoped owner does not count.
+	"""
+	revokeRole(input: IamRoleAssignmentInput!): ActionResult!
+	"""
+	Invites someone by email, matched exactly.
+	
+	If an account with that address already exists the role is granted
+	immediately - there is no separate acceptance step. If it does not,
+	the invite is stored and applied automatically the first time that
+	address signs in.
+	
+	Org-wide only: invites cannot be scoped to a single project.
+	
+	Fails as forbidden when the caller could not assign the role itself
+	with `assignRole`. A pending invite is checked again when it is
+	applied, and dropped if its inviter can no longer assign the role.
+	"""
+	inviteMember(input: IamInviteMemberInput!): ActionResult!
+	"""
+	Revokes every role the principal holds in the organisation, across
+	every project scope - "remove this person's access" rather than
+	"remove one role", which is `revokeRole`.
+	
+	A no-op, not an error, if they hold no grants there. Fails with a
+	conflict, removing nothing, when they are the organisation's last
+	org-wide owner, and as forbidden, removing nothing, when they hold a
+	role the caller could not revoke with `revokeRole`.
+	"""
+	removeMember(input: IamRemoveMemberInput!): ActionResult!
+	"""
+	Cancels a pending invite before it is applied. `removeMember` acts
+	only on real role assignments, so it will not cancel an invite.
+	"""
+	revokeInvite(input: IamRevokeInviteInput!): ActionResult!
+	"""
+	Creates a service account for machine-to-machine access - the
+	`client_credentials` grant only, never interactive login.
+	
+	**The returned `clientSecret` is shown exactly once.** It cannot be
+	retrieved again through this or any other API; store it now.
+	
+	The account starts with no roles. Grant one with `assignRole`, using
+	the account's own principal.
+	"""
+	createServiceAccount(input: IamCreateServiceAccountInput!): IamServiceAccountCredential!
+	"""
+	Revokes a service account: any further `client_credentials` grant is
+	rejected, and every role assignment the account holds, in any
+	organisation, is removed. An access token issued before the revoke
+	is refused as forbidden on its next request.
+	
+	Permanent: a revoked account can't be reactivated or granted roles
+	again. Revoking an already revoked account succeeds.
+	"""
+	revokeServiceAccount(input: IamRevokeServiceAccountInput!): ActionResult!
+}
+
+type IamOrgInvite {
+	id: String!
+	orgId: OrgId!
+	email: String!
+	roleUrn: Urn!
+	invitedBy: Principal!
+	createdAt: DateTime!
+}
+
+input IamOrgInvitesInput {
+	orgId: OrgId!
+}
+
+type IamOrgMember {
+	principal: Principal!
+	user: IamUser
+	roleUrns: [Urn!]!
+}
+
+input IamOrgMembersInput {
+	orgId: OrgId!
+}
+
+input IamOrgRoleAssignmentsInput {
+	orgId: OrgId!
+}
+
+input IamPrincipalGrantsInput {
+	orgId: OrgId!
+	principal: Principal!
+}
+
+type IamQuerySchema {
+	currentUser: IamUser!
+	currentUserGrants: [IamRoleAssignment!]!
+	"""
+	Every role assignment one principal holds in the organisation, across
+	all project scopes, with each assignment's id, scope and timestamps.
+	
+	Requires the same permission as `orgRoleAssignments`, which returns
+	this for every principal at once. An empty list means the principal
+	holds no role in the organisation.
+	"""
+	principalGrants(input: IamPrincipalGrantsInput!): [IamRoleAssignment!]!
+	roles(input: IamListRolesInput!): [IamRoleType!]!
+	"""
+	One built-in role by the URN `roles` lists. Needs no permission.
+	Returns null for a built-in id that is not in the catalog; a URN that
+	does not name a built-in role is refused.
+	"""
+	role(roleUrn: Urn!): IamRoleType
+	groups(input: IamListGroupsInput!): [IamGroupType!]!
+	group(groupUrn: Urn!): IamGroupType
+	"""
+	Every permission the platform defines, including billing-account
+	permissions - not only those an organisation owner or viewer holds
+	by default. Use it to discover permission strings such as
+	`admin.billing_account.*`.
+	"""
+	permissions: [Permission!]!
+	hasPermission(input: IamHasPermissionInput!): Boolean!
+	"""
+	Every principal with an active role assignment on the organisation,
+	grouped by principal with all of their roles, plus identity details
+	for display where those can be resolved.
+	"""
+	orgMembers(input: IamOrgMembersInput!): [IamOrgMember!]!
+	"""
+	Every role assignment in the organisation, across all principals and
+	project scopes.
+	
+	`orgMembers` flattens this same data to one role list per principal;
+	this keeps each assignment's own id, project scope and timestamps.
+	Both require the same permission.
+	"""
+	orgRoleAssignments(input: IamOrgRoleAssignmentsInput!): [IamRoleAssignment!]!
+	"""
+	Pending invites: people invited by email who have not signed in yet,
+	and so do not appear in `orgMembers`.
+	"""
+	orgInvites(input: IamOrgInvitesInput!): [IamOrgInvite!]!
+	"""
+	Every service account created for the organisation, active or
+	revoked. Never includes a client secret - that is returned only once,
+	when the account is created.
+	"""
+	serviceAccounts(input: IamServiceAccountsInput!): [IamServiceAccount!]!
+	"""
+	One page of the organisation's audit trail, most recent first,
+	optionally narrowed to a single project. Today only service-account
+	creation and revocation are recorded.
+	
+	Returns a page envelope rather than a bare list: the read is capped,
+	so `total` and `hasMore` tell you whether the trail is complete and
+	`offset` reaches the rest.
+	"""
+	auditLogEntries(input: IamAuditLogEntriesInput!): IamAuditLogEntryPage!
+}
+
+input IamRemoveMemberInput {
+	orgId: OrgId!
+	principal: Principal!
+}
+
+input IamRevokeInviteInput {
+	orgId: OrgId!
+	inviteId: String!
+}
+
+input IamRevokeServiceAccountInput {
+	orgId: OrgId!
+	serviceAccountId: String!
+}
+
+type IamRoleAssignment {
+	id: ID!
+	urn: Urn!
+	principal: Principal!
+	orgId: OrgId!
+	"""
+	`null` means the assignment applies across the whole organisation
+	rather than to one project.
+	"""
+	projectId: ProjectId
+	roles: [IamConditionalRoleLink!]!
+	createdAt: DateTime!
+	createdBy: Principal!
+}
+
+input IamRoleAssignmentInput {
+	orgId: OrgId!
+	"""
+	Narrows the assignment to a single project. Omit for an org-wide
+	grant.
+	"""
+	projectId: ProjectId
+	principal: Principal!
+	"""
+	The role's URN as `roles` lists it.
+	"""
+	roleUrn: Urn!
+}
+
+union IamRoleType = IamBuiltinRole
+
+type IamServiceAccount {
+	id: String!
+	orgId: OrgId!
+	name: String!
+	"""
+	The principal to pass to `assignRole`, `revokeRole` and
+	`hasPermission` for this service account. It behaves like any other
+	principal.
+	"""
+	principal: Principal!
+	createdBy: Principal!
+	createdAt: DateTime!
+	revokedAt: DateTime
+}
+
+type IamServiceAccountCredential {
+	id: String!
+	name: String!
+	principal: Principal!
+	"""
+	The OAuth `client_id` to use in a `client_credentials` grant
+	against the platform's identity provider.
+	"""
+	clientId: String!
+	"""
+	The OAuth `client_secret` - shown here once, store it now.
+	"""
+	clientSecret: String!
+}
+
+input IamServiceAccountsInput {
+	orgId: OrgId!
+}
+
+type IamUser {
+	userId: String!
+	firstName: String
+	lastName: String
+	enabled: Boolean!
+	email: String!
+	emailVerified: Boolean!
+}
+
+"""
+The CPU architecture an image's contents are built for. An instance
+launched from the image runs on a host of the same architecture, and an
+image family resolves separately per architecture.
+"""
+enum ImageArchitectureValue {
+	X86_64
+}
+
+"""
+The operating-system family an image carries. `LINUX_UNIX` is the only
+value, and covers every Linux and UNIX-like distribution.
+"""
+enum ImagePlatformValue {
+	LINUX_UNIX
+}
+
+"""
+Whether an image can be launched from. `AVAILABLE` is the only value an
+image ever reports: an image becomes visible only once its contents are
+in place, and there is no state it can leave that for. An image that
+could not be created never appears at all.
+"""
+enum ImageStatusValue {
+	AVAILABLE
+}
+
+union ImageType = ComputeImage | ComputePublicImage
+
+"""
+One line of a listing: the whole of an instance's health in one value.
+
+Never `AVAILABLE` unless every applicable check actually passed — an
+instance the platform cannot currently see reads `UNKNOWN`, not
+`AVAILABLE`.
+"""
+enum InstanceAvailabilityValue {
+	AVAILABLE
+	IMPAIRED
+	UNKNOWN
+	NOT_APPLICABLE
+}
+
+"""
+The outcome of one health check.
+
+`INSUFFICIENT_DATA` is not a synonym for `OK`. It means the platform could
+not evaluate the check — most often because the host carrying the instance
+is unreachable, so the thing that would have observed it is gone. Treating
+it as healthy is the one reading that actively misleads.
+"""
+enum InstanceCheckStatusValue {
+	OK
+	IMPAIRED
+	INSUFFICIENT_DATA
+	NOT_APPLICABLE
+}
+
+type InstanceHealthCheck {
+	kind: InstanceHealthCheckKindValue!
+	"""
+	Derived from `kind` rather than stored, so the two can never
+	disagree.
+	"""
+	category: InstanceHealthCheckCategoryValue!
+	status: InstanceCheckStatusValue!
+	"""
+	When this check entered its current status. Null while nothing has
+	ever observed it.
+	"""
+	since: DateTime
+}
+
+"""
+Whose problem a failing check is — the reason checks are reported
+separately rather than as a single indicator.
+"""
+enum InstanceHealthCheckCategoryValue {
+	"""
+	The platform underneath your instance. Failures here are the
+	operator's to fix; there is nothing to do inside the instance.
+	"""
+	SYSTEM
+	"""
+	Your instance's own operating system and network configuration.
+	Failures here are yours to fix.
+	"""
+	INSTANCE
+}
+
+"""
+Which check this is. More kinds may be added over time; a client should
+ignore a kind it does not recognise rather than failing on it.
+"""
+enum InstanceHealthCheckKindValue {
+	"""
+	Whether the host carrying this instance is reachable at all.
+	"""
+	HOST_REACHABLE
+	"""
+	What the hypervisor reports about the instance's domain.
+	"""
+	DOMAIN_STATE
+	"""
+	Whether the instance answers on the network.
+	"""
+	NETWORK_REACHABLE
+	"""
+	A report from an agent inside the guest. Only available on images
+	that ship one.
+	"""
+	GUEST_AGENT
+	"""
+	Whether the machine carrying this instance still has it. `IMPAIRED`
+	means the instance is no longer running there at all - unlike a
+	failing `DOMAIN_STATE`, which is an instance that exists but is not
+	running properly. Waiting will not bring it back: stop the instance
+	and start it again.
+	"""
+	GUEST_PRESENT
+}
+
+type InstanceHealthChecks {
+	"""
+	Every check the platform reports, always present — a check with
+	nothing to say reports `NOT_APPLICABLE` or `INSUFFICIENT_DATA`
+	rather than being omitted, because an absent entry cannot tell you
+	whether it is unsupported, unconfigured or simply not run yet.
+	"""
+	checks: [InstanceHealthCheck!]!
+	"""
+	The aggregate over `checks`, for a listing that wants one indicator
+	per row. It is a convenience, not a replacement: only the individual
+	checks say whether a problem is the platform's or yours.
+	"""
+	availability: InstanceAvailabilityValue!
+}
+
+"""
+Where an instance is in its lifecycle. `INITIALIZING`, `PENDING`,
+`STOPPING` and `SHUTTING_DOWN` are transitional and resolve on their
+own; `TERMINATED` is final. `RUNNING`, `STOPPED` and `FAILED` change in
+response to a request, and also without one. `RUNNING` goes straight to
+`STOPPED` when the guest powers itself off, or when the platform
+establishes that the machine it was running on failed, in which case
+`statusReason` says so. Moving an instance to another machine for
+maintenance stops it and starts it again elsewhere, from `RUNNING`
+through `STOPPING`, `STOPPED` and `PENDING` back to `RUNNING`; a move
+called off part-way leaves it `STOPPED` until it is started. `FAILED`
+becomes `RUNNING` when its host confirms the start after all, and
+`STOPPED` when its host reports the guest gone or its machine is taken
+out of service. A transition that the host refused ends at `FAILED`,
+never at the state its success would have produced - see
+`statusReason`.
+"""
+enum InstanceStatusValue {
+	INITIALIZING
+	PENDING
+	RUNNING
+	STOPPING
+	STOPPED
+	SHUTTING_DOWN
+	TERMINATED
+	FAILED
+}
+
+"""
+How far a network interface attachment has got. `INTERFACE_REQUESTED` is
+a moment during launch, before the interface exists, and is the only
+state in which `networkInterfaceUrn` is null; `ATTACHED` means the
+interface is bound to the instance; `RELEASING` and the two terminal
+states describe an instance being torn down. An attachment that has been
+released keeps its record, so an instance's history stays readable after
+it is gone - `RELEASE_ABANDONED` is the one to act on, and means the
+platform stopped trying to release the interface and may still hold it.
+"""
+enum InterfaceAttachmentStatusValue {
+	INTERFACE_REQUESTED
+	ATTACHED
+	RELEASING
+	DETACHED
+	RELEASE_ABANDONED
+}
+
+type MetricDataPoint {
+	timestamp: DateTime!
+	value: Float!
+}
+
+input MetricQueryInput {
+	resourceUrn: Urn!
+	metricNames: [String!]!
+	from: DateTime!
+	to: DateTime!
+	periodSeconds: Int!
+	statistic: MetricStatisticInput!
+}
+
+type MetricSeries {
+	metricName: String!
+	resourceUrn: Urn!
+	unit: String!
+	dataPoints: [MetricDataPoint!]!
+}
+
+enum MetricStatisticInput {
+	RATE
+	INCREASE
+}
+
+type NetworkAcl {
+	id: ID!
+	urn: Urn!
+	vpcId: String!
+	isDefault: Boolean!
+	rules: [NetworkAclRule!]!
+	createdAt: DateTime!
+	createdBy: Principal!
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+}
+
+input NetworkAclPortInput {
+	from: Int
+	to: Int
+}
+
+type NetworkAclRule {
+	priority: Int!
+	direction: String!
+	protocol: String!
+	port: String!
+	source: String!
+	policy: String!
+}
+
+enum NetworkAclRuleDirectionInput {
+	INGRESS
+	EGRESS
+}
+
+input NetworkAclRuleInput {
+	priority: Int!
+	direction: NetworkAclRuleDirectionInput!
+	protocol: NetworkProtocolInput!
+	"""
+	Omit both `from`/`to` for "any port"; set only `from` for an exact
+	port; set both for a range. Must be omitted for `ICMP`.
+	"""
+	port: NetworkAclPortInput!
+	"""
+	CIDR this rule matches - the traffic's source for an `Ingress` rule,
+	its destination for an `Egress` rule.
+	"""
+	source: String!
+	policy: NetworkAclRulePolicyInput!
+}
+
+enum NetworkAclRulePolicyInput {
+	ACCEPT
+	DROP
+}
+
+"""
+Which kind of address a resource works on.
+"""
+enum NetworkAddressFamily {
+	"""
+	IPv4.
+	"""
+	IPV4
+}
+
+input NetworkAllocateFloatingIpInput {
+	projectUrn: Urn!
+	"""
+	Tags to create the Floating IP with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input NetworkAssociateFloatingIpInput {
+	floatingIpUrn: Urn!
+	networkInterfaceUrn: Urn!
+}
+
+input NetworkAssociateRouteTableInput {
+	subnetUrn: Urn!
+	routeTableUrn: Urn!
+}
+
+input NetworkAttachDnsPolicyInput {
+	vpcUrn: Urn!
+	dnsPolicyUrn: Urn!
+}
+
+input NetworkAttachInternetGatewayInput {
+	vpcUrn: Urn!
+	"""
+	Tags to create the Internet Gateway with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input NetworkCreateAclInput {
+	vpcUrn: Urn!
+	"""
+	Tags to create the network ACL with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input NetworkCreateDnsPolicyInput {
+	projectUrn: Urn!
+	"""
+	Whether this policy relays unanswered queries upstream at all.
+	"""
+	relayEnabled: Boolean!
+	"""
+	IPv4/IPv6 addresses of the upstream DNS servers to relay to, e.g.
+	`["1.1.1.1", "1.0.0.1"]`. Required non-empty only while
+	`relay_enabled` is true.
+	"""
+	upstreamServers: [String!]!
+}
+
+input NetworkCreateNatGatewayInput {
+	"""
+	A public subnet — one whose route table routes to an Internet
+	Gateway.
+	"""
+	subnetUrn: Urn!
+	"""
+	An allocated Floating IP that is not attached to anything.
+	"""
+	floatingIpUrn: Urn!
+	"""
+	What the gateway translates. IPv4 is the only value: a gateway's
+	address is a Floating IP, which is an IPv4 address.
+	"""
+	addressFamily: NetworkAddressFamily = IPV4
+	"""
+	Tags to create the NAT gateway with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input NetworkCreateNetworkInterfaceInput {
+	projectUrn: Urn!
+	subnetUrn: Urn!
+	"""
+	Security groups to attach. Omitted or empty defaults to the owning
+	VPC's default security group.
+	"""
+	securityGroupUrns: [Urn!]
+	"""
+	Whether the source-address check applies to the interface: the check
+	drops anything the interface sends from a MAC or IP address that is
+	not its own. Defaults to `true`; change it later with
+	`setNetworkInterfaceSourceAddressCheck`.
+	"""
+	sourceAddressCheck: Boolean! = true
+	"""
+	Tags to create the network interface with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input NetworkCreateRouteTableInput {
+	vpcUrn: Urn!
+	"""
+	Tags to create the route table with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input NetworkCreateSecurityGroupInput {
+	vpcUrn: Urn!
+	"""
+	Rules to seed the security group with at creation time, in addition
+	to (or instead of) adding them afterwards via
+	`updateSecurityGroupRules`. Omit for the previous behavior: an empty,
+	deny-by-default security group in both directions.
+	"""
+	ingressRules: [NetworkSecurityGroupRuleInput!]! = []
+	egressRules: [NetworkSecurityGroupRuleInput!]! = []
+	"""
+	Tags to create the security group with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input NetworkCreateSubnetInput {
+	vpcUrn: Urn!
+	"""
+	When set, an interface created in this subnet is allocated and
+	associated a Floating IP automatically at instance-launch time, with
+	no separate `allocateFloatingIp`/`associateFloatingIp` call.
+	Defaults to `false`.
+	"""
+	autoAssignPublicIp: Boolean! = false
+	"""
+	Tags to create the subnet with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input NetworkCreateVpcInput {
+	projectUrn: Urn!
+	"""
+	Primary IPv4 CIDR for the VPC, e.g. `"10.0.0.0/16"`. Must be RFC1918
+	private space, sized between `/16` and `/28`.
+	
+	Omit to be assigned a `172.16.0.0/12` range that does not collide
+	with the organisation's other VPCs.
+	"""
+	ipv4Cidr: String
+	"""
+	Tags to create the VPC with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input NetworkDeleteAclInput {
+	aclUrn: Urn!
+}
+
+input NetworkDeleteDnsPolicyInput {
+	dnsPolicyUrn: Urn!
+}
+
+input NetworkDeleteNatGatewayInput {
+	natGatewayUrn: Urn!
+}
+
+input NetworkDeleteNetworkInterfaceInput {
+	networkInterfaceUrn: Urn!
+}
+
+input NetworkDeleteRouteTableInput {
+	routeTableUrn: Urn!
+}
+
+input NetworkDeleteSecurityGroupInput {
+	securityGroupUrn: Urn!
+}
+
+input NetworkDeleteSubnetInput {
+	subnetUrn: Urn!
+}
+
+input NetworkDeleteVpcInput {
+	vpcUrn: Urn!
+}
+
+input NetworkDetachInternetGatewayInput {
+	vpcUrn: Urn!
+}
+
+input NetworkDisassociateFloatingIpInput {
+	floatingIpUrn: Urn!
+}
+
+type NetworkDnsPolicy {
+	id: ID!
+	urn: Urn!
+	"""
+	Exactly one policy per project always has this set - it
+	auto-attaches to a newly-created VPC and cannot be deleted, but
+	which policy holds it can be reassigned (see
+	`setDefaultDnsPolicy`).
+	"""
+	isDefault: Boolean!
+	"""
+	When `false`, this policy's DNS listener never relays unanswered
+	queries upstream at all - `upstream_servers` is kept but unused,
+	so re-enabling doesn't require re-entering it.
+	"""
+	relayEnabled: Boolean!
+	upstreamServers: [String!]!
+	createdAt: DateTime!
+	createdBy: Principal!
+}
+
+type NetworkFloatingIp {
+	id: ID!
+	urn: Urn!
+	availabilityZone: String!
+	address: String!
+	"""
+	The `NetworkInterface` this Floating IP is currently pointed at, or
+	`null` if it isn't associated with anything yet.
+	"""
+	networkInterfaceUrn: Urn
+	"""
+	The private IPv4 address traffic is currently NATted to, or `null`
+	if unassociated.
+	"""
+	privateAddress: String
+	createdAt: DateTime!
+	createdBy: Principal!
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+}
+
+input NetworkGetRouteTableInput {
+	routeTableUrn: Urn!
+}
+
+type NetworkIPv4Subnet {
+	networkCidr: String!
+	subnetPrefixLength: Int!
+	availableSubnets: Int!
+	totalSubnets: Int!
+}
+
+type NetworkIPv6Subnet {
+	networkCidr: String!
+	subnetPrefixLength: Int!
+	availableSubnets: Int!
+	totalSubnets: Int!
+}
+
+type NetworkInterface {
+	id: ID!
+	urn: Urn!
+	availabilityZone: String!
+	ipv6Address: String!
+	ipv6AddressPrefix: Int!
+	ipv6AddressCidr: String!
+	ipv4Address: String!
+	ipv4AddressPrefix: Int!
+	ipv4AddressCidr: String!
+	creationTime: DateTime!
+	createdBy: Principal!
+	"""
+	The interface's lifecycle state. When `ATTACHED`, see
+	`attachedToUrn` for what it is attached to.
+	"""
+	status: String!
+	"""
+	The attachment record of the instance this interface was launched
+	with. `null` while `status` is `AVAILABLE`.
+	"""
+	attachedToUrn: Urn
+	"""
+	Whether the source-address check applies to this interface: the
+	check drops anything the interface sends from a MAC or IP address
+	that is not its own. `true` unless turned off with
+	`setNetworkInterfaceSourceAddressCheck`.
+	"""
+	sourceAddressCheck: Boolean!
+	"""
+	Which security groups this interface enforces. For the rules
+	themselves, follow up with `network { securityGroup(urn) }`.
+	"""
+	securityGroupUrns: [Urn!]!
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+}
+
+type NetworkInternetGateway {
+	id: ID!
+	urn: Urn!
+	createdAt: DateTime!
+	createdBy: Principal!
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+}
+
+input NetworkListAclsInput {
+	projectUrn: Urn!
+}
+
+input NetworkListDnsPoliciesInput {
+	projectUrn: Urn!
+}
+
+input NetworkListFloatingIpsInput {
+	projectUrn: Urn!
+}
+
+input NetworkListNatGatewaysInput {
+	projectUrn: Urn!
+}
+
+input NetworkListNetworkInterfacesInput {
+	projectUrn: Urn!
+}
+
+input NetworkListRouteTablesInput {
+	projectUrn: Urn!
+}
+
+input NetworkListSecurityGroupsInput {
+	projectUrn: Urn!
+}
+
+input NetworkListSubnetsInput {
+	projectUrn: Urn!
+}
+
+input NetworkListVpcsInput {
+	projectUrn: Urn!
+}
+
+type NetworkMutationSchema {
+	"""
+	Sets tags on a resource. A key the resource already carries gets the
+	new value; its other tags are left alone. Returns all of the
+	resource's tags. Supported on every network resource except DNS
+	policies. Requires the resource's `update` permission.
+	"""
+	setResourceTags(input: NetworkSetResourceTagsInput!): [ResourceTag!]!
+	"""
+	Removes tags from a resource by key; a key it does not carry is
+	ignored. Returns the tags left. Supported on every network resource
+	except DNS policies. Requires the resource's `update` permission.
+	"""
+	removeResourceTags(input: NetworkRemoveResourceTagsInput!): [ResourceTag!]!
+	createVpc(input: NetworkCreateVpcInput!): NetworkVpc!
+	createSubnet(input: NetworkCreateSubnetInput!): NetworkSubnet!
+	"""
+	Attaches a new Internet Gateway to a VPC, making its subnets
+	internet-facing. A newly created VPC has none by default - see
+	`createVpc`. Idempotent: attaching to a VPC that already has one
+	returns the existing gateway unchanged.
+	"""
+	attachInternetGateway(input: NetworkAttachInternetGatewayInput!): NetworkInternetGateway!
+	"""
+	Detaches a VPC's Internet Gateway, making its subnets private again.
+	Idempotent: detaching a VPC with no gateway attached is a no-op.
+	Returns whether a gateway was actually detached.
+	"""
+	detachInternetGateway(input: NetworkDetachInternetGatewayInput!): Boolean!
+	"""
+	Deletes a VPC and everything it owns - subnets, ACLs, security
+	groups, route tables, and its Internet Gateway if one is attached -
+	then releases its claimed IPv6 CIDRs back to the pool.
+	
+	Refuses while any subnet still has a live network interface
+	attached, and while any NAT gateway lives in the VPC - a gateway is
+	never deleted with it, since it holds a Floating IP and is billed
+	until `deleteNatGateway` removes it.
+	"""
+	deleteVpc(input: NetworkDeleteVpcInput!): Boolean!
+	"""
+	Deletes a subnet. Refuses while it still has a live network interface
+	attached, and while a NAT gateway lives in it (see `deleteVpc`).
+	
+	Never releases the owning VPC's CIDR capacity - that happens only on
+	`deleteVpc`.
+	"""
+	deleteSubnet(input: NetworkDeleteSubnetInput!): Boolean!
+	"""
+	Reassigns which ACL enforces a subnet's traffic - how a non-default
+	ACL from `createAcl` is actually put to use. Refuses if `aclUrn`
+	belongs to a different VPC than the subnet.
+	"""
+	updateSubnetAcl(input: NetworkUpdateSubnetAclInput!): NetworkSubnet!
+	"""
+	Changes whether instances launched into this subnet automatically get
+	a Floating IP.
+	
+	Applies only to network interfaces created after the change. Existing
+	interfaces keep whatever Floating IP state they have - use
+	`associateFloatingIp`/`disassociateFloatingIp` for those.
+	"""
+	updateSubnetAutoAssignPublicIp(input: NetworkUpdateSubnetAutoAssignPublicIpInput!): NetworkSubnet!
+	createNetworkInterface(input: NetworkCreateNetworkInterfaceInput!): NetworkInterface!
+	"""
+	Deletes a standalone network interface. Refuses while it is
+	`ATTACHED`: an attached interface was created by an instance launch
+	and is deleted when that instance is terminated.
+	"""
+	deleteNetworkInterface(input: NetworkDeleteNetworkInterfaceInput!): Boolean!
+	"""
+	Turns the source-address check on or off for a network interface and
+	returns the interface.
+	
+	The check drops anything the interface sends from a MAC or IP
+	address that is not the interface's own. Turn it off for an instance
+	that legitimately sends from other addresses: a router or NAT
+	instance, a Kubernetes node routing pod traffic, or a holder of a
+	floating virtual IP (VRRP, keepalived). With the check off, the
+	interface can send from any address.
+	
+	A change reaches a running instance within seconds, without a stop
+	and start. Setting the value the interface already has succeeds and
+	changes nothing. Fails with `NOT_FOUND` if the interface does not
+	exist.
+	"""
+	setNetworkInterfaceSourceAddressCheck(input: NetworkSetNetworkInterfaceSourceAddressCheckInput!): NetworkInterface!
+	"""
+	Replaces the security groups a network interface carries with
+	`securityGroupUrns`, the whole list: a group left out is removed,
+	and a group named twice is carried once.
+	
+	A change reaches a running instance within seconds, without a stop
+	and start. Rules in other groups that name an added or removed group
+	as their peer follow the change too.
+	
+	Fails with `BAD_REQUEST` if the list is empty, or names a
+	security group that does not exist or belongs to a different VPC
+	than the interface. Fails with `NOT_FOUND` if the interface does not
+	exist.
+	"""
+	setNetworkInterfaceSecurityGroups(input: NetworkSetNetworkInterfaceSecurityGroupsInput!): NetworkInterface!
+	"""
+	Creates a NAT gateway so instances without a public address of their
+	own can reach the internet.
+	
+	It goes in a **public** subnet — one whose route table has a default
+	route to an Internet Gateway — and uses a Floating IP you have
+	already allocated and not attached to anything. Point a private
+	subnet's route table at it to send that subnet's traffic through it:
+	a `0.0.0.0/0` route with a `NAT_GATEWAY` target.
+	
+	A gateway translates IPv4 only. IPv6 needs no translation and leaves
+	through the Internet Gateway.
+	
+	The Floating IP stays yours; deleting the gateway does not release
+	it.
+	"""
+	createNatGateway(input: NetworkCreateNatGatewayInput!): NetworkNatGateway!
+	"""
+	Deletes a NAT gateway. Refuses while any route table still routes
+	through it — repoint those first, or the subnets behind it lose
+	their internet access with a route naming something that no longer
+	exists. The Floating IP it used stays allocated to you.
+	"""
+	deleteNatGateway(input: NetworkDeleteNatGatewayInput!): Boolean!
+	"""
+	Creates an additional route table in a VPC.
+	
+	It starts with the VPC's local routes and no default route, so a
+	subnet associated with it reaches its own VPC and nothing else. Add
+	a default with `updateRouteTableRoutes`.
+	"""
+	createRouteTable(input: NetworkCreateRouteTableInput!): NetworkRouteTable!
+	"""
+	Replaces a route table's routes with the list given — this is not a
+	patch. Send every route the table should have.
+	
+	An `INTERNET_GATEWAY` route must name a gateway attached to this
+	table's own VPC.
+	
+	A `NAT_GATEWAY` route must name a gateway in this table's own VPC,
+	and its destination must be `0.0.0.0/0`: a NAT gateway carries a
+	subnet's whole way out, and translates IPv4 only. An IPv6 or
+	narrower destination is refused rather than accepted and ignored.
+	"""
+	updateRouteTableRoutes(input: NetworkUpdateRouteTableRoutesInput!): NetworkRouteTable!
+	"""
+	Deletes a route table. A VPC's main table cannot be deleted, and
+	neither can one a subnet is still associated with.
+	"""
+	deleteRouteTable(input: NetworkDeleteRouteTableInput!): Boolean!
+	"""
+	Points a subnet at a route table, replacing whichever one it used
+	before. The table must belong to the subnet's own VPC.
+	"""
+	associateRouteTable(input: NetworkAssociateRouteTableInput!): NetworkSubnet!
+	"""
+	Creates an additional, non-default ACL in a VPC, for enforcing
+	different rules on a subset of its subnets. Every VPC already has one
+	default ACL, created with it and shared by every subnet.
+	
+	Starts with an empty rule list and enforces nothing until you add
+	rules with `updateAclRules` and attach it with `updateSubnetAcl`.
+	"""
+	createAcl(input: NetworkCreateAclInput!): NetworkAcl!
+	"""
+	Deletes a non-default ACL.
+	
+	Refuses to delete a VPC's default ACL: every subnet is created with
+	it unless reassigned, and it is removed only as part of `deleteVpc`.
+	Also refuses while any subnet still has this ACL assigned.
+	"""
+	deleteAcl(input: NetworkDeleteAclInput!): Boolean!
+	"""
+	Replaces an ACL's rules wholesale. Enforcement is picked up by
+	whichever subnet(s) are associated with this ACL (`Subnet.aclUrn`),
+	not by the owning VPC directly.
+	"""
+	updateAclRules(input: NetworkUpdateAclRulesInput!): NetworkAcl!
+	"""
+	Creates an additional, non-default security group in a VPC. Every VPC
+	already has one default security group created with it; this is for
+	callers that want more.
+	
+	`ingressRules`/`egressRules` seed the group at creation time. Omit
+	either one to start deny-by-default in that direction. Rules can be
+	added or replaced later with `updateSecurityGroupRules`.
+	"""
+	createSecurityGroup(input: NetworkCreateSecurityGroupInput!): NetworkSecurityGroup!
+	"""
+	Deletes a non-default security group.
+	
+	Refuses to delete a VPC's default security group: instance launches
+	fall back to it when none is given, and it is removed only as part of
+	`deleteVpc`. Also refuses while any network interface still carries
+	it: remove it from the interface with
+	`setNetworkInterfaceSecurityGroups` first.
+	"""
+	deleteSecurityGroup(input: NetworkDeleteSecurityGroupInput!): Boolean!
+	"""
+	Replaces a security group's ingress/egress rules wholesale. Unlike
+	ACLs, this propagates live to every already-running instance whose
+	`NetworkInterface` currently has this security group attached - no
+	restart needed.
+	"""
+	updateSecurityGroupRules(input: NetworkUpdateSecurityGroupRulesInput!): NetworkSecurityGroup!
+	"""
+	Creates a new, non-default DNS relay policy in a project. Use
+	`setDefaultDnsPolicy` to make it the project's default, or
+	`attachDnsPolicy` to point one VPC at it.
+	"""
+	createDnsPolicy(input: NetworkCreateDnsPolicyInput!): NetworkDnsPolicy!
+	"""
+	Replaces a DNS relay policy's own `relayEnabled`/`upstreamServers`
+	wholesale - not which policy is default (`setDefaultDnsPolicy`) or
+	which VPC(s) it backs (`attachDnsPolicy`). Propagates live to
+	every compute host currently serving DNS for a VPC attached to
+	this policy, same as `update_security_group_rules`.
+	"""
+	updateDnsPolicy(input: NetworkUpdateDnsPolicyInput!): NetworkDnsPolicy!
+	"""
+	Changes which policy is the project's default. Existing VPCs keep
+	whatever policy they are attached to - only VPCs created afterwards
+	pick up the new default.
+	"""
+	setDefaultDnsPolicy(input: NetworkSetDefaultDnsPolicyInput!): NetworkDnsPolicy!
+	"""
+	Deletes a DNS relay policy. Refuses if it is the project's default,
+	or while any VPC is still attached to it.
+	"""
+	deleteDnsPolicy(input: NetworkDeleteDnsPolicyInput!): Boolean!
+	"""
+	Changes which DNS relay policy a VPC relays through. The policy must
+	belong to the VPC's own project.
+	"""
+	attachDnsPolicy(input: NetworkAttachDnsPolicyInput!): NetworkVpc!
+	"""
+	Allocates a new Floating IP from the region's public IPv4 pool. It is
+	unassociated until you call `associateFloatingIp`.
+	"""
+	allocateFloatingIp(input: NetworkAllocateFloatingIpInput!): NetworkFloatingIp!
+	"""
+	Points an allocated Floating IP at a `NetworkInterface`'s current
+	private IPv4 address, enabling static 1:1 NAT for it. Errors if the
+	Floating IP is already associated - callers must `disassociateFloatingIp`
+	first.
+	"""
+	associateFloatingIp(input: NetworkAssociateFloatingIpInput!): NetworkFloatingIp!
+	"""
+	Disassociates a Floating IP from whatever it's currently pointed at,
+	removing its NAT rules. Idempotent: disassociating a Floating IP that's
+	already unassociated is a no-op. Returns whether it was actually
+	associated beforehand.
+	"""
+	disassociateFloatingIp(input: NetworkDisassociateFloatingIpInput!): Boolean!
+	"""
+	Releases a Floating IP's address back to the zone and deletes the
+	Floating IP. Refused while it is still associated:
+	`disassociateFloatingIp` first.
+	"""
+	releaseFloatingIp(input: NetworkReleaseFloatingIpInput!): Boolean!
+}
+
+"""
+Shared internet egress for instances that have no public address of
+their own.
+
+Instances in a subnet routed through a NAT gateway reach the internet as
+the gateway's address, and are not reachable *from* it. That is the
+difference from a Floating IP, which is one instance's own address in
+both directions — and it is why a handful of instances that only need to
+fetch packages no longer need one each.
+
+It translates **IPv4 only**; see `addressFamily`.
+"""
+type NetworkNatGateway {
+	id: ID!
+	urn: Urn!
+	vpcId: String!
+	"""
+	The public subnet the gateway lives in — the one it was created in,
+	recorded rather than re-derived. Whether that subnet is still public
+	can change afterwards if its route table is edited.
+	"""
+	subnetId: String!
+	"""
+	The Floating IP the gateway uses, and therefore the address every
+	instance behind it appears as. It stays allocated to you and is not
+	released when the gateway is deleted.
+	"""
+	floatingIpId: String!
+	"""
+	What the gateway translates: IPv4, and only IPv4.
+	
+	Its address is a Floating IP, which is an IPv4 address, so there is
+	nothing for it to translate an IPv6 packet to. A route sending IPv6
+	through a NAT gateway is refused rather than silently ignored.
+	"""
+	addressFamily: NetworkAddressFamily!
+	createdAt: DateTime!
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+}
+
+"""
+The protocol a security group or network ACL rule matches.
+"""
+enum NetworkProtocolInput {
+	"""
+	Every protocol. A port given with it is ignored.
+	"""
+	ANY
+	TCP
+	UDP
+	"""
+	ICMP for IPv4 peers and ICMPv6 for IPv6 peers, every type and code.
+	ICMP has no ports: a rule with this protocol must leave `port` empty
+	and is rejected otherwise.
+	"""
+	ICMP
+}
+
+type NetworkQuerySchema {
+	vpcs(input: NetworkListVpcsInput!): [NetworkVpc!]!
+	vpc(vpcUrn: Urn!): NetworkVpc
+	subnets(input: NetworkListSubnetsInput!): [NetworkSubnet!]!
+	subnet(subnetUrn: Urn!): NetworkSubnet
+	networkInterface(networkInterfaceUrn: Urn!): NetworkInterface
+	networkInterfaces(input: NetworkListNetworkInterfacesInput!): [NetworkInterface!]!
+	internetGateway(vpcUrn: Urn!): NetworkInternetGateway
+	acl(aclUrn: Urn!): NetworkAcl
+	"""
+	Every NAT gateway in a project.
+	"""
+	natGateways(input: NetworkListNatGatewaysInput!): [NetworkNatGateway!]!
+	"""
+	Every route table in a project.
+	"""
+	routeTables(input: NetworkListRouteTablesInput!): [NetworkRouteTable!]!
+	routeTable(input: NetworkGetRouteTableInput!): NetworkRouteTable!
+	"""
+	Every ACL in a project. Each VPC has at least the default ACL
+	created with it, plus any added with `createAcl`.
+	"""
+	acls(input: NetworkListAclsInput!): [NetworkAcl!]!
+	securityGroup(securityGroupUrn: Urn!): NetworkSecurityGroup
+	"""
+	Every security group in a project. Each VPC has at least the default
+	group created with it, plus any added with `createSecurityGroup`.
+	"""
+	securityGroups(input: NetworkListSecurityGroupsInput!): [NetworkSecurityGroup!]!
+	"""
+	A single DNS relay policy by its URN. Use `dnsPolicies` to list every
+	policy in a project, or a VPC's `dnsPolicyId` for the one it
+	currently relays through.
+	"""
+	dnsPolicy(dnsPolicyUrn: Urn!): NetworkDnsPolicy
+	"""
+	Every DNS relay policy in a project. A project can hold more than
+	one, and exactly one is always the default.
+	"""
+	dnsPolicies(input: NetworkListDnsPoliciesInput!): [NetworkDnsPolicy!]!
+	"""
+	A single floating IP by its URN. An address that was released, or
+	that does not exist in the URN's project, is a `NOT_FOUND` error.
+	"""
+	floatingIp(floatingIpUrn: Urn!): NetworkFloatingIp!
+	floatingIps(input: NetworkListFloatingIpsInput!): [NetworkFloatingIp!]!
+}
+
+input NetworkReleaseFloatingIpInput {
+	floatingIpUrn: Urn!
+}
+
+input NetworkRemoveResourceTagsInput {
+	resourceUrn: Urn!
+	keys: [String!]!
+}
+
+"""
+A VPC's routing decisions, and the resource a subnet is associated with
+to inherit them.
+
+Every VPC has exactly one *main* table, created with it. Additional
+tables let different subnets of one VPC route differently — the pattern
+behind a public subnet (reaching the internet through a gateway) and a
+private one (reaching only the VPC).
+"""
+type NetworkRouteTable {
+	id: ID!
+	urn: Urn!
+	vpcId: String!
+	"""
+	The table a subnet uses when it has been associated with no other.
+	Created with the VPC and cannot be deleted.
+	"""
+	isMain: Boolean!
+	routes: [NetworkRouteTableRoute!]!
+	createdAt: DateTime!
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+}
+
+"""
+One routing decision: traffic for `destination` leaves via `target`.
+"""
+type NetworkRouteTableRoute {
+	"""
+	CIDR, e.g. `0.0.0.0/0` for the default route.
+	"""
+	destination: String!
+	target: NetworkRouteTarget!
+	"""
+	The URN of the resource the traffic leaves through. `null` for
+	`LOCAL`, which names no resource.
+	"""
+	targetUrn: Urn
+}
+
+"""
+One route. `targetUrn` is required for `INTERNET_GATEWAY` and must be
+omitted for `LOCAL`, which names no resource.
+"""
+input NetworkRouteTableRouteInput {
+	"""
+	CIDR, e.g. `0.0.0.0/0`.
+	"""
+	destination: String!
+	target: NetworkRouteTarget!
+	targetUrn: Urn
+}
+
+"""
+Where a route sends traffic.
+"""
+enum NetworkRouteTarget {
+	"""
+	Inside the VPC itself. Present on every table and not removable —
+	reaching your own VPC is not optional.
+	"""
+	LOCAL
+	"""
+	Out through the VPC's Internet Gateway.
+	"""
+	INTERNET_GATEWAY
+	"""
+	Out through a NAT gateway, which translates the traffic to its own
+	address. Instances in a subnet routed this way reach the internet
+	without each needing a Floating IP, and are not reachable from it.
+	"""
+	NAT_GATEWAY
+}
+
+type NetworkSecurityGroup {
+	id: ID!
+	urn: Urn!
+	vpcId: String!
+	isDefault: Boolean!
+	ingressRules: [NetworkSecurityGroupIngressRule!]!
+	egressRules: [NetworkSecurityGroupEgressRule!]!
+	createdAt: DateTime!
+	createdBy: Principal!
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+}
+
+type NetworkSecurityGroupEgressRule {
+	protocol: String!
+	port: String!
+	destination: String!
+	description: String
+}
+
+type NetworkSecurityGroupIngressRule {
+	protocol: String!
+	port: String!
+	source: String!
+	description: String
+}
+
+input NetworkSecurityGroupRuleInput {
+	protocol: NetworkProtocolInput!
+	"""
+	Omit both `from`/`to` for "any port"; set only `from` for an exact
+	port; set both for a range. Must be omitted for `ICMP`.
+	"""
+	port: NetworkAclPortInput!
+	"""
+	The peer this rule matches - the traffic's source for an ingress
+	rule, its destination for an egress rule. Set exactly one of
+	`ipRange`/`securityGroupUrn`.
+	"""
+	peer: NetworkSecurityGroupRulePeerInput!
+	description: String
+}
+
+input NetworkSecurityGroupRulePeerInput {
+	ipRange: String
+	securityGroupUrn: Urn
+}
+
+input NetworkSetDefaultDnsPolicyInput {
+	dnsPolicyUrn: Urn!
+}
+
+input NetworkSetNetworkInterfaceSecurityGroupsInput {
+	networkInterfaceUrn: Urn!
+	"""
+	Every security group the interface carries from now on. At least
+	one, all in the interface's VPC.
+	"""
+	securityGroupUrns: [Urn!]!
+}
+
+input NetworkSetNetworkInterfaceSourceAddressCheckInput {
+	networkInterfaceUrn: Urn!
+	"""
+	`true` to apply the check, `false` to let the interface send from
+	any address.
+	"""
+	sourceAddressCheck: Boolean!
+}
+
+input NetworkSetResourceTagsInput {
+	resourceUrn: Urn!
+	tags: [ResourceTagInput!]!
+}
+
+type NetworkSubnet {
+	id: ID!
+	urn: Urn!
+	vpcId: String!
+	"""
+	URN of the Network ACL enforced on this subnet's traffic. AWS-parity
+	association: the ACL is a distinct, VPC-owned resource; each subnet
+	is associated with exactly one.
+	"""
+	aclUrn: Urn!
+	availabilityZone: String!
+	ipv6Network: NetworkIPv6Subnet!
+	ipv6Router: String!
+	ipv6DnsServers: [String!]!
+	ipv4Network: NetworkIPv4Subnet!
+	ipv4Router: String!
+	ipv4DnsServers: [String!]!
+	"""
+	The URN of the route table this subnet's traffic is routed by. Every
+	subnet has one: the VPC's main table until `associateRouteTable`
+	points it at another.
+	"""
+	routeTableUrn: Urn!
+	"""
+	Whether instances launched into this subnet automatically get a
+	Floating IP. Applies only to interfaces created after the setting
+	was last changed.
+	"""
+	autoAssignPublicIp: Boolean!
+	createdAt: DateTime!
+	createdBy: Principal!
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+}
+
+input NetworkUpdateAclRulesInput {
+	aclUrn: Urn!
+	rules: [NetworkAclRuleInput!]!
+}
+
+input NetworkUpdateDnsPolicyInput {
+	dnsPolicyUrn: Urn!
+	relayEnabled: Boolean!
+	upstreamServers: [String!]!
+}
+
+input NetworkUpdateRouteTableRoutesInput {
+	routeTableUrn: Urn!
+	"""
+	The complete route list. Anything omitted is removed.
+	"""
+	routes: [NetworkRouteTableRouteInput!]!
+}
+
+input NetworkUpdateSecurityGroupRulesInput {
+	securityGroupUrn: Urn!
+	ingressRules: [NetworkSecurityGroupRuleInput!]!
+	egressRules: [NetworkSecurityGroupRuleInput!]!
+}
+
+input NetworkUpdateSubnetAclInput {
+	subnetUrn: Urn!
+	aclUrn: Urn!
+}
+
+input NetworkUpdateSubnetAutoAssignPublicIpInput {
+	subnetUrn: Urn!
+	"""
+	The new value. Applies only to network interfaces created after this
+	call - see `updateSubnetAutoAssignPublicIp`.
+	"""
+	autoAssignPublicIp: Boolean!
+}
+
+type NetworkVpc {
+	id: ID!
+	urn: Urn!
+	region: String!
+	"""
+	The VPC's own claimed IPv6 CIDRs. Today always exactly one.
+	"""
+	networks: [NetworkIPv6Subnet!]!
+	"""
+	The VPC's own private IPv4 CIDR. Always exactly one, and unlike
+	`networks` it is not claimed from a platform pool.
+	"""
+	ipv4Network: NetworkIPv4Subnet!
+	"""
+	Which DNS relay policy this VPC currently relays through. `null` only
+	for a VPC created before DNS policies existed.
+	"""
+	dnsPolicyId: String
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+	createdAt: DateTime!
+	createdBy: Principal!
+}
+
+type ObservabilityQuerySchema {
+	metrics(input: MetricQueryInput!): [MetricSeries!]!
+}
+
+scalar OrgId
+
+"""
+Flattens the composed domain `OrgUsageCostReport` - `total`/`byService`
+read identically to `UsageCostReport` so console can share a renderer,
+with `byProject` as the extra org-only axis.
+"""
+type OrgUsageCostReport {
+	total: String!
+	byService: [UsageCostByService!]!
+	byProject: [UsageCostByProject!]!
+}
+
+type Organisation {
+	id: ID!
+	urn: Urn!
+	orgId: OrgId!
+	name: String!
+	"""
+	This organisation's admission status. Read-only: the decision to
+	approve or reject an organisation under review is made by the
+	platform operator, not by the organisation's own members.
+	"""
+	status: OrganisationStatusValue!
+	project(projectId: ProjectId!): Project
+	projects: [Project!]!
+	createdAt: DateTime!
+	createdBy: Principal!
+}
+
+type OrganisationQuota {
+	orgId: OrgId!
+	maxInstances: Int!
+	maxVcpu: Int!
+	maxVolumeGib: Int!
+	maxVpcs: Int!
+	maxPublicIps: Int!
+	"""
+	Current count against the matching `max*` limit above. Recounted
+	continuously, so a resource just created or deleted can take up to
+	half a minute to show here; the limit itself is enforced on the exact
+	count.
+	"""
+	currentInstances: Int!
+	currentVcpu: Int!
+	currentVolumeGib: Int!
+	currentVpcs: Int!
+	currentPublicIps: Int!
+}
+
+"""
+An organisation's admission status. A new organisation is either
+activated immediately or placed under review, depending on available
+platform capacity when it is created. Only an `ACTIVE` organisation can
+create instances, volumes, VPCs or floating IPs. `REJECTED` is final.
+"""
+enum OrganisationStatusValue {
+	PENDING_REVIEW
+	ACTIVE
+	REJECTED
+}
+
+"""
+What `startPaymentMethodSetup` returns: where to send the browser.
+"""
+type PaymentMethodSetup {
+	"""
+	The payment provider's hosted page for entering a payment method.
+	Redirect the customer's browser here; the card details are typed
+	into that page and never pass through this API.
+	"""
+	redirectUrl: String!
+}
+
+"""
+Whether the billing account is ready to pay for resources by card.
+"""
+enum PaymentMethodStatusValue {
+	"""
+	No verified payment method yet - creating billable resources is
+	refused until one is added via `startPaymentMethodSetup` and
+	`confirmPaymentMethodSetup`.
+	"""
+	NONE
+	"""
+	A payment method is on file and verified; billable resources can
+	be created.
+	"""
+	VERIFIED
+	"""
+	Billing for this account is handled by the platform operator - no
+	payment method is needed, and the setup mutations are not
+	applicable.
+	"""
+	NOT_REQUIRED
+}
+
+type Permission {
+	id: ID!
+	urn: Urn!
+	key: PermissionKey!
+	service: String!
+	resourceType: String!
+	action: String!
+}
+
+scalar PermissionKey
+
+scalar Principal
+
+type Project {
+	id: ID!
+	urn: Urn!
+	projectId: ProjectId!
+	name: String!
+	"""
+	The project's linked billing account. Always set - a project always
+	has one.
+	"""
+	billingAccountId: BillingAccountId!
+	orgId: OrgId!
+	organisation: Organisation
+	createdAt: DateTime!
+	createdBy: Principal!
+}
+
+scalar ProjectId
+
+type ProjectQuota {
+	orgId: OrgId!
+	projectId: ProjectId!
+	"""
+	The project's own budget for this dimension, if one is set. Null
+	means the project has no limit of its own here and is bounded only
+	by the organisation's quota.
+	"""
+	maxInstances: Int
+	"""
+	The project's own budget for this dimension, if one is set. Null
+	means the project has no limit of its own here and is bounded only
+	by the organisation's quota.
+	"""
+	maxVcpu: Int
+	"""
+	The project's own budget for this dimension, if one is set. Null
+	means the project has no limit of its own here and is bounded only
+	by the organisation's quota.
+	"""
+	maxVolumeGib: Int
+	"""
+	The project's own budget for this dimension, if one is set. Null
+	means the project has no limit of its own here and is bounded only
+	by the organisation's quota.
+	"""
+	maxVpcs: Int
+	"""
+	The project's own budget for this dimension, if one is set. Null
+	means the project has no limit of its own here and is bounded only
+	by the organisation's quota.
+	"""
+	maxPublicIps: Int
+	"""
+	Current count against the matching `max*` limit above, for this
+	project alone. Recounted continuously, so a resource just created or
+	deleted can take up to half a minute to show here; the limit itself is
+	enforced on the exact count.
+	"""
+	currentInstances: Int!
+	currentVcpu: Int!
+	currentVolumeGib: Int!
+	currentVpcs: Int!
+	currentPublicIps: Int!
+}
+
+"""
+A quota dimension a project budget can be set on. Values mirror the
+`ProjectQuota` field names.
+"""
+enum ProjectQuotaDimension {
+	MAX_INSTANCES
+	MAX_VCPU
+	MAX_VOLUME_GIB
+	MAX_VPCS
+	MAX_PUBLIC_IPS
+}
+
+input PvsCreateSnapshotInput {
+	volumeUrn: Urn!
+	"""
+	Tags to create the snapshot with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input PvsCreateVolumeInput {
+	projectUrn: Urn!
+	snapshotUrn: Urn
+	"""
+	The volume's performance tier. `gp1` (general purpose,
+	SSD-backed) is the only tier currently offered and the default when
+	omitted; any other value is refused. Read `pvs.storageClasses` for
+	the tiers actually on offer rather than assuming this list.
+	"""
+	storageClass: String
+	sizeInGib: Int!
+	"""
+	Tags to create the volume with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input PvsDeleteSnapshotInput {
+	snapshotUrn: Urn!
+}
+
+input PvsDeleteVolumeInput {
+	volumeUrn: Urn!
+}
+
+input PvsImportVolumeInput {
+	projectUrn: Urn!
+	"""
+	The volume's performance tier. `gp1` (general purpose,
+	SSD-backed) is the only tier currently offered and the default when
+	omitted; any other value is refused. Read `pvs.storageClasses` for
+	the tiers actually on offer rather than assuming this list.
+	"""
+	storageClass: String
+	"""
+	Size of the volume, in GiB. This is what the block device is made
+	to be, what quota is charged and what is billed; a smaller image
+	leaves the rest of the space free.
+	
+	The image must fit: one whose *virtual* size exceeds this fails the
+	import and leaves the volume in `ERROR`. Note virtual size, not the
+	size of the file at `sourceUrl` - a qcow2 downloads far smaller
+	than it unpacks to.
+	"""
+	sizeInGib: Int!
+	sourceUrl: String!
+	"""
+	Tags to create the volume with. `origin:name` names it.
+	"""
+	tags: [ResourceTagInput!]
+}
+
+input PvsListSnapshotsInput {
+	projectUrn: Urn!
+}
+
+input PvsListVolumesInput {
+	projectUrn: Urn!
+}
+
+input PvsProtectSnapshotInput {
+	snapshotUrn: Urn!
+}
+
+input PvsRemoveResourceTagsInput {
+	resourceUrn: Urn!
+	keys: [String!]!
+}
+
+input PvsResizeVolumeInput {
+	volumeUrn: Urn!
+	sizeInGib: Int!
+}
+
+input PvsSetResourceTagsInput {
+	resourceUrn: Urn!
+	tags: [ResourceTagInput!]!
+}
+
+type PvsSnapshot {
+	id: ID!
+	urn: Urn!
+	snapshotId: String!
+	"""
+	The volume this snapshot was taken from.
+	
+	A volume cannot be deleted while any of its snapshots still exists, so
+	this is what lets a client find the snapshots that would block a
+	`deleteVolume` before attempting it, rather than discovering them in
+	the refusal.
+	"""
+	volumeUrn: Urn!
+	volumeSizeInGib: Int!
+	status: String!
+	"""
+	Why the snapshot is in `ERROR`: it could not be created, or could not
+	be removed. `null` for every other status.
+	"""
+	statusReason: String
+	"""
+	`PROTECTED`, `UNPROTECTED`, either in-flight state, or `FAILED` when
+	the last protect or unprotect could not be applied - in which case
+	the real protection state is unknown. Only a `PROTECTED` snapshot can
+	be used as a clone source.
+	"""
+	protectionStatus: String!
+	"""
+	Why the last protect or unprotect failed, when `protectionStatus` is
+	`FAILED`. The snapshot's data is unaffected - retry the protect, or
+	unprotect it, to settle the state again. `null` for every other
+	protection status.
+	"""
+	protectionStatusReason: String
+	progress: String!
+	"""
+	How far a pending snapshot has got, as a percentage. Non-null only
+	while `progress` is `PENDING`.
+	"""
+	percentComplete: Float
+	createdBy: Principal!
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+}
+
+type PvsStorageClass {
+	"""
+	The identifier to pass as `storageClass` when creating or importing
+	a volume.
+	"""
+	storageClass: String!
+	"""
+	Human-readable name of the tier.
+	"""
+	displayName: String!
+	"""
+	The backing media. General-purpose volumes are SSD-backed;
+	throughput-optimized volumes trade latency for cheaper bulk
+	capacity on HDDs.
+	"""
+	media: PvsStorageMedia!
+	"""
+	Whether this class is used when a volume is created without an
+	explicit `storageClass`.
+	"""
+	isDefault: Boolean!
+	"""
+	Whether this class can be selected right now. A class that is listed
+	but not available is a published tier that is not yet on sale:
+	`createVolume`, `importVolume` and a boot volume that names it are
+	refused with `PRODUCT_UNAVAILABLE`. Volumes created while it was
+	available keep working.
+	"""
+	available: Boolean!
+	"""
+	The I/O operations per second, reads and writes combined, a new
+	volume of this class is limited to. `null` for a class that is not
+	available yet: its limits are published when it goes on sale.
+	"""
+	baselineIops: Int
+	"""
+	The throughput in MiB/s (1 MiB = 1,048,576 bytes), reads and writes
+	combined, a new volume of this class is limited to. `null` for a
+	class that is not available yet: its limits are published when it
+	goes on sale.
+	"""
+	baselineThroughputMibps: Int
+}
+
+"""
+The physical media a storage class is backed by - the property that
+actually distinguishes the tiers.
+"""
+enum PvsStorageMedia {
+	"""
+	Solid-state storage.
+	"""
+	SSD
+	"""
+	Rotational (hard-disk) storage.
+	"""
+	HDD
+}
+
+input PvsUnprotectSnapshotInput {
+	snapshotUrn: Urn!
+}
+
+type PvsVolume {
+	id: ID!
+	urn: Urn!
+	volumeId: String!
+	sizeInGib: Int!
+	availabilityZone: String!
+	storageClass: String!
+	status: String!
+	"""
+	When `status` is `INUSE`, the `id` of the volume attachment holding
+	this volume; `null` otherwise. To find the instance, pass this
+	volume's `urn` and its project's URN to the `volumeAttachments`
+	query and take the entry whose `id` matches: its `instanceUrn` is
+	the instance the volume is attached to.
+	"""
+	claimRef: String
+	"""
+	Why the volume is in `ERROR`: its backing image could not be created
+	or could not be removed. `null` for every other status.
+	"""
+	statusReason: String
+	"""
+	Whether a modification - today only a resize - is in flight,
+	finished, or failed: `COMPLETED`, `RESIZING`, `FAILED`, or the
+	legacy `MODIFYING`.
+	"""
+	modificationStatus: String!
+	"""
+	Why the last modification failed, when `modificationStatus` is
+	`FAILED`. The volume itself is unaffected: its data is intact and
+	`sizeInGib` still reports the size it really has.
+	"""
+	modificationStatusReason: String
+	"""
+	The size a resize in flight is heading for. `sizeInGib` changes only
+	once the resize is confirmed, so comparing the two distinguishes
+	"still in progress" from "did not happen".
+	"""
+	pendingSizeInGib: Int
+	"""
+	Why this volume is still here after the instance it was attached to
+	was terminated, when it was created with the instance and would
+	normally have been deleted alongside it. `null` in every other case,
+	including a volume you created yourself.
+	
+	The volume is a normal, usable volume: it is `AVAILABLE`, it is
+	yours, and it is billed. Nothing was destroyed to keep it - most
+	often it is still here because a snapshot of it exists, and a
+	snapshot depends on its volume's stored data. Delete the snapshots
+	and then the volume if you no longer want either.
+	"""
+	retentionNote: String
+	"""
+	The most I/O operations per second this volume serves, reads and
+	writes combined. A ceiling, not a guaranteed rate: the storage
+	cluster behind it is shared. Set from the storage class's
+	`baselineIops` when the volume is created. `null` when the volume is
+	not limited, which is always the case for host-local volumes.
+	"""
+	iops: Int
+	"""
+	The most data per second this volume transfers, in MiB/s (1 MiB =
+	1,048,576 bytes), reads and writes combined. A ceiling, not a
+	guaranteed rate. Set from the storage class's
+	`baselineThroughputMibps` when the volume is created. `null` when
+	the volume is not limited, which is always the case for host-local
+	volumes.
+	"""
+	throughputMibps: Int
+	createdBy: Principal!
+	"""
+	Its tags, in key order.
+	"""
+	tags: [ResourceTag!]!
+	"""
+	Its `origin:name` tag, or `null` when it has none.
+	"""
+	name: String
+}
+
+"""
+A key-value label on a resource. Tags are decorative: they change how a
+resource is shown and found, never how it behaves. Keys starting with
+`origin:` are reserved; `origin:name` is the resource's display name and
+`origin:env` its environment.
+"""
+type ResourceTag {
+	key: String!
+	value: String!
+}
+
+"""
+A tag to set. A key may contain letters, digits and `_ . : / = + @ -`, up
+to 128 characters; a value up to 256 characters. Under `origin:` only
+`origin:name` (1-128 characters) and `origin:env` (`dev`, `staging`,
+`qa`, `pre-prod`, `prod` or `canary`) are accepted. A resource carries at
+most 50 tags.
+"""
+input ResourceTagInput {
+	key: String!
+	value: String!
+}
+
+type SpendLimit {
+	orgId: OrgId!
+	billingAccountId: BillingAccountId!
+	"""
+	A decimal amount in EUR, as a string. Billing figures are strings
+	rather than floats so no precision is lost in transit.
+	"""
+	limitEur: String!
+	alertThresholdsPercent: [Int!]!
+	notificationEmails: [String!]!
+	createdAt: DateTime!
+	updatedAt: DateTime!
+	createdBy: Principal!
+}
+
+type SpendLimitStatus {
+	"""
+	`None` if no spend limit is currently configured for this billing
+	account.
+	"""
+	limit: SpendLimit
+	currentPeriodStart: DateTime!
+	currentPeriodEnd: DateTime!
+	currentSpendEur: String!
+	"""
+	`None` when no limit is configured - there's nothing to divide by.
+	"""
+	percentUsed: String
+}
+
+type StorageMutationSchema {
+	"""
+	Sets tags on a volume or snapshot. A key the resource already
+	carries gets the new value; its other tags are left alone. Returns
+	all of the resource's tags. Requires the resource's `update`
+	permission.
+	"""
+	setResourceTags(input: PvsSetResourceTagsInput!): [ResourceTag!]!
+	"""
+	Removes tags from a volume or snapshot by key; a key it does not
+	carry is ignored. Returns the tags left. Requires the resource's
+	`update` permission.
+	"""
+	removeResourceTags(input: PvsRemoveResourceTagsInput!): [ResourceTag!]!
+	createVolume(input: PvsCreateVolumeInput!): PvsVolume!
+	"""
+	Imports an existing disk image as a new volume's initial content,
+	instead of creating an empty volume. `sourceUrl` must be reachable
+	over HTTP(S) from the platform.
+	
+	Requires the same permission as creating a volume.
+	"""
+	importVolume(input: PvsImportVolumeInput!): PvsVolume!
+	deleteVolume(input: PvsDeleteVolumeInput!): CommandRequestStatus!
+	resizeVolume(input: PvsResizeVolumeInput!): CommandRequestStatus!
+	createSnapshot(input: PvsCreateSnapshotInput!): PvsSnapshot!
+	protectSnapshot(input: PvsProtectSnapshotInput!): CommandRequestStatus!
+	"""
+	Lifts a snapshot's protection so it can be deleted; an unprotected
+	snapshot can no longer be the source of a new volume or image.
+	Accepted for a `COMPLETED` or `ERROR` snapshot and completed
+	asynchronously: `protectionStatus` reads `UNPROTECTING`, then
+	`UNPROTECTED`. Refused with a `CONFLICT` naming them while any image
+	is built from the snapshot, since every launch from such an image
+	clones it, or while any volume not `DELETED` was created from it;
+	delete those images and volumes first. Requires
+	`pvs.snapshot.unprotect` on the snapshot.
+	"""
+	unprotectSnapshot(input: PvsUnprotectSnapshotInput!): CommandRequestStatus!
+	"""
+	Deletes a snapshot, which must be `UNPROTECTED` first. Completed
+	asynchronously: `status` reads `DELETING`, then `DELETED`. Refused
+	with a `CONFLICT` naming them while any image is built from the
+	snapshot; delete those images first. Requires `pvs.snapshot.delete`
+	on the snapshot.
+	"""
+	deleteSnapshot(input: PvsDeleteSnapshotInput!): CommandRequestStatus!
+}
+
+type StorageQuerySchema {
+	volumes(input: PvsListVolumesInput!): [PvsVolume!]!
+	volume(volumeUrn: Urn!): PvsVolume
+	snapshots(input: PvsListSnapshotsInput!): [PvsSnapshot!]!
+	snapshot(snapshotUrn: Urn!): PvsSnapshot
+	"""
+	The catalog of storage classes - identifier, display name, backing
+	media, which one is the default, and whether each can be selected
+	right now. Pick one whose `available` is true and pass its
+	`storageClass` string to `createVolume` or `importVolume`.
+	
+	Platform-wide and not scoped to an organisation or project; no
+	permission is required. Every published tier is listed, including
+	ones that are not yet on sale - check `available` rather than
+	assuming everything returned can be selected.
+	"""
+	storageClasses: [PvsStorageClass!]!
+}
+
+type SupportCase {
+	id: ID!
+	urn: Urn!
+	supportCaseId: SupportCaseId!
+	orgId: OrgId!
+	projectId: ProjectId
+	subject: String!
+	description: String!
+	status: SupportCaseStatusValue!
+	openedBy: Principal!
+	createdAt: DateTime!
+	updatedAt: DateTime!
+}
+
+scalar SupportCaseId
+
+type SupportCaseMessage {
+	id: ID!
+	author: Principal!
+	body: String!
+	createdAt: DateTime!
+}
+
+type SupportCaseMessagePage {
+	"""
+	This page's messages, oldest-first.
+	"""
+	messages: [SupportCaseMessage!]!
+	"""
+	Messages on this case across every page, not just this one.
+	"""
+	total: Int!
+	"""
+	The offset actually served. Equals the requested one unless it was
+	negative, in which case it is `0`.
+	"""
+	offset: Int!
+	"""
+	The page size actually served, after clamping into `1..=500` - not
+	necessarily the one requested.
+	"""
+	limit: Int!
+	"""
+	Whether messages exist beyond this page. When `true`, request
+	`offset + limit` to continue reading the conversation.
+	"""
+	hasMore: Boolean!
+}
+
+type SupportCasePage {
+	"""
+	This page's cases, newest-first.
+	"""
+	cases: [SupportCase!]!
+	"""
+	Cases matching the query across every page, not just this one.
+	"""
+	total: Int!
+	"""
+	The offset actually served. Equals the requested one unless it was
+	negative, in which case it is `0`.
+	"""
+	offset: Int!
+	"""
+	The page size actually served, after clamping into `1..=500` - not
+	necessarily the one requested.
+	"""
+	limit: Int!
+	"""
+	Whether cases exist beyond this page. When `true`, request
+	`offset + limit` to continue.
+	"""
+	hasMore: Boolean!
+}
+
+"""
+GraphQL-facing mirror of the domain `SupportCaseStatus` - kept separate
+rather than deriving `Enum` on the domain type itself, same precedent
+as `UsageCostGranularityInput`.
+"""
+enum SupportCaseStatusValue {
+	OPEN
+	IN_PROGRESS
+	RESOLVED
+	CLOSED
+}
+
+scalar Urn
+
+type UsageCostBucket {
+	bucketStart: DateTime!
+	"""
+	A decimal amount in EUR, as a string. Billing figures are strings
+	rather than floats so no precision is lost in transit.
+	"""
+	amountEur: String!
+}
+
+type UsageCostByProductKey {
+	productKey: String!
+	total: String!
+	buckets: [UsageCostBucket!]!
+}
+
+"""
+The per-project axis of an organisation-wide cost report: flat sums per
+bucket, without the product-key breakdown the service axis carries.
+"""
+type UsageCostByProject {
+	projectId: ProjectId!
+	total: String!
+	buckets: [UsageCostBucket!]!
+}
+
+type UsageCostByService {
+	service: String!
+	total: String!
+	byProductKey: [UsageCostByProductKey!]!
+}
+
+"""
+GraphQL-facing mirror of the domain `UsageCostGranularity` - kept
+separate rather than deriving `Enum` on the domain type itself, same
+precedent as `support_case::SupportCaseStatusValue`.
+"""
+enum UsageCostGranularityInput {
+	HOURLY
+	DAILY
+}
+
+type UsageCostReport {
+	total: String!
+	byService: [UsageCostByService!]!
+}
+
+type UsageRecord {
+	orgId: OrgId!
+	projectId: ProjectId!
+	"""
+	`null` if the project had no billing account linked when this record
+	was closed.
+	"""
+	billingAccountId: String
+	resourceKind: String!
+	resourceId: String!
+	metric: String!
+	"""
+	Product or variant identifier, namespaced by resource kind, e.g.
+	`"compute.gp1.core.2"`. `null` for resource kinds that have none.
+	"""
+	productKey: String
+	"""
+	String, not a float - `quantity` is a billing input and async-graphql
+	has no native decimal scalar in this workspace; `to_string()` on the
+	underlying `BigDecimal` keeps full precision, unlike an `f64` cast.
+	"""
+	quantity: String!
+	periodStart: DateTime!
+	periodEnd: DateTime!
+	createdAt: DateTime!
+}
+
+"""
+How far a volume attachment has got. `OPEN` through `ATTACHED` is the
+provisioning sequence a launch walks; `DETACHING`/`DETACHED` is the
+teardown; `FAILED` is terminal and never recovers on its own.
+"""
+enum VolumeAttachmentStatusValue {
+	OPEN
+	VOLUME_REQUESTED
+	VOLUME_PENDING
+	VOLUME_CLAIM_PENDING
+	ATTACHING
+	ATTACHED
+	DETACHING
+	DETACHED
+	FAILED
+	RELEASING
+	RELEASE_ABANDONED
+}
+
+"""
+Directs the executor to include this field or fragment only when the `if` argument is true.
+"""
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Directs the executor to skip this field or fragment when the `if` argument is true.
+"""
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Provides a scalar specification URL for specifying the behavior of custom scalar types.
+"""
+directive @specifiedBy(url: String!) on SCALAR
+schema {
+	query: FederatedQuerySchema
+	mutation: FederatedMutationSchema
+}

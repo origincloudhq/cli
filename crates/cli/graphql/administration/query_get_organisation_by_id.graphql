@@ -1,0 +1,11 @@
+query OrganisationById($orgId: OrgId!) {
+    admin {
+        organisation(orgId: $orgId) {
+            orgId
+            name
+            status
+            createdAt
+            createdBy
+        }
+    }
+}

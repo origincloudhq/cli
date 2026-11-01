@@ -1,0 +1,13 @@
+query ListDnsPolicies($input: NetworkListDnsPoliciesInput!) {
+    network {
+        dnsPolicies(input: $input) {
+            id
+            urn
+            isDefault
+            relayEnabled
+            upstreamServers
+            createdAt
+            createdBy
+        }
+    }
+}

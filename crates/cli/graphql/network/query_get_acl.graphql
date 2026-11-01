@@ -1,0 +1,25 @@
+query GetAcl($aclUrn: Urn!) {
+    network {
+        acl(aclUrn: $aclUrn) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            vpcId
+            isDefault
+            rules {
+                priority
+                direction
+                protocol
+                port
+                source
+                policy
+            }
+            createdAt
+            createdBy
+        }
+    }
+}

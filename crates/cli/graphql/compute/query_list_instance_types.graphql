@@ -1,0 +1,14 @@
+query ListInstanceTypes {
+    compute {
+        instanceTypes {
+            instanceType
+            kind
+            cpuAllocationMode
+            vcpu
+            memoryMib
+            storageBandwidthMbit
+            storageBurstBandwidthMbit
+            available
+        }
+    }
+}

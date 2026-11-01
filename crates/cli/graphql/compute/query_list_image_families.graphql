@@ -1,0 +1,13 @@
+query ListImageFamilies {
+    compute {
+        imageFamilies {
+            slug
+            urn
+            vendor
+            os
+            osVersion
+            description
+            supportEndsAt
+        }
+    }
+}

@@ -1,0 +1,26 @@
+query ListVpcs($input: NetworkListVpcsInput!) {
+    network {
+        vpcs(input: $input) {
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            networks {
+                networkCidr
+                totalSubnets
+                availableSubnets
+                subnetPrefixLength
+            }
+            ipv4Network {
+                networkCidr
+                totalSubnets
+                availableSubnets
+                subnetPrefixLength
+            }
+            createdAt
+            createdBy
+        }
+    }
+}

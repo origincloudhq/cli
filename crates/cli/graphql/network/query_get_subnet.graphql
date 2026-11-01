@@ -1,0 +1,34 @@
+query GetSubnet($subnetUrn: Urn!) {
+    network {
+        subnet(subnetUrn: $subnetUrn) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            vpcId
+            aclUrn
+            availabilityZone
+            ipv6Network {
+                networkCidr
+                totalSubnets
+                availableSubnets
+                subnetPrefixLength
+            }
+            ipv6Router
+            ipv6DnsServers
+            ipv4Network {
+                networkCidr
+                totalSubnets
+                availableSubnets
+                subnetPrefixLength
+            }
+            ipv4Router
+            ipv4DnsServers
+            createdAt
+            createdBy
+        }
+    }
+}

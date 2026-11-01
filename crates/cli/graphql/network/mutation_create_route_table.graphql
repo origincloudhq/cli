@@ -1,0 +1,21 @@
+mutation CreateRouteTable($input: NetworkCreateRouteTableInput!) {
+    network {
+        createRouteTable(input: $input) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            vpcId
+            isMain
+            routes {
+                destination
+                target
+                targetUrn
+            }
+            createdAt
+        }
+    }
+}

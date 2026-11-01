@@ -1,0 +1,8 @@
+mutation SetStorageResourceTags($input: PvsSetResourceTagsInput!) {
+    pvs {
+        setResourceTags(input: $input) {
+            key
+            value
+        }
+    }
+}

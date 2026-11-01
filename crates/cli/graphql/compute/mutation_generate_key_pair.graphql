@@ -1,0 +1,12 @@
+mutation GenerateKeyPair($input: ComputeGenerateKeyPairInput!) {
+    compute {
+        generateKeyPair(input: $input) {
+            urn
+            keyPairId
+            name
+            publicKey
+            privateKey
+            createdBy
+        }
+    }
+}

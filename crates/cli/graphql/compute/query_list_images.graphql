@@ -1,0 +1,34 @@
+query ListImages($input: ComputeListImagesInput!) {
+    compute {
+        images(input: $input) {
+            __typename
+            ... on ComputeImage {
+                urn
+                name
+                tags {
+                    key
+                    value
+                }
+                imageId
+                description
+                defaultUser
+                architecture
+                platform
+                status
+                createdBy
+            }
+            ... on ComputePublicImage {
+                urn
+                imageId
+                description
+                defaultUser
+                architecture
+                platform
+                status
+                family
+                isFamilyCurrent
+                createdBy
+            }
+        }
+    }
+}

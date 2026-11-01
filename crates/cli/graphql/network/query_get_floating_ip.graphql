@@ -1,0 +1,19 @@
+query GetFloatingIp($floatingIpUrn: Urn!) {
+    network {
+        floatingIp(floatingIpUrn: $floatingIpUrn) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            availabilityZone
+            address
+            networkInterfaceUrn
+            privateAddress
+            createdAt
+            createdBy
+        }
+    }
+}

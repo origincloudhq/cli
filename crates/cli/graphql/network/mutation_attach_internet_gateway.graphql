@@ -1,0 +1,15 @@
+mutation AttachInternetGateway($input: NetworkAttachInternetGatewayInput!) {
+    network {
+        attachInternetGateway(input: $input) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            createdAt
+            createdBy
+        }
+    }
+}

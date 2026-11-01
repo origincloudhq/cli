@@ -1,0 +1,28 @@
+query GetVpc($vpcUrn: Urn!) {
+    network {
+        vpc(vpcUrn: $vpcUrn) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            region
+            networks {
+                networkCidr
+                totalSubnets
+                availableSubnets
+                subnetPrefixLength
+            }
+            ipv4Network {
+                networkCidr
+                totalSubnets
+                availableSubnets
+                subnetPrefixLength
+            }
+            createdAt
+            createdBy
+        }
+    }
+}

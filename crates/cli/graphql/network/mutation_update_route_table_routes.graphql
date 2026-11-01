@@ -1,0 +1,16 @@
+mutation UpdateRouteTableRoutes($input: NetworkUpdateRouteTableRoutesInput!) {
+    network {
+        updateRouteTableRoutes(input: $input) {
+            id
+            urn
+            vpcId
+            isMain
+            routes {
+                destination
+                target
+                targetUrn
+            }
+            createdAt
+        }
+    }
+}

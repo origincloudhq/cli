@@ -1,0 +1,5 @@
+mutation DeleteNetworkInterface($input: NetworkDeleteNetworkInterfaceInput!) {
+    network {
+        deleteNetworkInterface(input: $input)
+    }
+}

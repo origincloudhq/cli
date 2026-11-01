@@ -1,0 +1,8 @@
+mutation StopInstance($input: ComputeStopInstanceInput!) {
+    compute {
+        stopInstance(input: $input) {
+            accepted
+            message
+        }
+    }
+}

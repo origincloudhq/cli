@@ -1,0 +1,8 @@
+mutation RemoveStorageResourceTags($input: PvsRemoveResourceTagsInput!) {
+    pvs {
+        removeResourceTags(input: $input) {
+            key
+            value
+        }
+    }
+}

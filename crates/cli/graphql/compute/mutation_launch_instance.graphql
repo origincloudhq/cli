@@ -1,0 +1,18 @@
+mutation LaunchInstance($input: ComputeLaunchInstanceInput!) {
+    compute {
+        launchInstance(input: $input) {
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            instanceId
+            availabilityZone
+            instanceType
+            loginUser
+            status
+            createdBy
+        }
+    }
+}

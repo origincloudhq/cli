@@ -1,0 +1,12 @@
+query CurrentUser {
+    iam {
+        currentUser {
+            userId
+            firstName
+            lastName
+            enabled
+            email
+            emailVerified
+        }
+    }
+}

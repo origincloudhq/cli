@@ -1,0 +1,12 @@
+mutation UpdateOrganisation($input: AdminUpdateOrganisationInput!) {
+    admin {
+        updateOrganisation(input: $input) {
+            id
+            urn
+            orgId
+            name
+            createdAt
+            createdBy
+        }
+    }
+}

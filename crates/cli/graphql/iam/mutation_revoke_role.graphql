@@ -1,0 +1,5 @@
+mutation RevokeRole($input: IamRoleAssignmentInput!) {
+    iam {
+        revokeRole(input: $input)
+    }
+}

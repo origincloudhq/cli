@@ -1,0 +1,8 @@
+mutation DeleteImage($input: ComputeDeleteImageInput!) {
+    compute {
+        deleteImage(input: $input) {
+            accepted
+            message
+        }
+    }
+}

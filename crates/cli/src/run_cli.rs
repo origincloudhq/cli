@@ -1,0 +1,120 @@
+use std::process::exit;
+
+use crate::config::{ClientProfile, OutputFormat};
+use crate::handler;
+use crate::output::{CommandResult, SerializableOutput, SerializationError};
+use crate::root_command::{Cli, Commands};
+use clap::Parser;
+use serde::Serialize;
+use serde_json::Value;
+use url::Url;
+
+pub async fn run() -> ! {
+    let cli = Cli::parse();
+    let mut profile = ClientProfile::load(cli.config.as_deref());
+    if let Some(output) = cli.output {
+        profile.output_format = Some(output);
+    }
+
+    let api_url: Url = cli.api.parse().expect("failed to parse API URL");
+
+    match cli.command {
+        None => exit(0),
+        Some(Commands::Id(id_cmd)) => print_output_and_exit(
+            &profile,
+            handler::id::run_identity_command(&profile, &api_url, id_cmd).await,
+        ),
+        Some(Commands::Admin(admin_cmd)) => print_output_and_exit(
+            &profile,
+            handler::admin::run_admin_command(&profile, &api_url, admin_cmd).await,
+        ),
+        Some(Commands::Compute(cmd)) => print_output_and_exit(
+            &profile,
+            handler::compute::run_compute_command(&profile, &api_url, cmd).await,
+        ),
+        Some(Commands::Iam(cmd)) => print_output_and_exit(
+            &profile,
+            handler::iam::run_iam_command(&profile, &api_url, cmd).await,
+        ),
+        Some(Commands::Network(cmd)) => print_output_and_exit(
+            &profile,
+            handler::network::run_network_command(&profile, &api_url, cmd).await,
+        ),
+        Some(Commands::Pvs(pvs)) => {
+            let result = match crate::pvs::Context::new(&profile, pvs.endpoint.as_deref()) {
+                Ok(ctx) => crate::pvs::run(&ctx, pvs.command).await,
+                Err(err) => Err(err),
+            };
+            print_output_and_exit(&profile, result)
+        }
+        Some(Commands::Storage(cmd)) => print_output_and_exit(
+            &profile,
+            handler::storage::run_storage_command(&api_url, cmd).await,
+        ),
+        Some(Commands::Config(cmd)) => print_output_and_exit(
+            &profile,
+            handler::config::run_config_command(&profile, cli.config.as_deref(), cmd).await,
+        ),
+        Some(Commands::Version) => {
+            print_output_and_exit(&profile, Ok(Box::new(CliReleaseInfo::default())))
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct CliReleaseInfo {
+    version: String,
+}
+
+impl Default for CliReleaseInfo {
+    fn default() -> Self {
+        CliReleaseInfo {
+            version: String::from(env!("CARGO_PKG_VERSION")),
+        }
+    }
+}
+
+impl SerializableOutput for CliReleaseInfo {
+    fn to_json(&self) -> Result<Value, SerializationError> {
+        Ok(serde_json::to_value(self).expect("serialization failed"))
+    }
+}
+
+fn print_output_and_exit(
+    profile: &ClientProfile,
+    result: anyhow::Result<Box<dyn SerializableOutput>>,
+) -> ! {
+    let output = match result {
+        Ok(output) => output,
+        // `err.to_string()` is a curated rendering, not a Rust `Debug` dump:
+        // the GraphQL client's errors carry the server's message, stable code
+        // and correlation id, and the SDK's its message, code and request id.
+        Err(err) => Box::new(CommandResult::Failure(err.to_string())),
+    };
+
+    match print_output(profile, output) {
+        Ok(code) => exit(code),
+        Err(err) => {
+            eprintln!("Failed to render response: {err}");
+            exit(2);
+        }
+    }
+}
+
+fn print_output(
+    profile: &ClientProfile,
+    output: Box<dyn SerializableOutput>,
+) -> anyhow::Result<i32> {
+    if let Some(raw) = output.to_raw() {
+        println!("{raw}");
+        return Ok(output.exit_code());
+    }
+
+    match profile.output_format.unwrap_or_default() {
+        OutputFormat::Json => {
+            let value = output.to_json()?;
+            println!("{}", serde_json::to_string_pretty(&value)?);
+            Ok(output.exit_code())
+        }
+    }
+}

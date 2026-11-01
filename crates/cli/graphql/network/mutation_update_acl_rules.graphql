@@ -1,0 +1,20 @@
+mutation UpdateAclRules($input: NetworkUpdateAclRulesInput!) {
+    network {
+        updateAclRules(input: $input) {
+            id
+            urn
+            vpcId
+            isDefault
+            rules {
+                priority
+                direction
+                protocol
+                port
+                source
+                policy
+            }
+            createdAt
+            createdBy
+        }
+    }
+}

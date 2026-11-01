@@ -1,0 +1,5 @@
+mutation ReleaseFloatingIp($input: NetworkReleaseFloatingIpInput!) {
+    network {
+        releaseFloatingIp(input: $input)
+    }
+}

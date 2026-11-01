@@ -1,0 +1,44 @@
+query GetInstance($instanceUrn: Urn!) {
+    compute {
+        instance(instanceUrn: $instanceUrn) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            instanceId
+            availabilityZone
+            instanceType
+            loginUser
+            status
+            statusReason
+            healthChecks {
+                availability
+                checks {
+                    kind
+                    category
+                    status
+                    since
+                }
+            }
+            createdBy
+            networkInterfaceAttachments {
+                id
+                urn
+                networkInterfaceUrn
+                deviceIndex
+                status
+            }
+            volumeAttachments {
+                id
+                urn
+                volumeUrn
+                deviceName
+                isRootDevice
+                status
+            }
+        }
+    }
+}

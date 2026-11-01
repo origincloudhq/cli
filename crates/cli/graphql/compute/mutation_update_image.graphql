@@ -1,0 +1,14 @@
+mutation UpdateImage($input: ComputeUpdateImageInput!) {
+    compute {
+        updateImage(input: $input) {
+            urn
+            imageId
+            description
+            defaultUser
+            architecture
+            platform
+            status
+            createdBy
+        }
+    }
+}

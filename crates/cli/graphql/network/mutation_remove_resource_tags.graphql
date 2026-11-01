@@ -1,0 +1,8 @@
+mutation RemoveResourceTags($input: NetworkRemoveResourceTagsInput!) {
+    network {
+        removeResourceTags(input: $input) {
+            key
+            value
+        }
+    }
+}

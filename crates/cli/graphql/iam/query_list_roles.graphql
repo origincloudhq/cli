@@ -1,0 +1,19 @@
+query ListRoles($input: IamListRolesInput!) {
+    iam {
+        roles(input: $input) {
+            __typename
+            ... on IamBuiltinRole {
+                id
+                urn
+                name
+                description
+                permissions {
+                    key
+                    service
+                    resourceType
+                    action
+                }
+            }
+        }
+    }
+}

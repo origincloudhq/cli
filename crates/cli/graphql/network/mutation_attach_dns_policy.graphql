@@ -1,0 +1,9 @@
+mutation AttachDnsPolicy($input: NetworkAttachDnsPolicyInput!) {
+    network {
+        attachDnsPolicy(input: $input) {
+            id
+            urn
+            dnsPolicyId
+        }
+    }
+}

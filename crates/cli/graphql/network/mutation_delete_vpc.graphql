@@ -1,0 +1,5 @@
+mutation DeleteVpc($input: NetworkDeleteVpcInput!) {
+    network {
+        deleteVpc(input: $input)
+    }
+}

@@ -1,0 +1,13 @@
+mutation UpdateDnsPolicy($input: NetworkUpdateDnsPolicyInput!) {
+    network {
+        updateDnsPolicy(input: $input) {
+            id
+            urn
+            isDefault
+            relayEnabled
+            upstreamServers
+            createdAt
+            createdBy
+        }
+    }
+}

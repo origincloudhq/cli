@@ -1,0 +1,13 @@
+mutation DetachVolume($input: ComputeDetachVolumeInput!) {
+    compute {
+        detachVolume(input: $input) {
+            id
+            urn
+            instanceUrn
+            volumeUrn
+            deviceName
+            isRootDevice
+            status
+        }
+    }
+}

@@ -1,0 +1,8 @@
+mutation StartInstance($input: ComputeStartInstanceInput!) {
+    compute {
+        startInstance(input: $input) {
+            accepted
+            message
+        }
+    }
+}

@@ -1,0 +1,19 @@
+query ListFloatingIps($input: NetworkListFloatingIpsInput!) {
+    network {
+        floatingIps(input: $input) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            availabilityZone
+            address
+            networkInterfaceUrn
+            privateAddress
+            createdAt
+            createdBy
+        }
+    }
+}

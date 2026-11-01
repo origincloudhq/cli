@@ -1,0 +1,21 @@
+query GetRouteTable($input: NetworkGetRouteTableInput!) {
+    network {
+        routeTable(input: $input) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            vpcId
+            isMain
+            routes {
+                destination
+                target
+                targetUrn
+            }
+            createdAt
+        }
+    }
+}

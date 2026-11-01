@@ -1,0 +1,26 @@
+query GetNetworkInterface($networkInterfaceUrn: Urn!) {
+    network {
+        networkInterface(networkInterfaceUrn: $networkInterfaceUrn) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            availabilityZone
+            ipv6Address
+            ipv6AddressPrefix
+            ipv6AddressCidr
+            ipv4Address
+            ipv4AddressPrefix
+            ipv4AddressCidr
+            status
+            attachedToUrn
+            sourceAddressCheck
+            securityGroupUrns
+            creationTime
+            createdBy
+        }
+    }
+}

@@ -1,0 +1,49 @@
+[package]
+name = "origincloud-cli"
+version = "1.10.0"
+# Shown as the summary line of `origin --help`.
+description = "Command-line interface for Origin Cloud"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[[bin]]
+name = "origin"
+path = "bin/origin.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+origincloud-oauth-login = { path = "../oauth-login" }
+origincloud-core.workspace = true
+origincloud-pvs.workspace = true
+origincloud-location.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+expanduser = "1"
+graphql_client.workspace = true
+http.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+fake-server.workspace = true
+# The coverage and destructive-command tests read the PVS descriptors the
+# generator checked in, and its table of choices.
+heck = "0.5"
+prost-reflect = "0.16"
+serde.workspace = true
+toml = "0.8"
+# The config-path tests resolve against a real directory tree, so they need a
+# throwaway one: they must never touch the developer's own ~/.config.
+tempfile = "3.16"

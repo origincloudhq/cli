@@ -1,0 +1,25 @@
+query ListAcls($input: NetworkListAclsInput!) {
+    network {
+        acls(input: $input) {
+            id
+            urn
+            name
+            tags {
+                key
+                value
+            }
+            vpcId
+            isDefault
+            rules {
+                priority
+                direction
+                protocol
+                port
+                source
+                policy
+            }
+            createdAt
+            createdBy
+        }
+    }
+}

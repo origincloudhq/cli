@@ -1,0 +1,12 @@
+query Projects($input: AdminListProjectsInput!) {
+    admin {
+        projects(input: $input) {
+            urn
+            orgId
+            projectId
+            name
+            createdAt
+            createdBy
+        }
+    }
+}
