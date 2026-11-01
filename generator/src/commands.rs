@@ -1281,7 +1281,7 @@ struct Build {
     /// nested message's keys give, without a name-part flag.
     needs_names: bool,
     /// The flags of each oneof, by its name: at most one is given.
-    oneofs: Vec<(String, Vec<String>)>,
+    oneofs: Vec<(String, Vec<String>, bool)>,
 }
 
 impl Build {
@@ -1445,11 +1445,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         let fid = ident(&name);
         let required = behaviors(cx.pool, &field).contains(&REQUIRED);
 
-        if (name == "update_mask" && update) || excluded(&name) {
-            continue;
-        }
-
-        // A oneof's members, at its first.
+        // A oneof's members, at its first, whichever of them are excluded.
         if let Some(oneof) = field.containing_oneof().filter(|o| !o.is_synthetic()) {
             if oneof
                 .fields()
@@ -1464,6 +1460,10 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                     b.request.push(init(&ident(oneof.name()), &var));
                 }
             }
+            continue;
+        }
+
+        if (name == "update_mask" && update) || excluded(&name) {
             continue;
         }
 
@@ -1885,11 +1885,12 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             ids.join(", ")
         );
     }
-    for (oneof, ids) in &b.oneofs {
+    for (oneof, ids, required) in &b.oneofs {
         let ids: Vec<String> = ids.iter().map(|i| format!("{i:?}")).collect();
+        let required = if *required { ".required(true)" } else { "" };
         let _ = writeln!(
             code,
-            "#[command(group(clap::ArgGroup::new({oneof:?}).multiple(false).args([{}])))]",
+            "#[command(group(clap::ArgGroup::new({oneof:?}){required}.multiple(false).args([{}])))]",
             ids.join(", ")
         );
     }
@@ -2314,7 +2315,9 @@ fn value(
         }
         Kind2::Message(n) | Kind2::Messages(n) => {
             let repeated = matches!(k, Kind2::Messages(_));
-            let statements = message_flags(b, n, field, repeated, required, false, unordered, doc)?;
+            let statements = message_flags(
+                b, n, field, repeated, required, false, false, unordered, doc,
+            )?;
             b.prelude.extend(statements);
             fid
         }
@@ -2539,7 +2542,7 @@ fn update_field(
                 b.add_flag(Flag {
                     ident: none.clone(),
                     long: format!("no-{long}"),
-                    doc: format!("Unset its {}.", name.replace('_', " ")),
+                    doc: format!("Unsets `--{long}`; the API's default applies."),
                     ty: "bool".to_owned(),
                     attrs: vec![format!("conflicts_with = {:?}", arg_id(&fid))],
                 })?;
@@ -2552,8 +2555,9 @@ fn update_field(
         }
         Kind2::Message(n) | Kind2::Messages(n) => {
             let repeated = matches!(k, Kind2::Messages(_));
-            let statements =
-                message_flags(b, n, field, repeated, required, true, unordered, comment)?;
+            let statements = message_flags(
+                b, n, field, repeated, required, true, false, unordered, comment,
+            )?;
             statements
                 .join(" ")
                 .replace("body_field_set!();", &set("value"))
@@ -2661,8 +2665,14 @@ fn optional_flag(inner: &Kind2, fid: &str) -> (String, Vec<String>, String) {
 /// The flags of a oneof's members, one each, of which at most one is given
 /// (a clap group), and the value: in a create, statements binding the
 /// oneof's Rust field to the member given, whose name this returns; in an
-/// update (`body`, the resource changed), one statement setting it and
-/// naming that member in the mask.
+/// update (`body`, the resource changed), one statement setting it.
+///
+/// A oneof whose members are all required is a choice of exactly one, which
+/// a create must make; one whose members are all optional may be left
+/// empty, and an update empties it with `--no-{oneof}`. A oneof mixing the
+/// two breaks the API's rules and fails generation. An update names every
+/// member in the mask, so that the member it sets replaces whichever was
+/// set, whatever the server makes of a oneof.
 fn oneof_flags(
     cx: &Cx<'_>,
     b: &mut Build,
@@ -2682,17 +2692,38 @@ fn oneof_flags(
         module.join("::"),
         oneof.name().to_upper_camel_case()
     );
+    let required_members = oneof
+        .fields()
+        .filter(|m| behaviors(cx.pool, m).contains(&REQUIRED))
+        .count();
+    if required_members != 0 && required_members != oneof.fields().count() {
+        return Err(format!(
+            "the oneof {} has required members and optional ones, which the API's rules don't \
+             allow: all of a oneof's members are required, a choice of exactly one, or none",
+            oneof.name()
+        ));
+    }
+    let required = required_members != 0;
+    let update = body.is_some();
     let flags: Vec<String> = members
         .iter()
         .map(|m| format!("`--{}`", m.name().to_kebab_case()))
         .collect();
+    let none = format!("no_{}", oneof.name().to_snake_case());
+    let none_long = format!("no-{}", oneof.name().to_kebab_case());
     let note = format!(
-        "\n\nOne of {}: give at most one.{}",
+        "\n\nOne of {}: give {}.{}",
         flags.join(", "),
-        if body.is_some() {
-            " Setting it replaces whichever of them is set."
+        if required && !update {
+            "exactly one"
         } else {
-            ""
+            "at most one"
+        },
+        match (update, required) {
+            (false, _) => String::new(),
+            (true, true) => " Setting it replaces whichever of them is set.".to_owned(),
+            (true, false) =>
+                format!(" Setting it replaces whichever of them is set; `--{none_long}` sets none."),
         }
     );
     let mut ids = Vec::new();
@@ -2764,16 +2795,20 @@ fn oneof_flags(
             }
             Kind2::Message(n) => {
                 let before = b.flags.len();
+                let ids_before = b.update_ids.len();
                 statements.extend(message_flags(
                     b,
                     &n,
                     m,
                     false,
                     false,
-                    false,
+                    update,
+                    true,
                     false,
                     docs_of(&doc),
                 )?);
+                // The oneof's group holds them, and the update's.
+                b.update_ids.truncate(ids_before);
                 for flag in &mut b.flags[before..] {
                     if !flag.doc.contains(&note) {
                         flag.doc.push_str(&note);
@@ -2790,15 +2825,30 @@ fn oneof_flags(
                 ))
             }
         };
-        arms.push((expr, m.name().to_upper_camel_case(), m.name().to_owned()));
+        arms.push((expr, m.name().to_upper_camel_case()));
     }
-    b.oneofs.push((oneof.name().to_owned(), ids.clone()));
+    let emptied = update && !required;
+    if emptied {
+        b.add_flag(Flag {
+            ident: none.clone(),
+            long: none_long.clone(),
+            doc: format!(
+                "Set none of {}: the update empties the choice.",
+                flags.join(", ")
+            ),
+            ty: "bool".to_owned(),
+            attrs: Vec::new(),
+        })?;
+        ids.push(none.clone());
+    }
+    b.oneofs
+        .push((oneof.name().to_owned(), ids.clone(), required && !update));
     match body {
         None => {
             let var = ident(oneof.name());
             let mut chain: Vec<String> = arms
                 .iter()
-                .map(|(expr, variant, _)| {
+                .map(|(expr, variant)| {
                     format!("if let Some(value) = {expr} {{ Some({enum_path}::{variant}(value)) }}")
                 })
                 .collect();
@@ -2814,14 +2864,26 @@ fn oneof_flags(
         Some(body) => {
             b.update_ids.extend(ids);
             let field = ident(oneof.name());
-            let chain: Vec<String> = arms
+            // Every member, whichever is set: the one given replaces the
+            // others.
+            let every: Vec<String> = oneof
+                .fields()
+                .map(|m| format!("paths.push({:?}.to_owned());", m.name()))
+                .collect();
+            let every = every.join(" ");
+            let mut chain: Vec<String> = arms
                 .iter()
-                .map(|(expr, variant, name)| {
+                .map(|(expr, variant)| {
                     format!(
-                        "if let Some(value) = {expr} {{ {body}.{field} = Some({enum_path}::{variant}(value)); paths.push({name:?}.to_owned()); }}"
+                        "if let Some(value) = {expr} {{ {body}.{field} = Some({enum_path}::{variant}(value)); {every} }}"
                     )
                 })
                 .collect();
+            if emptied {
+                chain.push(format!(
+                    "if args.{none} {{ {body}.{field} = None; {every} }}"
+                ));
+            }
             Ok(format!("{} {}", statements.join(" "), chain.join(" else ")))
         }
     }
@@ -2939,6 +3001,10 @@ fn key_hint(kind: &Kind2) -> String {
 /// is given, makes the value and ends in `body_field_set!();`, which the
 /// caller replaces with setting it on the resource and naming it in the
 /// mask.
+///
+/// A oneof's member (`member`) has no `--no-` flag of its own, the oneof
+/// having one, and in an update too its statements bind its value to its
+/// name, for the oneof to set.
 #[allow(clippy::too_many_arguments)]
 fn message_flags(
     b: &mut Build,
@@ -2947,6 +3013,7 @@ fn message_flags(
     repeated: bool,
     required: bool,
     update: bool,
+    member: bool,
     unordered: bool,
     comment: &str,
 ) -> Result<Vec<String>, String> {
@@ -2961,7 +3028,7 @@ fn message_flags(
     let json = format!("{fid}_json");
     let json_long = format!("{long}-json");
     let none = format!("no_{}", name.to_snake_case());
-    let emptied = update && !required;
+    let emptied = update && !required && !member;
     let summary = {
         let s = docs::summary(comment);
         if s.is_empty() {
@@ -3114,7 +3181,7 @@ fn message_flags(
     // The value: from the JSON flag or the pairs, its names completed, each
     // element once in a list the API keeps unordered. An update says what
     // it replaces.
-    let var = if update {
+    let var = if update && !member {
         "value".to_owned()
     } else {
         fid.clone()
@@ -3171,7 +3238,7 @@ fn message_flags(
     if unordered && repeated {
         statements.push(format!("unique(&{var}, \"--{one_long}\")?;"));
     }
-    if !update {
+    if !update || member {
         return Ok(statements);
     }
     let mut given = Vec::new();

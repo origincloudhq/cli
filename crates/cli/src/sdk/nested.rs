@@ -78,6 +78,17 @@ pub fn json_arg<T: DeserializeOwned>(value: &str, message: &str) -> Result<JsonA
             }
         }
     }
+    let mut json = json;
+    if !own_form {
+        match &mut json {
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    drop_nulls(item, &descriptor);
+                }
+            }
+            other => drop_nulls(other, &descriptor),
+        }
+    }
     serde_json::from_value(json)
         .map(|value| JsonArg(value, given))
         .map_err(|e| format!("not its JSON: {e}"))
@@ -190,6 +201,51 @@ fn check_message(
         check_field(value, &field, &here, depth)?;
     }
     Ok(())
+}
+
+/// `value`, an object of `message`, without the fields it gives as `null`,
+/// at every depth: `null` leaves a field out, as in the API's JSON, which
+/// the SDK's decoder doesn't take of a oneof's member. A `null` that is a
+/// value of its own, of a `google.protobuf.Value`, stays.
+fn drop_nulls(value: &mut serde_json::Value, message: &MessageDescriptor) {
+    let serde_json::Value::Object(object) = value else {
+        return;
+    };
+    object.retain(|key, v| {
+        !v.is_null()
+            || field_of(message, key).is_some_and(|f| match f.kind() {
+                Kind::Message(m) => m.full_name() == "google.protobuf.Value",
+                Kind::Enum(e) => e.full_name() == "google.protobuf.NullValue",
+                _ => false,
+            })
+    });
+    for (key, v) in object.iter_mut() {
+        let Some(field) = field_of(message, key) else {
+            continue;
+        };
+        let Kind::Message(inner) = field.kind() else {
+            continue;
+        };
+        if field.is_map() {
+            if let (Kind::Message(entry), serde_json::Value::Object(entries)) =
+                (inner.map_entry_value_field().kind(), &mut *v)
+            {
+                if entry.package_name() != "google.protobuf" {
+                    for e in entries.values_mut() {
+                        drop_nulls(e, &entry);
+                    }
+                }
+            }
+        } else if inner.package_name() == "google.protobuf" {
+            continue;
+        } else if let serde_json::Value::Array(items) = v {
+            for item in items {
+                drop_nulls(item, &inner);
+            }
+        } else {
+            drop_nulls(v, &inner);
+        }
+    }
 }
 
 /// The path of a value for a refusal: the flag's value itself when empty.

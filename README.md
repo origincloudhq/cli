@@ -140,8 +140,10 @@ every method of the API, with the API's own descriptions as help:
   (`--no-max-connections`) unsets it.
 - **Choices.** A oneof, a choice of fields of which a request carries at most
   one, is one flag per field, and giving two is refused: `--mirror-network`,
-  `--mirror-address` or `--mirror-log`. An update sets the one given, which
-  replaces whichever was set.
+  `--mirror-address` or `--mirror-log`. Where the API requires a choice, a
+  create must give exactly one. An update sets the one given, which replaces
+  whichever was set, and `--no-` and the choice's name (`--no-mirror`) sets
+  none of an optional one.
 - **Nested fields.** A field holding a message is one flag whose value is
   comma-separated `KEY=VALUE` pairs, the keys being the message's field
   names, with `_` or `-`; a repeated one takes one flag per element:

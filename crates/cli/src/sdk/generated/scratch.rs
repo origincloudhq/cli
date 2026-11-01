@@ -116,7 +116,7 @@ async fn call_get_firewall(
     group(
         clap::ArgGroup::new(
             "notify"
-        ).multiple(false).args(["notify_email", "notify_after_seconds"])
+        ).required(true).multiple(false).args(["notify_email", "notify_after_seconds"])
     )
 )]
 pub struct CreateFirewallArgs {
@@ -262,12 +262,12 @@ pub struct CreateFirewallArgs {
     pub mirror_log_json: Option<JsonArg<::origincloud_scratch::v1::Logging>>,
     /// An email address.
     ///
-    /// One of `--notify-email`, `--notify-after-seconds`: give at most one.
+    /// One of `--notify-email`, `--notify-after-seconds`: give exactly one.
     #[arg(long = "notify-email")]
     pub notify_email: Option<String>,
     /// A number of seconds to wait for the firewall instead, then answer.
     ///
-    /// One of `--notify-email`, `--notify-after-seconds`: give at most one.
+    /// One of `--notify-email`, `--notify-after-seconds`: give exactly one.
     #[arg(long = "notify-after-seconds")]
     pub notify_after_seconds: Option<i32>,
 }
@@ -466,7 +466,8 @@ async fn call_create_firewall(
             "mirror_network",
             "mirror_address",
             "mirror_log",
-            "mirror_log_json"]
+            "mirror_log_json",
+            "no_mirror"]
         )
     )
 )]
@@ -476,7 +477,13 @@ async fn call_create_firewall(
             "mirror"
         ).multiple(
             false
-        ).args(["mirror_network", "mirror_address", "mirror_log", "mirror_log_json"])
+        ).args(
+            ["mirror_network",
+            "mirror_address",
+            "mirror_log",
+            "mirror_log_json",
+            "no_mirror"]
+        )
     )
 )]
 pub struct UpdateFirewallArgs {
@@ -596,7 +603,7 @@ pub struct UpdateFirewallArgs {
     /// Left as it is when not given. `--no-max-connections` unsets it.
     #[arg(long = "max-connections")]
     pub max_connections: Option<i32>,
-    /// Unset its max connections.
+    /// Unsets `--max-connections`; the API's default applies.
     #[arg(long = "no-max-connections", conflicts_with = "max_connections")]
     pub no_max_connections: bool,
     /// Whether the firewall refuses what no rule matches; the zone's default
@@ -605,7 +612,7 @@ pub struct UpdateFirewallArgs {
     /// Left as it is when not given. `--no-strict` unsets it.
     #[arg(long = "strict", value_name = "true|false", action = clap::ArgAction::Set)]
     pub strict: Option<bool>,
-    /// Unset its strict.
+    /// Unsets `--strict`; the API's default applies.
     #[arg(long = "no-strict", conflicts_with = "strict")]
     pub no_strict: bool,
     /// The protocol of a rule that names none; TCP when unset.
@@ -613,7 +620,7 @@ pub struct UpdateFirewallArgs {
     /// Left as it is when not given. `--no-default-protocol` unsets it.
     #[arg(long = "default-protocol", value_parser = ["TCP", "UDP"])]
     pub default_protocol: Option<String>,
-    /// Unset its default protocol.
+    /// Unsets `--default-protocol`; the API's default applies.
     #[arg(long = "no-default-protocol", conflicts_with = "default_protocol")]
     pub no_default_protocol: bool,
     /// A note of your own; none when unset.
@@ -621,25 +628,25 @@ pub struct UpdateFirewallArgs {
     /// Left as it is when not given. `--no-note` unsets it.
     #[arg(long = "note")]
     pub note: Option<String>,
-    /// Unset its note.
+    /// Unsets `--note`; the API's default applies.
     #[arg(long = "no-note", conflicts_with = "note")]
     pub no_note: bool,
     /// A network that receives the copies.
     ///
-    /// One of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set.
+    /// One of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set; `--no-mirror` sets none.
     ///
     /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}`.
     #[arg(long = "mirror-network", value_name = "NETWORK")]
     pub mirror_network: Option<String>,
     /// An address that receives the copies, such as `10.0.0.9:4789`.
     ///
-    /// One of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set.
+    /// One of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set; `--no-mirror` sets none.
     #[arg(long = "mirror-address")]
     pub mirror_address: Option<String>,
     #[arg(
         long = "mirror-log",
-        long_help = "A log that receives them.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`enabled`: Whether it logs. `true` or `false`.\n\n`sample_percent`: The share of connections logged, in percent.\n\nA value with a comma in it goes through `--mirror-log-json` too.\n\nOne of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set.",
-        help = "A log that receives them, as KEY=VALUE pairs; sent whole",
+        long_help = "A log that receives them.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`enabled`: Whether it logs. `true` or `false`.\n\n`sample_percent`: The share of connections logged, in percent.\n\nA value with a comma in it goes through `--mirror-log-json` too.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set; `--no-mirror` sets none.",
+        help = "A log that receives them, as KEY=VALUE pairs; replaced whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_logging(text, "--mirror-log-json"),
         conflicts_with = "mirror_log_json"
@@ -647,8 +654,8 @@ pub struct UpdateFirewallArgs {
     pub mirror_log: Option<Keyed<::origincloud_scratch::v1::Logging>>,
     #[arg(
         long = "mirror-log-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--mirror-log`.\n\nOne of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set.",
-        help = "Mirror log as JSON; sent whole",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--mirror-log`.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set; `--no-mirror` sets none.",
+        help = "Mirror log as JSON; replaced whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_scratch::v1::Logging>(
             text,
@@ -656,6 +663,9 @@ pub struct UpdateFirewallArgs {
         )
     )]
     pub mirror_log_json: Option<JsonArg<::origincloud_scratch::v1::Logging>>,
+    /// Set none of `--mirror-network`, `--mirror-address`, `--mirror-log`: the update empties the choice.
+    #[arg(long = "no-mirror")]
+    pub no_mirror: bool,
 }
 async fn update_firewall(
     ctx: &Context<'_>,
@@ -827,8 +837,27 @@ async fn update_firewall(
         paths.push("note".to_owned());
     }
     let mirror_log = match args.mirror_log_json {
-        Some(json) => Some(json.0),
-        None => args.mirror_log.map(|keyed| { keyed.value }),
+        Some(json) => {
+            notice_reset(
+                "--mirror-log-json",
+                "mirror_log",
+                &["enabled", "sample_percent"],
+                &json.1,
+            );
+            Some(json.0)
+        }
+        None => {
+            args.mirror_log
+                .map(|keyed| {
+                    notice_reset(
+                        "--mirror-log",
+                        "mirror_log",
+                        &["enabled", "sample_percent"],
+                        &keyed.given,
+                    );
+                    keyed.value
+                })
+        }
     };
     if let Some(value) = args
         .mirror_network
@@ -846,15 +875,26 @@ async fn update_firewall(
             ::origincloud_scratch::v1::firewall::Mirror::MirrorNetwork(value),
         );
         paths.push("mirror_network".to_owned());
+        paths.push("mirror_address".to_owned());
+        paths.push("mirror_log".to_owned());
     } else if let Some(value) = args.mirror_address.clone() {
         firewall.mirror = Some(
             ::origincloud_scratch::v1::firewall::Mirror::MirrorAddress(value),
         );
+        paths.push("mirror_network".to_owned());
         paths.push("mirror_address".to_owned());
+        paths.push("mirror_log".to_owned());
     } else if let Some(value) = mirror_log {
         firewall.mirror = Some(
             ::origincloud_scratch::v1::firewall::Mirror::MirrorLog(value),
         );
+        paths.push("mirror_network".to_owned());
+        paths.push("mirror_address".to_owned());
+        paths.push("mirror_log".to_owned());
+    } else if args.no_mirror {
+        firewall.mirror = None;
+        paths.push("mirror_network".to_owned());
+        paths.push("mirror_address".to_owned());
         paths.push("mirror_log".to_owned());
     }
     let request = ::origincloud_scratch::v1::UpdateFirewallRequest {

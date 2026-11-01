@@ -231,13 +231,13 @@ message CreateFirewallRequest {
   // The firewall to create.
   Firewall firewall = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // Who hears when the firewall is ready.
+  // Who hears when the firewall is ready: exactly one.
   oneof notify {
     // An email address.
-    string notify_email = 3;
+    string notify_email = 3 [(google.api.field_behavior) = REQUIRED];
 
     // A number of seconds to wait for the firewall instead, then answer.
-    int32 notify_after_seconds = 4;
+    int32 notify_after_seconds = 4 [(google.api.field_behavior) = REQUIRED];
   }
 }
 

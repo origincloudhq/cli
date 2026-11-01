@@ -231,13 +231,13 @@ pub struct CreateFirewallRequest {
     /// The firewall to create.
     #[prost(message, optional, tag = "2")]
     pub firewall: ::core::option::Option<Firewall>,
-    /// Who hears when the firewall is ready.
+    /// Who hears when the firewall is ready: exactly one.
     #[prost(oneof = "create_firewall_request::Notify", tags = "3, 4")]
     pub notify: ::core::option::Option<create_firewall_request::Notify>,
 }
 /// Nested message and enum types in `CreateFirewallRequest`.
 pub mod create_firewall_request {
-    /// Who hears when the firewall is ready.
+    /// Who hears when the firewall is ready: exactly one.
     #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
     pub enum Notify {
         /// An email address.

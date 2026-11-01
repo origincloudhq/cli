@@ -101,9 +101,14 @@ a key of a nested message the same: sent when given, zero included, left
 out when not; in an update, `--no-{field}` unsets it, naming it in the mask
 as setting it does. A oneof of a request or of the resource it carries is
 one flag per member, in a clap group allowing one at most; a member that is
-a message has both of a message field's forms, both in the group. The
-request carries the member given, and an update names that member in the
-mask. A oneof inside a nested message is set through the JSON form, which
+a message has both of a message field's forms, both in the group. A oneof
+whose members are all required is a choice a create must make (a required
+group); one mixing required and optional members breaks the API's rules and
+fails generation. The request carries the member given; an update names
+every member in the mask, so that the one it sets replaces whichever was
+set, and empties an optional oneof with `--no-{oneof}`. The MCP tools don't
+support oneofs yet: a method with one has no tool, which their coverage
+test reports. A oneof inside a nested message is set through the JSON form, which
 refuses two of its members. A field the generator can't make a flag of,
 such as a map other than `map<string, string>` or an optional resource
 name, fails generation, naming the method and the field: nothing is left
