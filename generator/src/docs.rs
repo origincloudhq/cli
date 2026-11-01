@@ -90,6 +90,17 @@ pub fn help(comment: &str, vocabulary: &Vocabulary<'_>) -> String {
         .join("\n")
 }
 
+/// `comment` as one line of plain text, without linter directives: the
+/// help of a nested message's key, whose backticked names are its sibling
+/// keys, not flags.
+pub fn plain(comment: &str) -> String {
+    LINTER_DIRECTIVE
+        .replace_all(comment, "")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// The first sentence of `text`, on one line and without its full stop:
 /// what a command's line in its group's help says.
 pub fn summary(text: &str) -> String {

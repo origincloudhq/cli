@@ -2,14 +2,17 @@
 //! definitions (origincloudhq/api), one per service:
 //!
 //! ```text
-//! origincloud-cli-generator <api-dir> <sdk-dir> <out-dir>
+//! origincloud-cli-generator <api-dir> <sdk-dir> <out-dir> [<test-api-dir>]
 //! ```
 //!
 //! `<api-dir>` is a checkout of the API; its dependencies are downloaded at
 //! the commits its `buf.lock` pins. `<sdk-dir>` is a checkout of the Rust
 //! SDK generated from it, whose clients say which services answer at a
 //! region's host (`client.service("pvs", true)`) and which only at their
-//! regionless one. The files are written to `<out-dir>`, at
+//! regionless one. `<test-api-dir>` holds definitions of services that
+//! exist only in this repository's tests (`testing/scratch`): their groups
+//! are generated beside the others, compiled only with the CLI's
+//! `test-services` feature, and left out of `api.binpb`. The files are written to `<out-dir>`, at
 //! their paths in this repository, under `crates/cli/src/sdk/generated/`:
 //!
 //! - `{service}.rs` for each service, such as `pvs.rs` for the packages
@@ -22,7 +25,9 @@
 //! - `services.rs`: the groups, `origin {service}`, each with its
 //!   `--endpoint`, and the code running a command of one;
 //! - `api.binpb`: the descriptors of those packages, which the coverage
-//!   test reads to check that every method has a command.
+//!   test reads to check that every method has a command, and by which a
+//!   message field's JSON flag refuses a field the message doesn't have;
+//!   `test-api.binpb`, the same for the test services.
 //!
 //! It also writes the MCP tools of `crates/mcp`, under
 //! `crates/mcp/src/generated/`:
@@ -34,10 +39,14 @@
 //! - `api.binpb`, the same descriptors, which its coverage test reads to
 //!   check that every method has a tool.
 //!
-//! A method the generator can't make a command or a tool for, such as one
-//! with a field of a type it doesn't support, is reported on standard error
-//! and left out; the coverage test then fails until the generator supports
-//! it, or `commands.toml` leaves it out with a reason.
+//! A method the generator can't make a command for, such as one with a
+//! field of a type it doesn't support, fails generation, naming the method
+//! and the field, until the generator supports it, or `commands.toml`
+//! leaves the method or the field out with a reason: nothing is dropped
+//! silently. One it can't make a tool for is reported on standard error and
+//! left out; the MCP coverage test then fails until the generator supports
+//! it, or `commands.toml` leaves it out with a reason. The test services
+//! have no tools.
 //!
 //! The output depends on nothing but the API checkout, the pinned
 //! dependencies and the versions `Cargo.lock` pins, so generating from an
@@ -49,7 +58,7 @@ mod docs;
 mod policy;
 mod tools;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, ensure, Context, Result};
@@ -71,19 +80,49 @@ const MCP_DIR: &str = "crates/mcp/src/generated";
 
 fn main() -> Result<()> {
     let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
-    let [api, sdk, out] = args.as_slice() else {
-        bail!("usage: origincloud-cli-generator <api-dir> <sdk-dir> <out-dir>");
+    let (api, sdk, out, test_api) = match args.as_slice() {
+        [api, sdk, out] => (api, sdk, out, None),
+        [api, sdk, out, test] => (api, sdk, out, Some(test)),
+        _ => {
+            bail!("usage: origincloud-cli-generator <api-dir> <sdk-dir> <out-dir> [<test-api-dir>]")
+        }
     };
 
     let dependencies = deps::fetch(api)?;
-    let (pool, fds) = compile(api, dependencies)?;
-    let services = services(&pool)?;
-    ensure!(!services.is_empty(), "the API has no origincloud service");
+    let mut roots = vec![api.as_path()];
+    roots.extend(test_api.map(PathBuf::as_path));
+    let compiled = compile(&roots, dependencies)?;
     let regional = regional_services(sdk)?;
-    let operations = newest_package(&pool, OPERATIONS).ok();
-    let comments = docs::Comments::new(&fds);
     let policy =
         policy::Policy::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("commands.toml"))?;
+    let files = generate(&compiled, &regional, &policy)?;
+    for (path, content) in &files {
+        let path = out.join(path);
+        std::fs::create_dir_all(path.parent().context("a file has a directory")?)?;
+        std::fs::write(&path, content).with_context(|| format!("writing {}", path.display()))?;
+    }
+    Ok(())
+}
+
+/// The compiled definitions.
+struct Compiled {
+    pool: DescriptorPool,
+    fds: FileDescriptorSet,
+    /// The packages of the files under a test root.
+    test_packages: BTreeSet<String>,
+}
+
+/// The generated files, by their paths in the repository.
+fn generate(
+    compiled: &Compiled,
+    regional: &BTreeMap<String, bool>,
+    policy: &policy::Policy,
+) -> Result<BTreeMap<PathBuf, Vec<u8>>> {
+    let pool = &compiled.pool;
+    let services = services(pool)?;
+    ensure!(!services.is_empty(), "the API has no origincloud service");
+    let operations = newest_package(pool, OPERATIONS).ok();
+    let comments = docs::Comments::new(&compiled.fds);
 
     let mut packages: BTreeMap<&str, &str> = services
         .iter()
@@ -95,7 +134,7 @@ fn main() -> Result<()> {
     for (service, method, field) in policy.entries() {
         let named = packages
             .get(service)
-            .is_some_and(|package| names_a_field(&pool, package, method, field));
+            .is_some_and(|package| names_a_field(pool, package, method, field));
         if !named {
             eprintln!(
                 "warning: commands.toml names {service} {method} {field}, which the API doesn't have"
@@ -113,13 +152,15 @@ fn main() -> Result<()> {
 
     let mut files: BTreeMap<PathBuf, Vec<u8>> = BTreeMap::new();
     let mut groups = Vec::new();
+    let mut skipped = Vec::new();
     for (service, package) in &services {
         let generated =
-            commands::generate(&pool, &comments, &policy, package, operations.as_deref())?;
-        for skipped in &generated.skipped {
-            eprintln!("warning: no command for {skipped}");
-        }
+            commands::generate(pool, &comments, policy, package, operations.as_deref())?;
+        skipped.extend(generated.skipped.iter().cloned());
         let mut source = format!("// source: origincloudhq/api, package {package}");
+        if compiled.test_packages.contains(package) {
+            source = format!("// source: testing/scratch, package {package}, for the tests only");
+        }
         if generated.operations {
             if let Some(operations) = &operations {
                 source.push_str(&format!(", and {operations} at its host"));
@@ -131,29 +172,44 @@ fn main() -> Result<()> {
         );
         let regional = *regional.get(service).with_context(|| {
             format!(
-                "the SDK at {} has no client of the service {service}: it must be generated from the same API revision",
-                sdk.display()
+                "the SDK has no client of the service {service}: it must be generated from the same API revision"
             )
         })?;
         groups.push(commands::group(
-            &pool,
+            pool,
             &comments,
-            &policy,
+            policy,
             package,
             regional,
             generated.lists_zones,
+            compiled.test_packages.contains(package),
         ));
 
-        let tools = tools::generate(&pool, &comments, &policy, package, operations.as_deref())?;
-        for skipped in &tools.skipped {
-            eprintln!("warning: no MCP tool for {skipped}");
+        // The test services have no MCP tools: the MCP server has no SDK
+        // crate of theirs.
+        if !compiled.test_packages.contains(package) {
+            let tools = tools::generate(pool, &comments, policy, package, operations.as_deref())?;
+            for skipped in &tools.skipped {
+                eprintln!("warning: no MCP tool for {skipped}");
+            }
+            files.insert(
+                Path::new(MCP_DIR).join(format!("{service}.rs")),
+                format!("{HEADER}{source}\n\n{}", tools.code).into_bytes(),
+            );
         }
-        files.insert(
-            Path::new(MCP_DIR).join(format!("{service}.rs")),
-            format!("{HEADER}{source}\n\n{}", tools.code).into_bytes(),
-        );
     }
-    let names: Vec<&str> = services.keys().map(String::as_str).collect();
+    ensure!(
+        skipped.is_empty(),
+        "no command can be generated for these methods; extend the generator, or leave the \
+         method ([[no_command]]) or the field ([[exclude]]) out in generator/commands.toml with \
+         the reason:\n  {}",
+        skipped.join("\n  ")
+    );
+    let names: Vec<&str> = services
+        .iter()
+        .filter(|(_, package)| !compiled.test_packages.contains(*package))
+        .map(|(service, _)| service.as_str())
+        .collect();
     files.insert(
         Path::new(MCP_DIR).join("tools.rs"),
         format!(
@@ -170,43 +226,69 @@ fn main() -> Result<()> {
         )
         .into_bytes(),
     );
-    let described: Vec<&str> = packages.values().copied().collect();
-    let descriptors = descriptor(&pool, &described);
+    let described: Vec<&str> = packages
+        .values()
+        .copied()
+        .filter(|p| !compiled.test_packages.contains(*p))
+        .collect();
+    let descriptors = descriptor(pool, &described);
     files.insert(Path::new(MCP_DIR).join("api.binpb"), descriptors.clone());
     files.insert(Path::new(OUT_DIR).join("api.binpb"), descriptors);
-    for (path, content) in &files {
-        let path = out.join(path);
-        std::fs::create_dir_all(path.parent().context("a file has a directory")?)?;
-        std::fs::write(&path, content).with_context(|| format!("writing {}", path.display()))?;
+    // The test services' descriptors, by which their JSON flags check their
+    // values, as the published groups' do by `api.binpb`.
+    if !compiled.test_packages.is_empty() {
+        let tests: Vec<&str> = compiled.test_packages.iter().map(String::as_str).collect();
+        files.insert(
+            Path::new(OUT_DIR).join("test-api.binpb"),
+            descriptor(pool, &tests),
+        );
     }
-    Ok(())
+    Ok(files)
 }
 
-/// Compiles every file under the API's `origincloud/`, with source info
-/// and the files they import.
-fn compile(
-    api: &Path,
-    dependencies: BTreeMap<String, String>,
-) -> Result<(DescriptorPool, FileDescriptorSet)> {
+/// Compiles every file under each root's `origincloud/`, with source info
+/// and the files they import; the roots after the first hold test
+/// services.
+fn compile(roots: &[&Path], dependencies: BTreeMap<String, String>) -> Result<Compiled> {
     let mut resolver = ChainFileResolver::new();
-    resolver.add(IncludeFileResolver::new(api.to_owned()));
+    for root in roots {
+        resolver.add(IncludeFileResolver::new(root.to_path_buf()));
+    }
     resolver.add(MemoryResolver(dependencies));
     resolver.add(GoogleFileResolver::new());
     let mut compiler = protox::Compiler::with_file_resolver(resolver);
     compiler.include_imports(true).include_source_info(true);
 
     let mut names = Vec::new();
-    collect_protos(api, &api.join("origincloud"), &mut names)?;
+    let mut test_files = BTreeSet::new();
+    for (i, root) in roots.iter().enumerate() {
+        let mut found = Vec::new();
+        collect_protos(root, &root.join("origincloud"), &mut found)?;
+        ensure!(
+            !found.is_empty(),
+            "no .proto files under {}",
+            root.join("origincloud").display()
+        );
+        if i > 0 {
+            test_files.extend(found.iter().cloned());
+        }
+        names.extend(found);
+    }
     names.sort();
-    ensure!(
-        !names.is_empty(),
-        "no .proto files under {}",
-        api.join("origincloud").display()
-    );
     compiler
         .open_files(&names)
         .map_err(|e| anyhow::anyhow!("{e:?}"))?;
-    Ok((compiler.descriptor_pool(), compiler.file_descriptor_set()))
+    let pool = compiler.descriptor_pool();
+    let test_packages = pool
+        .files()
+        .filter(|f| test_files.contains(f.name()))
+        .map(|f| f.package_name().to_owned())
+        .collect();
+    Ok(Compiled {
+        pool,
+        fds: compiler.file_descriptor_set(),
+        test_packages,
+    })
 }
 
 fn collect_protos(root: &Path, dir: &Path, names: &mut Vec<String>) -> Result<()> {
@@ -482,6 +564,194 @@ mod tests {
         let order: Vec<&str> = keys.iter().map(|(_, v)| *v).collect();
         assert_eq!(order, ["v1alpha2", "v1beta1", "v1beta2", "v1", "v2beta1"]);
         assert!(version_key("latest").is_none());
+    }
+
+    /// The google/api files the tests compile against, by import path:
+    /// the parts of googleapis the generator reads, so that the tests need
+    /// no download.
+    fn fixtures() -> BTreeMap<String, String> {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata/google/api");
+        std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| {
+                let path = e.unwrap().path();
+                let name = path.file_name().unwrap().to_string_lossy().into_owned();
+                (
+                    format!("google/api/{name}"),
+                    std::fs::read_to_string(&path).unwrap(),
+                )
+            })
+            .collect()
+    }
+
+    /// The tests' scratch service, `testing/scratch/`.
+    fn scratch() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../testing/scratch")
+    }
+
+    /// A directory holding `origincloud/{path}` with `source`.
+    fn api(path: &str, source: &str) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("origincloud").join(path);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(file, source).unwrap();
+        dir
+    }
+
+    fn generated(roots: &[&Path]) -> Result<BTreeMap<PathBuf, Vec<u8>>> {
+        let compiled = compile(roots, fixtures())?;
+        let regional = services(&compiled.pool)?
+            .into_keys()
+            .map(|s| (s, true))
+            .collect();
+        generate(&compiled, &regional, &policy::Policy::default())
+    }
+
+    fn file(files: &BTreeMap<PathBuf, Vec<u8>>, name: &str) -> String {
+        String::from_utf8(files[&Path::new(OUT_DIR).join(name)].clone()).unwrap()
+    }
+
+    /// A nested message is a `KEY=VALUE,...` flag and a JSON flag; a
+    /// repeated one, a repeatable flag; a repeated scalar or reference, a
+    /// repeatable flag; a list whose order isn't kept says so; and what is
+    /// nested deeper only the JSON flag sets.
+    #[test]
+    fn nested_and_repeated_fields_become_flags() {
+        let files = generated(&[&scratch()]).unwrap();
+        let code = file(&files, "scratch.rs");
+        for expected in [
+            // A repeated message: one flag per element, and the JSON flag.
+            "pub rule: Vec<Keyed<::origincloud_scratch::v1::Rule>>,",
+            "parse_rule(text, \"--rules-json\")",
+            "help = \"Rules as JSON; sent whole\"",
+            "help = \"Rules as JSON; replaced whole\"",
+            "pub rules_json: Option<JsonArg<Vec<::origincloud_scratch::v1::Rule>>>,",
+            "required_unless_present = \"rules_json\"",
+            // Its keys, typed and checked; `match` only through JSON.
+            "fn parse_rule(",
+            "\"port\" => out.port = key_scalar::<i32>(\"port\", value)?,",
+            "out.idle_timeout = Some(key_duration(\"idle_timeout\", value)?);",
+            "&[\"match\"],",
+            "out.not_after = Some(key_timestamp(\"not_after\", value)?)",
+            // A timestamp.
+            "pub expire_time: Option<::origincloud_core::protobuf::Timestamp>,",
+            "required_keys(&pairs, &[\"protocol\"])?;",
+            // The resource name a key gives is completed.
+            "Some((\"rule network\", item.network.as_str()))",
+            // Repeated scalars and references.
+            "pub port: Vec<i32>,",
+            "pub network: Vec<String>,",
+            "The API doesn't keep their order, and each must be unique.",
+            // A nested message.
+            "pub logging: Option<Keyed<::origincloud_scratch::v1::Logging>>,",
+            "pub logging_json: Option<JsonArg<::origincloud_scratch::v1::Logging>>,",
+            // An update replaces a whole field, and empties one by name.
+            "pub no_logging: bool,",
+            "notice_reset(\"--logging\", \"logging\"",
+            "notice_replaced(\"--rule\", \"rules\", items.len());",
+            // A list the API keeps unordered has each element once.
+            "unique(&args.alias, \"--alias\")?;",
+            "paths.push(\"rules\".to_owned());",
+            "paths.push(\"logging\".to_owned());",
+            "The list is replaced whole",
+        ] {
+            // Whatever lines the formatter breaks it into.
+            let flat: String = code.split_whitespace().collect();
+            let wanted: String = expected.split_whitespace().collect();
+            assert!(flat.contains(&wanted), "no {expected:?} in:\n{code}");
+        }
+        // A required field can't be emptied.
+        assert!(!code.contains("pub no_rules: bool"), "{code}");
+        // Nothing two levels down has a flag of its own.
+        assert!(!code.contains("long = \"match"), "{code}");
+        assert!(!code.contains("long = \"header"), "{code}");
+        // As the published API's group, it isn't gated.
+        assert!(!file(&files, "services.rs").contains("test-services"));
+    }
+
+    const TINY: &str = r#"
+        syntax = "proto3";
+        package origincloud.tiny.v1;
+        import "google/api/annotations.proto";
+        // Tiny things.
+        service TinyService {
+          // Returns a thing.
+          rpc GetThing(GetThingRequest) returns (GetThingRequest) {
+            option (google.api.http) = {get: "/v1/{name=things/*}"};
+          }
+        }
+        message GetThingRequest { string name = 1; }
+    "#;
+
+    /// A test root's services are generated beside the API's, compiled with
+    /// the `test-services` feature alone, and left out of the descriptors.
+    #[test]
+    fn a_test_service_is_gated_and_left_out_of_the_descriptors() {
+        let tiny = api("tiny/v1/tiny.proto", TINY);
+        let files = generated(&[tiny.path(), &scratch()]).unwrap();
+        let services = file(&files, "services.rs");
+        assert!(
+            services.contains(
+                "#[cfg(feature = \"test-services\")]\n#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]\npub mod scratch"
+            ),
+            "{services}"
+        );
+        assert!(!services.contains(
+            "#[cfg(feature = \"test-services\")]\n#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]\npub mod tiny"
+        ));
+        let binpb = &files[&Path::new(OUT_DIR).join("api.binpb")];
+        let pool = DescriptorPool::decode(binpb.as_slice()).unwrap();
+        assert!(pool
+            .get_service_by_name("origincloud.tiny.v1.TinyService")
+            .is_some());
+        assert!(pool
+            .get_service_by_name("origincloud.scratch.v1.FirewallService")
+            .is_none());
+    }
+
+    /// A field no flag can say fails generation, naming the method and the
+    /// field, instead of being left out.
+    #[test]
+    fn a_field_no_flag_can_say_fails_generation() {
+        for (field, why) in [
+            (
+                "map<string, Inner> inners = 2;",
+                "the map inners isn't map<string, string>",
+            ),
+            (
+                "oneof choice { string a = 2; int32 b = 3; }",
+                "the field a is in a oneof",
+            ),
+            (
+                "repeated bool flags = 2;",
+                "the list flags is a list of bool",
+            ),
+        ] {
+            let source = format!(
+                r#"
+                syntax = "proto3";
+                package origincloud.odd.v1;
+                import "google/api/annotations.proto";
+                // Odd things.
+                service OddService {{
+                  // Makes one.
+                  rpc MakeOdd(MakeOddRequest) returns (MakeOddRequest) {{
+                    option (google.api.http) = {{post: "/v1/odds" body: "*"}};
+                  }}
+                }}
+                message Inner {{ string value = 1; }}
+                message MakeOddRequest {{ string label = 1; {field} }}
+                "#
+            );
+            let odd = api("odd/v1/odd.proto", &source);
+            let err = generated(&[odd.path()]).unwrap_err().to_string();
+            assert!(
+                err.contains("origincloud.odd.v1.OddService.MakeOdd"),
+                "{err}"
+            );
+            assert!(err.contains(why), "{why}: {err}");
+            assert!(err.contains("[[exclude]]"), "{err}");
+        }
     }
 
     #[test]

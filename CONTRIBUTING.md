@@ -70,6 +70,49 @@ the same `api.binpb`, from which its coverage test checks that every method
 has a tool. `generator/src/tools.rs` implements the scheme, and
 `crates/mcp/src/lib.rs` describes it.
 
+A duration or a timestamp is a flag of its own form (`30s`, RFC 3339). Any
+other field holding a message is a flag taking comma-separated `KEY=VALUE`
+pairs, one per field of the message that a flag could set on its own (a
+number, a string, a boolean, an enum, a duration, a timestamp, a resource
+name), each parsed and checked as such, and its required fields enforced; a
+repeated one is that flag repeated. Every message field also has
+a `--{field}-json` flag taking its JSON, the only form of what pairs can't
+say, such as a message nested deeper or a list inside a message; a message
+with a required field of that kind has the JSON flag alone; a well-known
+type, such as a struct, takes its own JSON form. That flag checks its value
+against the message's descriptor, from `api.binpb` (and `test-api.binpb` for
+the test services), at every depth (`crates/cli/src/sdk/nested.rs`): a key
+that is neither a field's name nor its JSON name, a key given twice, a value
+of the wrong type, an enum value that isn't one (or is the unspecified one),
+an element given twice in an `UNORDERED_LIST`, and an id where nothing
+completes it are refused, naming the path; the SDK's decoder would drop or
+default most of them silently. A resource name in a field of the message
+itself, in either form, is completed and checked against `--project` and
+`--zone` like a flag's. In an update, setting any of a field's flags names
+the field itself in `update_mask` and sends it whole, as the API design
+requires of nested and repeated fields, which the flags' one-line help says
+and the command repeats on standard error, naming the keys it resets;
+`--no-{field}` empties a field that isn't required. A repeated scalar or
+resource name is a repeatable flag, refusing an element given twice in an
+`UNORDERED_LIST`. A field the generator can't make a flag of, such as a
+oneof or a map other than `map<string, string>`, fails generation, naming
+the method and the field: nothing is left out silently.
+
+The published API doesn't have such fields yet, so the tests use a service
+of their own, `testing/scratch/`: a firewall whose rules are a repeated
+nested message, with repeated scalars and references, a list whose order the
+API doesn't keep, a nested message, timestamps, a struct, and a message
+nested two levels deep, with enums, maps, lists and references of its own.
+`scripts/generate.sh` generates its SDK crate's code with the Rust SDK's own
+generator, at the commit `Cargo.lock` pins, into
+`testing/scratch/sdk/src/generated/`, the crate's manifest from the one that
+generator scaffolds, and its group, `origin scratch`, beside
+the others; that group is compiled only with the CLI's `test-services`
+feature, never in a release, and isn't in `api.binpb`. Its tests,
+`crates/cli/tests/scratch.rs`, run its commands against the SDK's fake
+server; the generator's own tests compile it, and definitions it must
+refuse, with the parts of googleapis in `generator/testdata/`.
+
 What the API definitions don't express is in `generator/commands.toml`, by
 service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
 
@@ -107,9 +150,13 @@ generated files.
 The regeneration workflow (`.github/workflows/regenerate.yml`) moves the CLI
 to the newest SDK, and the API revision it was generated from, daily, and opens
 a pull request when that changes anything. If the API gained a method the
-generator can't make a command for, the generator says so on standard error
-and the coverage test fails: extend the generator on that pull request, or
-list the method under `[[no_command]]` with the reason.
+generator can't make a command for, generation fails, naming the method and
+the field: the run opens or refreshes the pull request all the same, with
+the SDK and `API_REVISION` moved alone and the generator's error in its
+description, then fails. Extend the generator on that pull request's branch,
+or leave the method (`[[no_command]]`) or the field (`[[exclude]]`) out with
+the reason; the commits added there are kept, and the next run generates
+with them.
 
 ### A new service
 
@@ -148,6 +195,9 @@ scripts/update.sh              # move to the newest SDK and its API revision, an
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+# the scratch service's group, and the tests of nested and repeated fields
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test -p origincloud-cli --all-features
 ```
 
 CI also checks the scripts with shellcheck, runs the release scripts' tests

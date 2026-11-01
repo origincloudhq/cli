@@ -1,0 +1,204 @@
+syntax = "proto3";
+
+// A service that exists only in this repository's tests. Its resource has
+// the kinds of fields the generator turns into flags beyond the published
+// API's: repeated scalars and references, a list whose order isn't kept, a
+// nested message, a repeated nested message, and a message nested two
+// levels deep.
+package origincloud.scratch.v1;
+
+import "google/api/annotations.proto";
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+// Firewalls: rules that guard the networks of a zone.
+service FirewallService {
+  option (google.api.default_host) = "scratch.origincloudapis.eu";
+
+  // Returns a firewall.
+  rpc GetFirewall(GetFirewallRequest) returns (Firewall) {
+    option (google.api.http) = {get: "/v1/{name=projects/*/zones/*/firewalls/*}"};
+    option (google.api.method_signature) = "name";
+  }
+
+  // Creates a firewall.
+  rpc CreateFirewall(CreateFirewallRequest) returns (Firewall) {
+    option (google.api.http) = {
+      post: "/v1/{parent=projects/*/zones/*}/firewalls"
+      body: "firewall"
+    };
+    option (google.api.method_signature) = "parent,firewall";
+  }
+
+  // Changes a firewall's rules, ports, networks, aliases, logging or tags.
+  rpc UpdateFirewall(UpdateFirewallRequest) returns (Firewall) {
+    option (google.api.http) = {
+      patch: "/v1/{firewall.name=projects/*/zones/*/firewalls/*}"
+      body: "firewall"
+    };
+    option (google.api.method_signature) = "firewall,update_mask";
+  }
+}
+
+// A set of rules guarding networks in one zone.
+message Firewall {
+  option (google.api.resource) = {
+    type: "scratch.origincloudapis.eu/Firewall"
+    pattern: "projects/{project}/zones/{zone}/firewalls/{firewall}"
+    plural: "firewalls"
+    singular: "firewall"
+  };
+
+  // The firewall's resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // The rules, in the order they are evaluated; the first that matches
+  // decides.
+  repeated Rule rules = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // The ports the firewall opens to every source.
+  repeated int32 ports = 3;
+
+  // The networks the firewall guards.
+  repeated string networks = 4 [(google.api.resource_reference).type = "scratch.origincloudapis.eu/Network"];
+
+  // Other names the firewall answers to.
+  repeated string aliases = 5 [(google.api.field_behavior) = UNORDERED_LIST];
+
+  // How the firewall logs the connections it decides.
+  Logging logging = 6;
+
+  // The firewall's tags.
+  map<string, string> tags = 7;
+
+  // When the firewall was created.
+  string create_time = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // When the firewall stops deciding anything.
+  google.protobuf.Timestamp expire_time = 9;
+
+  // Data of your own about the firewall.
+  google.protobuf.Struct metadata = 10;
+}
+
+// A network a firewall can guard.
+message Network {
+  option (google.api.resource) = {
+    type: "scratch.origincloudapis.eu/Network"
+    pattern: "projects/{project}/zones/{zone}/networks/{network}"
+    plural: "networks"
+    singular: "network"
+  };
+
+  // The network's resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+}
+
+// One rule of a firewall.
+message Rule {
+  // A transport protocol.
+  enum Protocol {
+    // Not set.
+    PROTOCOL_UNSPECIFIED = 0;
+    // TCP.
+    TCP = 1;
+    // UDP.
+    UDP = 2;
+  }
+
+  // The protocol the rule matches.
+  Protocol protocol = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // The port the rule matches; every port when zero.
+  int32 port = 2;
+
+  // The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.
+  string cidr = 3;
+
+  // How long the rule keeps an idle connection open.
+  google.protobuf.Duration idle_timeout = 4;
+
+  // The network the rule applies to; every network the firewall guards
+  // when empty.
+  string network = 5 [(google.api.resource_reference).type = "scratch.origincloudapis.eu/Network"];
+
+  // Whether the rule allows what it matches, rather than denying it.
+  bool allow = 6;
+
+  // A match on the packets' headers.
+  Match match = 7;
+
+  // When the rule stops matching.
+  google.protobuf.Timestamp not_after = 8;
+}
+
+// A match on headers.
+message Match {
+  // The headers that must all be present.
+  repeated Header headers = 1;
+
+  // The network the packets must come from.
+  string network = 2 [(google.api.resource_reference).type = "scratch.origincloudapis.eu/Network"];
+
+  // The methods matched, each once.
+  repeated string methods = 3 [(google.api.field_behavior) = UNORDERED_LIST];
+
+  // The protocols matched.
+  repeated Rule.Protocol protocols = 4;
+
+  // The protocol each port name stands for.
+  map<string, Rule.Protocol> port_protocols = 5;
+}
+
+// A header and its value.
+message Header {
+  // The header's name.
+  string name = 1;
+
+  // Its value.
+  string value = 2;
+}
+
+// How a firewall logs.
+message Logging {
+  // Whether it logs.
+  bool enabled = 1;
+
+  // The share of connections logged, in percent.
+  int32 sample_percent = 2;
+}
+
+// The request for GetFirewall.
+message GetFirewallRequest {
+  // The firewall to return.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "scratch.origincloudapis.eu/Firewall"
+  ];
+}
+
+// The request for CreateFirewall.
+message CreateFirewallRequest {
+  // The zone to create the firewall in.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).child_type = "scratch.origincloudapis.eu/Firewall"
+  ];
+
+  // The firewall to create.
+  Firewall firewall = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// The request for UpdateFirewall.
+message UpdateFirewallRequest {
+  // The firewall to change, by its name, with the fields to change.
+  Firewall firewall = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // The fields to change.
+  google.protobuf.FieldMask update_mask = 2;
+}

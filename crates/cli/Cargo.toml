@@ -22,6 +22,12 @@ origincloud-mcp = { path = "../mcp" }
 origincloud-core.workspace = true
 origincloud-pvs.workspace = true
 origincloud-location.workspace = true
+# A message field's JSON flag checks its value against the API's
+# descriptors, which the generator checks in beside the commands.
+prost-reflect = "0.16"
+# The tests' scratch service, whose command group the `test-services`
+# feature compiles in: see testing/scratch/.
+origincloud-scratch = { path = "../../testing/scratch/sdk", optional = true }
 anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
@@ -39,12 +45,17 @@ tracing.workspace = true
 url.workspace = true
 uuid.workspace = true
 
+[features]
+# Adds `origin scratch`, the command group of a service that exists only in
+# the tests, whose fields the published API doesn't have yet: nested and
+# repeated messages, repeated scalars. Never built into a release.
+test-services = ["dep:origincloud-scratch"]
+
 [dev-dependencies]
 fake-server.workspace = true
 # The coverage and generated-command tests read the API descriptors the
 # generator checked in, and its table of choices.
 heck = "0.5"
-prost-reflect = "0.16"
 serde.workspace = true
 toml = "0.8"
 # The config-path tests resolve against a real directory tree, so they need a

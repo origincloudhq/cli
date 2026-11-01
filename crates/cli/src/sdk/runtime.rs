@@ -459,6 +459,13 @@ pub fn duration(value: &str) -> Result<origincloud_core::protobuf::Duration, Str
     Ok(total.into())
 }
 
+// What the flags of nested messages, JSON values and timestamps use.
+#[allow(unused_imports)]
+pub use super::nested::{
+    json_arg, key_bool, key_duration, key_enum, key_scalar, key_timestamp, key_values,
+    notice_replaced, notice_reset, required_keys, timestamp, unique, unknown_key, JsonArg, Keyed,
+};
+
 /// `--tag KEY=VALUE` values as a map field.
 pub fn tags(tags: &[TagArg]) -> BTreeMap<String, String> {
     tags.iter()

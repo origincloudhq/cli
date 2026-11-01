@@ -52,6 +52,14 @@ jobs:
       - name: Tests
         run: cargo test --locked --workspace
 
+      # The flags of nested and repeated fields, which the published API
+      # doesn't have yet, through the tests' scratch service: its group is
+      # compiled with the test-services feature only.
+      - name: Test services
+        run: |
+          cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+          cargo test --locked -p origincloud-cli --all-features
+
       - name: Scripts
         run: shellcheck scripts/*.sh release/*.sh
 
