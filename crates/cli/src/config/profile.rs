@@ -12,12 +12,12 @@ const FILE_NAME_PROFILE: &str = "default-profile.json";
 /// Environment overrides for the saved profile.
 const ENV_USERNAME: &str = "ORIGINCLOUD_USERNAME";
 const ENV_OUTPUT_FORMAT: &str = "ORIGINCLOUD_OUTPUT_FORMAT";
-/// The project and zone the `pvs` commands use when `--project` or `--zone`
-/// isn't given.
+/// The project and zone the generated commands, such as `origin pvs`, use
+/// when `--project` or `--zone` isn't given.
 const ENV_PROJECT: &str = "ORIGINCLOUD_PROJECT";
 const ENV_ZONE: &str = "ORIGINCLOUD_ZONE";
-/// The region whose front door the `pvs` commands call; the same variable
-/// the SDKs read.
+/// The region whose front door the generated commands of a regional
+/// service call; the same variable the SDKs read.
 const ENV_REGION: &str = "ORIGINCLOUD_REGION";
 
 fn config_base_dir() -> String {
@@ -39,14 +39,15 @@ fn profile_path() -> PathBuf {
 pub(crate) struct ClientProfile {
     pub default_username: Option<String>,
     pub output_format: Option<OutputFormat>,
-    /// The project of the `pvs` commands without `--project`.
+    /// The project of the generated commands without `--project`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_project: Option<String>,
-    /// The zone of the `pvs` commands without `--zone`, such as
+    /// The zone of the generated commands without `--zone`, such as
     /// `eu-central1-az1`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_zone: Option<String>,
-    /// The region whose front door the `pvs` commands call,
+    /// The region whose front door the generated commands of a regional
+    /// service, such as `pvs`, call,
     /// `{service}.{region}.origincloudapis.eu`; the regionless endpoint,
     /// which serves every resource, when unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]

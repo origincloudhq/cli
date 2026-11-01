@@ -1,7 +1,7 @@
 //! The `origin` command-line interface for Origin Cloud.
 //!
-//! - `pvs` holds the persistent volume service's commands, generated from
-//!   the API definitions and calling the Rust SDK;
+//! - `sdk` holds the command groups generated from the API definitions,
+//!   one per service (`pvs`, `location`, ...), which call the Rust SDK;
 //! - `handler` and `service_apis` hold the hand-written commands, which call
 //!   the GraphQL API with the queries in `graphql/`.
 
@@ -14,9 +14,9 @@ pub(crate) mod graphql;
 mod handler;
 mod identity;
 mod output;
-mod pvs;
 mod root_command;
 mod run_cli;
+mod sdk;
 pub(crate) mod service_apis;
 
 /// The `origin` command tree, for checking a command line against it

@@ -1,14 +1,36 @@
-# Choices about the `origin pvs` commands that the API definitions don't
+# Choices about the generated commands that the API definitions don't
 # express. The generator applies them; CONTRIBUTING.md describes them.
 #
-# Each entry names a method of the PVS API (`ImportVolume`) and a field of
-# its request, as a path (`volume.source_snapshot`). The coverage test fails
-# when an entry names a method or a field the API doesn't have, so that an
-# entry can't silently stop applying.
+# An entry names a service as its packages name it (`pvs` for
+# `origincloud.pvs.v1beta1`, `longrunning` for the operation methods), a
+# method of it (`ImportVolume`) and, for a field, a path from its request
+# (`volume.source_snapshot`). The coverage test fails when an entry names a
+# service, a method or a field the API doesn't have, so that an entry can't
+# silently stop applying.
+
+# The help of a command group, when the API's comments don't give it: a
+# package with one service takes it from that service's comment, so only a
+# package with several needs an entry.
+[[service]]
+name = "pvs"
+about = "Persistent volume service: volumes, snapshots and storage classes"
+details = """
+Resource names are given as their parts (`--project`, `--zone`, `--volume`), \
+or the resource's flag takes a whole name; `--project` and `--zone` default \
+to the profile's `default-project` and `default-zone`."""
+
+# Methods left without a command, with the reason. Every other method of the
+# API has one: the coverage test fails for a method that has neither.
+#
+# [[no_command]]
+# service = "pvs"
+# method = "ExampleMethod"
+# why = "Why the CLI doesn't offer it."
 
 # Fields left out of a method's command, because the method doesn't take
 # them although its request message has them.
 [[exclude]]
+service = "pvs"
 method = "ImportVolume"
 field = "volume.source_snapshot"
 why = "An import's content is the downloaded image: it takes a size, a storage class and tags."
@@ -17,6 +39,7 @@ why = "An import's content is the downloaded image: it takes a size, a storage c
 # requires `--yes`, like a delete, and refuses before sending anything
 # without it. Every delete requires `--yes` anyway, without an entry here.
 [[one_way]]
+service = "pvs"
 method = "UpdateVolume"
 field = "volume.size_gib"
 verb = "grow"

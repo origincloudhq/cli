@@ -18,16 +18,15 @@ static LINTER_DIRECTIVE: LazyLock<Regex> =
 static BACKTICKED_FIELD: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"`([a-z][a-z0-9_]*)`").expect("a valid pattern"));
 
-/// The leading comments of the files of one package, by file and location
-/// path.
+/// The leading comments of the API's files, by file and location path.
 pub struct Comments {
     leading: HashMap<(String, Vec<i32>), String>,
 }
 
 impl Comments {
-    pub fn new(fds: &FileDescriptorSet, package: &str) -> Self {
+    pub fn new(fds: &FileDescriptorSet) -> Self {
         let mut leading = HashMap::new();
-        for file in fds.file.iter().filter(|f| f.package() == package) {
+        for file in &fds.file {
             let Some(info) = &file.source_code_info else {
                 continue;
             };

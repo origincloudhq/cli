@@ -40,12 +40,8 @@ pub async fn run() -> ! {
             &profile,
             handler::network::run_network_command(&profile, &api_url, cmd).await,
         ),
-        Some(Commands::Pvs(pvs)) => {
-            let result = match crate::pvs::Context::new(&profile, pvs.endpoint.as_deref()) {
-                Ok(ctx) => crate::pvs::run(&ctx, pvs.command).await,
-                Err(err) => Err(err),
-            };
-            print_output_and_exit(&profile, result)
+        Some(Commands::Services(cmd)) => {
+            print_output_and_exit(&profile, crate::sdk::run(&profile, cmd).await)
         }
         Some(Commands::Storage(cmd)) => print_output_and_exit(
             &profile,

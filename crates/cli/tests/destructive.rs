@@ -1,185 +1,27 @@
-//! `origin pvs` against a local server that records every request: the
-//! guard of every delete and one-way change, driven from the API's
-//! descriptors, the credentials, the checks on names and endpoints, and the
-//! lists.
+//! The generated commands against a local server that records every
+//! request: the guard of every delete and one-way change, driven from the
+//! API's descriptors, the credentials, the checks on names and endpoints,
+//! and the lists.
 
-use std::path::Path;
+mod common;
+
 use std::process::Output;
-use std::sync::{Arc, Mutex};
 
-use fake_server::{FakeServer, Received, Response};
+use common::{
+    extension, failure, methods, pattern_of_message, pattern_of_type, pool, recording, stdout,
+    whole_name, OPERATIONS, TABLE,
+};
+use fake_server::{Received, Response};
 use heck::ToKebabCase;
-use prost_reflect::{DescriptorPool, MessageDescriptor, Value};
 use serde::Deserialize;
 
-const DESCRIPTORS: &[u8] = include_bytes!("../src/pvs/generated/pvs.binpb");
-const TABLE: &str = include_str!("../../../generator/commands.toml");
-
-/// A login session valid until 2099, in `dir` as `XDG_DATA_HOME`.
-fn write_session(dir: &Path) {
-    let path = dir.join("origincloud").join("session.json");
-    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    std::fs::write(
-        path,
-        r#"{"version":1,"access_token":"stored-access","expires":"2099-01-01T00:00:00Z","refresh_token":"stored-refresh","refresh_expires":"2099-01-01T00:00:00Z","token_type":"Bearer"}"#,
-    )
-    .unwrap();
-}
-
-type Answer = fn(&Received) -> Response;
-
-struct Recording {
-    server: FakeServer,
-    received: Arc<Mutex<Vec<Received>>>,
-    home: tempfile::TempDir,
-}
-
-/// A server answering every call with `answer`, recording each request,
-/// and a home directory with a login session.
-async fn recording(answer: Answer) -> Recording {
-    let received = Arc::new(Mutex::new(Vec::new()));
-    let seen = Arc::clone(&received);
-    let server = FakeServer::start(move |request| {
-        let response = answer(&request);
-        seen.lock().unwrap().push(request);
-        async move { response }
-    })
-    .await;
-    let home = tempfile::tempdir().unwrap();
-    write_session(home.path());
-    Recording {
-        server,
-        received,
-        home,
-    }
-}
-
-fn answering(body: &'static str) -> Answer {
-    // A closure can't be a `fn` pointer when it captures, so the bodies the
-    // tests use are matched here.
-    match body {
-        DELETED => |_| Response::json(DELETED),
-        UPDATED => |_| Response::json(UPDATED),
-        VOLUME => |_| Response::json(VOLUME),
-        _ => |_| Response::json("{}"),
-    }
-}
-
-impl Recording {
-    /// Runs `origin pvs` with `args` against the server, with `env` set.
-    async fn pvs_with(&self, args: &[&str], env: &[(&str, &str)]) -> Output {
-        let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_origin"));
-        command
-            .arg("pvs")
-            .args(["--endpoint", &self.server.url()])
-            .args(args)
-            .env_clear()
-            .env("HOME", self.home.path())
-            .env("XDG_DATA_HOME", self.home.path())
-            .env("XDG_CONFIG_HOME", self.home.path());
-        for (name, value) in env {
-            command.env(name, value);
-        }
-        tokio::task::spawn_blocking(move || command.output().expect("origin runs"))
-            .await
-            .unwrap()
-    }
-
-    async fn pvs(&self, args: &[&str]) -> Output {
-        self.pvs_with(args, &[]).await
-    }
-
-    fn requests(&self) -> Vec<Received> {
-        self.received.lock().unwrap().clone()
-    }
+fn answering(body: &'static str) -> impl Fn(&Received) -> Response + Send + Sync + 'static {
+    move |_| Response::json(body)
 }
 
 const DELETED: &str = r#"{"name":"projects/p/zones/z/operations/op-1","done":true,"response":{"@type":"type.googleapis.com/google.protobuf.Empty"}}"#;
 const UPDATED: &str = r#"{"name":"projects/p/zones/z/operations/op-2","done":true,"response":{"@type":"type.googleapis.com/origincloud.pvs.v1beta1.Volume","name":"projects/p/zones/z/volumes/v","sizeGib":20}}"#;
 const VOLUME: &str = r#"{"name":"projects/p/zones/z/volumes/v","sizeGib":8}"#;
-
-fn stdout(output: &Output) -> serde_json::Value {
-    serde_json::from_slice(&output.stdout).unwrap_or_else(|_| {
-        panic!(
-            "not JSON: {}{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )
-    })
-}
-
-/// A refused command: exit status 1 and the failure envelope.
-fn failure(output: &Output) -> String {
-    assert_eq!(output.status.code(), Some(1), "{}", stdout(output));
-    let printed = stdout(output);
-    assert_eq!(printed["code"], "failure", "{printed}");
-    printed["description"].as_str().unwrap().to_owned()
-}
-
-// The descriptors: what a command's resource flag is and what a whole name
-// of its resource looks like.
-
-fn pool() -> DescriptorPool {
-    DescriptorPool::decode(DESCRIPTORS).expect("the checked-in descriptors decode")
-}
-
-fn extension(
-    pool: &DescriptorPool,
-    options: &prost_reflect::DynamicMessage,
-    name: &str,
-) -> Option<prost_reflect::DynamicMessage> {
-    let ext = pool.get_extension_by_name(name)?;
-    if !options.has_extension(&ext) {
-        return None;
-    }
-    match options.get_extension(&ext).into_owned() {
-        Value::Message(m) => Some(m),
-        _ => None,
-    }
-}
-
-fn pattern_of_type(pool: &DescriptorPool, resource_type: &str) -> String {
-    pool.all_messages()
-        .find_map(|m| {
-            let r = extension(pool, &m.options(), "google.api.resource")?;
-            (r.get_field_by_name("type")?.as_str()? == resource_type).then(|| {
-                match r.get_field_by_name("pattern").unwrap().into_owned() {
-                    Value::List(p) => p[0].as_str().unwrap().to_owned(),
-                    _ => unreachable!(),
-                }
-            })
-        })
-        .unwrap_or_else(|| panic!("no resource {resource_type}"))
-}
-
-fn pattern_of_message(pool: &DescriptorPool, message: &MessageDescriptor) -> String {
-    let r = extension(pool, &message.options(), "google.api.resource").expect("a resource");
-    let t = r
-        .get_field_by_name("type")
-        .unwrap()
-        .as_str()
-        .unwrap()
-        .to_owned();
-    pattern_of_type(pool, &t)
-}
-
-/// The resource flag of `pattern` and a whole name of it.
-fn whole_name(pattern: &str) -> (String, String) {
-    let mut leaf = String::new();
-    let name: Vec<String> = pattern
-        .split('/')
-        .map(
-            |s| match s.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
-                Some(var) => {
-                    leaf = var.to_owned();
-                    format!("{}-1", var.replace('_', "-"))
-                }
-                None => s.to_owned(),
-            },
-        )
-        .collect();
-    (leaf.to_kebab_case(), name.join("/"))
-}
 
 #[derive(Deserialize)]
 struct Table {
@@ -189,22 +31,22 @@ struct Table {
 
 #[derive(Deserialize)]
 struct OneWay {
+    service: String,
     method: String,
     field: String,
 }
 
-/// Every delete without `--yes`, its resource given by its whole name, is
-/// refused before any request is sent, and says how to go on.
+/// Every delete of every group without `--yes`, its resource given by its
+/// whole name, is refused before any request is sent, and says how to go
+/// on.
 #[tokio::test(flavor = "multi_thread")]
 async fn every_delete_requires_yes() {
     let pool = pool();
     let server = recording(answering(DELETED)).await;
     let mut checked = 0;
-    for method in pool
-        .services()
-        .filter(|s| s.package_name().starts_with("origincloud.pvs."))
-        .flat_map(|s| s.methods().collect::<Vec<_>>())
-        .filter(|m| m.name().starts_with("Delete"))
+    for (group, method) in methods(&pool)
+        .into_iter()
+        .filter(|(s, m)| s != OPERATIONS && m.name().starts_with("Delete"))
     {
         let field = method
             .input()
@@ -221,7 +63,9 @@ async fn every_delete_requires_yes() {
         let (flag, name) = whole_name(&pattern_of_type(&pool, &t));
         let command = method.name().to_kebab_case();
 
-        let output = server.pvs(&[&command, &format!("--{flag}"), &name]).await;
+        let output = server
+            .run(&group, &[&command, &format!("--{flag}"), &name])
+            .await;
         let description = failure(&output);
         assert!(
             description.starts_with("refusing to delete "),
@@ -251,10 +95,9 @@ async fn every_one_way_change_requires_yes() {
     let server = recording(answering(UPDATED)).await;
     assert!(!table.one_way.is_empty());
     for entry in &table.one_way {
-        let method = pool
-            .services()
-            .flat_map(|s| s.methods().collect::<Vec<_>>())
-            .find(|m| m.name() == entry.method)
+        let (_, method) = methods(&pool)
+            .into_iter()
+            .find(|(s, m)| *s == entry.service && m.name() == entry.method)
             .unwrap();
         let (body, field) = entry
             .field
@@ -275,13 +118,16 @@ async fn every_one_way_change_requires_yes() {
         let command = method.name().to_kebab_case();
         let flag_arg = format!("--{flag}");
         let output = server
-            .pvs(&[
-                &command,
-                &flag_arg,
-                &name,
-                &format!("--{}", field.to_kebab_case()),
-                value,
-            ])
+            .run(
+                &entry.service,
+                &[
+                    &command,
+                    &flag_arg,
+                    &name,
+                    &format!("--{}", field.to_kebab_case()),
+                    value,
+                ],
+            )
             .await;
         let description = failure(&output);
         assert!(description.starts_with("refusing to "), "{description}");
@@ -454,7 +300,7 @@ async fn a_name_part_outside_the_id_alphabet_is_refused() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn an_endpoint_is_https_or_this_machine_and_only_for_pvs() {
+async fn an_endpoint_is_https_or_this_machine_and_only_for_generated_groups() {
     let server = recording(answering(VOLUME)).await;
     let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_origin"));
     let output = command
@@ -490,7 +336,7 @@ async fn an_endpoint_is_https_or_this_machine_and_only_for_pvs() {
     assert_eq!(
         output.status.code(),
         Some(2),
-        "--endpoint is an option of pvs only"
+        "--endpoint is an option of the generated groups only"
     );
 }
 
@@ -536,7 +382,7 @@ fn names(output: &Output) -> Vec<String> {
 async fn a_list_without_a_zone_lists_every_zone_of_the_service() {
     let server = recording(zonal).await;
     let output = server
-        .pvs_with(
+        .pvs_zonal(
             &["list-volumes", "--project", "p"],
             &[("ORIGINCLOUD_ZONE", "z-b")],
         )
@@ -556,7 +402,7 @@ async fn a_list_without_a_zone_lists_every_zone_of_the_service() {
 
     // `--zone` lists that zone alone.
     let output = server
-        .pvs(&["list-volumes", "--project", "p", "--zone", "z-a"])
+        .pvs_zonal(&["list-volumes", "--project", "p", "--zone", "z-a"], &[])
         .await;
     assert_eq!(names(&output), ["projects/p/zones/z-a/volumes/v-a"]);
 }
@@ -566,7 +412,7 @@ async fn a_list_fails_whole_when_a_zone_fails() {
     let server = recording(zonal).await;
     let description = failure(
         &server
-            .pvs(&["list-volumes", "--project", "p", "--zone", "z-fail"])
+            .pvs_zonal(&["list-volumes", "--project", "p", "--zone", "z-fail"], &[])
             .await,
     );
     assert!(description.contains("broken"), "{description}");
@@ -577,7 +423,7 @@ async fn one_page_needs_a_zone() {
     let server = recording(zonal).await;
     let description = failure(
         &server
-            .pvs(&["list-volumes", "--project", "p", "--page-size", "1"])
+            .pvs_zonal(&["list-volumes", "--project", "p", "--page-size", "1"], &[])
             .await,
     );
     assert!(description.contains("need --zone"), "{description}");
@@ -600,7 +446,7 @@ async fn an_empty_list_prints_an_empty_array() {
             "5",
         ],
     ] {
-        let output = server.pvs(args).await;
+        let output = server.pvs_zonal(args, &[]).await;
         assert_eq!(output.status.code(), Some(0), "{}", stdout(&output));
         assert_eq!(
             stdout(&output),

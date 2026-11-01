@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 #
-# Generates the `origin pvs` commands from the API definitions in
-# origincloudhq/api at the commit API_REVISION names, with this repository's
-# generator (generator/), built at the versions Cargo.lock pins, into
-# crates/cli/src/pvs/generated/.
+# Generates the command groups of every service of the API (`origin pvs`,
+# `origin location`, ...) from the API definitions in origincloudhq/api at
+# the commit API_REVISION names, with this repository's generator
+# (generator/), built at the versions Cargo.lock pins, into
+# crates/cli/src/sdk/generated/.
 #
 #   scripts/generate.sh           # generate them again
 #   scripts/generate.sh --check   # check the checked-in code is current
 #
 # The commands use the Rust SDK's request and response types, so the SDK
 # commit Cargo.lock pins must have been generated from the same API
-# revision: both modes check that its API_REVISION is this one.
+# revision: both modes check that its API_REVISION is this one. The
+# generator also reads that commit's clients, which say which services
+# answer at a region's host.
 #
 # Needs cargo, git and network access: the API's dependencies are
 # downloaded from the Buf Schema Registry at the commits its buf.lock pins,
@@ -21,7 +24,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly ROOT
 readonly API_REPOSITORY="https://github.com/origincloudhq/api.git"
 readonly SDK_REPOSITORY="https://github.com/origincloudhq/sdk-rust.git"
-readonly GENERATED="crates/cli/src/pvs/generated"
+readonly GENERATED="crates/cli/src/sdk/generated"
 
 case "${1:-}" in
   "") mode="write" ;;
@@ -45,11 +48,12 @@ if [[ "${sdk_revision}" != "${revision}" ]]; then
   echo "FAILED: the SDK commit ${sdk:0:12} was generated from origincloudhq/api@${sdk_revision:0:12}, not API_REVISION's ${revision:0:12}; run scripts/update.sh, or pin the SDK commit generated from it"
   exit 1
 fi
+git -C "${tmp}/sdk" checkout --quiet FETCH_HEAD
 
 git init --quiet "${tmp}/api"
 git -C "${tmp}/api" fetch --quiet --depth 1 "${API_REPOSITORY}" "${revision}"
 git -C "${tmp}/api" checkout --quiet FETCH_HEAD
-(cd "${ROOT}" && cargo run --quiet --locked -p origincloud-cli-generator -- "${tmp}/api" "${tmp}/gen")
+(cd "${ROOT}" && cargo run --quiet --locked -p origincloud-cli-generator -- "${tmp}/api" "${tmp}/sdk" "${tmp}/gen")
 
 # The generated files, relative to the repository.
 generated() {

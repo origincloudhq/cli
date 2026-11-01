@@ -38,7 +38,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 fake-server.workspace = true
-# The coverage and destructive-command tests read the PVS descriptors the
+# The coverage and generated-command tests read the API descriptors the
 # generator checked in, and its table of choices.
 heck = "0.5"
 prost-reflect = "0.16"
