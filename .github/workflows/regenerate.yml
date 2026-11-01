@@ -1,6 +1,7 @@
 # Keeps the CLI current with the API: daily, and when run by hand,
 # scripts/update.sh moves it to the head of origincloudhq/sdk-rust and the
-# API revision that was generated from, and generates the commands again.
+# API revision that was generated from, and generates the commands and the
+# MCP tools again.
 # When that changes anything, the result is one pull request from the branch
 # `regenerate`, refreshed by each later run until it is merged; when it
 # changes nothing, an open one is closed.
@@ -9,8 +10,9 @@
 # new method needs, are kept: a later run generates on top of them, with
 # main merged in, and never closes a pull request that has them. Merging
 # main resolves conflicts in what scripts/update.sh writes again anyway
-# (API_REVISION, Cargo.lock, crates/cli/src/sdk/generated and the scratch
-# service's testing/scratch/sdk/src/generated and Cargo.toml); any other
+# (API_REVISION, Cargo.lock, crates/cli/src/sdk/generated,
+# crates/mcp/src/generated, and the scratch service's
+# testing/scratch/sdk/src/generated and Cargo.toml); any other
 # conflict fails the run until someone merges main into the branch by hand.
 #
 # When generation fails, such as on a field the generator can't make a flag
@@ -80,7 +82,7 @@ jobs:
               if ! git merge --quiet --no-edit origin/main; then
                 for path in $(git diff --name-only --diff-filter=U); do
                   case "${path}" in
-              API_REVISION | Cargo.lock | crates/cli/src/sdk/generated/* | testing/scratch/sdk/src/generated/* | testing/scratch/sdk/Cargo.toml)
+              API_REVISION | Cargo.lock | crates/cli/src/sdk/generated/* | crates/mcp/src/generated/* | testing/scratch/sdk/src/generated/* | testing/scratch/sdk/Cargo.toml)
                       if git checkout --quiet --ours -- "${path}" 2>/dev/null; then
                         git add -- "${path}"
                       else

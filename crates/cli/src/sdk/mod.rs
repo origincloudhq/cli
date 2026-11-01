@@ -2,9 +2,9 @@
 //! (`origin pvs`, `origin location`, ...), calling the Rust SDK. The
 //! generator (`generator/`) writes `generated/`: a file per service, and
 //! `services.rs`, which makes each a group of `origin`. `runtime.rs` holds
-//! what the generated commands share, `nested.rs` what the flags of nested
-//! messages and JSON values add to it; `credentials.rs` hands the SDK the
-//! CLI's login session.
+//! what the generated commands share, and the clients of `origin mcp
+//! serve`, `nested.rs` what the flags of nested messages and JSON values add
+//! to it; `credentials.rs` hands the SDK the CLI's login session.
 
 mod credentials;
 mod nested;
@@ -17,3 +17,4 @@ mod generated {
 }
 
 pub(crate) use generated::{run, ServiceCommands};
+pub(crate) use runtime::mcp_client;

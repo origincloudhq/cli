@@ -209,10 +209,51 @@ the location service, so `ORIGINCLOUD_LOCATION_ENDPOINT`, not the `pvs`
 endpoint, redirects that lookup. The CLI says on standard error whenever an
 endpoint is used.
 
+## AI agents: `origin mcp serve`
+
+`origin mcp serve` serves the API to an AI agent as an
+[MCP](https://modelcontextprotocol.io) server, on standard input and output.
+An MCP client starts it as a local server, such as an AI coding assistant:
+
+```sh
+claude mcp add origincloud -- origin mcp serve
+```
+
+or, for a client configured in JSON:
+
+```json
+{ "mcpServers": { "origincloud": { "command": "origin", "args": ["mcp", "serve"] } } }
+```
+
+- **Tools.** A tool per method of the API, generated like the commands:
+  `pvs_create_volume`, `location_list_zones`, and each service's
+  `_get_operation` and `_wait_operation`. Each takes the method's request in
+  the API's JSON, as its input schema describes, and answers with the
+  response. Arguments the schema doesn't describe, such as a misspelt field,
+  are refused, not dropped. `current_context` tells the agent the profile's
+  `default-project`, `default-zone` and `region`.
+- **Resource names.** Whole, such as
+  `projects/my-project-123/zones/eu-central1-az1/volumes/vol-123`.
+- **Operations.** A tool starting an operation waits for it up to 30
+  seconds, and answers with the operation: done, with its result or its
+  error, or not done yet, for the service's `_wait_operation` tool.
+- **Confirmation.** The tools that delete something, or change it for good
+  (growing a volume), are marked destructive, for the MCP client to have
+  you confirm; they don't ask for `--yes`. `--read-only` serves only the
+  tools that change nothing.
+- **Toolsets.** A service's tools are its toolset: `--toolsets pvs,location`
+  serves only those.
+- **Credentials and endpoints.** As the generated commands': the login
+  session or the SDK's variables, the profile's `region`, and each service's
+  endpoint variable, such as `ORIGINCLOUD_PVS_ENDPOINT`.
+
+The tools are the library `crates/mcp`, which a server on the network can
+serve as well.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), which describes how the `pvs` and
-`location` commands are generated.
+`location` commands and the MCP tools are generated.
 
 ## License
 
