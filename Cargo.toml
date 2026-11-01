@@ -13,10 +13,10 @@ homepage = "https://origincloud.eu"
 # API_REVISION: the generated commands use its request and response types,
 # so the two must come from the same API definitions. scripts/update.sh moves
 # both together, and scripts/generate.sh --check fails when they differ.
-origincloud-core = { git = "https://github.com/origincloudhq/sdk-rust", rev = "7ad1c490abf23f3e48f6df22f71c91cf06d108eb" }
-origincloud-pvs = { git = "https://github.com/origincloudhq/sdk-rust", rev = "7ad1c490abf23f3e48f6df22f71c91cf06d108eb" }
-origincloud-location = { git = "https://github.com/origincloudhq/sdk-rust", rev = "7ad1c490abf23f3e48f6df22f71c91cf06d108eb" }
-fake-server = { git = "https://github.com/origincloudhq/sdk-rust", rev = "7ad1c490abf23f3e48f6df22f71c91cf06d108eb" }
+origincloud-core = { git = "https://github.com/origincloudhq/sdk-rust", rev = "950c85e0b5aad3bf18e1bd5a20a3954dd431d8f4" }
+origincloud-pvs = { git = "https://github.com/origincloudhq/sdk-rust", rev = "950c85e0b5aad3bf18e1bd5a20a3954dd431d8f4" }
+origincloud-location = { git = "https://github.com/origincloudhq/sdk-rust", rev = "950c85e0b5aad3bf18e1bd5a20a3954dd431d8f4" }
+fake-server = { git = "https://github.com/origincloudhq/sdk-rust", rev = "950c85e0b5aad3bf18e1bd5a20a3954dd431d8f4" }
 
 anyhow = "1"
 base64 = "0.22"
