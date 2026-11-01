@@ -1,7 +1,7 @@
 # Keeps the CLI current with the API: daily, and when run by hand,
-# scripts/update.sh moves it to the head of origincloudhq/sdk-rust and the
-# API revision that was generated from, and generates the commands and the
-# MCP tools again.
+# scripts/update.sh moves it to the head of origincloudhq/mcp, the
+# origincloudhq/sdk-rust commit that is built on and the API revision that
+# was generated from, and generates the commands again.
 # When that changes anything, the result is one pull request from the branch
 # `regenerate`, refreshed by each later run until it is merged; when it
 # changes nothing, an open one is closed.
@@ -10,8 +10,7 @@
 # new method needs, are kept: a later run generates on top of them, with
 # main merged in, and never closes a pull request that has them. Merging
 # main resolves conflicts in what scripts/update.sh writes again anyway
-# (API_REVISION, Cargo.lock, crates/cli/src/sdk/generated and
-# crates/mcp/src/generated); any other
+# (API_REVISION, Cargo.lock and crates/cli/src/sdk/generated); any other
 # conflict fails the run until someone merges main into the branch by hand.
 #
 # The pull request is opened with the workflow token, which starts no
@@ -74,7 +73,7 @@ jobs:
               if ! git merge --quiet --no-edit origin/main; then
                 for path in $(git diff --name-only --diff-filter=U); do
                   case "${path}" in
-              API_REVISION | Cargo.lock | crates/cli/src/sdk/generated/* | crates/mcp/src/generated/*)
+              API_REVISION | Cargo.lock | crates/cli/src/sdk/generated/*)
                       if git checkout --quiet --ours -- "${path}" 2>/dev/null; then
                         git add -- "${path}"
                       else
@@ -151,7 +150,7 @@ jobs:
 
           body="Generated from [origincloudhq/api@${revision:0:12}](https://github.com/origincloudhq/api/commit/${revision}) ([changes](https://github.com/origincloudhq/api/compare/${PREVIOUS}...${revision})) by scripts/update.sh.
 
-          The Rust SDK is moved to its newest commit, and API_REVISION to the API revision that commit was generated from.
+          The MCP tools are moved to their newest commit, the Rust SDK to the commit they are built on, and API_REVISION to the API revision that commit was generated from.
 
           If CI fails, the API uses something the generator (generator/) doesn't support yet, such as a method it can't make a command for; extend it on this branch."
           if [[ -n "${open}" ]]; then

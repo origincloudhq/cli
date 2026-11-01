@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/cli", "crates/mcp", "crates/oauth-login", "generator"]
+members = ["crates/cli", "crates/oauth-login", "generator"]
 
 [workspace.package]
 edition = "2021"
@@ -17,6 +17,11 @@ origincloud-core = { git = "https://github.com/origincloudhq/sdk-rust", rev = "3
 origincloud-pvs = { git = "https://github.com/origincloudhq/sdk-rust", rev = "3d5a94ef21fa91878675363804e3cd0e88a7c177" }
 origincloud-location = { git = "https://github.com/origincloudhq/sdk-rust", rev = "3d5a94ef21fa91878675363804e3cd0e88a7c177" }
 fake-server = { git = "https://github.com/origincloudhq/sdk-rust", rev = "3d5a94ef21fa91878675363804e3cd0e88a7c177" }
+# The MCP tools `origin mcp serve` serves, at a commit built on the same SDK
+# commit as the lines above: the CLI hands them the SDK's `Client`, so both
+# must be the same crate. scripts/update.sh moves the three together, and
+# scripts/generate.sh --check fails when they differ.
+origincloud-mcp = { git = "https://github.com/origincloudhq/mcp", rev = "d12887c31ef3cd49a13ba34d194f7ab7ac913dda" }
 
 anyhow = "1"
 base64 = "0.22"
@@ -26,7 +31,7 @@ graphql_client = { version = "0.14", default-features = false, features = ["grap
 http = "1"
 rand = "0.9"
 reqwest = { version = "0.13", features = ["json", "form", "rustls"] }
-# The MCP protocol, without a transport: each server picks its own.
+# The MCP protocol; `origin mcp serve` adds its transport.
 rmcp = { version = "3", default-features = false, features = ["server"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

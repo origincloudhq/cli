@@ -18,7 +18,7 @@ path = "src/lib.rs"
 
 [dependencies]
 origincloud-oauth-login = { path = "../oauth-login" }
-origincloud-mcp = { path = "../mcp" }
+origincloud-mcp.workspace = true
 origincloud-core.workspace = true
 origincloud-pvs.workspace = true
 origincloud-location.workspace = true

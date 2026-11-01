@@ -1,6 +1,5 @@
-# Choices about the generated commands and MCP tools that the API
-# definitions don't express. The generator applies them; CONTRIBUTING.md
-# describes them.
+# Choices about the generated commands that the API definitions don't
+# express. The generator applies them; CONTRIBUTING.md describes them.
 #
 # An entry names a service as its packages name it (`pvs` for
 # `origincloud.pvs.v1beta1`, `longrunning` for the operation methods), a
@@ -28,18 +27,8 @@ to the profile's `default-project` and `default-zone`."""
 # method = "ExampleMethod"
 # why = "Why the CLI doesn't offer it."
 
-# Methods left without an MCP tool, with the reason. Every other method of
-# the API has one: crates/mcp's coverage test fails for a method that has
-# neither.
-#
-# [[no_tool]]
-# service = "pvs"
-# method = "ExampleMethod"
-# why = "Why an agent isn't handed it."
-
-# Fields left out of a method's command and of its tool's input schema,
-# because the method doesn't take them although its request message has
-# them.
+# Fields left out of a method's command, because the method doesn't take
+# them although its request message has them.
 [[exclude]]
 service = "pvs"
 method = "ImportVolume"
@@ -48,8 +37,7 @@ why = "An import's content is the downloaded image: it takes a size, a storage c
 
 # Changes that can't be undone. A command that sets one of these fields
 # requires `--yes`, like a delete, and refuses before sending anything
-# without it; the method's tool is marked destructive. Every delete requires
-# `--yes`, and its tool is destructive, without an entry here.
+# without it. Every delete requires `--yes` anyway, without an entry here.
 [[one_way]]
 service = "pvs"
 method = "UpdateVolume"

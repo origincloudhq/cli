@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # Generates the command groups of every service of the API (`origin pvs`,
-# `origin location`, ...) and its MCP tools from the API definitions in
-# origincloudhq/api at the commit API_REVISION names, with this repository's
-# generator (generator/), built at the versions Cargo.lock pins, into
-# crates/cli/src/sdk/generated/ and crates/mcp/src/generated/.
+# `origin location`, ...) from the API definitions in origincloudhq/api at
+# the commit API_REVISION names, with this repository's generator
+# (generator/), built at the versions Cargo.lock pins, into
+# crates/cli/src/sdk/generated/.
 #
 #   scripts/generate.sh           # generate them again
 #   scripts/generate.sh --check   # check the checked-in code is current
@@ -24,7 +24,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly ROOT
 readonly API_REPOSITORY="https://github.com/origincloudhq/api.git"
 readonly SDK_REPOSITORY="https://github.com/origincloudhq/sdk-rust.git"
-readonly GENERATED=("crates/cli/src/sdk/generated" "crates/mcp/src/generated")
+readonly GENERATED="crates/cli/src/sdk/generated"
 
 case "${1:-}" in
   "") mode="write" ;;
@@ -50,6 +50,18 @@ if [[ "${sdk_revision}" != "${revision}" ]]; then
 fi
 git -C "${tmp}/sdk" checkout --quiet FETCH_HEAD
 
+# The MCP tools `origin mcp serve` serves must be built on the same SDK
+# commit: the CLI hands them the SDK's `Client`.
+mcp="$(grep -m1 -o 'git+https://github.com/origincloudhq/mcp?rev=[0-9a-f]*#[0-9a-f]\{40\}' "${ROOT}/Cargo.lock" | sed 's/.*#//')"
+[[ "${mcp}" =~ ^[0-9a-f]{40}$ ]] || { echo "Cargo.lock pins no commit of origincloudhq/mcp" >&2; exit 1; }
+git init --quiet "${tmp}/mcp"
+git -C "${tmp}/mcp" fetch --quiet --depth 1 "https://github.com/origincloudhq/mcp.git" "${mcp}"
+mcp_sdk="$(git -C "${tmp}/mcp" show FETCH_HEAD:Cargo.toml | grep -m1 -oE 'sdk-rust", rev = "[0-9a-f]{40}"' | grep -oE '[0-9a-f]{40}')"
+if [[ "${mcp_sdk}" != "${sdk}" ]]; then
+  echo "FAILED: the MCP commit ${mcp:0:12} is built on origincloudhq/sdk-rust@${mcp_sdk:0:12}, not the CLI's ${sdk:0:12}; run scripts/update.sh"
+  exit 1
+fi
+
 git init --quiet "${tmp}/api"
 git -C "${tmp}/api" fetch --quiet --depth 1 "${API_REPOSITORY}" "${revision}"
 git -C "${tmp}/api" checkout --quiet FETCH_HEAD
@@ -57,16 +69,13 @@ git -C "${tmp}/api" checkout --quiet FETCH_HEAD
 
 # The generated files, relative to the repository.
 generated() {
-  local dir
-  for dir in "${GENERATED[@]}"; do
-    [[ -d "$1/${dir}" ]] || continue
-    (cd "$1" && find "${dir}" -type f)
-  done | LC_ALL=C sort
+  [[ -d "$1/${GENERATED}" ]] || return 0
+  (cd "$1" && find "${GENERATED}" -type f | LC_ALL=C sort)
 }
 
 if [[ "${mode}" == write ]]; then
   generated "${ROOT}" | (cd "${ROOT}" && xargs -r rm -f)
-  generated "${tmp}/gen" | (cd "${tmp}/gen" && xargs -r cp --parents -t "${ROOT}")
+  (cd "${tmp}/gen" && find "${GENERATED}" -type f -exec cp --parents {} "${ROOT}" \;)
   echo "wrote $(generated "${ROOT}" | wc -l) files from origincloudhq/api@${revision:0:12}"
   exit 0
 fi
