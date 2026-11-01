@@ -9,8 +9,9 @@ pub(crate) enum ConfigCommands {
     ///
     /// Keys: `default-username` (prefilled at `origin id login`),
     /// `output-format` (`json`), `default-project` and `default-zone` (used
-    /// by the `pvs` commands when `--project` or `--zone` isn't given) and
-    /// `region` (the region whose front door the `pvs` commands call).
+    /// by the generated commands, such as `origin pvs`, when `--project` or
+    /// `--zone` isn't given) and `region` (the region whose front door they
+    /// call, for a service with regional hosts such as `pvs`).
     ProfileSet {
         /// The key to set.
         #[arg(index = 1)]

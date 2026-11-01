@@ -2,7 +2,8 @@
 
 `origin` is the command-line interface for [Origin Cloud](https://origincloud.eu):
 log in, then manage organisations, projects, access, instances, networks and
-volumes from a terminal or a script. Every command prints JSON.
+volumes, and look up regions and zones, from a terminal or a script. Every
+command prints JSON.
 
 ## Install
 
@@ -50,6 +51,7 @@ cargo install --locked --path crates/cli
 origin id login                      # log in through your browser
 origin id login --device             # or with a code, on a machine without one
 origin admin list-organisations
+origin location list-zones
 origin pvs list-volumes --project my-project-123 --zone eu-central1-az1
 origin --help                        # every command group
 origin pvs create-volume --help      # every flag of a command
@@ -71,9 +73,9 @@ origin config profile
 |---|---|---|
 | `default-username` | `ORIGINCLOUD_USERNAME` | Prefilled on the login page. |
 | `output-format` | `ORIGINCLOUD_OUTPUT_FORMAT` | `json`, the only format; `--output` overrides it. |
-| `default-project` | `ORIGINCLOUD_PROJECT` | `--project` of the `pvs` commands, when not given. |
-| `default-zone` | `ORIGINCLOUD_ZONE` | `--zone` of the `pvs` commands, when not given; not of the lists, which list every zone without `--zone`. |
-| `region` | `ORIGINCLOUD_REGION` | The region whose front door the `pvs` commands call, `pvs.{region}.origincloudapis.eu`; the regionless `pvs.origincloudapis.eu`, which serves every resource, when unset. |
+| `default-project` | `ORIGINCLOUD_PROJECT` | `--project` of the generated commands, such as `origin pvs`'s, when not given. |
+| `default-zone` | `ORIGINCLOUD_ZONE` | `--zone` of the generated commands, when not given; not of the lists, which list every zone without `--zone`. |
+| `region` | `ORIGINCLOUD_REGION` | The region whose front door the `pvs` commands call, `pvs.{region}.origincloudapis.eu`; the regionless `pvs.origincloudapis.eu`, which serves every resource, when unset. The `location` commands always call `location.origincloudapis.eu`. |
 
 An environment variable overrides the profile's value while a command runs;
 `origin config profile-set` changes the file alone, and checks the value
@@ -87,22 +89,25 @@ Irreversible commands (every delete, `terminate-instance`,
 `origin pvs update-volume --size-gib`) refuse to run without `--yes` and say
 what they would have done; the refusal happens before any request.
 
-## The `pvs` commands
+## The generated commands: `pvs` and `location`
 
 `origin pvs` covers the persistent volume service: volumes, snapshots and
-storage classes. Its commands are generated from the API definitions in
+storage classes, and the operations its changes answer with. `origin location`
+covers the regions and zones, and which services each zone offers. Their
+commands are generated from the API definitions in
 [origincloudhq/api](https://github.com/origincloudhq/api) and call the
 [Rust SDK](https://github.com/origincloudhq/sdk-rust), so there is one for
 every method of the API, with the API's own descriptions as help:
 
-- **Command names.** The method's name in kebab case: `CreateVolume` is
-  `origin pvs create-volume`, `ListStorageClasses` is
-  `origin pvs list-storage-classes`.
+- **Command names.** The service's name, then the method's name in kebab
+  case: `CreateVolume` is `origin pvs create-volume`, `ListZones` is
+  `origin location list-zones`.
 - **Resource names.** A resource is named by its parts, each an id of
   letters, digits, `-` and `_`. `--project` and
   `--zone` are shared by every name a command builds, and default to the
   profile's `default-project` and `default-zone`; the resource's own id is the
-  flag named after it (`--volume vol-123`), or after the field for a reference
+  flag named after it (`--volume vol-123`, `--zone eu-central1-az1` for
+  `origin location get-zone`), or after the field for a reference
   (`--source-snapshot snapshot-123`, `--storage-class gp1`). That flag also
   takes a whole name, such as
   `--volume projects/my-project-123/zones/eu-central1-az1/volumes/vol-123`,
@@ -113,7 +118,8 @@ every method of the API, with the API's own descriptions as help:
   `--size-gib`. Output-only fields aren't flags, and neither is a field the
   method doesn't take although its request has it (`import-volume` has no
   `--source-snapshot`). A boolean takes its value, `--flag true` or
-  `--flag false`, and a create always states it.
+  `--flag false`, and a create always states it. A duration is given as
+  `30s`, `2m` or `1m30s`.
 - **Tags.** `--tag KEY=VALUE`, repeated for more. On an update, `--tag`
   replaces all of a resource's tags, and `--no-tags` removes them all; the two
   exclude each other, so the tags are only emptied when you say so. To set or
@@ -127,6 +133,19 @@ every method of the API, with the API's own descriptions as help:
   (most creates, updates and deletes) waits until it is done and prints the
   result; `--no-wait` prints the operation as soon as
   the API accepts it. Ctrl-C stops the waiting, not the operation.
+- **Operations.** A service whose methods answer with operations has two
+  commands for them, which call its own host: `get-operation` prints an
+  operation as it is now, and `wait-operation` waits until it is done and
+  prints it, with its `response` or its `error`; `--timeout` makes it wait
+  once, at most that long, and print the operation as it is then. Both take
+  the operation's `name`, as `--no-wait` printed it, or its id with
+  `--project` and `--zone`:
+
+  ```sh
+  origin pvs create-volume --size-gib 8 --storage-class gp1 --no-wait
+  origin pvs wait-operation --operation projects/my-project-123/zones/eu-central1-az1/operations/op-123
+  ```
+
 - **Lists.** A list command lists every page; `--page-size` or `--page-token`
   asks for one page, whose `nextPageToken` names the next. Without `--zone`,
   `list-volumes` and `list-snapshots` list every zone that offers the service,
@@ -140,14 +159,15 @@ every method of the API, with the API's own descriptions as help:
   `ORIGINCLOUD_CLIENT_ID` and `ORIGINCLOUD_CLIENT_SECRET` for a service
   account.
 
-`origin pvs --endpoint URL` (or `ORIGINCLOUD_ENDPOINT`) sends the calls to
-another base URL, such as a test server's: `https://`, or `http://` to this
-machine only. The CLI says so on standard error whenever it is used.
+`--endpoint URL` (or `ORIGINCLOUD_ENDPOINT`), an option of each of these
+groups, such as `origin pvs --endpoint URL`, sends the calls to another base
+URL, such as a test server's: `https://`, or `http://` to this machine only.
+The CLI says so on standard error whenever it is used.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), which describes how the `pvs`
-commands are generated.
+See [CONTRIBUTING.md](CONTRIBUTING.md), which describes how the `pvs` and
+`location` commands are generated.
 
 ## License
 

@@ -8,8 +8,8 @@ use crate::handler::iam::IamCommands;
 use crate::handler::id::IdentityCommands;
 use crate::handler::network::NetworkCommands;
 use crate::handler::storage::StorageCommands;
-use crate::pvs::PvsCommands;
-use clap::{Args, Parser, Subcommand};
+use crate::sdk::ServiceCommands;
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 // `name` is set explicitly because clap derives it from CARGO_PKG_NAME, and
@@ -63,13 +63,10 @@ pub(crate) enum Commands {
     #[command(subcommand)]
     Network(NetworkCommands),
 
-    /// Persistent volume service: volumes, snapshots and storage classes.
-    ///
-    /// Generated from the API definitions. Resource names are given as their
-    /// parts (`--project`, `--zone`, `--volume`), or the resource's flag
-    /// takes a whole name; `--project` and `--zone` default to the profile's
-    /// `default-project` and `default-zone`.
-    Pvs(PvsCli),
+    /// The groups generated from the API definitions, one per service, such
+    /// as `location` and `pvs`.
+    #[command(flatten)]
+    Services(ServiceCommands),
 
     /// Tag changes by key on volumes and snapshots, keeping their other tags.
     #[command(subcommand)]
@@ -86,24 +83,4 @@ pub(crate) enum Commands {
 const API_URL: &str = "https://graph.origincloudapis.eu/graphql";
 fn get_default_api_url() -> String {
     API_URL.to_string()
-}
-
-/// `origin pvs`: its options, and the command.
-#[derive(Args)]
-pub(crate) struct PvsCli {
-    /// Base URL the calls go to instead of the service's own host
-    /// (`https://pvs.origincloudapis.eu`, or the profile's region's), such as
-    /// a test server's. It must be `https://`, or `http://` to this machine
-    /// (`localhost`, `127.0.0.1`, `[::1]`).
-    #[arg(
-        long,
-        value_name = "URL",
-        env = "ORIGINCLOUD_ENDPOINT",
-        global = true,
-        help_heading = "Global options"
-    )]
-    pub(crate) endpoint: Option<String>,
-
-    #[command(subcommand)]
-    pub(crate) command: PvsCommands,
 }

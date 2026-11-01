@@ -30,7 +30,14 @@ revision="$(git -C "${tmp}/sdk" show FETCH_HEAD:API_REVISION | tr -d '[:space:]'
 
 if ! grep -qF "rev = \"${sdk}\"" Cargo.toml; then
   sed -i -E "s|(git = \"https://github.com/origincloudhq/sdk-rust\", rev = \")[0-9a-f]{40}(\")|\1${sdk}\2|" Cargo.toml
-  cargo update --quiet -p origincloud-core -p origincloud-pvs -p origincloud-location -p fake-server
+  # Every crate Cargo.toml takes from the SDK: a service's crate is added
+  # there when its command group is (CONTRIBUTING.md).
+  packages=()
+  while read -r crate; do
+    packages+=(-p "${crate}")
+  done < <(grep -oE '^[a-z0-9-]+ = \{ git = "https://github.com/origincloudhq/sdk-rust"' Cargo.toml | cut -d' ' -f1)
+  [[ "${#packages[@]}" -gt 0 ]] || { echo "Cargo.toml takes no crate from ${SDK_REPOSITORY}" >&2; exit 1; }
+  cargo update --quiet "${packages[@]}"
 fi
 echo "${revision}" > API_REVISION
 # Adds what main's Cargo.toml needs and the lock doesn't hold yet, such as

@@ -1,5 +1,5 @@
-//! What the generated `pvs` commands share: the SDK clients, resource names
-//! from their parts, and the output.
+//! What the generated commands share: the SDK clients, resource names from
+//! their parts, durations, and the output.
 
 use std::collections::BTreeMap;
 use std::io::IsTerminal;
@@ -20,7 +20,8 @@ use crate::identity::is_resource_id;
 use crate::output::{CommandResult, SerializableOutput, SerializationError};
 
 /// The variables that hold credentials for the SDK. When any is set, the
-/// `pvs` commands use them, as every SDK does, instead of the login session.
+/// generated commands use them, as every SDK does, instead of the login
+/// session.
 const CREDENTIAL_VARIABLES: [&str; 3] = [
     "ORIGINCLOUD_ACCESS_TOKEN",
     "ORIGINCLOUD_CLIENT_ID",
@@ -325,6 +326,40 @@ fn parse(pattern: &str, name: &str) -> anyhow::Result<Vec<(String, String)>> {
     Ok(parts)
 }
 
+/// A duration flag's value: whole numbers of hours, minutes, seconds and
+/// milliseconds, largest first, such as `30s`, `2m`, `1m30s` or `500ms`.
+pub fn duration(value: &str) -> Result<origincloud_core::protobuf::Duration, String> {
+    let invalid = || format!("{value:?} isn't a duration: expected one such as 30s, 2m or 1m30s");
+    let mut total = std::time::Duration::ZERO;
+    let mut rest = value;
+    // The units in the order they may appear, each at most once.
+    let mut units: &[(&str, u64)] = &[("h", 3_600_000), ("m", 60_000), ("s", 1_000), ("ms", 1)];
+    while !rest.is_empty() {
+        let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+        if digits == 0 {
+            return Err(invalid());
+        }
+        let number: u64 = rest[..digits].parse().map_err(|_| invalid())?;
+        let after = &rest[digits..];
+        let letters = after.bytes().take_while(u8::is_ascii_alphabetic).count();
+        let unit = &after[..letters];
+        let at = units
+            .iter()
+            .position(|(u, _)| *u == unit)
+            .ok_or_else(invalid)?;
+        let millis = number.checked_mul(units[at].1).ok_or_else(invalid)?;
+        total = total
+            .checked_add(std::time::Duration::from_millis(millis))
+            .ok_or_else(invalid)?;
+        units = &units[at + 1..];
+        rest = &after[letters..];
+    }
+    if value.is_empty() {
+        return Err(invalid());
+    }
+    Ok(total.into())
+}
+
 /// `--tag KEY=VALUE` values as a map field.
 pub fn tags(tags: &[TagArg]) -> BTreeMap<String, String> {
     tags.iter()
@@ -378,13 +413,18 @@ pub fn success() -> Box<dyn SerializableOutput> {
 
 /// Waits for `operation` to finish, and returns its result.
 pub async fn wait<T: DeserializeOwned>(operation: &mut Operation<T>) -> anyhow::Result<T> {
-    if !operation.done() && std::io::stderr().is_terminal() {
-        eprintln!(
-            "Waiting for {} (Ctrl-C stops waiting, not the operation)...",
-            operation.name()
-        );
+    if !operation.done() {
+        waiting(operation.name());
     }
     operation.wait().await.map_err(api_error)
+}
+
+/// Says on standard error, when someone is watching it, that the command
+/// waits for the operation `name`.
+pub fn waiting(name: &str) {
+    if std::io::stderr().is_terminal() {
+        eprintln!("Waiting for {name} (Ctrl-C stops waiting, not the operation)...");
+    }
 }
 
 /// An SDK error for the user: the API's own message and code, the request
@@ -554,6 +594,35 @@ mod tests {
         let empty = origincloud_pvs::v1beta1::ListVolumesResponse::default();
         let printed = list_json(&empty, "volumes").unwrap().to_json().unwrap();
         assert_eq!(printed, serde_json::json!({ "volumes": [] }));
+    }
+
+    #[test]
+    fn a_duration_is_hours_minutes_seconds_and_milliseconds() {
+        let seconds = |v: &str| {
+            let d = duration(v).unwrap();
+            (d.seconds, d.nanos)
+        };
+        assert_eq!(seconds("30s"), (30, 0));
+        assert_eq!(seconds("2m"), (120, 0));
+        assert_eq!(seconds("1m30s"), (90, 0));
+        assert_eq!(seconds("1h"), (3600, 0));
+        assert_eq!(seconds("500ms"), (0, 500_000_000));
+        assert_eq!(seconds("1s500ms"), (1, 500_000_000));
+        assert_eq!(seconds("0s"), (0, 0));
+        for bad in [
+            "",
+            "30",
+            "s",
+            "1.5s",
+            "30s1m",
+            "1m1m",
+            "-1s",
+            "1 s",
+            "1d",
+            "18446744073709551616s",
+        ] {
+            assert!(duration(bad).is_err(), "{bad:?}");
+        }
     }
 
     #[test]

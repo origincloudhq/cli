@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
-# Generates the `origin pvs` commands from the API definitions in
-# origincloudhq/api at the commit API_REVISION names, with this repository's
-# generator (generator/), built at the versions Cargo.lock pins, into
-# crates/cli/src/pvs/generated/.
+# Generates the command groups of every service of the API (`origin pvs`,
+# `origin location`, ...) from the API definitions in origincloudhq/api at
+# the commit API_REVISION names, with this repository's generator
+# (generator/), built at the versions Cargo.lock pins, into
+# crates/cli/src/sdk/generated/.
 #
 #   scripts/generate.sh           # generate them again
 #   scripts/generate.sh --check   # check the checked-in code is current
@@ -21,7 +22,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly ROOT
 readonly API_REPOSITORY="https://github.com/origincloudhq/api.git"
 readonly SDK_REPOSITORY="https://github.com/origincloudhq/sdk-rust.git"
-readonly GENERATED="crates/cli/src/pvs/generated"
+readonly GENERATED="crates/cli/src/sdk/generated"
 
 case "${1:-}" in
   "") mode="write" ;;

@@ -24,6 +24,17 @@
 //! - A method answering with an operation waits for it, unless
 //!   `--no-wait`; a list method lists every page, unless `--page-size` or
 //!   `--page-token` asks for one.
+//! - A name field without a resource reference takes its pattern from the
+//!   method's HTTP binding, each `*` named after the collection before it:
+//!   `{name=projects/*/zones/*/operations/*}` is
+//!   `projects/{project}/zones/{zone}/operations/{operation}`, given as
+//!   `--operation`.
+//! - A duration is given as `30s`, `2m` or `1m30s`.
+//! - The methods of the operations package (`origincloud.longrunning`) are
+//!   commands of every group whose methods answer with operations, sent to
+//!   that group's host, which serves its operations. A method answering
+//!   with the operation as it is after waiting up to its `timeout` is
+//!   called again until the operation is done, unless `--timeout` is given.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -41,6 +52,16 @@ use crate::policy::Policy;
 const OPERATION: &str = "google.longrunning.Operation";
 const EMPTY: &str = "google.protobuf.Empty";
 const FIELD_MASK: &str = "google.protobuf.FieldMask";
+const DURATION: &str = "google.protobuf.Duration";
+
+/// The service whose package holds every service's operation methods:
+/// `origincloud.longrunning.{version}`. Each service serves them at its own
+/// host, for the operations its methods answer with.
+pub const OPERATIONS: &str = "longrunning";
+
+/// The Rust type of a duration flag, and what its help says of its form.
+const DURATION_TYPE: &str = "::origincloud_core::protobuf::Duration";
+const DURATION_FORMAT: &str = "\n\nSuch as `30s` or `1m`.";
 
 // `google.api.FieldBehavior` values.
 const REQUIRED: i32 = 2;
@@ -48,10 +69,12 @@ const OUTPUT_ONLY: i32 = 3;
 const IMMUTABLE: i32 = 5;
 const IDENTIFIER: i32 = 8;
 
-/// The generated commands, and the methods left without one.
+/// The generated commands of one group, and the methods left without one.
 pub struct Generated {
     pub code: String,
     pub skipped: Vec<String>,
+    /// Whether the group has the operation methods' commands.
+    pub operations: bool,
 }
 
 /// What every method's generation shares.
@@ -59,11 +82,19 @@ struct Cx<'a> {
     pool: &'a DescriptorPool,
     comments: &'a Comments,
     policy: &'a Policy,
+    /// The package whose methods these are.
     package: &'a str,
-    /// The service's name in its host and in a zone's `services`: `pvs`.
+    /// The service the package names, as `commands.toml` does: `pvs`, or
+    /// `longrunning` for the operation methods.
+    own: &'a str,
+    /// The group the commands are in, the service's name in its host and in
+    /// a zone's `services`: `pvs`.
     service: &'a str,
     /// The SDK module of the package: `::origincloud_pvs::v1beta1`.
     sdk: String,
+    /// For the operation methods, the expression of the group's endpoint,
+    /// which serves its operations: the `&Service` of one of its clients.
+    host: Option<String>,
     /// The name patterns and singular names of the package's resources, by
     /// resource type.
     resources: BTreeMap<String, Resource>,
@@ -86,42 +117,130 @@ struct Command {
     code: String,
 }
 
-pub fn generate(
-    pool: &DescriptorPool,
-    comments: &Comments,
-    policy: &Policy,
-    package: &str,
-) -> Result<Generated> {
-    let version = package.rsplit('.').next().unwrap_or_default();
-    let service = package.split('.').nth(1).unwrap_or_default();
-    let cx = Cx {
-        pool,
-        comments,
-        policy,
-        package,
-        service,
-        sdk: format!("::origincloud_{service}::{version}"),
-        resources: resources(pool),
-        fields: pool
-            .all_messages()
-            .filter(|m| m.package_name() == package)
-            .flat_map(|m| m.fields().map(|f| f.name().to_owned()).collect::<Vec<_>>())
-            .collect(),
-    };
+/// The service a package names: `pvs` for `origincloud.pvs.v1beta1`.
+fn service_of(package: &str) -> &str {
+    package.split('.').nth(1).unwrap_or_default()
+}
 
+/// The Rust SDK module of a package: `::origincloud_pvs::v1beta1`, and
+/// `::origincloud_core::longrunning::v1beta1` for the operations package,
+/// which the core crate holds.
+fn sdk_module(package: &str) -> String {
+    let version = package.rsplit('.').next().unwrap_or_default();
+    let service = service_of(package);
+    if service == OPERATIONS {
+        format!("::origincloud_core::{service}::{version}")
+    } else {
+        format!("::origincloud_{service}::{version}")
+    }
+}
+
+/// The client type of a service: `VolumeClient` for `VolumeService`.
+fn client_name(service: &prost_reflect::ServiceDescriptor) -> String {
+    format!(
+        "{}Client",
+        service
+            .name()
+            .strip_suffix("Service")
+            .unwrap_or(service.name())
+    )
+}
+
+/// The services of `package`, in file order.
+fn services_of(pool: &DescriptorPool, package: &str) -> Vec<prost_reflect::ServiceDescriptor> {
     let mut files: Vec<_> = pool
         .files()
         .filter(|f| f.package_name() == package)
         .collect();
     files.sort_by(|a, b| a.name().cmp(b.name()));
+    files.iter().flat_map(|f| f.services()).collect()
+}
 
-    let mut commands = Vec::new();
+/// The commands of the group of `package`: one per method of its services,
+/// and, when one of them answers with an operation, one per method of the
+/// operations package `operations`.
+pub fn generate(
+    pool: &DescriptorPool,
+    comments: &Comments,
+    policy: &Policy,
+    package: &str,
+    operations: Option<&str>,
+) -> Result<Generated> {
+    let service = service_of(package);
+    let fields = |package: &str| -> BTreeSet<String> {
+        pool.all_messages()
+            .filter(|m| m.package_name() == package)
+            .flat_map(|m| m.fields().map(|f| f.name().to_owned()).collect::<Vec<_>>())
+            .collect()
+    };
+    let cx = Cx {
+        pool,
+        comments,
+        policy,
+        package,
+        own: service,
+        service,
+        sdk: sdk_module(package),
+        host: None,
+        resources: resources(pool),
+        fields: fields(package),
+    };
+
+    let mut commands: Vec<Command> = Vec::new();
     let mut skipped = Vec::new();
-    for file in files {
-        for service in file.services() {
-            for method in service.methods() {
-                match command(&cx, &method) {
-                    Ok(command) => commands.push(command),
+    let services = services_of(pool, package);
+    for s in &services {
+        for method in s.methods() {
+            if policy.no_command(service, method.name()) {
+                continue;
+            }
+            match command(&cx, &method) {
+                Ok(command) => commands.push(command),
+                Err(why) => skipped.push(format!("{}: {why}", method.full_name())),
+            }
+        }
+    }
+
+    // The operation methods, at the host of the group's first service.
+    let answers_with_operations = services
+        .iter()
+        .flat_map(|s| s.methods())
+        .any(|m| operation_result(pool, &m).is_some());
+    let mut with_operations = false;
+    if let (true, Some(operations), Some(first)) =
+        (answers_with_operations, operations, services.first())
+    {
+        let ops = Cx {
+            package: operations,
+            own: OPERATIONS,
+            sdk: sdk_module(operations),
+            host: Some(format!(
+                "{}::{}::new(client.sdk()).service()",
+                cx.sdk,
+                client_name(first)
+            )),
+            fields: fields(operations),
+            ..cx
+        };
+        for s in services_of(pool, operations) {
+            for method in s.methods() {
+                if policy.no_command(OPERATIONS, method.name()) {
+                    continue;
+                }
+                let name = method.name().to_kebab_case();
+                if commands.iter().any(|c| c.name == name) {
+                    skipped.push(format!(
+                        "{}: the service has a method of its own named {}",
+                        method.full_name(),
+                        method.name()
+                    ));
+                    continue;
+                }
+                match command(&ops, &method) {
+                    Ok(command) => {
+                        commands.push(command);
+                        with_operations = true;
+                    }
                     Err(why) => skipped.push(format!("{}: {why}", method.full_name())),
                 }
             }
@@ -131,11 +250,13 @@ pub fn generate(
     let mut code = String::new();
     code.push_str(
         "#[allow(unused_imports)]\n\
-         use super::runtime::{\n\
-             api_error, json, list_json, names_any, success, tags, wait, zones, ConfirmedClient,\n\
-             Context, ReadClient,\n\
+         use crate::sdk::runtime::{\n\
+             api_error, duration, json, list_json, names_any, success, tags, wait, waiting, zones,\n\
+             ConfirmedClient, Context, ReadClient,\n\
          };\n\
+         #[allow(unused_imports)]\n\
          use crate::confirm;\n\
+         #[allow(unused_imports)]\n\
          use crate::handler::tag_args::TagArg;\n\
          use crate::output::SerializableOutput;\n\n",
     );
@@ -143,7 +264,7 @@ pub fn generate(
         &format!("The commands of every method of `{package}`."),
         "",
     ));
-    code.push_str("#[derive(clap::Subcommand, Debug)]\npub enum PvsCommands {\n");
+    code.push_str("#[derive(clap::Subcommand, Debug)]\npub enum Commands {\n");
     for c in &commands {
         let long = c
             .doc
@@ -164,12 +285,12 @@ pub fn generate(
     code.push_str("}\n\n");
     code.push_str(&docs::attributes("Runs `command`.", ""));
     code.push_str(
-        "pub async fn run(ctx: &Context<'_>, command: PvsCommands) -> anyhow::Result<Box<dyn SerializableOutput>> {\n    match command {\n",
+        "pub async fn run(ctx: &Context<'_>, command: Commands) -> anyhow::Result<Box<dyn SerializableOutput>> {\n    match command {\n",
     );
     for c in &commands {
         writeln!(
             code,
-            "        PvsCommands::{}(args) => {}(ctx, args).await,",
+            "        Commands::{}(args) => {}(ctx, args).await,",
             c.variant, c.handler
         )?;
     }
@@ -179,12 +300,171 @@ pub fn generate(
         code.push('\n');
     }
 
-    let file = syn::parse_file(&code)
-        .map_err(|e| anyhow::anyhow!("the generated code doesn't parse: {e}\n{code}"))?;
     Ok(Generated {
-        code: prettyplease::unparse(&file),
+        code: unparse(&code)?,
         skipped,
+        operations: with_operations,
     })
+}
+
+/// `code`, formatted, once it parses.
+fn unparse(code: &str) -> Result<String> {
+    let file = syn::parse_file(code)
+        .map_err(|e| anyhow::anyhow!("the generated code doesn't parse: {e}\n{code}"))?;
+    Ok(prettyplease::unparse(&file))
+}
+
+/// A command group: `origin {service}`.
+pub struct Group {
+    pub service: String,
+    /// Its line in `origin --help`.
+    pub about: String,
+    /// What `origin {service} --help` says below it.
+    pub details: String,
+    /// The host its calls go to, such as `pvs.origincloudapis.eu`.
+    pub host: String,
+}
+
+/// The group of `package`: its help from `commands.toml`, or from the
+/// comment of its only service.
+pub fn group(pool: &DescriptorPool, comments: &Comments, policy: &Policy, package: &str) -> Group {
+    let service = service_of(package);
+    let services = services_of(pool, package);
+    let host = services
+        .iter()
+        .find_map(|s| {
+            let ext = pool.get_extension_by_name("google.api.default_host")?;
+            let options = s.options();
+            options
+                .has_extension(&ext)
+                .then(|| options.get_extension(&ext).as_str().map(str::to_owned))
+                .flatten()
+        })
+        .unwrap_or_default();
+    let (about, details) = match (policy.group(service), services.as_slice()) {
+        (Some(g), _) => (g.about.clone(), g.details.clone()),
+        (None, [only]) => {
+            let fields = BTreeMap::new();
+            let names = BTreeSet::new();
+            let text = docs::help(
+                comments.leading(only.parent_file().name(), only.path()),
+                &Vocabulary {
+                    flags: &fields,
+                    fields: &names,
+                },
+            );
+            let mut paragraphs = text.splitn(2, "\n\n");
+            let first = paragraphs.next().unwrap_or_default();
+            let summary = docs::summary(first);
+            let joined = first.split_whitespace().collect::<Vec<_>>().join(" ");
+            let rest_of_first = joined
+                .strip_prefix(&summary)
+                .unwrap_or_default()
+                .trim_start_matches('.')
+                .trim()
+                .to_owned();
+            let mut details: Vec<String> = Vec::new();
+            if !rest_of_first.is_empty() {
+                details.push(rest_of_first);
+            }
+            details.extend(paragraphs.next().map(str::to_owned));
+            (summary, details.join("\n\n"))
+        }
+        _ => (format!("The {service} service"), String::new()),
+    };
+    Group {
+        service: service.to_owned(),
+        about: about.trim_end_matches('.').to_owned(),
+        details,
+        host,
+    }
+}
+
+/// The groups, as subcommands of `origin` with their `--endpoint`, and the
+/// code that runs a command of one.
+pub fn services(groups: &[Group]) -> Result<String> {
+    let mut code = String::new();
+    code.push_str(
+        "use crate::config::ClientProfile;\n\
+         use crate::output::SerializableOutput;\n\
+         use crate::sdk::runtime::Context;\n\n",
+    );
+    for g in groups {
+        code.push_str(&docs::attributes(&format!("`origin {}`.", g.service), ""));
+        writeln!(
+            code,
+            "pub mod {} {{ include!({:?}); }}",
+            ident(&g.service),
+            format!("{}.rs", g.service)
+        )?;
+    }
+    code.push_str(&docs::attributes(
+        "The command groups generated from the API definitions, one per service.",
+        "",
+    ));
+    code.push_str("#[derive(clap::Subcommand, Debug)]\npub enum ServiceCommands {\n");
+    for g in groups {
+        let variant = g.service.to_upper_camel_case();
+        let long = if g.details.is_empty() {
+            format!("{}.", g.about)
+        } else {
+            format!("{}.\n\n{}", g.about, g.details)
+        };
+        let long = long
+            .split("\n\n")
+            .map(|p| p.split_whitespace().collect::<Vec<_>>().join(" "))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        writeln!(
+            code,
+            "    #[command(name = {:?}, about = {:?}, long_about = {:?})]\n    {variant}({variant}Cli),",
+            g.service, g.about, long
+        )?;
+    }
+    code.push_str("}\n\n");
+    for g in groups {
+        let variant = g.service.to_upper_camel_case();
+        let host = if g.host.is_empty() {
+            String::new()
+        } else {
+            format!(", `https://{}`", g.host)
+        };
+        code.push_str(&docs::attributes(
+            &format!("`origin {}`: its options, and the command.", g.service),
+            "",
+        ));
+        writeln!(
+            code,
+            "#[derive(clap::Args, Debug)]\npub struct {variant}Cli {{"
+        )?;
+        code.push_str(&docs::attributes(
+            &format!(
+                "Base URL the calls go to instead of the service's host{host}, such as a test \
+                 server's. It must be `https://`, or `http://` to this machine (`localhost`, \
+                 `127.0.0.1`, `[::1]`)."
+            ),
+            "    ",
+        ));
+        writeln!(
+            code,
+            "    #[arg(long, value_name = \"URL\", env = \"ORIGINCLOUD_ENDPOINT\", global = true, help_heading = \"Global options\")]\n    pub endpoint: Option<String>,\n    #[command(subcommand)]\n    pub command: {}::Commands,\n}}\n",
+            ident(&g.service)
+        )?;
+    }
+    code.push_str(&docs::attributes("Runs `command`.", ""));
+    code.push_str(
+        "pub async fn run(profile: &ClientProfile, command: ServiceCommands) -> anyhow::Result<Box<dyn SerializableOutput>> {\n    match command {\n",
+    );
+    for g in groups {
+        writeln!(
+            code,
+            "        ServiceCommands::{}(cli) => {{ let ctx = Context::new(profile, cli.endpoint.as_deref())?; {}::run(&ctx, cli.command).await }}",
+            g.service.to_upper_camel_case(),
+            ident(&g.service)
+        )?;
+    }
+    code.push_str("    }\n}\n");
+    unparse(&code)
 }
 
 /// Every resource the pool declares, by type.
@@ -259,6 +539,61 @@ fn reference(pool: &DescriptorPool, field: &FieldDescriptor) -> Option<(String, 
         }
     }
     None
+}
+
+/// The resource a request's `name` field names: the one its reference
+/// declares, or the one the method's HTTP binding implies.
+fn named_resource(cx: &Cx<'_>, m: &MethodDescriptor, field: &FieldDescriptor) -> Option<Resource> {
+    match reference(cx.pool, field) {
+        Some((t, false)) => cx.resources.get(&t).cloned(),
+        Some((_, true)) => None,
+        None => http_resource(cx.pool, m, field.name()),
+    }
+}
+
+/// The resource the HTTP binding of `m` implies for its path field
+/// `field`, which declares no resource type: in
+/// `/v1beta1/{name=projects/*/zones/*/operations/*}:wait`, each `*` is
+/// named after the collection before it, in the singular, as
+/// `projects/{project}/zones/{zone}/operations/{operation}`. `None` when
+/// the binding doesn't have that shape.
+fn http_resource(pool: &DescriptorPool, m: &MethodDescriptor, field: &str) -> Option<Resource> {
+    let rule = message_extension(pool, &m.options(), "google.api.http")?;
+    let path = ["get", "put", "post", "delete", "patch"]
+        .iter()
+        .filter(|verb| rule.has_field_by_name(verb))
+        .find_map(|verb| rule.get_field_by_name(verb)?.as_str().map(str::to_owned))?;
+    let template = path
+        .split_once(&format!("{{{field}="))?
+        .1
+        .split_once('}')?
+        .0;
+    let pattern = pattern_of_template(template)?;
+    let singular = leaf_of(&pattern);
+    Some(Resource { pattern, singular })
+}
+
+/// `projects/*/zones/*` as `projects/{project}/zones/{zone}`; `None` for a
+/// template that isn't collections each followed by one `*`.
+fn pattern_of_template(template: &str) -> Option<String> {
+    let segments: Vec<&str> = template.split('/').collect();
+    if !segments.len().is_multiple_of(2) {
+        return None;
+    }
+    let mut out = Vec::new();
+    for pair in segments.chunks(2) {
+        let (collection, star) = (pair[0], pair[1]);
+        let literal = !collection.is_empty()
+            && collection
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_');
+        if !literal || star != "*" {
+            return None;
+        }
+        out.push(collection.to_owned());
+        out.push(format!("{{{}}}", singular(collection).to_snake_case()));
+    }
+    Some(out.join("/"))
 }
 
 /// The message an operation's result is, for a method answering with an
@@ -354,6 +689,8 @@ enum Kind2 {
     List,
     /// A resource name, from its id or whole name.
     Reference(Resource),
+    /// `google.protobuf.Duration`, as `30s`, `2m` or `1m30s`.
+    Duration,
 }
 
 fn kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
@@ -400,6 +737,7 @@ fn kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
         Kind::Float => Kind2::Scalar("f32"),
         Kind::Double => Kind2::Scalar("f64"),
         Kind::Bool => Kind2::Bool,
+        Kind::Message(m) if m.full_name() == DURATION => Kind2::Duration,
         Kind::Enum(e) => {
             let values = e
                 .values()
@@ -549,17 +887,20 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     }
     let request = m.input();
     let result = operation_result(cx.pool, m);
-    if m.output().full_name() == OPERATION && result.is_none() {
+    // Only the operation methods answer with an operation they didn't
+    // start, which they print as it is.
+    if m.output().full_name() == OPERATION && result.is_none() && cx.host.is_none() {
         return Err("it answers with an operation but names no response_type".to_owned());
     }
-    let service = m.parent_service();
-    let client = format!(
-        "{}Client",
-        service
-            .name()
-            .strip_suffix("Service")
-            .unwrap_or(service.name())
-    );
+    // Answering with the operation as it is after waiting up to `timeout`:
+    // called again until it is done, unless `--timeout` is given.
+    let waits = cx.host.is_some()
+        && m.output().full_name() == OPERATION
+        && result.is_none()
+        && request
+            .get_field_by_name("timeout")
+            .is_some_and(|f| matches!(f.kind(), Kind::Message(ref k) if k.full_name() == DURATION));
+    let client = client_name(m.parent_service());
     let destructive = m.name().starts_with("Delete");
     let update = request
         .get_field_by_name("update_mask")
@@ -568,7 +909,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     let paging = request.get_field_by_name("page_token").is_some();
     let response = m.output();
     let list = paging.then(|| list_field(&response)).flatten();
-    let excluded = |path: &str| cx.policy.excluded(m.name(), path);
+    let excluded = |path: &str| cx.policy.excluded(cx.own, m.name(), path);
     let file = m.parent_file();
     let file = file.name();
     let comment = |field: &FieldDescriptor| cx.comments.leading(file, field.path()).to_owned();
@@ -595,11 +936,9 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                 }
             }
         } else if field.name() == "name" {
-            if let Some((t, false)) = reference(cx.pool, &field) {
-                if let Some(r) = cx.resources.get(&t) {
-                    b.vocabulary
-                        .insert("name".to_owned(), leaf_of(&r.pattern).to_kebab_case());
-                }
+            if let Some(r) = named_resource(cx, m, &field) {
+                b.vocabulary
+                    .insert("name".to_owned(), leaf_of(&r.pattern).to_kebab_case());
             }
         } else if field.name() != "parent" && field.name() != "update_mask" {
             b.vocabulary
@@ -674,7 +1013,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                     )?;
                     inits.push(init(&ident(f.name()), &expr));
                 }
-                if let Some(entry) = cx.policy.one_way(m.name(), &path) {
+                if let Some(entry) = cx.policy.one_way(cx.own, m.name(), &path) {
                     one_way.push(one_way_use(
                         &mut b,
                         &f,
@@ -730,6 +1069,15 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                 b.request.push(fid);
                 continue;
             }
+        } else if name == "name" {
+            if let Some(resource) = http_resource(cx.pool, m, &name) {
+                let leaf = leaf_of(&resource.pattern);
+                let expr = leaf_name(&mut b, &resource, &leaf, &help(&comment(&field)))?;
+                target = Some((resource.singular.clone(), "request.name".to_owned()));
+                b.prelude.push(format!("let {fid} = {expr};"));
+                b.request.push(fid);
+                continue;
+            }
         }
 
         let k = kind(cx, &field)?;
@@ -744,8 +1092,17 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             doc.push_str(" One is generated when not given.");
         }
         let expr = value(&mut b, &field, &k, required, creating, &doc)?;
+        if name == "timeout" && waits {
+            if let Some(flag) = b.flags.iter_mut().find(|f| f.ident == fid) {
+                flag.doc.push_str(
+                    "\n\nWith it, the command asks once and prints the operation as it is then; \
+                     without it, the command asks again, a minute at a time, until the operation \
+                     is done.",
+                );
+            }
+        }
         b.request.push(init(&fid, &expr));
-        if let Some(entry) = cx.policy.one_way(m.name(), &name) {
+        if let Some(entry) = cx.policy.one_way(cx.own, m.name(), &name) {
             one_way.push(one_way_use(&mut b, &field, &k, !required, entry)?);
         }
     }
@@ -829,6 +1186,18 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                  call_{handler}_confirmed(&client, request).await\n\
              }}.map_err(api_error)?;",
             what(&singular)
+        );
+    } else if waits {
+        let _ = writeln!(
+            call,
+            "let client = ctx.client()?;\n\
+             let mut response = call_{handler}(&client, request.clone()).await.map_err(api_error)?;\n\
+             if args.timeout.is_none() {{\n\
+                 if !response.done {{ waiting(&response.name); }}\n\
+                 while !response.done {{\n\
+                     response = call_{handler}(&client, request.clone()).await.map_err(api_error)?;\n\
+                 }}\n\
+             }}"
         );
     } else if list.is_none() {
         let _ = writeln!(
@@ -1029,8 +1398,9 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     // The wrappers: the only places the SDK's method is called. A delete's
     // takes the confirmed client; a method with one-way fields has one for
     // each client, the unconfirmed one refusing a one-way change.
+    let endpoint = cx.host.as_deref().unwrap_or("client.sdk()");
     let sdk_call = format!(
-        "{}::{client}::new(client.sdk()).{handler}(request).await",
+        "{}::{client}::new({endpoint}).{handler}(request).await",
         cx.sdk
     );
     let wrapper = |name: &str, client_ty: &str, guard: &str| {
@@ -1045,7 +1415,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             .policy
             .one_way
             .iter()
-            .filter(|o| o.method == m.name())
+            .filter(|o| o.service == cx.own && o.method == m.name())
             .filter_map(|o| o.field.split_once('.').map(|(_, p)| format!("{p:?}")))
             .collect();
         let guard = if update && !mask_paths.is_empty() {
@@ -1067,12 +1437,25 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     }
 
     let doc = {
-        let text = help(cx.comments.leading(file, m.path()));
+        let mut text = help(cx.comments.leading(file, m.path()));
         if text.is_empty() {
-            format!("Calls `{}`.", m.name())
-        } else {
-            text
+            text = format!("Calls `{}`.", m.name());
         }
+        if cx.host.is_some() {
+            let _ = write!(
+                text,
+                "\n\nThe operation is one an `origin {}` command answered with, such as the one \
+                 `--no-wait` prints.",
+                cx.service
+            );
+        }
+        if waits {
+            text.push_str(
+                " Without `--timeout`, the command waits until the operation is done; Ctrl-C \
+                 stops the waiting, not the operation.",
+            );
+        }
+        text
     };
     Ok(Command {
         name: m.name().to_kebab_case(),
@@ -1120,6 +1503,8 @@ fn one_way_use(
 fn type_of(cx: &Cx<'_>, message: &MessageDescriptor) -> String {
     if message.full_name() == EMPTY {
         "::origincloud_core::protobuf::Empty".to_owned()
+    } else if message.full_name() == OPERATION {
+        "::origincloud_core::longrunning::Operation".to_owned()
     } else {
         format!(
             "{}::{}",
@@ -1328,6 +1713,29 @@ fn value(
             })?;
             format!("args.{one}.clone()")
         }
+        Kind2::Duration => {
+            let mut attrs = vec![
+                "value_name = \"DURATION\"".to_owned(),
+                "value_parser = duration".to_owned(),
+            ];
+            required_attr(&mut attrs);
+            b.add_flag(Flag {
+                ident: fid.clone(),
+                long,
+                doc: format!("{doc}{DURATION_FORMAT}"),
+                ty: if required {
+                    DURATION_TYPE.to_owned()
+                } else {
+                    format!("Option<{DURATION_TYPE}>")
+                },
+                attrs,
+            })?;
+            if required {
+                format!("Some(args.{fid})")
+            } else {
+                format!("args.{fid}")
+            }
+        }
         Kind2::Reference(resource) => {
             let leaf = leaf_of(&resource.pattern);
             b.add_components(&resource.pattern, Some(&leaf));
@@ -1460,6 +1868,23 @@ fn update_field(
                 set(&expr)
             )
         }
+        Kind2::Duration => {
+            b.add_flag(Flag {
+                ident: fid.clone(),
+                long,
+                doc: format!("{comment}{DURATION_FORMAT}{kept}"),
+                ty: format!("Option<{DURATION_TYPE}>"),
+                attrs: vec![
+                    "value_name = \"DURATION\"".to_owned(),
+                    "value_parser = duration".to_owned(),
+                ],
+            })?;
+            b.update_ids.push(arg_id(&fid).to_owned());
+            format!(
+                "if let Some(value) = args.{fid} {{ {} }}",
+                set("Some(value)")
+            )
+        }
         Kind2::Reference(resource) => {
             let leaf = leaf_of(&resource.pattern);
             b.add_components(&resource.pattern, Some(&leaf));
@@ -1510,5 +1935,26 @@ mod tests {
         assert_eq!(singular("data"), "data");
         assert_eq!(ident("type"), "r#type");
         assert_eq!(arg_id("r#type"), "type");
+    }
+
+    #[test]
+    fn a_binding_template_is_a_name_pattern() {
+        assert_eq!(
+            pattern_of_template("projects/*/zones/*/operations/*").as_deref(),
+            Some("projects/{project}/zones/{zone}/operations/{operation}")
+        );
+        assert_eq!(
+            pattern_of_template("storageClasses/*").as_deref(),
+            Some("storageClasses/{storage_class}")
+        );
+        for bad in [
+            "projects/*/zones",
+            "*",
+            "projects/**",
+            "projects/*/zones/{zone}",
+            "",
+        ] {
+            assert_eq!(pattern_of_template(bad), None, "{bad}");
+        }
     }
 }

@@ -3,7 +3,7 @@
 //! The SDK can read the session file itself, but renews it only in memory.
 //! This adapter renews it the way every other command does, through
 //! `origin id login`'s client, under the session's lock, and stores the
-//! renewed session, so that the `pvs` commands and the GraphQL commands
+//! renewed session, so that the generated commands and the GraphQL commands
 //! share one login.
 
 use std::fmt;
