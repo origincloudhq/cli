@@ -110,35 +110,20 @@ pub struct CreateFirewallArgs {
     /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The rules, in the order they are evaluated; the first that matches
-    /// decides.
-    ///
-    /// One element as comma-separated KEY=VALUE pairs; repeat the flag for more. The keys:
-    ///
-    /// `protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.
-    ///
-    /// `port`: The port the rule matches; every port when zero.
-    ///
-    /// `cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.
-    ///
-    /// `idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.
-    ///
-    /// `network`: The network the rule applies to; every network the firewall guards when empty. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}`.
-    ///
-    /// `allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.
-    ///
-    /// `match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.
     #[arg(
         long = "rule",
+        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}`.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.",
+        help = "The rules, in the order they are evaluated; the first that matches decides: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
-        value_parser = parse_rule,
+        value_parser = |text:&str|parse_rule(text, "--rules-json"),
         conflicts_with = "rules_json",
         required_unless_present = "rules_json"
     )]
-    pub rule: Vec<::origincloud_scratch::v1::Rule>,
-    /// The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. A field the message doesn't have is refused, at any depth. Resource names in it are sent as given: give whole names. Instead of `--rule`.
+    pub rule: Vec<Keyed<::origincloud_scratch::v1::Rule>>,
     #[arg(
         long = "rules-json",
+        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--rule`.",
+        help = "Rules as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<Vec<::origincloud_scratch::v1::Rule>>(
             text,
@@ -165,25 +150,19 @@ pub struct CreateFirewallArgs {
     /// Repeat for more.
     #[arg(long = "alias")]
     pub alias: Vec<String>,
-    /// How the firewall logs the connections it decides.
-    ///
-    /// As comma-separated KEY=VALUE pairs. The keys:
-    ///
-    /// `enabled`: Whether it logs. `true` or `false`.
-    ///
-    /// `sample_percent`: The share of connections logged, in percent.
-    ///
-    /// A value with a comma in it goes through `--logging-json` too.
     #[arg(
         long = "logging",
+        long_help = "How the firewall logs the connections it decides.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`enabled`: Whether it logs. `true` or `false`.\n\n`sample_percent`: The share of connections logged, in percent.\n\nA value with a comma in it goes through `--logging-json` too.",
+        help = "How the firewall logs the connections it decides, as KEY=VALUE pairs; sent whole",
         value_name = "KEY=VALUE,...",
-        value_parser = parse_logging,
+        value_parser = |text:&str|parse_logging(text, "--logging-json"),
         conflicts_with = "logging_json"
     )]
-    pub logging: Option<::origincloud_scratch::v1::Logging>,
-    /// As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. A field the message doesn't have is refused, at any depth. Resource names in it are sent as given: give whole names. Instead of `--logging`.
+    pub logging: Option<Keyed<::origincloud_scratch::v1::Logging>>,
     #[arg(
         long = "logging-json",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--logging`.",
+        help = "Logging as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_scratch::v1::Logging>(
             text,
@@ -196,6 +175,22 @@ pub struct CreateFirewallArgs {
     /// As KEY=VALUE; repeat for more.
     #[arg(long = "tag", value_name = "KEY=VALUE")]
     pub tag: Vec<TagArg>,
+    /// When the firewall stops deciding anything.
+    ///
+    /// As RFC 3339, such as `2026-11-01T12:00:00Z`.
+    #[arg(long = "expire-time", value_name = "TIME", value_parser = timestamp)]
+    pub expire_time: Option<::origincloud_core::protobuf::Timestamp>,
+    #[arg(
+        long = "metadata-json",
+        long_help = "Data of your own about the firewall.\n\nIts value as the API's JSON, as the command prints it; `@FILE` reads it from a file.",
+        help = "Metadata as its JSON value",
+        value_name = "JSON",
+        value_parser = |text:&str|json_arg::<::origincloud_core::protobuf::Struct>(
+            text,
+            "google.protobuf.Struct"
+        )
+    )]
+    pub metadata_json: Option<JsonArg<::origincloud_core::protobuf::Struct>>,
 }
 async fn create_firewall(
     ctx: &Context<'_>,
@@ -203,6 +198,25 @@ async fn create_firewall(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    for keyed in &args.rule {
+        let item = &keyed.value;
+        names
+            .learn(
+                "projects/{project}/zones/{zone}/networks/{network}",
+                "rule network",
+                Some(item.network.as_str()),
+            )?;
+    }
+    if let Some(json) = &args.rules_json {
+        for item in &json.0 {
+            names
+                .learn(
+                    "projects/{project}/zones/{zone}/networks/{network}",
+                    "rule network",
+                    Some(item.network.as_str()),
+                )?;
+        }
+    }
     for value in &args.network {
         names
             .learn(
@@ -212,7 +226,13 @@ async fn create_firewall(
             )?;
     }
     let parent = names.name("projects/{project}/zones/{zone}", None)?;
-    let mut rules = args.rule;
+    let mut rules = match args.rules_json {
+        Some(json) => json.0,
+        None => {
+            let items: Vec<_> = args.rule.into_iter().map(|keyed| keyed.value).collect();
+            items
+        }
+    };
     for item in &mut rules {
         if !item.network.is_empty() {
             item.network = names
@@ -222,10 +242,6 @@ async fn create_firewall(
                 )?;
         }
     }
-    let rules = match args.rules_json {
-        Some(json) => json.0,
-        None => rules,
-    };
     let networks = args
         .network
         .iter()
@@ -237,10 +253,14 @@ async fn create_firewall(
                 )
         })
         .collect::<anyhow::Result<Vec<String>>>()?;
-    let logging = args.logging;
+    unique(&args.alias, "--alias")?;
     let logging = match args.logging_json {
         Some(json) => Some(json.0),
-        None => logging,
+        None => args.logging.map(|keyed| { keyed.value }),
+    };
+    let metadata = match args.metadata_json {
+        Some(json) => Some(json.0),
+        None => None,
     };
     let firewall = ::origincloud_scratch::v1::Firewall {
         rules,
@@ -249,6 +269,8 @@ async fn create_firewall(
         aliases: args.alias.clone(),
         logging,
         tags: tags(&args.tag),
+        expire_time: args.expire_time,
+        metadata,
         ..::core::default::Default::default()
     };
     let request = ::origincloud_scratch::v1::CreateFirewallRequest {
@@ -283,7 +305,6 @@ async fn call_create_firewall(
         ).args(
             ["rule",
             "rules_json",
-            "no_rules",
             "port",
             "no_ports",
             "network",
@@ -294,7 +315,10 @@ async fn call_create_firewall(
             "logging_json",
             "no_logging",
             "tag",
-            "no_tags"]
+            "no_tags",
+            "expire_time",
+            "metadata_json",
+            "no_metadata"]
         )
     )
 )]
@@ -310,38 +334,19 @@ pub struct UpdateFirewallArgs {
     /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
     #[arg(long = "firewall", value_name = "FIREWALL")]
     pub firewall: String,
-    /// The rules, in the order they are evaluated; the first that matches
-    /// decides.
-    ///
-    /// One element as comma-separated KEY=VALUE pairs; repeat the flag for more. The keys:
-    ///
-    /// `protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.
-    ///
-    /// `port`: The port the rule matches; every port when zero.
-    ///
-    /// `cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.
-    ///
-    /// `idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.
-    ///
-    /// `network`: The network the rule applies to; every network the firewall guards when empty. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}`.
-    ///
-    /// `allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.
-    ///
-    /// `match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.
-    ///
-    /// The list is replaced whole: give every element to keep. `--no-rules` removes them all. Left as it is when none of these is given.
     #[arg(
         long = "rule",
+        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}`.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
+        help = "The rules, in the order they are evaluated; the first that matches decides: one element per flag, as KEY=VALUE pairs; the list is replaced whole",
         value_name = "KEY=VALUE,...",
-        value_parser = parse_rule,
+        value_parser = |text:&str|parse_rule(text, "--rules-json"),
         conflicts_with = "rules_json"
     )]
-    pub rule: Vec<::origincloud_scratch::v1::Rule>,
-    /// The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. A field the message doesn't have is refused, at any depth. Resource names in it are sent as given: give whole names. Instead of `--rule`.
-    ///
-    /// The list is replaced whole: give every element to keep. `--no-rules` removes them all. Left as it is when none of these is given.
+    pub rule: Vec<Keyed<::origincloud_scratch::v1::Rule>>,
     #[arg(
         long = "rules-json",
+        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--rule`.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
+        help = "Rules as JSON; replaced whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<Vec<::origincloud_scratch::v1::Rule>>(
             text,
@@ -349,9 +354,6 @@ pub struct UpdateFirewallArgs {
         )
     )]
     pub rules_json: Option<JsonArg<Vec<::origincloud_scratch::v1::Rule>>>,
-    /// Remove all of its rules.
-    #[arg(long = "no-rules", conflicts_with_all = ["rules_json", "rule"])]
-    pub no_rules: bool,
     /// The ports the firewall opens to every source.
     ///
     /// Repeat for more. Replaces all of them; `--no-ports` removes them all. Left as they are when neither is given.
@@ -380,29 +382,19 @@ pub struct UpdateFirewallArgs {
     /// Remove all of its aliases.
     #[arg(long = "no-aliases", conflicts_with = "alias")]
     pub no_aliases: bool,
-    /// How the firewall logs the connections it decides.
-    ///
-    /// As comma-separated KEY=VALUE pairs. The keys:
-    ///
-    /// `enabled`: Whether it logs. `true` or `false`.
-    ///
-    /// `sample_percent`: The share of connections logged, in percent.
-    ///
-    /// A value with a comma in it goes through `--logging-json` too.
-    ///
-    /// It is replaced whole: a key not given is reset. `--no-logging` removes it. Left as it is when none of these is given.
     #[arg(
         long = "logging",
+        long_help = "How the firewall logs the connections it decides.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`enabled`: Whether it logs. `true` or `false`.\n\n`sample_percent`: The share of connections logged, in percent.\n\nA value with a comma in it goes through `--logging-json` too.\n\nIt is replaced whole: a key not given is reset. `--no-logging` removes it. Left as it is when none of these is given.",
+        help = "How the firewall logs the connections it decides, as KEY=VALUE pairs; replaced whole",
         value_name = "KEY=VALUE,...",
-        value_parser = parse_logging,
+        value_parser = |text:&str|parse_logging(text, "--logging-json"),
         conflicts_with = "logging_json"
     )]
-    pub logging: Option<::origincloud_scratch::v1::Logging>,
-    /// As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. A field the message doesn't have is refused, at any depth. Resource names in it are sent as given: give whole names. Instead of `--logging`.
-    ///
-    /// It is replaced whole: a key not given is reset. `--no-logging` removes it. Left as it is when none of these is given.
+    pub logging: Option<Keyed<::origincloud_scratch::v1::Logging>>,
     #[arg(
         long = "logging-json",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--logging`.\n\nIt is replaced whole: a key not given is reset. `--no-logging` removes it. Left as it is when none of these is given.",
+        help = "Logging as JSON; replaced whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_scratch::v1::Logging>(
             text,
@@ -421,6 +413,27 @@ pub struct UpdateFirewallArgs {
     /// Remove all of its tags.
     #[arg(long = "no-tags", conflicts_with = "tag")]
     pub no_tags: bool,
+    /// When the firewall stops deciding anything.
+    ///
+    /// As RFC 3339, such as `2026-11-01T12:00:00Z`.
+    ///
+    /// Left as it is when not given.
+    #[arg(long = "expire-time", value_name = "TIME", value_parser = timestamp)]
+    pub expire_time: Option<::origincloud_core::protobuf::Timestamp>,
+    #[arg(
+        long = "metadata-json",
+        long_help = "Data of your own about the firewall.\n\nIts value as the API's JSON, as the command prints it; `@FILE` reads it from a file.\n\nLeft as it is when not given. `--no-metadata` removes it.",
+        help = "Metadata as its JSON value",
+        value_name = "JSON",
+        value_parser = |text:&str|json_arg::<::origincloud_core::protobuf::Struct>(
+            text,
+            "google.protobuf.Struct"
+        )
+    )]
+    pub metadata_json: Option<JsonArg<::origincloud_core::protobuf::Struct>>,
+    /// Remove its metadata.
+    #[arg(long = "no-metadata", conflicts_with_all = ["metadata_json"])]
+    pub no_metadata: bool,
 }
 async fn update_firewall(
     ctx: &Context<'_>,
@@ -434,6 +447,25 @@ async fn update_firewall(
             "firewall",
             Some(args.firewall.as_str()),
         )?;
+    for keyed in &args.rule {
+        let item = &keyed.value;
+        names
+            .learn(
+                "projects/{project}/zones/{zone}/networks/{network}",
+                "rule network",
+                Some(item.network.as_str()),
+            )?;
+    }
+    if let Some(json) = &args.rules_json {
+        for item in &json.0 {
+            names
+                .learn(
+                    "projects/{project}/zones/{zone}/networks/{network}",
+                    "rule network",
+                    Some(item.network.as_str()),
+                )?;
+        }
+    }
     for value in &args.network {
         names
             .learn(
@@ -452,9 +484,23 @@ async fn update_firewall(
         ..::core::default::Default::default()
     };
     let mut paths: Vec<String> = Vec::new();
-    if args.no_rules || !args.rule.is_empty() || args.rules_json.is_some() {
-        let mut items = args.rule;
-        for item in &mut items {
+    if !args.rule.is_empty() || args.rules_json.is_some() {
+        let mut value = match args.rules_json {
+            Some(json) => {
+                notice_replaced("--rules-json", "rules", json.0.len());
+                json.0
+            }
+            None => {
+                let items: Vec<_> = args
+                    .rule
+                    .into_iter()
+                    .map(|keyed| keyed.value)
+                    .collect();
+                notice_replaced("--rule", "rules", items.len());
+                items
+            }
+        };
+        for item in &mut value {
             if !item.network.is_empty() {
                 item.network = names
                     .name(
@@ -463,10 +509,7 @@ async fn update_firewall(
                     )?;
             }
         }
-        firewall.rules = match args.rules_json {
-            Some(json) => json.0,
-            None => items,
-        };
+        firewall.rules = value;
         paths.push("rules".to_owned());
     }
     if args.no_ports || !args.port.is_empty() {
@@ -488,20 +531,52 @@ async fn update_firewall(
         paths.push("networks".to_owned());
     }
     if args.no_aliases || !args.alias.is_empty() {
+        unique(&args.alias, "--alias")?;
         firewall.aliases = args.alias.clone();
         paths.push("aliases".to_owned());
     }
     if args.no_logging || args.logging.is_some() || args.logging_json.is_some() {
-        let items = args.logging;
-        firewall.logging = match args.logging_json {
-            Some(json) => Some(json.0),
-            None => items,
+        let value = match args.logging_json {
+            Some(json) => {
+                notice_reset(
+                    "--logging-json",
+                    "logging",
+                    &["enabled", "sample_percent"],
+                    &json.1,
+                );
+                Some(json.0)
+            }
+            None => {
+                args.logging
+                    .map(|keyed| {
+                        notice_reset(
+                            "--logging",
+                            "logging",
+                            &["enabled", "sample_percent"],
+                            &keyed.given,
+                        );
+                        keyed.value
+                    })
+            }
         };
+        firewall.logging = value;
         paths.push("logging".to_owned());
     }
     if args.no_tags || !args.tag.is_empty() {
         firewall.tags = tags(&args.tag);
         paths.push("tags".to_owned());
+    }
+    if let Some(value) = args.expire_time {
+        firewall.expire_time = Some(value);
+        paths.push("expire_time".to_owned());
+    }
+    if args.no_metadata || args.metadata_json.is_some() {
+        let value = match args.metadata_json {
+            Some(json) => Some(json.0),
+            None => None,
+        };
+        firewall.metadata = value;
+        paths.push("metadata".to_owned());
     }
     let request = ::origincloud_scratch::v1::UpdateFirewallRequest {
         firewall: Some(firewall),
@@ -524,10 +599,12 @@ async fn call_update_firewall(
         .update_firewall(request)
         .await
 }
-/// A `::origincloud_scratch::v1::Logging` from its `KEY=VALUE,...` form.
+/// A `::origincloud_scratch::v1::Logging` from its `KEY=VALUE,...` form; a key that is a field only the
+/// JSON form sets says so, naming `json_flag`.
 fn parse_logging(
     text: &str,
-) -> ::core::result::Result<::origincloud_scratch::v1::Logging, String> {
+    json_flag: &str,
+) -> ::core::result::Result<Keyed<::origincloud_scratch::v1::Logging>, String> {
     let pairs = key_values(text)?;
     let mut out = <::origincloud_scratch::v1::Logging>::default();
     for (key, value) in &pairs {
@@ -537,16 +614,25 @@ fn parse_logging(
             "sample_percent" => {
                 out.sample_percent = key_scalar::<i32>("sample_percent", value)?;
             }
-            other => return Err(unknown_key(other, &["enabled", "sample_percent"], &[])),
+            other => {
+                return Err(
+                    unknown_key(other, &["enabled", "sample_percent"], &[], json_flag),
+                );
+            }
         }
     }
     required_keys(&pairs, &[])?;
-    Ok(out)
+    Ok(Keyed {
+        value: out,
+        given: pairs.into_iter().map(|(key, _)| key).collect(),
+    })
 }
-/// A `::origincloud_scratch::v1::Rule` from its `KEY=VALUE,...` form.
+/// A `::origincloud_scratch::v1::Rule` from its `KEY=VALUE,...` form; a key that is a field only the
+/// JSON form sets says so, naming `json_flag`.
 fn parse_rule(
     text: &str,
-) -> ::core::result::Result<::origincloud_scratch::v1::Rule, String> {
+    json_flag: &str,
+) -> ::core::result::Result<Keyed<::origincloud_scratch::v1::Rule>, String> {
     let pairs = key_values(text)?;
     let mut out = <::origincloud_scratch::v1::Rule>::default();
     for (key, value) in &pairs {
@@ -570,6 +656,7 @@ fn parse_rule(
             }
             "network" => out.network = value.to_owned(),
             "allow" => out.allow = key_bool("allow", value)?,
+            "not_after" => out.not_after = Some(key_timestamp("not_after", value)?),
             other => {
                 return Err(
                     unknown_key(
@@ -581,18 +668,24 @@ fn parse_rule(
                             "idle_timeout",
                             "network",
                             "allow",
+                            "not_after",
                         ],
                         &["match"],
+                        json_flag,
                     ),
                 );
             }
         }
     }
     required_keys(&pairs, &["protocol"])?;
-    Ok(out)
+    Ok(Keyed {
+        value: out,
+        given: pairs.into_iter().map(|(key, _)| key).collect(),
+    })
 }
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
-    json_arg, key_bool, key_duration, key_enum, key_scalar, key_values, required_keys,
-    unknown_key, JsonArg,
+    json_arg, key_bool, key_duration, key_enum, key_scalar, key_timestamp, key_values,
+    notice_replaced, notice_reset, required_keys, timestamp, unique, unknown_key,
+    JsonArg, Keyed,
 };

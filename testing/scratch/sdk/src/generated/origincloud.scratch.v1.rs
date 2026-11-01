@@ -32,6 +32,12 @@ pub struct Firewall {
     /// When the firewall was created.
     #[prost(string, tag = "8")]
     pub create_time: ::prost::alloc::string::String,
+    /// When the firewall stops deciding anything.
+    #[prost(message, optional, tag = "9")]
+    pub expire_time: ::core::option::Option<::origincloud_core::protobuf::Timestamp>,
+    /// Data of your own about the firewall.
+    #[prost(message, optional, tag = "10")]
+    pub metadata: ::core::option::Option<::origincloud_core::protobuf::Struct>,
 }
 /// A network a firewall can guard.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -65,6 +71,9 @@ pub struct Rule {
     /// A match on the packets' headers.
     #[prost(message, optional, tag = "7")]
     pub r#match: ::core::option::Option<Match>,
+    /// When the rule stops matching.
+    #[prost(message, optional, tag = "8")]
+    pub not_after: ::core::option::Option<::origincloud_core::protobuf::Timestamp>,
 }
 /// Nested message and enum types in `Rule`.
 pub mod rule {
@@ -118,6 +127,21 @@ pub struct Match {
     /// The headers that must all be present.
     #[prost(message, repeated, tag = "1")]
     pub headers: ::prost::alloc::vec::Vec<Header>,
+    /// The network the packets must come from.
+    #[prost(string, tag = "2")]
+    pub network: ::prost::alloc::string::String,
+    /// The methods matched, each once.
+    #[prost(string, repeated, tag = "3")]
+    pub methods: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// The protocols matched.
+    #[prost(enumeration = "rule::Protocol", repeated, tag = "4")]
+    pub protocols: ::prost::alloc::vec::Vec<i32>,
+    /// The protocol each port name stands for.
+    #[prost(btree_map = "string, enumeration(rule::Protocol)", tag = "5")]
+    pub port_protocols: ::prost::alloc::collections::BTreeMap<
+        ::prost::alloc::string::String,
+        i32,
+    >,
 }
 /// A header and its value.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -322,6 +346,12 @@ impl serde::Serialize for Firewall {
         if !self.create_time.is_empty() {
             len += 1;
         }
+        if self.expire_time.is_some() {
+            len += 1;
+        }
+        if self.metadata.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer
             .serialize_struct("origincloud.scratch.v1.Firewall", len)?;
         if !self.name.is_empty() {
@@ -348,6 +378,12 @@ impl serde::Serialize for Firewall {
         if !self.create_time.is_empty() {
             struct_ser.serialize_field("createTime", &self.create_time)?;
         }
+        if let Some(v) = self.expire_time.as_ref() {
+            struct_ser.serialize_field("expireTime", v)?;
+        }
+        if let Some(v) = self.metadata.as_ref() {
+            struct_ser.serialize_field("metadata", v)?;
+        }
         struct_ser.end()
     }
 }
@@ -367,6 +403,9 @@ impl<'de> serde::Deserialize<'de> for Firewall {
             "tags",
             "create_time",
             "createTime",
+            "expire_time",
+            "expireTime",
+            "metadata",
         ];
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
@@ -378,6 +417,8 @@ impl<'de> serde::Deserialize<'de> for Firewall {
             Logging,
             Tags,
             CreateTime,
+            ExpireTime,
+            Metadata,
             __SkipField__,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -415,6 +456,10 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                             "createTime" | "create_time" => {
                                 Ok(GeneratedField::CreateTime)
                             }
+                            "expireTime" | "expire_time" => {
+                                Ok(GeneratedField::ExpireTime)
+                            }
+                            "metadata" => Ok(GeneratedField::Metadata),
                             _ => Ok(GeneratedField::__SkipField__),
                         }
                     }
@@ -443,6 +488,8 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                 let mut logging__ = None;
                 let mut tags__ = None;
                 let mut create_time__ = None;
+                let mut expire_time__ = None;
+                let mut metadata__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Name => {
@@ -503,6 +550,18 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                             }
                             create_time__ = Some(map_.next_value()?);
                         }
+                        GeneratedField::ExpireTime => {
+                            if expire_time__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("expireTime"));
+                            }
+                            expire_time__ = map_.next_value()?;
+                        }
+                        GeneratedField::Metadata => {
+                            if metadata__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("metadata"));
+                            }
+                            metadata__ = map_.next_value()?;
+                        }
                         GeneratedField::__SkipField__ => {
                             let _ = map_.next_value::<serde::de::IgnoredAny>()?;
                         }
@@ -517,6 +576,8 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                     logging: logging__,
                     tags: tags__.unwrap_or_default(),
                     create_time: create_time__.unwrap_or_default(),
+                    expire_time: expire_time__,
+                    metadata: metadata__,
                 })
             }
         }
@@ -894,10 +955,56 @@ impl serde::Serialize for Match {
         if !self.headers.is_empty() {
             len += 1;
         }
+        if !self.network.is_empty() {
+            len += 1;
+        }
+        if !self.methods.is_empty() {
+            len += 1;
+        }
+        if !self.protocols.is_empty() {
+            len += 1;
+        }
+        if !self.port_protocols.is_empty() {
+            len += 1;
+        }
         let mut struct_ser = serializer
             .serialize_struct("origincloud.scratch.v1.Match", len)?;
         if !self.headers.is_empty() {
             struct_ser.serialize_field("headers", &self.headers)?;
+        }
+        if !self.network.is_empty() {
+            struct_ser.serialize_field("network", &self.network)?;
+        }
+        if !self.methods.is_empty() {
+            struct_ser.serialize_field("methods", &self.methods)?;
+        }
+        if !self.protocols.is_empty() {
+            let v = self
+                .protocols
+                .iter()
+                .cloned()
+                .map(|v| {
+                    rule::Protocol::try_from(v)
+                        .map_err(|_| serde::ser::Error::custom(
+                            format!("Invalid variant {}", v),
+                        ))
+                })
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            struct_ser.serialize_field("protocols", &v)?;
+        }
+        if !self.port_protocols.is_empty() {
+            let v: std::collections::HashMap<_, _> = self
+                .port_protocols
+                .iter()
+                .map(|(k, v)| {
+                    let v = rule::Protocol::try_from(*v)
+                        .map_err(|_| serde::ser::Error::custom(
+                            format!("Invalid variant {}", * v),
+                        ))?;
+                    Ok((k, v))
+                })
+                .collect::<std::result::Result<_, _>>()?;
+            struct_ser.serialize_field("portProtocols", &v)?;
         }
         struct_ser.end()
     }
@@ -908,10 +1015,21 @@ impl<'de> serde::Deserialize<'de> for Match {
     where
         D: serde::Deserializer<'de>,
     {
-        const FIELDS: &[&str] = &["headers"];
+        const FIELDS: &[&str] = &[
+            "headers",
+            "network",
+            "methods",
+            "protocols",
+            "port_protocols",
+            "portProtocols",
+        ];
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
             Headers,
+            Network,
+            Methods,
+            Protocols,
+            PortProtocols,
             __SkipField__,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -940,6 +1058,12 @@ impl<'de> serde::Deserialize<'de> for Match {
                     {
                         match value {
                             "headers" => Ok(GeneratedField::Headers),
+                            "network" => Ok(GeneratedField::Network),
+                            "methods" => Ok(GeneratedField::Methods),
+                            "protocols" => Ok(GeneratedField::Protocols),
+                            "portProtocols" | "port_protocols" => {
+                                Ok(GeneratedField::PortProtocols)
+                            }
                             _ => Ok(GeneratedField::__SkipField__),
                         }
                     }
@@ -961,6 +1085,10 @@ impl<'de> serde::Deserialize<'de> for Match {
                 V: serde::de::MapAccess<'de>,
             {
                 let mut headers__ = None;
+                let mut network__ = None;
+                let mut methods__ = None;
+                let mut protocols__ = None;
+                let mut port_protocols__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Headers => {
@@ -969,6 +1097,46 @@ impl<'de> serde::Deserialize<'de> for Match {
                             }
                             headers__ = Some(map_.next_value()?);
                         }
+                        GeneratedField::Network => {
+                            if network__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("network"));
+                            }
+                            network__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::Methods => {
+                            if methods__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("methods"));
+                            }
+                            methods__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::Protocols => {
+                            if protocols__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("protocols"));
+                            }
+                            protocols__ = Some(
+                                map_
+                                    .next_value::<Vec<rule::Protocol>>()?
+                                    .into_iter()
+                                    .map(|x| x as i32)
+                                    .collect(),
+                            );
+                        }
+                        GeneratedField::PortProtocols => {
+                            if port_protocols__.is_some() {
+                                return Err(
+                                    serde::de::Error::duplicate_field("portProtocols"),
+                                );
+                            }
+                            port_protocols__ = Some(
+                                map_
+                                    .next_value::<
+                                        std::collections::BTreeMap<_, rule::Protocol>,
+                                    >()?
+                                    .into_iter()
+                                    .map(|(k, v)| (k, v as i32))
+                                    .collect(),
+                            );
+                        }
                         GeneratedField::__SkipField__ => {
                             let _ = map_.next_value::<serde::de::IgnoredAny>()?;
                         }
@@ -976,6 +1144,10 @@ impl<'de> serde::Deserialize<'de> for Match {
                 }
                 Ok(Match {
                     headers: headers__.unwrap_or_default(),
+                    network: network__.unwrap_or_default(),
+                    methods: methods__.unwrap_or_default(),
+                    protocols: protocols__.unwrap_or_default(),
+                    port_protocols: port_protocols__.unwrap_or_default(),
                 })
             }
         }
@@ -1116,6 +1288,9 @@ impl serde::Serialize for Rule {
         if self.r#match.is_some() {
             len += 1;
         }
+        if self.not_after.is_some() {
+            len += 1;
+        }
         let mut struct_ser = serializer
             .serialize_struct("origincloud.scratch.v1.Rule", len)?;
         if self.protocol != 0 {
@@ -1143,6 +1318,9 @@ impl serde::Serialize for Rule {
         if let Some(v) = self.r#match.as_ref() {
             struct_ser.serialize_field("match", v)?;
         }
+        if let Some(v) = self.not_after.as_ref() {
+            struct_ser.serialize_field("notAfter", v)?;
+        }
         struct_ser.end()
     }
 }
@@ -1161,6 +1339,8 @@ impl<'de> serde::Deserialize<'de> for Rule {
             "network",
             "allow",
             "match",
+            "not_after",
+            "notAfter",
         ];
         #[allow(clippy::enum_variant_names)]
         enum GeneratedField {
@@ -1171,6 +1351,7 @@ impl<'de> serde::Deserialize<'de> for Rule {
             Network,
             Allow,
             Match,
+            NotAfter,
             __SkipField__,
         }
         impl<'de> serde::Deserialize<'de> for GeneratedField {
@@ -1207,6 +1388,7 @@ impl<'de> serde::Deserialize<'de> for Rule {
                             "network" => Ok(GeneratedField::Network),
                             "allow" => Ok(GeneratedField::Allow),
                             "match" => Ok(GeneratedField::Match),
+                            "notAfter" | "not_after" => Ok(GeneratedField::NotAfter),
                             _ => Ok(GeneratedField::__SkipField__),
                         }
                     }
@@ -1234,6 +1416,7 @@ impl<'de> serde::Deserialize<'de> for Rule {
                 let mut network__ = None;
                 let mut allow__ = None;
                 let mut r#match__ = None;
+                let mut not_after__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
                         GeneratedField::Protocol => {
@@ -1286,6 +1469,12 @@ impl<'de> serde::Deserialize<'de> for Rule {
                             }
                             r#match__ = map_.next_value()?;
                         }
+                        GeneratedField::NotAfter => {
+                            if not_after__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("notAfter"));
+                            }
+                            not_after__ = map_.next_value()?;
+                        }
                         GeneratedField::__SkipField__ => {
                             let _ = map_.next_value::<serde::de::IgnoredAny>()?;
                         }
@@ -1299,6 +1488,7 @@ impl<'de> serde::Deserialize<'de> for Rule {
                     network: network__.unwrap_or_default(),
                     allow: allow__.unwrap_or_default(),
                     r#match: r#match__,
+                    not_after: not_after__,
                 })
             }
         }

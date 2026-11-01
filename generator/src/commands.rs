@@ -58,6 +58,7 @@ const OPERATION: &str = "google.longrunning.Operation";
 const EMPTY: &str = "google.protobuf.Empty";
 const FIELD_MASK: &str = "google.protobuf.FieldMask";
 const DURATION: &str = "google.protobuf.Duration";
+const TIMESTAMP: &str = "google.protobuf.Timestamp";
 
 /// The service whose package holds every service's operation methods:
 /// `origincloud.longrunning.{version}`. Each service serves them at its own
@@ -67,6 +68,10 @@ pub const OPERATIONS: &str = "longrunning";
 /// The Rust type of a duration flag, and what its help says of its form.
 const DURATION_TYPE: &str = "::origincloud_core::protobuf::Duration";
 const DURATION_FORMAT: &str = "\n\nSuch as `30s` or `1m`.";
+
+/// The Rust type of a timestamp flag, and what its help says of its form.
+const TIMESTAMP_TYPE: &str = "::origincloud_core::protobuf::Timestamp";
+const TIMESTAMP_FORMAT: &str = "\n\nAs RFC 3339, such as `2026-11-01T12:00:00Z`.";
 
 // `google.api.FieldBehavior` values.
 const REQUIRED: i32 = 2;
@@ -328,16 +333,40 @@ pub fn generate(
         code.push_str(helper);
         code.push('\n');
     }
-    // What the flags of nested messages use, for a group that has some:
-    // every message field has a JSON flag.
-    if code.contains("JsonArg<") {
-        code.push_str(
-            "#[allow(unused_imports)]\n\
-             use crate::sdk::runtime::{\n\
-                 json_arg, key_bool, key_duration, key_enum, key_scalar, key_values, required_keys,\n\
-                 unknown_key, JsonArg,\n\
-             };\n",
-        );
+    // What the flags of nested messages, JSON values, timestamps and
+    // unordered lists use, for a group that uses some.
+    let used: Vec<&str> = [
+        "json_arg",
+        "key_bool",
+        "key_duration",
+        "key_enum",
+        "key_scalar",
+        "key_timestamp",
+        "key_values",
+        "notice_replaced",
+        "notice_reset",
+        "required_keys",
+        "timestamp",
+        "unique",
+        "unknown_key",
+    ]
+    .into_iter()
+    .filter(|f| {
+        code.contains(&format!("{f}("))
+            || code.contains(&format!("{f}::<"))
+            || code.contains(&format!("= {f}"))
+    })
+    .chain(
+        ["JsonArg", "Keyed"]
+            .into_iter()
+            .filter(|t| code.contains(&format!("{t}<")) || code.contains(&format!("{t} {{"))),
+    )
+    .collect();
+    if !used.is_empty() {
+        code.push_str(&format!(
+            "#[allow(unused_imports)]\nuse crate::sdk::runtime::{{{}}};\n",
+            used.join(", ")
+        ));
     }
 
     Ok(Generated {
@@ -508,8 +537,9 @@ pub fn services(groups: &[Group]) -> Result<String> {
     for g in groups {
         code.push_str(&docs::attributes(&format!("`origin {}`.", g.service), ""));
         code.push_str(gate(g));
-        // A service's methods may all end alike (`GetRoute`, `UpdateRoute`).
-        code.push_str("#[allow(clippy::enum_variant_names)]\n");
+        // A service's methods may all end alike (`GetRoute`, `UpdateRoute`),
+        // and one's flags outweigh another's.
+        code.push_str("#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]\n");
         writeln!(
             code,
             "pub mod {} {{ include!({:?}); }}",
@@ -562,7 +592,9 @@ pub fn services(groups: &[Group]) -> Result<String> {
         "The command groups generated from the API definitions, one per service.",
         "",
     ));
-    code.push_str("#[derive(clap::Subcommand, Debug)]\npub enum ServiceCommands {\n");
+    code.push_str(
+        "#[derive(clap::Subcommand, Debug)]\n#[allow(clippy::large_enum_variant)]\npub enum ServiceCommands {\n",
+    );
     for g in groups {
         let variant = g.service.to_upper_camel_case();
         let long = if g.details.is_empty() {
@@ -849,6 +881,8 @@ enum Kind2 {
     Reference(Resource),
     /// `google.protobuf.Duration`, as `30s`, `2m` or `1m30s`.
     Duration,
+    /// `google.protobuf.Timestamp`, as RFC 3339.
+    Timestamp,
     /// A nested message: `--{field} KEY=VALUE,...` and `--{field}-json`.
     Message(Nested),
     /// A repeated nested message: `--{singular} KEY=VALUE,...`, repeated,
@@ -879,6 +913,9 @@ struct Nested {
     /// The function parsing the `KEY=VALUE,...` form, when there is one:
     /// when a field can be a key and none that can't is required.
     parser: Option<String>,
+    /// Whether it is a well-known type, such as a struct, whose JSON is a
+    /// form of its own rather than an object of its fields.
+    well_known: bool,
 }
 
 /// One key of a nested message's `KEY=VALUE,...` form.
@@ -988,6 +1025,7 @@ fn kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
     Ok(match field.kind() {
         Kind::Bool => Kind2::Bool,
         Kind::Message(m) if m.full_name() == DURATION => Kind2::Duration,
+        Kind::Message(m) if m.full_name() == TIMESTAMP => Kind2::Timestamp,
         Kind::Message(m) => Kind2::Message(nested(cx, &m)?),
         Kind::Enum(e) => {
             let (path, values) = enum_kind(&e)?;
@@ -1013,6 +1051,7 @@ fn key_kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Option<Kind2> {
     match field.kind() {
         Kind::Bool => Some(Kind2::Bool),
         Kind::Message(m) if m.full_name() == DURATION => Some(Kind2::Duration),
+        Kind::Message(m) if m.full_name() == TIMESTAMP => Some(Kind2::Timestamp),
         Kind::Message(_) => None,
         Kind::Enum(e) => enum_kind(&e).ok().map(|(p, v)| Kind2::Enum(p, v)),
         other => scalar_type(&other).map(Kind2::Scalar),
@@ -1070,6 +1109,7 @@ fn nested(cx: &Cx<'_>, m: &MessageDescriptor) -> Result<Nested, String> {
                 Kind2::Scalar(ty) => format!("key_scalar::<{ty}>({name:?}, value)?"),
                 Kind2::Bool => format!("key_bool({name:?}, value)?"),
                 Kind2::Duration => format!("Some(key_duration({name:?}, value)?)"),
+                Kind2::Timestamp => format!("Some(key_timestamp({name:?}, value)?)"),
                 Kind2::Enum(path, values) => format!(
                     "key_enum({name:?}, value, &[{}], |v| {path}::from_str_name(v).map(|e| e as i32))?",
                     values.iter().map(|v| format!("{v:?}")).collect::<Vec<_>>().join(", ")
@@ -1088,19 +1128,20 @@ fn nested(cx: &Cx<'_>, m: &MessageDescriptor) -> Result<Nested, String> {
         let json = quoted(&mut json_only.iter());
         let needed = quoted(&mut required.iter());
         let code = format!(
-            "/// A `{rust}` from its `KEY=VALUE,...` form.\n\
-             fn {parser}(text: &str) -> ::core::result::Result<{rust}, String> {{\n\
+            "/// A `{rust}` from its `KEY=VALUE,...` form; a key that is a field only the\n\
+             /// JSON form sets says so, naming `json_flag`.\n\
+             fn {parser}(text: &str, json_flag: &str) -> ::core::result::Result<Keyed<{rust}>, String> {{\n\
                  let pairs = key_values(text)?;\n\
                  let mut out = <{rust}>::default();\n\
                  for (key, value) in &pairs {{\n\
                      let value = value.as_str();\n\
                      match key.as_str() {{\n\
                          {}\n\
-                         other => return Err(unknown_key(other, &[{all}], &[{json}])),\n\
+                         other => return Err(unknown_key(other, &[{all}], &[{json}], json_flag)),\n\
                      }}\n\
                  }}\n\
                  required_keys(&pairs, &[{needed}])?;\n\
-                 Ok(out)\n\
+                 Ok(Keyed {{ value: out, given: pairs.into_iter().map(|(key, _)| key).collect() }})\n\
              }}\n",
             arms.join("\n")
         );
@@ -1112,6 +1153,7 @@ fn nested(cx: &Cx<'_>, m: &MessageDescriptor) -> Result<Nested, String> {
         keys,
         json_only,
         parser,
+        well_known: m.package_name().starts_with("google."),
     })
 }
 
@@ -1140,8 +1182,20 @@ struct Flag {
 
 impl Flag {
     fn render(&self, out: &mut String) {
-        out.push_str(&docs::attributes(&self.doc, "    "));
         let mut attrs = vec![format!("long = {:?}", self.long)];
+        if self.attrs.iter().any(|a| a.starts_with("help = ")) {
+            // A one-line help of its own: the doc is the long help, each
+            // paragraph on one line.
+            let long = self
+                .doc
+                .split("\n\n")
+                .map(|p| p.split_whitespace().collect::<Vec<_>>().join(" "))
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            attrs.push(format!("long_help = {long:?}"));
+        } else {
+            out.push_str(&docs::attributes(&self.doc, "    "));
+        }
         attrs.extend(self.attrs.iter().cloned());
         let _ = writeln!(
             out,
@@ -1375,8 +1429,17 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                 }
                 let k = kind(cx, &f)?;
                 let field_required = !update && fb.contains(&REQUIRED);
+                let unordered = fb.contains(&UNORDERED_LIST);
                 if update {
-                    updates.push(update_field(&mut b, &f, &k, &local, &help(&comment(&f)))?);
+                    updates.push(update_field(
+                        &mut b,
+                        &f,
+                        &k,
+                        &local,
+                        fb.contains(&REQUIRED),
+                        unordered,
+                        &help(&comment(&f)),
+                    )?);
                 } else {
                     let expr = value(
                         &mut b,
@@ -1384,6 +1447,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                         &k,
                         field_required,
                         creating,
+                        unordered,
                         &help(&comment(&f)),
                     )?;
                     inits.push(init(&ident(f.name()), &expr));
@@ -1469,7 +1533,8 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         if name == "request_id" {
             doc.push_str(" One is generated when not given.");
         }
-        let expr = value(&mut b, &field, &k, required, creating, &doc)?;
+        let unordered = behaviors(cx.pool, &field).contains(&UNORDERED_LIST);
+        let expr = value(&mut b, &field, &k, required, creating, unordered, &doc)?;
         if name == "timeout" && waits {
             // The flag is a deadline of the command's: each call waits a
             // minute at most, as the API allows, and the command calls again
@@ -2003,6 +2068,7 @@ fn value(
     k: &Kind2,
     required: bool,
     creating: bool,
+    unordered: bool,
     doc: &str,
 ) -> Result<String, String> {
     let fid = ident(field.name());
@@ -2105,6 +2171,12 @@ fn value(
                 ty,
                 attrs,
             })?;
+            if unordered {
+                b.prelude.push(format!(
+                    "unique(&args.{one}, \"--{}\")?;",
+                    singular(field.name()).to_kebab_case()
+                ));
+            }
             if matches!(elem, Elem::Reference(_)) {
                 b.prelude.push(format!("let {fid} = {expr};"));
                 fid
@@ -2112,104 +2184,34 @@ fn value(
                 expr
             }
         }
-        Kind2::Message(n) => {
-            let json = format!("{fid}_json");
-            let json_long = format!("{long}-json");
-            let completions = completions(b, n, "item", &long);
-            if let Some(parser) = &n.parser {
-                let mut attrs = vec![
-                    "value_name = \"KEY=VALUE,...\"".to_owned(),
-                    format!("value_parser = {parser}"),
-                    format!("conflicts_with = {json:?}"),
-                ];
-                if required {
-                    attrs.push(format!("required_unless_present = {json:?}"));
-                }
-                b.add_flag(Flag {
-                    ident: fid.clone(),
-                    long: long.clone(),
-                    doc: keyed_doc(doc, n, &json_long, false),
-                    ty: format!("Option<{}>", n.rust),
-                    attrs,
-                })?;
-            }
-            b.add_flag(Flag {
-                ident: json.clone(),
-                long: json_long,
-                doc: json_doc(doc, n, &long, false),
-                ty: format!("Option<JsonArg<{}>>", n.rust),
-                attrs: json_attrs(&n.rust, &n.full_name, required && n.parser.is_none()),
-            })?;
-            if n.parser.is_some() {
-                if completions.is_empty() {
-                    b.prelude.push(format!("let {fid} = args.{fid};"));
-                } else {
-                    b.prelude.push(format!(
-                        "let mut {fid} = args.{fid}; if let Some(item) = &mut {fid} {{ {} }}",
-                        completions.join(" ")
-                    ));
-                }
-                b.prelude.push(format!(
-                    "let {fid} = match args.{json} {{ Some(json) => Some(json.0), None => {fid} }};"
-                ));
-            } else {
-                b.prelude
-                    .push(format!("let {fid} = args.{json}.map(|json| json.0);"));
-            }
+        Kind2::Message(n) | Kind2::Messages(n) => {
+            let repeated = matches!(k, Kind2::Messages(_));
+            let statements = message_flags(b, n, field, repeated, required, false, unordered, doc)?;
+            b.prelude.extend(statements);
             fid
         }
-        Kind2::Messages(n) => {
-            let one = ident(&singular(field.name()));
-            let one_long = singular(field.name()).to_kebab_case();
-            let json = format!("{fid}_json");
-            let json_long = format!("{long}-json");
-            let completions = completions(b, n, "item", &one_long);
-            if let Some(parser) = &n.parser {
-                let mut attrs = vec![
-                    "value_name = \"KEY=VALUE,...\"".to_owned(),
-                    format!("value_parser = {parser}"),
-                    format!("conflicts_with = {json:?}"),
-                ];
-                if required {
-                    attrs.push(format!("required_unless_present = {json:?}"));
-                }
-                b.add_flag(Flag {
-                    ident: one.clone(),
-                    long: one_long.clone(),
-                    doc: keyed_doc(doc, n, &json_long, true),
-                    ty: format!("Vec<{}>", n.rust),
-                    attrs,
-                })?;
-            }
+        Kind2::Timestamp => {
+            let mut attrs = vec![
+                "value_name = \"TIME\"".to_owned(),
+                "value_parser = timestamp".to_owned(),
+            ];
+            required_attr(&mut attrs);
             b.add_flag(Flag {
-                ident: json.clone(),
-                long: json_long,
-                doc: json_doc(doc, n, &one_long, true),
-                ty: format!("Option<JsonArg<Vec<{}>>>", n.rust),
-                attrs: json_attrs(
-                    &format!("Vec<{}>", n.rust),
-                    &n.full_name,
-                    required && n.parser.is_none(),
-                ),
-            })?;
-            if n.parser.is_some() {
-                if completions.is_empty() {
-                    b.prelude.push(format!("let {fid} = args.{one};"));
+                ident: fid.clone(),
+                long,
+                doc: format!("{doc}{TIMESTAMP_FORMAT}"),
+                ty: if required {
+                    TIMESTAMP_TYPE.to_owned()
                 } else {
-                    b.prelude.push(format!(
-                        "let mut {fid} = args.{one}; for item in &mut {fid} {{ {} }}",
-                        completions.join(" ")
-                    ));
-                }
-                b.prelude.push(format!(
-                    "let {fid} = match args.{json} {{ Some(json) => json.0, None => {fid} }};"
-                ));
+                    format!("Option<{TIMESTAMP_TYPE}>")
+                },
+                attrs,
+            })?;
+            if required {
+                format!("Some(args.{fid})")
             } else {
-                b.prelude.push(format!(
-                    "let {fid} = args.{json}.map(|json| json.0).unwrap_or_default();"
-                ));
+                format!("args.{fid}")
             }
-            fid
         }
         Kind2::Duration => {
             let mut attrs = vec![
@@ -2270,11 +2272,14 @@ fn value(
 
 /// Adds the flag of a field an update may change, and returns the statement
 /// that sets it on the resource `body` and adds it to the mask when given.
+#[allow(clippy::too_many_arguments)]
 fn update_field(
     b: &mut Build,
     field: &FieldDescriptor,
     k: &Kind2,
     body: &str,
+    required: bool,
+    unordered: bool,
     comment: &str,
 ) -> Result<String, String> {
     let name = field.name();
@@ -2346,132 +2351,68 @@ fn update_field(
                     "As KEY=VALUE; repeat",
                 ),
             };
+            // A required list can't be emptied: it has no `--no-` flag.
+            let rest = if required {
+                "Replaces all of them; left as they are when not given.".to_owned()
+            } else {
+                format!(
+                    "Replaces all of them; `--no-{long}` removes them all. Left as they are when neither is given."
+                )
+            };
             b.add_flag(Flag {
                 ident: one.clone(),
-                long: one_long,
-                doc: format!(
-                    "{comment}\n\n{form} for more. Replaces all of them; `--no-{long}` removes them all. Left as they are when neither is given."
-                ),
+                long: one_long.clone(),
+                doc: format!("{comment}\n\n{form} for more. {rest}"),
                 ty,
                 attrs,
             })?;
-            b.add_flag(Flag {
-                ident: none.clone(),
-                long: format!("no-{long}"),
-                doc: format!("Remove all of its {}.", name.replace('_', " ")),
-                ty: "bool".to_owned(),
-                attrs: vec![format!("conflicts_with = {:?}", arg_id(&one))],
-            })?;
             b.update_ids.push(arg_id(&one).to_owned());
-            b.update_ids.push(none.clone());
-            format!(
-                "if args.{none} || !args.{one}.is_empty() {{ {} }}",
-                set(&expr)
-            )
+            let check = if unordered {
+                format!("unique(&args.{one}, \"--{one_long}\")?; ")
+            } else {
+                String::new()
+            };
+            if required {
+                format!("if !args.{one}.is_empty() {{ {check}{} }}", set(&expr))
+            } else {
+                b.add_flag(Flag {
+                    ident: none.clone(),
+                    long: format!("no-{long}"),
+                    doc: format!("Remove all of its {}.", name.replace('_', " ")),
+                    ty: "bool".to_owned(),
+                    attrs: vec![format!("conflicts_with = {:?}", arg_id(&one))],
+                })?;
+                b.update_ids.push(none.clone());
+                format!(
+                    "if args.{none} || !args.{one}.is_empty() {{ {check}{} }}",
+                    set(&expr)
+                )
+            }
         }
         Kind2::Message(n) | Kind2::Messages(n) => {
             let repeated = matches!(k, Kind2::Messages(_));
-            let (one, one_long) = if repeated {
-                (ident(&singular(name)), singular(name).to_kebab_case())
-            } else {
-                (fid.clone(), long.clone())
-            };
-            let json = format!("{fid}_json");
-            let json_long = format!("{long}-json");
-            let none = format!("no_{}", name.to_snake_case());
-            let replaced = if repeated {
-                format!(
-                    "\n\nThe list is replaced whole: give every element to keep. `--no-{long}` \
-                     removes them all. Left as it is when none of these is given."
-                )
-            } else {
-                format!(
-                    "\n\nIt is replaced whole: a key not given is reset. `--no-{long}` removes \
-                     it. Left as it is when none of these is given."
-                )
-            };
-            let completions = completions(b, n, "item", &one_long);
-            let mut conflicts = vec![format!("{json:?}")];
-            if let Some(parser) = &n.parser {
-                b.add_flag(Flag {
-                    ident: one.clone(),
-                    long: one_long.clone(),
-                    doc: format!("{}{replaced}", keyed_doc(comment, n, &json_long, repeated)),
-                    ty: if repeated {
-                        format!("Vec<{}>", n.rust)
-                    } else {
-                        format!("Option<{}>", n.rust)
-                    },
-                    attrs: vec![
-                        "value_name = \"KEY=VALUE,...\"".to_owned(),
-                        format!("value_parser = {parser}"),
-                        format!("conflicts_with = {json:?}"),
-                    ],
-                })?;
-                b.update_ids.push(arg_id(&one).to_owned());
-                conflicts.push(format!("{:?}", arg_id(&one)));
-            }
-            let json_ty = if repeated {
-                format!("Vec<{}>", n.rust)
-            } else {
-                n.rust.clone()
-            };
+            let statements =
+                message_flags(b, n, field, repeated, required, true, unordered, comment)?;
+            statements
+                .join(" ")
+                .replace("body_field_set!();", &set("value"))
+        }
+        Kind2::Timestamp => {
             b.add_flag(Flag {
-                ident: json.clone(),
-                long: json_long,
-                doc: format!("{}{replaced}", json_doc(comment, n, &one_long, repeated)),
-                ty: format!("Option<JsonArg<{json_ty}>>"),
-                attrs: json_attrs(&json_ty, &n.full_name, false),
+                ident: fid.clone(),
+                long,
+                doc: format!("{comment}{TIMESTAMP_FORMAT}{kept}"),
+                ty: format!("Option<{TIMESTAMP_TYPE}>"),
+                attrs: vec![
+                    "value_name = \"TIME\"".to_owned(),
+                    "value_parser = timestamp".to_owned(),
+                ],
             })?;
-            b.add_flag(Flag {
-                ident: none.clone(),
-                long: format!("no-{long}"),
-                doc: if repeated {
-                    format!("Remove all of its {}.", name.replace('_', " "))
-                } else {
-                    format!("Remove its {}.", name.replace('_', " "))
-                },
-                ty: "bool".to_owned(),
-                attrs: vec![format!("conflicts_with_all = [{}]", conflicts.join(", "))],
-            })?;
-            b.update_ids.push(json.clone());
-            b.update_ids.push(none.clone());
-            let (given, from_json) = if repeated {
-                (format!("!args.{one}.is_empty()"), "json.0")
-            } else {
-                (format!("args.{one}.is_some()"), "Some(json.0)")
-            };
-            match &n.parser {
-                Some(_) => {
-                    let item = if completions.is_empty() {
-                        format!("let items = args.{one};")
-                    } else if repeated {
-                        format!(
-                            "let mut items = args.{one}; for item in &mut items {{ {} }}",
-                            completions.join(" ")
-                        )
-                    } else {
-                        format!(
-                            "let mut items = args.{one}; if let Some(item) = &mut items {{ {} }}",
-                            completions.join(" ")
-                        )
-                    };
-                    format!(
-                        "if args.{none} || {given} || args.{json}.is_some() {{ {item} {} }}",
-                        set(&format!(
-                            "match args.{json} {{ Some(json) => {from_json}, None => items }}"
-                        ))
-                    )
-                }
-                None => format!(
-                    "if args.{none} || args.{json}.is_some() {{ {} }}",
-                    set(&if repeated {
-                        format!("args.{json}.map(|json| json.0).unwrap_or_default()")
-                    } else {
-                        format!("args.{json}.map(|json| json.0)")
-                    })
-                ),
-            }
+            b.update_ids.push(arg_id(&fid).to_owned());
+            format!(
+                "if let Some(value) = args.{fid} {{ {} }}",
+                set("Some(value)")
+            )
         }
         Kind2::Duration => {
             b.add_flag(Flag {
@@ -2579,9 +2520,6 @@ fn list_attrs(elem: &Elem) -> Vec<String> {
 /// completed with the command's `--project` and `--zone`, as everywhere.
 fn completions(b: &mut Build, n: &Nested, var: &str, flag: &str) -> Vec<String> {
     let mut out = Vec::new();
-    if n.parser.is_none() {
-        return out;
-    }
     for key in &n.keys {
         if let Kind2::Reference(resource) = &key.kind {
             let leaf = leaf_of(&resource.pattern);
@@ -2607,12 +2545,275 @@ fn key_hint(kind: &Kind2) -> String {
         }
         Kind2::Bool => " `true` or `false`.".to_owned(),
         Kind2::Duration => " Such as `30s` or `1m`.".to_owned(),
+        Kind2::Timestamp => " As RFC 3339, such as `2026-11-01T12:00:00Z`.".to_owned(),
         Kind2::Reference(resource) => {
             let leaf = leaf_of(&resource.pattern);
             format!(" {}", reference_doc("", &resource.pattern, &leaf))
         }
         _ => String::new(),
     }
+}
+
+/// The flags of a message field, `--{field}` (or `--{singular}`, repeated)
+/// with its `KEY=VALUE,...` form when it has one, `--{field}-json`, and in
+/// an update `--no-{field}` unless the field is required; and the
+/// statements making its value. In a create, they bind it to the field's
+/// name; in an update, they are one statement that, when one of its flags
+/// is given, makes the value and ends in `body_field_set!();`, which the
+/// caller replaces with setting it on the resource and naming it in the
+/// mask.
+#[allow(clippy::too_many_arguments)]
+fn message_flags(
+    b: &mut Build,
+    n: &Nested,
+    field: &FieldDescriptor,
+    repeated: bool,
+    required: bool,
+    update: bool,
+    unordered: bool,
+    comment: &str,
+) -> Result<Vec<String>, String> {
+    let name = field.name();
+    let fid = ident(name);
+    let long = name.to_kebab_case();
+    let (one, one_long) = if repeated {
+        (ident(&singular(name)), singular(name).to_kebab_case())
+    } else {
+        (fid.clone(), long.clone())
+    };
+    let json = format!("{fid}_json");
+    let json_long = format!("{long}-json");
+    let none = format!("no_{}", name.to_snake_case());
+    let emptied = update && !required;
+    let summary = {
+        let s = docs::summary(comment);
+        if s.is_empty() {
+            name.replace('_', " ")
+        } else {
+            s
+        }
+    };
+    let whole = if update {
+        "replaced whole"
+    } else {
+        "sent whole"
+    };
+    // What an update says of the field, in every one of its flags' help.
+    let removes = |what: &str| {
+        if emptied {
+            format!(" `--no-{long}` removes {what}.")
+        } else {
+            String::new()
+        }
+    };
+    let replaced = match (update, repeated, n.well_known) {
+        (false, _, _) => String::new(),
+        (true, true, _) => format!(
+            "\n\nThe list is replaced whole: give every element to keep.{} Left as it is when none \
+             of these is given.",
+            removes("them all")
+        ),
+        (true, false, false) => format!(
+            "\n\nIt is replaced whole: a key not given is reset.{} Left as it is when none of \
+             these is given.",
+            removes("it")
+        ),
+        (true, false, true) => format!("\n\nLeft as it is when not given.{}", removes("it")),
+    };
+
+    let mut conflicts = vec![format!("{json:?}")];
+    if let Some(parser) = &n.parser {
+        let short = if repeated {
+            format!("{summary}: one element per flag, as KEY=VALUE pairs; the list is {whole}")
+        } else {
+            format!("{summary}, as KEY=VALUE pairs; {whole}")
+        };
+        let mut attrs = vec![
+            format!("help = {short:?}"),
+            "value_name = \"KEY=VALUE,...\"".to_owned(),
+            format!("value_parser = |text: &str| {parser}(text, \"--{json_long}\")"),
+            format!("conflicts_with = {json:?}"),
+        ];
+        if required && !update {
+            attrs.push(format!("required_unless_present = {json:?}"));
+        }
+        b.add_flag(Flag {
+            ident: one.clone(),
+            long: one_long.clone(),
+            doc: format!("{}{replaced}", keyed_doc(comment, n, &json_long, repeated)),
+            ty: if repeated {
+                format!("Vec<Keyed<{}>>", n.rust)
+            } else {
+                format!("Option<Keyed<{}>>", n.rust)
+            },
+            attrs,
+        })?;
+        conflicts.push(format!("{:?}", arg_id(&one)));
+        if update {
+            b.update_ids.push(arg_id(&one).to_owned());
+        }
+    }
+    let json_ty = if repeated {
+        format!("Vec<{}>", n.rust)
+    } else {
+        n.rust.clone()
+    };
+    // The JSON flag's one line is short: the long help has the rest.
+    let label = {
+        let spaced = name.replace('_', " ");
+        let mut chars = spaced.chars();
+        chars
+            .next()
+            .map(|c| c.to_uppercase().chain(chars).collect::<String>())
+            .unwrap_or_default()
+    };
+    let json_short = if n.well_known {
+        format!("{label} as its JSON value")
+    } else {
+        format!("{label} as JSON; {whole}")
+    };
+    let mut attrs = vec![format!("help = {json_short:?}")];
+    attrs.extend(json_attrs(
+        &json_ty,
+        &n.full_name,
+        required && !update && n.parser.is_none(),
+    ));
+    b.add_flag(Flag {
+        ident: json.clone(),
+        long: json_long.clone(),
+        doc: format!("{}{replaced}", json_doc(comment, n, &one_long, repeated)),
+        ty: format!("Option<JsonArg<{json_ty}>>"),
+        attrs,
+    })?;
+    if update {
+        b.update_ids.push(json.clone());
+    }
+    if emptied {
+        b.add_flag(Flag {
+            ident: none.clone(),
+            long: format!("no-{long}"),
+            doc: if repeated {
+                format!("Remove all of its {}.", name.replace('_', " "))
+            } else {
+                format!("Remove its {}.", name.replace('_', " "))
+            },
+            ty: "bool".to_owned(),
+            attrs: vec![format!("conflicts_with_all = [{}]", conflicts.join(", "))],
+        })?;
+        b.update_ids.push(none.clone());
+    }
+
+    // A whole resource name a key gives is checked against the command's
+    // `--project` and `--zone`, as a whole name given to a flag is.
+    let learned: Vec<String> = n
+        .keys
+        .iter()
+        .filter_map(|key| match &key.kind {
+            Kind2::Reference(resource) => Some(format!(
+                "names.learn({:?}, {:?}, Some(item.{}.as_str()))?;",
+                resource.pattern,
+                format!("{one_long} {}", key.name),
+                key.ident
+            )),
+            _ => None,
+        })
+        .collect();
+    if !learned.is_empty() {
+        let body = learned.join(" ");
+        if n.parser.is_some() {
+            b.learn.push(if repeated {
+                format!("for keyed in &args.{one} {{ let item = &keyed.value; {body} }}")
+            } else {
+                format!("if let Some(keyed) = &args.{one} {{ let item = &keyed.value; {body} }}")
+            });
+        }
+        b.learn.push(if repeated {
+            format!("if let Some(json) = &args.{json} {{ for item in &json.0 {{ {body} }} }}")
+        } else {
+            format!("if let Some(json) = &args.{json} {{ let item = &json.0; {body} }}")
+        });
+    }
+
+    // The value: from the JSON flag or the pairs, its names completed, each
+    // element once in a list the API keeps unordered. An update says what
+    // it replaces.
+    let var = if update {
+        "value".to_owned()
+    } else {
+        fid.clone()
+    };
+    let all_keys: Vec<String> = n
+        .keys
+        .iter()
+        .map(|k| format!("{:?}", k.name))
+        .chain(n.json_only.iter().map(|k| format!("{k:?}")))
+        .collect();
+    let all_keys = all_keys.join(", ");
+    let notice_json = match (update, repeated, n.well_known) {
+        (false, _, _) | (true, false, true) => String::new(),
+        (true, true, _) => format!("notice_replaced(\"--{json_long}\", {name:?}, json.0.len()); "),
+        (true, false, false) => {
+            format!("notice_reset(\"--{json_long}\", {name:?}, &[{all_keys}], &json.1); ")
+        }
+    };
+    let notice_keyed = match (update, repeated) {
+        (false, _) => String::new(),
+        (true, true) => format!("notice_replaced(\"--{one_long}\", {name:?}, items.len()); "),
+        (true, false) => {
+            format!("notice_reset(\"--{one_long}\", {name:?}, &[{all_keys}], &keyed.given); ")
+        }
+    };
+    let completions = completions(b, n, "item", &one_long);
+    let binding = if completions.is_empty() {
+        "let"
+    } else {
+        "let mut"
+    };
+    let mut statements = vec![match (n.parser.is_some(), repeated) {
+        (true, true) => format!(
+            "{binding} {var} = match args.{json} {{ Some(json) => {{ {notice_json}json.0 }} None => {{ let items: Vec<_> = args.{one}.into_iter().map(|keyed| keyed.value).collect(); {notice_keyed}items }} }};"
+        ),
+        (true, false) => format!(
+            "{binding} {var} = match args.{json} {{ Some(json) => {{ {notice_json}Some(json.0) }} None => args.{one}.map(|keyed| {{ {notice_keyed}keyed.value }}) }};"
+        ),
+        (false, true) => format!(
+            "{binding} {var} = match args.{json} {{ Some(json) => {{ {notice_json}json.0 }} None => Vec::new() }};"
+        ),
+        (false, false) => format!(
+            "{binding} {var} = match args.{json} {{ Some(json) => {{ {notice_json}Some(json.0) }} None => None }};"
+        ),
+    }];
+    if !completions.is_empty() {
+        let body = completions.join(" ");
+        statements.push(if repeated {
+            format!("for item in &mut {var} {{ {body} }}")
+        } else {
+            format!("if let Some(item) = &mut {var} {{ {body} }}")
+        });
+    }
+    if unordered && repeated {
+        statements.push(format!("unique(&{var}, \"--{one_long}\")?;"));
+    }
+    if !update {
+        return Ok(statements);
+    }
+    let mut given = Vec::new();
+    if emptied {
+        given.push(format!("args.{none}"));
+    }
+    if n.parser.is_some() {
+        given.push(if repeated {
+            format!("!args.{one}.is_empty()")
+        } else {
+            format!("args.{one}.is_some()")
+        });
+    }
+    given.push(format!("args.{json}.is_some()"));
+    Ok(vec![format!(
+        "if {} {{ {} body_field_set!(); }}",
+        given.join(" || "),
+        statements.join(" ")
+    )])
 }
 
 /// The help of a nested message's `KEY=VALUE,...` flag: the field's, then
@@ -2623,9 +2824,10 @@ fn keyed_doc(comment: &str, n: &Nested, json_long: &str, repeated: bool) -> Stri
         doc.push_str("\n\n");
     }
     doc.push_str(if repeated {
-        "One element as comma-separated KEY=VALUE pairs; repeat the flag for more. The keys:"
+        "One element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a \
+         field's name, with `_` or `-`. The keys:"
     } else {
-        "As comma-separated KEY=VALUE pairs. The keys:"
+        "As comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:"
     });
     for key in &n.keys {
         let mut line = format!("\n\n`{}`", key.name);
@@ -2659,20 +2861,33 @@ fn keyed_doc(comment: &str, n: &Nested, json_long: &str, repeated: bool) -> Stri
 
 /// The help of a message field's JSON flag.
 fn json_doc(comment: &str, n: &Nested, keyed_long: &str, repeated: bool) -> String {
-    let what = if repeated {
-        "The whole list as the API's JSON, an array of objects"
-    } else {
-        "As the API's JSON, an object"
-    };
     let mut doc = String::new();
     if n.parser.is_none() && !comment.trim().is_empty() {
         doc.push_str(comment.trim_end());
         doc.push_str("\n\n");
     }
+    if n.well_known {
+        let what = if repeated {
+            "A list of its values"
+        } else {
+            "Its value"
+        };
+        doc.push_str(&format!(
+            "{what} as the API's JSON, as the command prints it; `@FILE` reads it from a file."
+        ));
+        return doc;
+    }
+    let what = if repeated {
+        "The whole list as the API's JSON, an array of objects"
+    } else {
+        "As the API's JSON, an object"
+    };
     doc.push_str(&format!(
         "{what} whose fields are named in camel case, as the command prints them, or as the API \
-         definitions name them; `@FILE` reads it from a file. A field the message doesn't have is \
-         refused, at any depth. Resource names in it are sent as given: give whole names."
+         definitions name them; `@FILE` reads it from a file. Each field and value is checked \
+         before anything is sent, at any depth. A resource name in a field of the message itself \
+         is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper \
+         must be whole."
     ));
     if n.parser.is_some() {
         doc.push_str(&format!(" Instead of `--{keyed_long}`."));

@@ -579,15 +579,20 @@ mod tests {
         let code = file(&files, "scratch.rs");
         for expected in [
             // A repeated message: one flag per element, and the JSON flag.
-            "pub rule: Vec<::origincloud_scratch::v1::Rule>,",
-            "value_parser = parse_rule,",
+            "pub rule: Vec<Keyed<::origincloud_scratch::v1::Rule>>,",
+            "parse_rule(text, \"--rules-json\")",
+            "help = \"Rules as JSON; sent whole\"",
+            "help = \"Rules as JSON; replaced whole\"",
             "pub rules_json: Option<JsonArg<Vec<::origincloud_scratch::v1::Rule>>>,",
             "required_unless_present = \"rules_json\"",
             // Its keys, typed and checked; `match` only through JSON.
             "fn parse_rule(",
             "\"port\" => out.port = key_scalar::<i32>(\"port\", value)?,",
             "out.idle_timeout = Some(key_duration(\"idle_timeout\", value)?);",
-            "&[\"match\"]",
+            "&[\"match\"],",
+            "out.not_after = Some(key_timestamp(\"not_after\", value)?)",
+            // A timestamp.
+            "pub expire_time: Option<::origincloud_core::protobuf::Timestamp>,",
             "required_keys(&pairs, &[\"protocol\"])?;",
             // The resource name a key gives is completed.
             "Some((\"rule network\", item.network.as_str()))",
@@ -596,17 +601,25 @@ mod tests {
             "pub network: Vec<String>,",
             "The API doesn't keep their order, and each must be unique.",
             // A nested message.
-            "pub logging: Option<::origincloud_scratch::v1::Logging>,",
+            "pub logging: Option<Keyed<::origincloud_scratch::v1::Logging>>,",
             "pub logging_json: Option<JsonArg<::origincloud_scratch::v1::Logging>>,",
             // An update replaces a whole field, and empties one by name.
-            "pub no_rules: bool,",
             "pub no_logging: bool,",
+            "notice_reset(\"--logging\", \"logging\"",
+            "notice_replaced(\"--rule\", \"rules\", items.len());",
+            // A list the API keeps unordered has each element once.
+            "unique(&args.alias, \"--alias\")?;",
             "paths.push(\"rules\".to_owned());",
             "paths.push(\"logging\".to_owned());",
             "The list is replaced whole",
         ] {
-            assert!(code.contains(expected), "no {expected:?} in:\n{code}");
+            // Whatever lines the formatter breaks it into.
+            let flat: String = code.split_whitespace().collect();
+            let wanted: String = expected.split_whitespace().collect();
+            assert!(flat.contains(&wanted), "no {expected:?} in:\n{code}");
         }
+        // A required field can't be emptied.
+        assert!(!code.contains("pub no_rules: bool"), "{code}");
         // Nothing two levels down has a flag of its own.
         assert!(!code.contains("long = \"match"), "{code}");
         assert!(!code.contains("long = \"header"), "{code}");
@@ -637,12 +650,12 @@ mod tests {
         let services = file(&files, "services.rs");
         assert!(
             services.contains(
-                "#[cfg(feature = \"test-services\")]\n#[allow(clippy::enum_variant_names)]\npub mod scratch"
+                "#[cfg(feature = \"test-services\")]\n#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]\npub mod scratch"
             ),
             "{services}"
         );
         assert!(!services.contains(
-            "#[cfg(feature = \"test-services\")]\n#[allow(clippy::enum_variant_names)]\npub mod tiny"
+            "#[cfg(feature = \"test-services\")]\n#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]\npub mod tiny"
         ));
         let binpb = &files[&Path::new(OUT_DIR).join("api.binpb")];
         let pool = DescriptorPool::decode(binpb.as_slice()).unwrap();

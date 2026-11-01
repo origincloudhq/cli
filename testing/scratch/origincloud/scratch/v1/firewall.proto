@@ -13,6 +13,8 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
 
 // Firewalls: rules that guard the networks of a zone.
 service FirewallService {
@@ -76,6 +78,12 @@ message Firewall {
 
   // When the firewall was created.
   string create_time = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // When the firewall stops deciding anything.
+  google.protobuf.Timestamp expire_time = 9;
+
+  // Data of your own about the firewall.
+  google.protobuf.Struct metadata = 10;
 }
 
 // A network a firewall can guard.
@@ -124,12 +132,27 @@ message Rule {
 
   // A match on the packets' headers.
   Match match = 7;
+
+  // When the rule stops matching.
+  google.protobuf.Timestamp not_after = 8;
 }
 
 // A match on headers.
 message Match {
   // The headers that must all be present.
   repeated Header headers = 1;
+
+  // The network the packets must come from.
+  string network = 2 [(google.api.resource_reference).type = "scratch.origincloudapis.eu/Network"];
+
+  // The methods matched, each once.
+  repeated string methods = 3 [(google.api.field_behavior) = UNORDERED_LIST];
+
+  // The protocols matched.
+  repeated Rule.Protocol protocols = 4;
+
+  // The protocol each port name stands for.
+  map<string, Rule.Protocol> port_protocols = 5;
 }
 
 // A header and its value.

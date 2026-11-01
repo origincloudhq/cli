@@ -5,7 +5,7 @@ use crate::config::ClientProfile;
 use crate::output::SerializableOutput;
 use crate::sdk::runtime::{Context, Group};
 /// `origin location`.
-#[allow(clippy::enum_variant_names)]
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
 pub mod location {
     include!("location.rs");
 }
@@ -17,7 +17,7 @@ pub(crate) static LOCATION: Group = Group {
     service: location::service,
 };
 /// `origin pvs`.
-#[allow(clippy::enum_variant_names)]
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
 pub mod pvs {
     include!("pvs.rs");
 }
@@ -30,7 +30,7 @@ pub(crate) static PVS: Group = Group {
 };
 /// `origin scratch`.
 #[cfg(feature = "test-services")]
-#[allow(clippy::enum_variant_names)]
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
 pub mod scratch {
     include!("scratch.rs");
 }
@@ -52,6 +52,7 @@ pub(crate) static GROUPS: &[&Group] = &[&LOCATION, &PVS];
 pub(crate) static GROUPS: &[&Group] = &[&LOCATION, &PVS, &SCRATCH];
 /// The command groups generated from the API definitions, one per service.
 #[derive(clap::Subcommand, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum ServiceCommands {
     #[command(
         name = "location",

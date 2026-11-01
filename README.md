@@ -123,7 +123,8 @@ every method of the API, with the API's own descriptions as help:
   method doesn't take although its request has it (`import-volume` has no
   `--source-snapshot`). A boolean takes its value, `--flag true` or
   `--flag false`, and a create always states it. A duration is given as
-  `30s`, `2m` or `1m30s`.
+  `30s`, `2m` or `1m30s`, a time as RFC 3339, such as
+  `2026-11-01T12:00:00Z`.
 - **Tags.** `--tag KEY=VALUE`, repeated for more. On an update, `--tag`
   replaces all of a resource's tags, and `--no-tags` removes them all; the two
   exclude each other, so the tags are only emptied when you say so. To set or
@@ -131,24 +132,29 @@ every method of the API, with the API's own descriptions as help:
   and `origin storage remove-resource-tags`.
 - **Lists.** A repeated field is a flag named in the singular, repeated for
   each element, in order: `--security-group sg-1 --security-group sg-2`.
-  Where the API doesn't keep a list's order, the flag's help says so.
+  Where the API doesn't keep a list's order, the flag's help says so, and an
+  element given twice is refused.
 - **Nested fields.** A field holding a message is one flag whose value is
   comma-separated `KEY=VALUE` pairs, the keys being the message's field
-  names; a repeated one takes one flag per element:
+  names, with `_` or `-`; a repeated one takes one flag per element:
 
   ```sh
   --rule protocol=TCP,port=443,cidr=0.0.0.0/0 --rule protocol=UDP,port=53
   ```
 
   Each key is typed and checked like a flag of its own (an enum's values, a
-  number, `true` or `false`, a duration, a resource name by its id or whole
-  name), a required key must be given, and the flag's help lists the keys.
-  Every such field also has a `-json` flag taking the field as the API's
-  JSON, or `@FILE` to read it from a file, for what pairs can't say: a value
-  with a comma, or a message nested deeper. Its fields are named as the
-  command prints them, in camel case, or as the API definitions name them; a
-  field the message doesn't have is refused, naming its path, before anything
-  is sent. Resource names in it are sent as given, so give whole names:
+  number, `true` or `false`, a duration, a time, a resource name by its id or
+  whole name), a required key must be given, and the flag's help lists the
+  keys. Every such field also has a `-json` flag taking the field as the
+  API's JSON, or `@FILE` to read it from a file, for what pairs can't say: a
+  value with a comma, or a message nested deeper. Its fields are named as the
+  command prints them, in camel case, or as the API definitions name them.
+  Before anything is sent it is checked at every depth, each refusal naming
+  its path: a field the message doesn't have, a key given twice, a value of
+  the wrong type, an enum value that isn't one, an element given twice where
+  the API keeps each once. A resource name in a field of the message itself
+  is completed with `--project` and `--zone`, as in the pairs; one nested
+  deeper must be whole:
 
   ```sh
   --rules-json '[{"protocol": "TCP", "match": {"headers": [{"name": "x-env", "value": "prod"}]}}]'
@@ -158,8 +164,10 @@ every method of the API, with the API's own descriptions as help:
   --volume vol-123 --tag team=web` replaces its tags and keeps its size. It
   needs at least one. A list, a map or a nested message is replaced whole:
   give every element to keep, and the keys of a nested message not given are
-  reset. `--no-` and the field's name (`--no-rules`) empties one. Growing a
-  volume can't be undone and is charged, so `--size-gib` needs `--yes`.
+  reset; the flags' one-line help says so, and the command says on standard
+  error which keys it resets. `--no-` and the field's name (`--no-logging`)
+  empties one that isn't required. Growing a volume can't be undone and is
+  charged, so `--size-gib` needs `--yes`.
 - **Waiting.** A command whose method answers with a long-running operation
   (most creates, updates and deletes) waits until it is done and prints the
   result; `--no-wait` prints the operation as soon as
