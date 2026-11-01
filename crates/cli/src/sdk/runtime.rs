@@ -439,6 +439,116 @@ pub fn duration(value: &str) -> Result<origincloud_core::protobuf::Duration, Str
     Ok(total.into())
 }
 
+// What the generated code of a nested message's flags uses. The published
+// API has no such field yet, so only the tests' scratch service
+// (`test-services`) uses these today.
+
+/// A message field's value from its JSON flag (`--rules-json`): the API's
+/// JSON, as the command prints it, or `@FILE` to read it from a file.
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+pub struct JsonArg<T>(pub T);
+
+/// Reads a JSON flag's value: `value` itself, or, as `@FILE`, the file's
+/// content.
+#[allow(dead_code)]
+pub fn json_arg<T: DeserializeOwned>(value: &str) -> Result<JsonArg<T>, String> {
+    let text = match value.strip_prefix('@') {
+        Some(path) => std::fs::read_to_string(path).map_err(|e| format!("reading {path}: {e}"))?,
+        None => value.to_owned(),
+    };
+    serde_json::from_str(&text)
+        .map(JsonArg)
+        .map_err(|e| format!("not its JSON: {e}"))
+}
+
+/// The pairs of a nested message's `KEY=VALUE,...` form, in order. A key is
+/// given at most once; a value runs to the next comma, so one holding a
+/// comma goes through the JSON flag.
+#[allow(dead_code)]
+pub fn key_values(text: &str) -> Result<Vec<(String, String)>, String> {
+    let mut pairs: Vec<(String, String)> = Vec::new();
+    for part in text.split(',') {
+        let (key, value) = part
+            .split_once('=')
+            .filter(|(k, _)| !k.trim().is_empty())
+            .ok_or_else(|| format!("{part:?} isn't KEY=VALUE"))?;
+        let key = key.trim().to_owned();
+        if pairs.iter().any(|(k, _)| *k == key) {
+            return Err(format!("{key} is given twice"));
+        }
+        pairs.push((key, value.to_owned()));
+    }
+    Ok(pairs)
+}
+
+/// A key's number.
+#[allow(dead_code)]
+pub fn key_scalar<T>(key: &str, value: &str) -> Result<T, String>
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+{
+    value
+        .parse()
+        .map_err(|e| format!("{key}: {value:?} isn't a number: {e}"))
+}
+
+/// A key's boolean, `true` or `false`.
+#[allow(dead_code)]
+pub fn key_bool(key: &str, value: &str) -> Result<bool, String> {
+    match value {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        _ => Err(format!("{key}: {value:?} isn't true or false")),
+    }
+}
+
+/// A key's enum value, one of `names`.
+#[allow(dead_code)]
+pub fn key_enum(
+    key: &str,
+    value: &str,
+    names: &[&str],
+    parse: impl Fn(&str) -> Option<i32>,
+) -> Result<i32, String> {
+    parse(value)
+        .filter(|_| names.contains(&value))
+        .ok_or_else(|| format!("{key}: {value:?} isn't one of {}", names.join(", ")))
+}
+
+/// A key's duration, such as `30s`.
+#[allow(dead_code)]
+pub fn key_duration(
+    key: &str,
+    value: &str,
+) -> Result<origincloud_core::protobuf::Duration, String> {
+    duration(value).map_err(|e| format!("{key}: {e}"))
+}
+
+/// What a key that isn't one says: the keys there are, or that it is a
+/// field only the JSON flag sets.
+#[allow(dead_code)]
+pub fn unknown_key(key: &str, keys: &[&str], json_only: &[&str]) -> String {
+    if json_only.contains(&key) {
+        format!("{key} is set only through the flag's -json form")
+    } else {
+        format!("{key} isn't a key; the keys are {}", keys.join(", "))
+    }
+}
+
+/// Checks every required key is among `pairs`.
+#[allow(dead_code)]
+pub fn required_keys(pairs: &[(String, String)], required: &[&str]) -> Result<(), String> {
+    match required
+        .iter()
+        .find(|r| !pairs.iter().any(|(k, _)| k == *r))
+    {
+        Some(missing) => Err(format!("{missing} is required")),
+        None => Ok(()),
+    }
+}
+
 /// `--tag KEY=VALUE` values as a map field.
 pub fn tags(tags: &[TagArg]) -> BTreeMap<String, String> {
     tags.iter()
@@ -834,6 +944,63 @@ mod tests {
                 format!("ORIGINCLOUD_{}_ENDPOINT", group.name.to_uppercase())
             );
         }
+    }
+
+    #[test]
+    fn a_nested_message_is_key_value_pairs() {
+        assert_eq!(
+            key_values("protocol=TCP,cidr=10.0.0.0/8,note=a=b").unwrap(),
+            [
+                ("protocol".to_owned(), "TCP".to_owned()),
+                ("cidr".to_owned(), "10.0.0.0/8".to_owned()),
+                ("note".to_owned(), "a=b".to_owned()),
+            ]
+        );
+        assert_eq!(
+            key_values("port=").unwrap(),
+            [("port".to_owned(), String::new())]
+        );
+        for bad in ["", "port", "=1", "port=1,", "port=1,port=2"] {
+            assert!(key_values(bad).is_err(), "{bad:?}");
+        }
+        assert_eq!(key_scalar::<i32>("port", "443"), Ok(443));
+        assert!(key_scalar::<i32>("port", "https")
+            .unwrap_err()
+            .starts_with("port:"));
+        assert_eq!(key_bool("allow", "true"), Ok(true));
+        assert!(key_bool("allow", "yes").is_err());
+        let parse = |v: &str| match v {
+            "TCP" => Some(1),
+            "PROTOCOL_UNSPECIFIED" => Some(0),
+            _ => None,
+        };
+        assert_eq!(key_enum("protocol", "TCP", &["TCP"], parse), Ok(1));
+        assert!(key_enum("protocol", "PROTOCOL_UNSPECIFIED", &["TCP"], parse).is_err());
+        assert_eq!(key_duration("idle_timeout", "1m").unwrap().seconds, 60);
+        assert!(unknown_key("match", &["port"], &["match"]).contains("-json"));
+        assert!(unknown_key("prot", &["port"], &[]).contains("the keys are port"));
+        let pairs = key_values("port=1").unwrap();
+        assert!(required_keys(&pairs, &["port"]).is_ok());
+        assert_eq!(
+            required_keys(&pairs, &["protocol"]),
+            Err("protocol is required".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_json_flag_takes_json_or_a_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("v.json");
+        std::fs::write(&path, "[1, 2]").unwrap();
+        let read: JsonArg<Vec<i32>> = json_arg(&format!("@{}", path.display())).unwrap();
+        assert_eq!(read.0, [1, 2]);
+        assert_eq!(json_arg::<Vec<i32>>("[3]").unwrap().0, [3]);
+        assert!(json_arg::<Vec<i32>>("{")
+            .unwrap_err()
+            .starts_with("not its JSON"));
+        assert!(json_arg::<Vec<i32>>("@/no/such/file")
+            .unwrap_err()
+            .starts_with("reading"));
     }
 
     #[test]

@@ -12,8 +12,13 @@
 # The commands use the Rust SDK's request and response types, so the SDK
 # commit Cargo.lock pins must have been generated from the same API
 # revision: both modes check that its API_REVISION is this one. The
-# generator also reads that commit's clients, which say which services
-# answer at a region's host.
+# generator also reads the SDK's clients, which say which services answer
+# at a region's host.
+#
+# The tests' scratch service (testing/scratch/origincloud/) is generated
+# too: its SDK crate's code, by the SDK's own generator at that commit, into
+# testing/scratch/sdk/src/generated/, and its command group beside the
+# others, compiled only with the CLI's `test-services` feature.
 #
 # Needs cargo, git and network access: the API's dependencies are
 # downloaded from the Buf Schema Registry at the commits its buf.lock pins,
@@ -24,7 +29,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly ROOT
 readonly API_REPOSITORY="https://github.com/origincloudhq/api.git"
 readonly SDK_REPOSITORY="https://github.com/origincloudhq/sdk-rust.git"
-readonly GENERATED="crates/cli/src/sdk/generated"
+readonly GENERATED=("crates/cli/src/sdk/generated" "testing/scratch/sdk/src/generated")
 
 case "${1:-}" in
   "") mode="write" ;;
@@ -53,17 +58,32 @@ git -C "${tmp}/sdk" checkout --quiet FETCH_HEAD
 git init --quiet "${tmp}/api"
 git -C "${tmp}/api" fetch --quiet --depth 1 "${API_REPOSITORY}" "${revision}"
 git -C "${tmp}/api" checkout --quiet FETCH_HEAD
-(cd "${ROOT}" && cargo run --quiet --locked -p origincloud-cli-generator -- "${tmp}/api" "${tmp}/sdk" "${tmp}/gen")
+
+# The SDK's code for the API and the scratch service, by the SDK's
+# generator, built at the versions the SDK's Cargo.lock pins, in a target
+# directory of its own beside this repository's.
+cp -R "${tmp}/api" "${tmp}/api-scratch"
+cp -R "${ROOT}/testing/scratch/origincloud/." "${tmp}/api-scratch/origincloud/"
+(cd "${tmp}/sdk" && CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${ROOT}/target}/sdk-generator" \
+  cargo run --quiet --locked -p origincloud-sdk-generator -- "${tmp}/api-scratch" "${tmp}/sdk-gen") \
+  2> >(grep -v '^notice: origincloud.scratch is a new service' >&2)
+mkdir -p "${tmp}/gen/testing/scratch/sdk/src"
+cp -R "${tmp}/sdk-gen/crates/scratch/src/generated" "${tmp}/gen/testing/scratch/sdk/src/"
+
+(cd "${ROOT}" && cargo run --quiet --locked -p origincloud-cli-generator -- \
+  "${tmp}/api" "${tmp}/sdk-gen" "${tmp}/gen" "${ROOT}/testing/scratch")
 
 # The generated files, relative to the repository.
 generated() {
-  [[ -d "$1/${GENERATED}" ]] || return 0
-  (cd "$1" && find "${GENERATED}" -type f | LC_ALL=C sort)
+  local dir
+  for dir in "${GENERATED[@]}"; do
+    if [[ -d "$1/${dir}" ]]; then (cd "$1" && find "${dir}" -type f); fi
+  done | LC_ALL=C sort
 }
 
 if [[ "${mode}" == write ]]; then
   generated "${ROOT}" | (cd "${ROOT}" && xargs -r rm -f)
-  (cd "${tmp}/gen" && find "${GENERATED}" -type f -exec cp --parents {} "${ROOT}" \;)
+  (cd "${tmp}/gen" && generated . | xargs cp --parents -t "${ROOT}")
   echo "wrote $(generated "${ROOT}" | wc -l) files from origincloudhq/api@${revision:0:12}"
   exit 0
 fi

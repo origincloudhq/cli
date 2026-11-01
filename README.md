@@ -129,10 +129,34 @@ every method of the API, with the API's own descriptions as help:
   exclude each other, so the tags are only emptied when you say so. To set or
   remove one tag and keep the others, use `origin storage set-resource-tags`
   and `origin storage remove-resource-tags`.
+- **Lists.** A repeated field is a flag named in the singular, repeated for
+  each element, in order: `--security-group sg-1 --security-group sg-2`.
+  Where the API doesn't keep a list's order, the flag's help says so.
+- **Nested fields.** A field holding a message is one flag whose value is
+  comma-separated `KEY=VALUE` pairs, the keys being the message's field
+  names; a repeated one takes one flag per element:
+
+  ```sh
+  --rule protocol=TCP,port=443,cidr=0.0.0.0/0 --rule protocol=UDP,port=53
+  ```
+
+  Each key is typed and checked like a flag of its own (an enum's values, a
+  number, `true` or `false`, a duration, a resource name by its id or whole
+  name), a required key must be given, and the flag's help lists the keys.
+  Every such field also has a `-json` flag taking the field as the API's
+  JSON, or `@FILE` to read it from a file, for what pairs can't say: a value
+  with a comma, or a message nested deeper:
+
+  ```sh
+  --rules-json '[{"protocol": "TCP", "match": {"headers": [{"name": "x-env", "value": "prod"}]}}]'
+  ```
+
 - **Updates.** An update changes only what its flags name: `update-volume
   --volume vol-123 --tag team=web` replaces its tags and keeps its size. It
-  needs at least one. Growing a volume can't be undone and is charged, so
-  `--size-gib` needs `--yes`.
+  needs at least one. A list, a map or a nested message is replaced whole:
+  give every element to keep, and the keys of a nested message not given are
+  reset. `--no-` and the field's name (`--no-rules`) empties one. Growing a
+  volume can't be undone and is charged, so `--size-gib` needs `--yes`.
 - **Waiting.** A command whose method answers with a long-running operation
   (most creates, updates and deletes) waits until it is done and prints the
   result; `--no-wait` prints the operation as soon as

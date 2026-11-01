@@ -40,6 +40,7 @@
 //! - A name field without a resource reference takes its help from its
 //!   pattern, not from its comment, which describes it as one string.
 
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
@@ -69,6 +70,7 @@ const DURATION_FORMAT: &str = "\n\nSuch as `30s` or `1m`.";
 
 // `google.api.FieldBehavior` values.
 const REQUIRED: i32 = 2;
+const UNORDERED_LIST: i32 = 6;
 const OUTPUT_ONLY: i32 = 3;
 const IMMUTABLE: i32 = 5;
 const IDENTIFIER: i32 = 8;
@@ -102,6 +104,9 @@ struct Cx<'a> {
     /// For the operation methods, the expression of the group's endpoint,
     /// which serves its operations: the `&Service` of one of its clients.
     host: Option<String>,
+    /// The functions parsing nested messages' `KEY=VALUE,...` forms, by
+    /// name, each written once in the group's code.
+    helpers: &'a RefCell<BTreeMap<String, String>>,
     /// The name patterns and singular names of the package's resources, by
     /// resource type.
     resources: BTreeMap<String, Resource>,
@@ -183,6 +188,7 @@ pub fn generate(
             .flat_map(|m| m.fields().map(|f| f.name().to_owned()).collect::<Vec<_>>())
             .collect()
     };
+    let helpers = RefCell::new(BTreeMap::new());
     let cx = Cx {
         pool,
         comments,
@@ -192,6 +198,7 @@ pub fn generate(
         service,
         sdk: sdk_module(package),
         host: None,
+        helpers: &helpers,
         resources: resources(pool),
         fields: fields(package),
     };
@@ -317,6 +324,21 @@ pub fn generate(
         code.push_str(&c.code);
         code.push('\n');
     }
+    for helper in helpers.borrow().values() {
+        code.push_str(helper);
+        code.push('\n');
+    }
+    // What the flags of nested messages use, for a group that has some:
+    // every message field has a JSON flag.
+    if code.contains("JsonArg<") {
+        code.push_str(
+            "#[allow(unused_imports)]\n\
+             use crate::sdk::runtime::{\n\
+                 json_arg, key_bool, key_duration, key_enum, key_scalar, key_values, required_keys,\n\
+                 unknown_key, JsonArg,\n\
+             };\n",
+        );
+    }
 
     Ok(Generated {
         code: unparse(&code)?,
@@ -347,6 +369,9 @@ pub struct Group {
     pub regional: bool,
     /// Whether a list of it looks up the zones at the location service.
     pub lists_zones: bool,
+    /// Whether it is a service of the tests only, compiled with the
+    /// `test-services` feature alone.
+    pub test: bool,
 }
 
 /// The group of `package`: its help from `commands.toml`, or from the
@@ -358,6 +383,7 @@ pub fn group(
     package: &str,
     regional: bool,
     lists_zones: bool,
+    test: bool,
 ) -> Group {
     let service = service_of(package);
     let services = services_of(pool, package);
@@ -410,6 +436,7 @@ pub fn group(
         host,
         regional,
         lists_zones,
+        test,
     }
 }
 
@@ -469,8 +496,20 @@ pub fn services(groups: &[Group]) -> Result<String> {
          use crate::output::SerializableOutput;\n\
          use crate::sdk::runtime::{Context, Group};\n\n",
     );
+    // A test service's group is compiled with the `test-services` feature
+    // alone.
+    let gate = |g: &Group| {
+        if g.test {
+            "#[cfg(feature = \"test-services\")]\n"
+        } else {
+            ""
+        }
+    };
     for g in groups {
         code.push_str(&docs::attributes(&format!("`origin {}`.", g.service), ""));
+        code.push_str(gate(g));
+        // A service's methods may all end alike (`GetRoute`, `UpdateRoute`).
+        code.push_str("#[allow(clippy::enum_variant_names)]\n");
         writeln!(
             code,
             "pub mod {} {{ include!({:?}); }}",
@@ -481,6 +520,7 @@ pub fn services(groups: &[Group]) -> Result<String> {
             &format!("What the runtime knows of `origin {}`.", g.service),
             "",
         ));
+        code.push_str(gate(g));
         writeln!(
             code,
             "pub(crate) static {}: Group = Group {{ name: {:?}, endpoint_variable: {:?}, regional: {}, service: {}::service }};",
@@ -491,16 +531,33 @@ pub fn services(groups: &[Group]) -> Result<String> {
             ident(&g.service)
         )?;
     }
-    code.push_str(&docs::attributes("Every generated group.", ""));
-    let all: Vec<String> = groups
-        .iter()
-        .map(|g| format!("&{}", g.service.to_uppercase().replace('-', "_")))
-        .collect();
-    writeln!(
-        code,
-        "#[allow(dead_code)]\npub(crate) static GROUPS: &[&Group] = &[{}];",
-        all.join(", ")
-    )?;
+    let listed = |with_tests: bool| -> Vec<String> {
+        groups
+            .iter()
+            .filter(|g| with_tests || !g.test)
+            .map(|g| format!("&{}", g.service.to_uppercase().replace('-', "_")))
+            .collect()
+    };
+    if groups.iter().any(|g| g.test) {
+        for (gate, with_tests) in [
+            ("not(feature = \"test-services\")", false),
+            ("feature = \"test-services\"", true),
+        ] {
+            code.push_str(&docs::attributes("Every generated group.", ""));
+            writeln!(
+                code,
+                "#[cfg({gate})]\n#[allow(dead_code)]\npub(crate) static GROUPS: &[&Group] = &[{}];",
+                listed(with_tests).join(", ")
+            )?;
+        }
+    } else {
+        code.push_str(&docs::attributes("Every generated group.", ""));
+        writeln!(
+            code,
+            "#[allow(dead_code)]\npub(crate) static GROUPS: &[&Group] = &[{}];",
+            listed(false).join(", ")
+        )?;
+    }
     code.push_str(&docs::attributes(
         "The command groups generated from the API definitions, one per service.",
         "",
@@ -518,6 +575,9 @@ pub fn services(groups: &[Group]) -> Result<String> {
             .map(|p| p.split_whitespace().collect::<Vec<_>>().join(" "))
             .collect::<Vec<_>>()
             .join("\n\n");
+        if g.test {
+            code.push_str("    #[cfg(feature = \"test-services\")]\n");
+        }
         writeln!(
             code,
             "    #[command(name = {:?}, about = {:?}, long_about = {:?})]\n    {variant}({variant}Cli),",
@@ -531,6 +591,7 @@ pub fn services(groups: &[Group]) -> Result<String> {
             &format!("`origin {}`: its options, and the command.", g.service),
             "",
         ));
+        code.push_str(gate(g));
         writeln!(
             code,
             "#[derive(clap::Args, Debug)]\npub struct {variant}Cli {{"
@@ -548,6 +609,9 @@ pub fn services(groups: &[Group]) -> Result<String> {
         "pub async fn run(profile: &ClientProfile, command: ServiceCommands) -> anyhow::Result<Box<dyn SerializableOutput>> {\n    match command {\n",
     );
     for g in groups {
+        if g.test {
+            code.push_str("        #[cfg(feature = \"test-services\")]\n");
+        }
         writeln!(
             code,
             "        ServiceCommands::{}(cli) => {{ let ctx = Context::new(profile, &{}, cli.endpoint.as_deref())?; {}::run(&ctx, cli.command).await }}",
@@ -778,12 +842,96 @@ enum Kind2 {
     Enum(String, Vec<String>),
     /// `map<string, string>`, as `--{singular} KEY=VALUE`.
     Map,
-    /// `repeated string`, as `--{singular} VALUE`.
-    List,
+    /// A repeated scalar, enum or resource name, as `--{singular} VALUE`,
+    /// repeated.
+    List(Elem),
     /// A resource name, from its id or whole name.
     Reference(Resource),
     /// `google.protobuf.Duration`, as `30s`, `2m` or `1m30s`.
     Duration,
+    /// A nested message: `--{field} KEY=VALUE,...` and `--{field}-json`.
+    Message(Nested),
+    /// A repeated nested message: `--{singular} KEY=VALUE,...`, repeated,
+    /// and `--{field}-json`.
+    Messages(Nested),
+}
+
+/// An element of a repeated scalar field.
+#[derive(Clone)]
+enum Elem {
+    Scalar(&'static str),
+    Enum(String, Vec<String>),
+    Reference(Resource),
+}
+
+/// A nested message's flags: the keys of its `KEY=VALUE,...` form, and its
+/// JSON form, which every message field has.
+#[derive(Clone)]
+struct Nested {
+    /// The message's Rust type.
+    rust: String,
+    /// The keys, in field order.
+    keys: Vec<Key>,
+    /// The fields only the JSON form sets: messages, lists and maps.
+    json_only: Vec<String>,
+    /// The function parsing the `KEY=VALUE,...` form, when there is one:
+    /// when a field can be a key and none that can't is required.
+    parser: Option<String>,
+}
+
+/// One key of a nested message's `KEY=VALUE,...` form.
+#[derive(Clone)]
+struct Key {
+    /// The field's name, which is the key.
+    name: String,
+    /// The field's Rust name.
+    ident: String,
+    kind: Kind2,
+    required: bool,
+    /// The field's comment.
+    comment: String,
+}
+
+/// The Rust type of a number or a string.
+fn scalar_type(kind: &Kind) -> Option<&'static str> {
+    Some(match kind {
+        Kind::String => "String",
+        Kind::Int32 | Kind::Sint32 | Kind::Sfixed32 => "i32",
+        Kind::Int64 | Kind::Sint64 | Kind::Sfixed64 => "i64",
+        Kind::Uint32 | Kind::Fixed32 => "u32",
+        Kind::Uint64 | Kind::Fixed64 => "u64",
+        Kind::Float => "f32",
+        Kind::Double => "f64",
+        _ => return None,
+    })
+}
+
+/// The Rust path of a type of package `package` in the SDK: its package's
+/// module, then its path there.
+fn sdk_type(package: &str, full_name: &str) -> Result<String, String> {
+    if package == "google.protobuf" {
+        let name = full_name.rsplit('.').next().unwrap_or_default();
+        return Ok(format!("::origincloud_core::protobuf::{name}"));
+    }
+    if !package.starts_with("origincloud.") {
+        return Err(format!(
+            "{full_name} is in the package {package}, which the SDK has no module for"
+        ));
+    }
+    Ok(format!(
+        "{}::{}",
+        sdk_module(package),
+        rust_type_path(package, full_name)
+    ))
+}
+
+fn enum_kind(e: &prost_reflect::EnumDescriptor) -> Result<(String, Vec<String>), String> {
+    let values = e
+        .values()
+        .filter(|v| v.number() != 0)
+        .map(|v| v.name().to_owned())
+        .collect();
+    Ok((sdk_type(e.package_name(), e.full_name())?, values))
 }
 
 fn kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
@@ -793,13 +941,16 @@ fn kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
             field.name()
         ));
     }
-    if let Some((t, false)) = reference(cx.pool, field) {
-        let resource = cx
-            .resources
-            .get(&t)
-            .ok_or_else(|| format!("the field {} refers to the unknown type {t}", field.name()))?;
-        return Ok(Kind2::Reference(resource.clone()));
-    }
+    let resource = |t: &str| {
+        cx.resources
+            .get(t)
+            .cloned()
+            .ok_or_else(|| format!("the field {} refers to the unknown type {t}", field.name()))
+    };
+    let referenced = match reference(cx.pool, field) {
+        Some((t, false)) => Some(resource(&t)?),
+        _ => None,
+    };
     if field.is_map() {
         let Kind::Message(entry) = field.kind() else {
             return Err(format!("the map {} has no entry", field.name()));
@@ -815,34 +966,149 @@ fn kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
         };
     }
     if field.is_list() {
-        return if field.kind() == Kind::String {
-            Ok(Kind2::List)
-        } else {
-            Err(format!("the list {} isn't a list of strings", field.name()))
+        if let Some(r) = referenced {
+            return Ok(Kind2::List(Elem::Reference(r)));
+        }
+        return match field.kind() {
+            Kind::Message(m) => Ok(Kind2::Messages(nested(cx, &m)?)),
+            Kind::Enum(e) => {
+                let (path, values) = enum_kind(&e)?;
+                Ok(Kind2::List(Elem::Enum(path, values)))
+            }
+            other => scalar_type(&other)
+                .map(|t| Kind2::List(Elem::Scalar(t)))
+                .ok_or_else(|| format!("the list {} is a list of {other:?}", field.name())),
         };
     }
+    if let Some(r) = referenced {
+        return Ok(Kind2::Reference(r));
+    }
     Ok(match field.kind() {
-        Kind::String => Kind2::Scalar("String"),
-        Kind::Int32 | Kind::Sint32 | Kind::Sfixed32 => Kind2::Scalar("i32"),
-        Kind::Int64 | Kind::Sint64 | Kind::Sfixed64 => Kind2::Scalar("i64"),
-        Kind::Uint32 | Kind::Fixed32 => Kind2::Scalar("u32"),
-        Kind::Uint64 | Kind::Fixed64 => Kind2::Scalar("u64"),
-        Kind::Float => Kind2::Scalar("f32"),
-        Kind::Double => Kind2::Scalar("f64"),
         Kind::Bool => Kind2::Bool,
         Kind::Message(m) if m.full_name() == DURATION => Kind2::Duration,
+        Kind::Message(m) => Kind2::Message(nested(cx, &m)?),
         Kind::Enum(e) => {
-            let values = e
-                .values()
-                .filter(|v| v.number() != 0)
-                .map(|v| v.name().to_owned())
-                .collect();
-            Kind2::Enum(
-                format!("{}::{}", cx.sdk, rust_type_path(cx.package, e.full_name())),
-                values,
-            )
+            let (path, values) = enum_kind(&e)?;
+            Kind2::Enum(path, values)
         }
-        other => return Err(format!("the field {} is a {other:?}", field.name())),
+        other => Kind2::Scalar(
+            scalar_type(&other)
+                .ok_or_else(|| format!("the field {} is a {other:?}", field.name()))?,
+        ),
+    })
+}
+
+/// The kind of a nested message's field as a key of its `KEY=VALUE,...`
+/// form: a number, a string, a boolean, an enum, a duration or a resource
+/// name; `None` for what only its JSON form sets.
+fn key_kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Option<Kind2> {
+    if field.is_list() || field.is_map() || field.containing_oneof().is_some() {
+        return None;
+    }
+    if let Some((t, false)) = reference(cx.pool, field) {
+        return cx.resources.get(&t).cloned().map(Kind2::Reference);
+    }
+    match field.kind() {
+        Kind::Bool => Some(Kind2::Bool),
+        Kind::Message(m) if m.full_name() == DURATION => Some(Kind2::Duration),
+        Kind::Message(_) => None,
+        Kind::Enum(e) => enum_kind(&e).ok().map(|(p, v)| Kind2::Enum(p, v)),
+        other => scalar_type(&other).map(Kind2::Scalar),
+    }
+}
+
+/// A nested message's keys, and the function parsing its `KEY=VALUE,...`
+/// form, which is added to the group's code once.
+fn nested(cx: &Cx<'_>, m: &MessageDescriptor) -> Result<Nested, String> {
+    let rust = sdk_type(m.package_name(), m.full_name())?;
+    let mut keys = Vec::new();
+    let mut json_only = Vec::new();
+    let mut required = Vec::new();
+    let mut required_json_only = false;
+    // The well-known types (a timestamp, a struct) have no keys: their JSON
+    // is their one form.
+    if !m.package_name().starts_with("google.") {
+        for f in m.fields() {
+            let fb = behaviors(cx.pool, &f);
+            if fb.contains(&OUTPUT_ONLY) {
+                continue;
+            }
+            match key_kind(cx, &f) {
+                Some(kind) => {
+                    if fb.contains(&REQUIRED) {
+                        required.push(f.name().to_owned());
+                    }
+                    keys.push(Key {
+                        name: f.name().to_owned(),
+                        ident: ident(f.name()),
+                        kind,
+                        required: fb.contains(&REQUIRED),
+                        comment: docs::plain(cx.comments.leading(f.parent_file().name(), f.path())),
+                    });
+                }
+                None => {
+                    required_json_only |= fb.contains(&REQUIRED);
+                    json_only.push(f.name().to_owned());
+                }
+            }
+        }
+    }
+    let parser = (!keys.is_empty() && !required_json_only).then(|| {
+        let local = rust_type_path(m.package_name(), m.full_name())
+            .replace("::", "_")
+            .to_snake_case();
+        format!("parse_{local}")
+    });
+    if let Some(parser) = &parser {
+        let mut arms = Vec::new();
+        for key in &keys {
+            let (name, id) = (&key.name, &key.ident);
+            let value = match &key.kind {
+                Kind2::Scalar("String") | Kind2::Reference(_) => "value.to_owned()".to_owned(),
+                Kind2::Scalar(ty) => format!("key_scalar::<{ty}>({name:?}, value)?"),
+                Kind2::Bool => format!("key_bool({name:?}, value)?"),
+                Kind2::Duration => format!("Some(key_duration({name:?}, value)?)"),
+                Kind2::Enum(path, values) => format!(
+                    "key_enum({name:?}, value, &[{}], |v| {path}::from_str_name(v).map(|e| e as i32))?",
+                    values.iter().map(|v| format!("{v:?}")).collect::<Vec<_>>().join(", ")
+                ),
+                _ => unreachable!("a key is a scalar, an enum, a duration or a name"),
+            };
+            arms.push(format!("{name:?} => out.{id} = {value},"));
+        }
+        let quoted = |names: &mut dyn Iterator<Item = &String>| {
+            names
+                .map(|n| format!("{n:?}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        let all = quoted(&mut keys.iter().map(|k| &k.name));
+        let json = quoted(&mut json_only.iter());
+        let needed = quoted(&mut required.iter());
+        let code = format!(
+            "/// A `{rust}` from its `KEY=VALUE,...` form.\n\
+             fn {parser}(text: &str) -> ::core::result::Result<{rust}, String> {{\n\
+                 let pairs = key_values(text)?;\n\
+                 let mut out = <{rust}>::default();\n\
+                 for (key, value) in &pairs {{\n\
+                     let value = value.as_str();\n\
+                     match key.as_str() {{\n\
+                         {}\n\
+                         other => return Err(unknown_key(other, &[{all}], &[{json}])),\n\
+                     }}\n\
+                 }}\n\
+                 required_keys(&pairs, &[{needed}])?;\n\
+                 Ok(out)\n\
+             }}\n",
+            arms.join("\n")
+        );
+        cx.helpers.borrow_mut().insert(parser.clone(), code);
+    }
+    Ok(Nested {
+        rust,
+        keys,
+        json_only,
+        parser,
     })
 }
 
@@ -901,6 +1167,9 @@ struct Build {
     vocabulary: BTreeMap<String, String>,
     /// The ids of the flags of an update, at least one of which is needed.
     update_ids: Vec<String>,
+    /// Whether the handler completes resource names, such as those a
+    /// nested message's keys give, without a name-part flag.
+    needs_names: bool,
 }
 
 impl Build {
@@ -1005,7 +1274,17 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     let excluded = |path: &str| cx.policy.excluded(cx.own, m.name(), path);
     let file = m.parent_file();
     let file = file.name();
-    let comment = |field: &FieldDescriptor| cx.comments.leading(file, field.path()).to_owned();
+    let comment = |field: &FieldDescriptor| {
+        let mut text = cx
+            .comments
+            .leading(field.parent_message().parent_file().name(), field.path())
+            .trim_end()
+            .to_owned();
+        if behaviors(cx.pool, field).contains(&UNORDERED_LIST) {
+            text.push_str("\n\nThe API doesn't keep their order, and each must be unique.");
+        }
+        text
+    };
 
     let mut b = Build::default();
     // The kind of resource the command acts on, and the expression of its
@@ -1473,7 +1752,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         .iter()
         .map(|v| format!("({v:?}, args.{}.as_deref())", ident(v)))
         .collect();
-    let uses_names = !b.components.is_empty() || !b.learn.is_empty();
+    let uses_names = !b.components.is_empty() || !b.learn.is_empty() || b.needs_names;
     if uses_names {
         let mutable = if b.learn.is_empty() { "" } else { "mut " };
         let _ = writeln!(
@@ -1580,7 +1859,10 @@ fn one_way_use(
     optional: bool,
     entry: &crate::policy::OneWay,
 ) -> Result<OneWayUse, String> {
-    if matches!(k, Kind2::Map | Kind2::List) {
+    if matches!(
+        k,
+        Kind2::Map | Kind2::List(_) | Kind2::Message(_) | Kind2::Messages(_)
+    ) {
         return Err(format!(
             "the one-way field {} is a map or a list, which isn't supported",
             field.name()
@@ -1660,8 +1942,8 @@ fn resource_of(cx: &Cx<'_>, message: &MessageDescriptor) -> Option<Resource> {
 }
 
 /// The flag a field is set by.
-fn flag_name(cx: &Cx<'_>, field: &FieldDescriptor) -> String {
-    if (field.is_map() || field.is_list()) && reference(cx.pool, field).is_none() {
+fn flag_name(_cx: &Cx<'_>, field: &FieldDescriptor) -> String {
+    if field.is_map() || field.is_list() {
         singular(field.name()).to_kebab_case()
     } else {
         field.name().to_kebab_case()
@@ -1806,18 +2088,121 @@ fn value(
             })?;
             format!("tags(&args.{one})")
         }
-        Kind2::List => {
+        Kind2::List(elem) => {
             let one = ident(&singular(field.name()));
+            let long = singular(field.name()).to_kebab_case();
             let mut attrs = Vec::new();
             required_attr(&mut attrs);
+            let (ty, doc, expr) = list_elements(b, elem, &one, &long, doc);
+            attrs.extend(list_attrs(elem));
             b.add_flag(Flag {
                 ident: one.clone(),
-                long: singular(field.name()).to_kebab_case(),
+                long,
                 doc: format!("{doc}\n\nRepeat for more."),
-                ty: "Vec<String>".to_owned(),
+                ty,
                 attrs,
             })?;
-            format!("args.{one}.clone()")
+            if matches!(elem, Elem::Reference(_)) {
+                b.prelude.push(format!("let {fid} = {expr};"));
+                fid
+            } else {
+                expr
+            }
+        }
+        Kind2::Message(n) => {
+            let json = format!("{fid}_json");
+            let json_long = format!("{long}-json");
+            let completions = completions(b, n, "item", &long);
+            if let Some(parser) = &n.parser {
+                let mut attrs = vec![
+                    "value_name = \"KEY=VALUE,...\"".to_owned(),
+                    format!("value_parser = {parser}"),
+                    format!("conflicts_with = {json:?}"),
+                ];
+                if required {
+                    attrs.push(format!("required_unless_present = {json:?}"));
+                }
+                b.add_flag(Flag {
+                    ident: fid.clone(),
+                    long: long.clone(),
+                    doc: keyed_doc(doc, n, &json_long, false),
+                    ty: format!("Option<{}>", n.rust),
+                    attrs,
+                })?;
+            }
+            b.add_flag(Flag {
+                ident: json.clone(),
+                long: json_long,
+                doc: json_doc(doc, n, &long, false),
+                ty: format!("Option<JsonArg<{}>>", n.rust),
+                attrs: json_attrs(&n.rust, required && n.parser.is_none()),
+            })?;
+            if n.parser.is_some() {
+                if completions.is_empty() {
+                    b.prelude.push(format!("let {fid} = args.{fid};"));
+                } else {
+                    b.prelude.push(format!(
+                        "let mut {fid} = args.{fid}; if let Some(item) = &mut {fid} {{ {} }}",
+                        completions.join(" ")
+                    ));
+                }
+                b.prelude.push(format!(
+                    "let {fid} = match args.{json} {{ Some(json) => Some(json.0), None => {fid} }};"
+                ));
+            } else {
+                b.prelude
+                    .push(format!("let {fid} = args.{json}.map(|json| json.0);"));
+            }
+            fid
+        }
+        Kind2::Messages(n) => {
+            let one = ident(&singular(field.name()));
+            let one_long = singular(field.name()).to_kebab_case();
+            let json = format!("{fid}_json");
+            let json_long = format!("{long}-json");
+            let completions = completions(b, n, "item", &one_long);
+            if let Some(parser) = &n.parser {
+                let mut attrs = vec![
+                    "value_name = \"KEY=VALUE,...\"".to_owned(),
+                    format!("value_parser = {parser}"),
+                    format!("conflicts_with = {json:?}"),
+                ];
+                if required {
+                    attrs.push(format!("required_unless_present = {json:?}"));
+                }
+                b.add_flag(Flag {
+                    ident: one.clone(),
+                    long: one_long.clone(),
+                    doc: keyed_doc(doc, n, &json_long, true),
+                    ty: format!("Vec<{}>", n.rust),
+                    attrs,
+                })?;
+            }
+            b.add_flag(Flag {
+                ident: json.clone(),
+                long: json_long,
+                doc: json_doc(doc, n, &one_long, true),
+                ty: format!("Option<JsonArg<Vec<{}>>>", n.rust),
+                attrs: json_attrs(&format!("Vec<{}>", n.rust), required && n.parser.is_none()),
+            })?;
+            if n.parser.is_some() {
+                if completions.is_empty() {
+                    b.prelude.push(format!("let {fid} = args.{one};"));
+                } else {
+                    b.prelude.push(format!(
+                        "let mut {fid} = args.{one}; for item in &mut {fid} {{ {} }}",
+                        completions.join(" ")
+                    ));
+                }
+                b.prelude.push(format!(
+                    "let {fid} = match args.{json} {{ Some(json) => json.0, None => {fid} }};"
+                ));
+            } else {
+                b.prelude.push(format!(
+                    "let {fid} = args.{json}.map(|json| json.0).unwrap_or_default();"
+                ));
+            }
+            fid
         }
         Kind2::Duration => {
             let mut attrs = vec![
@@ -1937,23 +2322,31 @@ fn update_field(
                 ))
             )
         }
-        Kind2::Map | Kind2::List => {
-            let is_map = matches!(k, Kind2::Map);
+        Kind2::Map | Kind2::List(_) => {
             let one = ident(&singular(name));
+            let one_long = singular(name).to_kebab_case();
             let none = format!("no_{}", name.to_snake_case());
+            let (ty, comment, expr, attrs, form) = match k {
+                Kind2::List(elem) => {
+                    let (ty, comment, expr) = list_elements(b, elem, &one, &one_long, comment);
+                    (ty, comment, expr, list_attrs(elem), "Repeat")
+                }
+                _ => (
+                    "Vec<TagArg>".to_owned(),
+                    comment.to_owned(),
+                    format!("tags(&args.{one})"),
+                    vec!["value_name = \"KEY=VALUE\"".to_owned()],
+                    "As KEY=VALUE; repeat",
+                ),
+            };
             b.add_flag(Flag {
                 ident: one.clone(),
-                long: singular(name).to_kebab_case(),
+                long: one_long,
                 doc: format!(
-                    "{comment}\n\n{} Replaces all of them; `--no-{long}` removes them all. Left as they are when neither is given.",
-                    if is_map { "As KEY=VALUE; repeat for more." } else { "Repeat for more." }
+                    "{comment}\n\n{form} for more. Replaces all of them; `--no-{long}` removes them all. Left as they are when neither is given."
                 ),
-                ty: if is_map { "Vec<TagArg>" } else { "Vec<String>" }.to_owned(),
-                attrs: if is_map {
-                    vec!["value_name = \"KEY=VALUE\"".to_owned()]
-                } else {
-                    Vec::new()
-                },
+                ty,
+                attrs,
             })?;
             b.add_flag(Flag {
                 ident: none.clone(),
@@ -1964,15 +2357,114 @@ fn update_field(
             })?;
             b.update_ids.push(arg_id(&one).to_owned());
             b.update_ids.push(none.clone());
-            let expr = if is_map {
-                format!("tags(&args.{one})")
-            } else {
-                format!("args.{one}.clone()")
-            };
             format!(
                 "if args.{none} || !args.{one}.is_empty() {{ {} }}",
                 set(&expr)
             )
+        }
+        Kind2::Message(n) | Kind2::Messages(n) => {
+            let repeated = matches!(k, Kind2::Messages(_));
+            let (one, one_long) = if repeated {
+                (ident(&singular(name)), singular(name).to_kebab_case())
+            } else {
+                (fid.clone(), long.clone())
+            };
+            let json = format!("{fid}_json");
+            let json_long = format!("{long}-json");
+            let none = format!("no_{}", name.to_snake_case());
+            let replaced = if repeated {
+                format!(
+                    "\n\nThe list is replaced whole: give every element to keep. `--no-{long}` \
+                     removes them all. Left as it is when none of these is given."
+                )
+            } else {
+                format!(
+                    "\n\nIt is replaced whole: a key not given is reset. `--no-{long}` removes \
+                     it. Left as it is when none of these is given."
+                )
+            };
+            let completions = completions(b, n, "item", &one_long);
+            let mut conflicts = vec![format!("{json:?}")];
+            if let Some(parser) = &n.parser {
+                b.add_flag(Flag {
+                    ident: one.clone(),
+                    long: one_long.clone(),
+                    doc: format!("{}{replaced}", keyed_doc(comment, n, &json_long, repeated)),
+                    ty: if repeated {
+                        format!("Vec<{}>", n.rust)
+                    } else {
+                        format!("Option<{}>", n.rust)
+                    },
+                    attrs: vec![
+                        "value_name = \"KEY=VALUE,...\"".to_owned(),
+                        format!("value_parser = {parser}"),
+                        format!("conflicts_with = {json:?}"),
+                    ],
+                })?;
+                b.update_ids.push(arg_id(&one).to_owned());
+                conflicts.push(format!("{:?}", arg_id(&one)));
+            }
+            let json_ty = if repeated {
+                format!("Vec<{}>", n.rust)
+            } else {
+                n.rust.clone()
+            };
+            b.add_flag(Flag {
+                ident: json.clone(),
+                long: json_long,
+                doc: format!("{}{replaced}", json_doc(comment, n, &one_long, repeated)),
+                ty: format!("Option<JsonArg<{json_ty}>>"),
+                attrs: json_attrs(&json_ty, false),
+            })?;
+            b.add_flag(Flag {
+                ident: none.clone(),
+                long: format!("no-{long}"),
+                doc: if repeated {
+                    format!("Remove all of its {}.", name.replace('_', " "))
+                } else {
+                    format!("Remove its {}.", name.replace('_', " "))
+                },
+                ty: "bool".to_owned(),
+                attrs: vec![format!("conflicts_with_all = [{}]", conflicts.join(", "))],
+            })?;
+            b.update_ids.push(json.clone());
+            b.update_ids.push(none.clone());
+            let (given, from_json) = if repeated {
+                (format!("!args.{one}.is_empty()"), "json.0")
+            } else {
+                (format!("args.{one}.is_some()"), "Some(json.0)")
+            };
+            match &n.parser {
+                Some(_) => {
+                    let item = if completions.is_empty() {
+                        format!("let items = args.{one};")
+                    } else if repeated {
+                        format!(
+                            "let mut items = args.{one}; for item in &mut items {{ {} }}",
+                            completions.join(" ")
+                        )
+                    } else {
+                        format!(
+                            "let mut items = args.{one}; if let Some(item) = &mut items {{ {} }}",
+                            completions.join(" ")
+                        )
+                    };
+                    format!(
+                        "if args.{none} || {given} || args.{json}.is_some() {{ {item} {} }}",
+                        set(&format!(
+                            "match args.{json} {{ Some(json) => {from_json}, None => items }}"
+                        ))
+                    )
+                }
+                None => format!(
+                    "if args.{none} || args.{json}.is_some() {{ {} }}",
+                    set(&if repeated {
+                        format!("args.{json}.map(|json| json.0).unwrap_or_default()")
+                    } else {
+                        format!("args.{json}.map(|json| json.0)")
+                    })
+                ),
+            }
         }
         Kind2::Duration => {
             b.add_flag(Flag {
@@ -2015,6 +2507,181 @@ fn update_field(
             )
         }
     })
+}
+
+/// A repeated scalar field's flag: its type, its help, and the expression
+/// of its value, given the flag's field `one` and name `long`.
+fn list_elements(
+    b: &mut Build,
+    elem: &Elem,
+    one: &str,
+    long: &str,
+    doc: &str,
+) -> (String, String, String) {
+    match elem {
+        Elem::Scalar(ty) => (
+            format!("Vec<{ty}>"),
+            doc.to_owned(),
+            format!("args.{one}.clone()"),
+        ),
+        Elem::Enum(path, _) => (
+            "Vec<String>".to_owned(),
+            doc.to_owned(),
+            format!(
+                "args.{one}.iter().filter_map(|v| {path}::from_str_name(v)).map(|v| v as i32).collect()"
+            ),
+        ),
+        Elem::Reference(resource) => {
+            let leaf = leaf_of(&resource.pattern);
+            b.add_components(&resource.pattern, Some(&leaf));
+            b.learn.push(format!(
+                "for value in &args.{one} {{ names.learn({:?}, {long:?}, Some(value.as_str()))?; }}",
+                resource.pattern
+            ));
+            (
+                "Vec<String>".to_owned(),
+                reference_doc(doc, &resource.pattern, &leaf).replace("Its id", "Each by its id"),
+                format!(
+                    "args.{one}.iter().map(|v| names.name({:?}, Some(({long:?}, v.as_str())))).collect::<anyhow::Result<Vec<String>>>()?",
+                    resource.pattern
+                ),
+            )
+        }
+    }
+}
+
+/// The attributes of a repeated scalar field's flag.
+fn list_attrs(elem: &Elem) -> Vec<String> {
+    match elem {
+        Elem::Enum(_, values) => {
+            let quoted: Vec<String> = values.iter().map(|v| format!("{v:?}")).collect();
+            vec![format!("value_parser = [{}]", quoted.join(", "))]
+        }
+        Elem::Reference(resource) => {
+            vec![format!(
+                "value_name = {:?}",
+                leaf_of(&resource.pattern).to_uppercase()
+            )]
+        }
+        Elem::Scalar(_) => Vec::new(),
+    }
+}
+
+/// The statements completing the resource names a nested message's keys
+/// gave, on the message `var`, given with the flag `--{flag}`: an id is
+/// completed with the command's `--project` and `--zone`, as everywhere.
+fn completions(b: &mut Build, n: &Nested, var: &str, flag: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    if n.parser.is_none() {
+        return out;
+    }
+    for key in &n.keys {
+        if let Kind2::Reference(resource) = &key.kind {
+            let leaf = leaf_of(&resource.pattern);
+            b.add_components(&resource.pattern, Some(&leaf));
+            b.needs_names = true;
+            let id = &key.ident;
+            let label = format!("{flag} {}", key.name);
+            out.push(format!(
+                "if !{var}.{id}.is_empty() {{ {var}.{id} = names.name({:?}, Some(({label:?}, {var}.{id}.as_str())))?; }}",
+                resource.pattern
+            ));
+        }
+    }
+    out
+}
+
+/// What a key's help adds about its value.
+fn key_hint(kind: &Kind2) -> String {
+    match kind {
+        Kind2::Enum(_, values) => {
+            let quoted: Vec<String> = values.iter().map(|v| format!("`{v}`")).collect();
+            format!(" One of {}.", quoted.join(", "))
+        }
+        Kind2::Bool => " `true` or `false`.".to_owned(),
+        Kind2::Duration => " Such as `30s` or `1m`.".to_owned(),
+        Kind2::Reference(resource) => {
+            let leaf = leaf_of(&resource.pattern);
+            format!(" {}", reference_doc("", &resource.pattern, &leaf))
+        }
+        _ => String::new(),
+    }
+}
+
+/// The help of a nested message's `KEY=VALUE,...` flag: the field's, then
+/// the form and every key.
+fn keyed_doc(comment: &str, n: &Nested, json_long: &str, repeated: bool) -> String {
+    let mut doc = comment.trim_end().to_owned();
+    if !doc.is_empty() {
+        doc.push_str("\n\n");
+    }
+    doc.push_str(if repeated {
+        "One element as comma-separated KEY=VALUE pairs; repeat the flag for more. The keys:"
+    } else {
+        "As comma-separated KEY=VALUE pairs. The keys:"
+    });
+    for key in &n.keys {
+        let mut line = format!("\n\n`{}`", key.name);
+        if key.required {
+            line.push_str(", required");
+        }
+        line.push(':');
+        if !key.comment.is_empty() {
+            line.push(' ');
+            line.push_str(&key.comment);
+        }
+        line.push_str(&key_hint(&key.kind));
+        doc.push_str(&line);
+    }
+    let mut rest = Vec::new();
+    if !n.json_only.is_empty() {
+        let names: Vec<String> = n.json_only.iter().map(|f| format!("`{f}`")).collect();
+        rest.push(format!(
+            "{} {} set only through `--{json_long}`.",
+            names.join(", "),
+            if names.len() == 1 { "is" } else { "are" }
+        ));
+    }
+    rest.push(format!(
+        "A value with a comma in it goes through `--{json_long}` too."
+    ));
+    doc.push_str("\n\n");
+    doc.push_str(&rest.join(" "));
+    doc
+}
+
+/// The help of a message field's JSON flag.
+fn json_doc(comment: &str, n: &Nested, keyed_long: &str, repeated: bool) -> String {
+    let what = if repeated {
+        "The whole list as the API's JSON, an array of objects"
+    } else {
+        "As the API's JSON, an object"
+    };
+    let mut doc = String::new();
+    if n.parser.is_none() && !comment.trim().is_empty() {
+        doc.push_str(comment.trim_end());
+        doc.push_str("\n\n");
+    }
+    doc.push_str(&format!(
+        "{what} whose fields are named in camel case, as the command prints them; `@FILE` reads it \
+         from a file."
+    ));
+    if n.parser.is_some() {
+        doc.push_str(&format!(" Instead of `--{keyed_long}`."));
+    }
+    doc
+}
+
+/// The attributes of a message field's JSON flag, whose value is a `ty`.
+fn json_attrs(ty: &str, required: bool) -> Vec<String> {
+    let mut attrs = vec![
+        "value_name = \"JSON\"".to_owned(),
+        format!("value_parser = json_arg::<{ty}>"),
+    ];
+    if required {
+        attrs.push("required = true".to_owned());
+    }
+    attrs
 }
 
 #[cfg(test)]

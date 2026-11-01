@@ -5,6 +5,7 @@ use crate::config::ClientProfile;
 use crate::output::SerializableOutput;
 use crate::sdk::runtime::{Context, Group};
 /// `origin location`.
+#[allow(clippy::enum_variant_names)]
 pub mod location {
     include!("location.rs");
 }
@@ -16,6 +17,7 @@ pub(crate) static LOCATION: Group = Group {
     service: location::service,
 };
 /// `origin pvs`.
+#[allow(clippy::enum_variant_names)]
 pub mod pvs {
     include!("pvs.rs");
 }
@@ -26,9 +28,28 @@ pub(crate) static PVS: Group = Group {
     regional: true,
     service: pvs::service,
 };
+/// `origin scratch`.
+#[cfg(feature = "test-services")]
+#[allow(clippy::enum_variant_names)]
+pub mod scratch {
+    include!("scratch.rs");
+}
+/// What the runtime knows of `origin scratch`.
+#[cfg(feature = "test-services")]
+pub(crate) static SCRATCH: Group = Group {
+    name: "scratch",
+    endpoint_variable: "ORIGINCLOUD_SCRATCH_ENDPOINT",
+    regional: true,
+    service: scratch::service,
+};
 /// Every generated group.
+#[cfg(not(feature = "test-services"))]
 #[allow(dead_code)]
 pub(crate) static GROUPS: &[&Group] = &[&LOCATION, &PVS];
+/// Every generated group.
+#[cfg(feature = "test-services")]
+#[allow(dead_code)]
+pub(crate) static GROUPS: &[&Group] = &[&LOCATION, &PVS, &SCRATCH];
 /// The command groups generated from the API definitions, one per service.
 #[derive(clap::Subcommand, Debug)]
 pub enum ServiceCommands {
@@ -44,6 +65,13 @@ pub enum ServiceCommands {
         long_about = "Persistent volume service: volumes, snapshots and storage classes.\n\nResource names are given as their parts (`--project`, `--zone`, `--volume`), or the resource's flag takes a whole name; `--project` and `--zone` default to the profile's `default-project` and `default-zone`."
     )]
     Pvs(PvsCli),
+    #[cfg(feature = "test-services")]
+    #[command(
+        name = "scratch",
+        about = "Firewalls: rules that guard the networks of a zone",
+        long_about = "Firewalls: rules that guard the networks of a zone."
+    )]
+    Scratch(ScratchCli),
 }
 /// `origin location`: its options, and the command.
 #[derive(clap::Args, Debug)]
@@ -75,6 +103,22 @@ pub struct PvsCli {
     #[command(subcommand)]
     pub command: pvs::Commands,
 }
+/// `origin scratch`: its options, and the command.
+#[cfg(feature = "test-services")]
+#[derive(clap::Args, Debug)]
+pub struct ScratchCli {
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host: `https://scratch.origincloudapis.eu`, or `https://scratch.{region}.origincloudapis.eu` when the profile names a `region`. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`).
+    #[arg(
+        long,
+        value_name = "URL",
+        env = "ORIGINCLOUD_SCRATCH_ENDPOINT",
+        global = true,
+        help_heading = "Global options"
+    )]
+    pub endpoint: Option<String>,
+    #[command(subcommand)]
+    pub command: scratch::Commands,
+}
 /// Runs `command`.
 pub async fn run(
     profile: &ClientProfile,
@@ -88,6 +132,11 @@ pub async fn run(
         ServiceCommands::Pvs(cli) => {
             let ctx = Context::new(profile, &PVS, cli.endpoint.as_deref())?;
             pvs::run(&ctx, cli.command).await
+        }
+        #[cfg(feature = "test-services")]
+        ServiceCommands::Scratch(cli) => {
+            let ctx = Context::new(profile, &SCRATCH, cli.endpoint.as_deref())?;
+            scratch::run(&ctx, cli.command).await
         }
     }
 }

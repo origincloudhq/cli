@@ -57,6 +57,34 @@ and every one-way change is refused without `--yes` before any request. The
 README describes the scheme for users; `generator/src/commands.rs` implements
 it.
 
+A field holding a message, other than a duration, is a flag taking
+comma-separated `KEY=VALUE` pairs, one per field of the message that a flag
+could set on its own (a number, a string, a boolean, an enum, a duration, a
+resource name), each parsed and checked as such, and its required fields
+enforced; a repeated one is that flag repeated. Every message field also has
+a `--{field}-json` flag taking its JSON, the only form of what pairs can't
+say, such as a message nested deeper or a list inside a message; a message
+with a required field of that kind has the JSON flag alone. In an update,
+setting any of a field's flags names the field itself in `update_mask` and
+sends it whole, as the API design requires of nested and repeated fields;
+`--no-{field}` empties it. A repeated scalar or resource name is a
+repeatable flag. A field the generator can't make a flag of, such as a
+oneof or a map other than `map<string, string>`, fails generation, naming
+the method and the field: nothing is left out silently.
+
+The published API doesn't have such fields yet, so the tests use a service
+of their own, `testing/scratch/`: a firewall whose rules are a repeated
+nested message, with repeated scalars and references, a list whose order the
+API doesn't keep, a nested message, and a message nested two levels deep.
+`scripts/generate.sh` generates its SDK crate's code with the Rust SDK's own
+generator, at the commit `Cargo.lock` pins, into
+`testing/scratch/sdk/src/generated/`, and its group, `origin scratch`, beside
+the others; that group is compiled only with the CLI's `test-services`
+feature, never in a release, and isn't in `api.binpb`. Its tests,
+`crates/cli/tests/scratch.rs`, run its commands against the SDK's fake
+server; the generator's own tests compile it, and definitions it must
+refuse, with the parts of googleapis in `generator/testdata/`.
+
 What the API definitions don't express is in `generator/commands.toml`, by
 service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
 
@@ -89,9 +117,10 @@ generated files.
 The regeneration workflow (`.github/workflows/regenerate.yml`) moves the CLI
 to the newest SDK, and the API revision it was generated from, daily, and opens
 a pull request when that changes anything. If the API gained a method the
-generator can't make a command for, the generator says so on standard error
-and the coverage test fails: extend the generator on that pull request, or
-list the method under `[[no_command]]` with the reason.
+generator can't make a command for, generation fails, naming the method and
+the field, and the run with it: extend the generator, or leave the method
+(`[[no_command]]`) or the field (`[[exclude]]`) out with the reason, in a
+pull request of its own.
 
 ### A new service
 
@@ -129,6 +158,9 @@ scripts/update.sh              # move to the newest SDK and its API revision, an
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+# the scratch service's group, and the tests of nested and repeated fields
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test -p origincloud-cli --all-features
 ```
 
 CI also checks the scripts with shellcheck, runs the release scripts' tests

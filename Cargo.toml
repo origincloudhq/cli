@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/cli", "crates/oauth-login", "generator"]
+members = ["crates/cli", "crates/oauth-login", "generator", "testing/scratch/sdk"]
 
 [workspace.package]
 edition = "2021"
