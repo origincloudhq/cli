@@ -2,11 +2,14 @@
 //! definitions (origincloudhq/api), one per service:
 //!
 //! ```text
-//! origincloud-cli-generator <api-dir> <out-dir>
+//! origincloud-cli-generator <api-dir> <sdk-dir> <out-dir>
 //! ```
 //!
 //! `<api-dir>` is a checkout of the API; its dependencies are downloaded at
-//! the commits its `buf.lock` pins. The files are written to `<out-dir>`, at
+//! the commits its `buf.lock` pins. `<sdk-dir>` is a checkout of the Rust
+//! SDK generated from it, whose clients say which services answer at a
+//! region's host (`client.service("pvs", true)`) and which only at their
+//! regionless one. The files are written to `<out-dir>`, at
 //! their paths in this repository, under `crates/cli/src/sdk/generated/`:
 //!
 //! - `{service}.rs` for each service, such as `pvs.rs` for the packages
@@ -54,14 +57,15 @@ const OUT_DIR: &str = "crates/cli/src/sdk/generated";
 
 fn main() -> Result<()> {
     let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
-    let [api, out] = args.as_slice() else {
-        bail!("usage: origincloud-cli-generator <api-dir> <out-dir>");
+    let [api, sdk, out] = args.as_slice() else {
+        bail!("usage: origincloud-cli-generator <api-dir> <sdk-dir> <out-dir>");
     };
 
     let dependencies = deps::fetch(api)?;
     let (pool, fds) = compile(api, dependencies)?;
     let services = services(&pool)?;
     ensure!(!services.is_empty(), "the API has no origincloud service");
+    let regional = regional_services(sdk)?;
     let operations = newest_package(&pool, OPERATIONS).ok();
     let comments = docs::Comments::new(&fds);
     let policy =
@@ -111,7 +115,20 @@ fn main() -> Result<()> {
             Path::new(OUT_DIR).join(format!("{service}.rs")),
             format!("{HEADER}{source}\n\n{}", generated.code).into_bytes(),
         );
-        groups.push(commands::group(&pool, &comments, &policy, package));
+        let regional = *regional.get(service).with_context(|| {
+            format!(
+                "the SDK at {} has no client of the service {service}: it must be generated from the same API revision",
+                sdk.display()
+            )
+        })?;
+        groups.push(commands::group(
+            &pool,
+            &comments,
+            &policy,
+            package,
+            regional,
+            generated.lists_zones,
+        ));
     }
     files.insert(
         Path::new(OUT_DIR).join("services.rs"),
@@ -191,25 +208,97 @@ impl FileResolver for MemoryResolver {
 }
 
 /// The newest package of every service of the API but the operations
-/// one, by service: `pvs` is `origincloud.pvs.v1beta1`.
+/// one, by service: `pvs` is `origincloud.pvs.v1beta1`. Every file under
+/// `origincloud/` must be in a package `origincloud.{service}.{version}`:
+/// any other shape fails generation, rather than leaving its methods out
+/// unnoticed.
 fn services(pool: &DescriptorPool) -> Result<BTreeMap<String, String>> {
-    let mut names: Vec<String> = pool
+    let mut names: Vec<String> = Vec::new();
+    for file in pool
         .files()
-        .filter(|f| f.services().next().is_some())
-        .filter_map(|f| {
-            let package = f.package_name();
-            let rest = package.strip_prefix("origincloud.")?;
-            let (service, _version) = rest.split_once('.')?;
-            Some(service.to_owned())
-        })
-        .filter(|s| s != OPERATIONS)
-        .collect();
+        .filter(|f| f.name().starts_with("origincloud/"))
+    {
+        let package = file.package_name();
+        let service = service_of_package(package).with_context(|| {
+            format!(
+                "{} is in the package {package:?}, not one shaped origincloud.{{service}}.{{version}} \
+                 (such as origincloud.pvs.v1beta1): the generator doesn't know which command group \
+                 its methods belong to",
+                file.name()
+            )
+        })?;
+        if service != OPERATIONS && file.services().next().is_some() {
+            names.push(service.to_owned());
+        }
+    }
     names.sort();
     names.dedup();
     names
         .into_iter()
         .map(|service| Ok((service.clone(), newest_package(pool, &service)?)))
         .collect()
+}
+
+/// The service of a package shaped `origincloud.{service}.{version}`, the
+/// service a host label (`[a-z][a-z0-9]*`) and the version one
+/// [`version_key`] orders; `None` for any other shape.
+fn service_of_package(package: &str) -> Option<&str> {
+    let mut parts = package.split('.');
+    let (Some("origincloud"), Some(service), Some(version), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return None;
+    };
+    let label = service.starts_with(|c: char| c.is_ascii_lowercase())
+        && service
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit());
+    (label && version_key(version).is_some()).then_some(service)
+}
+
+/// Whether each service the SDK has clients of answers at a region's host,
+/// from its generated clients: `client.service("pvs", true)` is regional,
+/// `client.service("location", false)` isn't.
+fn regional_services(sdk: &Path) -> Result<BTreeMap<String, bool>> {
+    let call = regex::Regex::new(r#"\.service\(\s*"([a-z0-9-]+)"\s*,\s*(true|false)\s*\)"#)
+        .expect("a valid pattern");
+    let crates = sdk.join("crates");
+    let mut found: BTreeMap<String, bool> = BTreeMap::new();
+    let mut files = Vec::new();
+    for entry in
+        std::fs::read_dir(&crates).with_context(|| format!("reading {}", crates.display()))?
+    {
+        let generated = entry?.path().join("src").join("generated");
+        if generated.is_dir() {
+            for file in std::fs::read_dir(&generated)? {
+                let path = file?.path();
+                if path.extension().is_some_and(|e| e == "rs") {
+                    files.push(path);
+                }
+            }
+        }
+    }
+    files.sort();
+    for path in files {
+        let text = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        for caps in call.captures_iter(&text) {
+            let regional = &caps[2] == "true";
+            if let Some(before) = found.insert(caps[1].to_owned(), regional) {
+                ensure!(
+                    before == regional,
+                    "the SDK's clients disagree on whether {} is regional",
+                    &caps[1]
+                );
+            }
+        }
+    }
+    ensure!(
+        !found.is_empty(),
+        "no generated client under {} names its service",
+        crates.display()
+    );
+    Ok(found)
 }
 
 /// The newest version of `origincloud.{service}`: a stable version before
@@ -362,5 +451,47 @@ mod tests {
         let order: Vec<&str> = keys.iter().map(|(_, v)| *v).collect();
         assert_eq!(order, ["v1alpha2", "v1beta1", "v1beta2", "v1", "v2beta1"]);
         assert!(version_key("latest").is_none());
+    }
+
+    #[test]
+    fn a_package_is_origincloud_service_version() {
+        assert_eq!(service_of_package("origincloud.pvs.v1beta1"), Some("pvs"));
+        assert_eq!(
+            service_of_package("origincloud.longrunning.v1"),
+            Some("longrunning")
+        );
+        for bad in [
+            "origincloud.pvs",
+            "origincloud.pvs.v1beta1.internal",
+            "origincloud.pvs.latest",
+            "origincloud.Pvs.v1",
+            "origincloud.pvs-x.v1",
+            "google.pvs.v1",
+            "origincloud",
+        ] {
+            assert_eq!(service_of_package(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_sdk_says_which_services_are_regional() {
+        let sdk = std::env::temp_dir().join(format!("cli-gen-sdk-{}", std::process::id()));
+        for (krate, text) in [
+            ("pvs", "Self { service: client.service(\"pvs\", true) }"),
+            (
+                "location",
+                "service: client.service(\n \"location\", false),",
+            ),
+        ] {
+            let dir = sdk.join("crates").join(krate).join("src").join("generated");
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("x.rs"), text).unwrap();
+        }
+        let found = regional_services(&sdk).unwrap();
+        std::fs::remove_dir_all(&sdk).unwrap();
+        assert_eq!(
+            found,
+            BTreeMap::from([("location".to_owned(), false), ("pvs".to_owned(), true)])
+        );
     }
 }

@@ -382,7 +382,7 @@ fn names(output: &Output) -> Vec<String> {
 async fn a_list_without_a_zone_lists_every_zone_of_the_service() {
     let server = recording(zonal).await;
     let output = server
-        .pvs_with(
+        .pvs_zonal(
             &["list-volumes", "--project", "p"],
             &[("ORIGINCLOUD_ZONE", "z-b")],
         )
@@ -402,7 +402,7 @@ async fn a_list_without_a_zone_lists_every_zone_of_the_service() {
 
     // `--zone` lists that zone alone.
     let output = server
-        .pvs(&["list-volumes", "--project", "p", "--zone", "z-a"])
+        .pvs_zonal(&["list-volumes", "--project", "p", "--zone", "z-a"], &[])
         .await;
     assert_eq!(names(&output), ["projects/p/zones/z-a/volumes/v-a"]);
 }
@@ -412,7 +412,7 @@ async fn a_list_fails_whole_when_a_zone_fails() {
     let server = recording(zonal).await;
     let description = failure(
         &server
-            .pvs(&["list-volumes", "--project", "p", "--zone", "z-fail"])
+            .pvs_zonal(&["list-volumes", "--project", "p", "--zone", "z-fail"], &[])
             .await,
     );
     assert!(description.contains("broken"), "{description}");
@@ -423,7 +423,7 @@ async fn one_page_needs_a_zone() {
     let server = recording(zonal).await;
     let description = failure(
         &server
-            .pvs(&["list-volumes", "--project", "p", "--page-size", "1"])
+            .pvs_zonal(&["list-volumes", "--project", "p", "--page-size", "1"], &[])
             .await,
     );
     assert!(description.contains("need --zone"), "{description}");
@@ -446,7 +446,7 @@ async fn an_empty_list_prints_an_empty_array() {
             "5",
         ],
     ] {
-        let output = server.pvs(args).await;
+        let output = server.pvs_zonal(args, &[]).await;
         assert_eq!(output.status.code(), Some(0), "{}", stdout(&output));
         assert_eq!(
             stdout(&output),

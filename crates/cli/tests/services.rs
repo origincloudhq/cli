@@ -8,7 +8,7 @@ mod common;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use common::{failure, recording, stdout, success};
+use common::{failure, origin, recording, stdout, success};
 use fake_server::{Received, Response};
 
 const ZONES: &str = r#"{"zones":[
@@ -198,17 +198,29 @@ async fn get_operation_reads_the_operation_no_wait_printed() {
     assert!(description.contains("gone"), "{description}");
 }
 
-/// Without `--timeout`, `wait-operation` asks until the operation is done
-/// and prints it done; with one, it asks once, sending it, and prints the
-/// operation as it is then.
+/// The wait calls the server received, and the timeout each asked for.
+fn wait_calls(server: &common::Recording) -> Vec<Option<String>> {
+    server
+        .requests()
+        .iter()
+        .map(|r| {
+            assert_eq!(r.method, "POST");
+            assert_eq!(r.path, "/v1beta1/projects/p/zones/z/operations/op-1:wait");
+            let body: serde_json::Value = serde_json::from_slice(&r.body).unwrap();
+            assert_eq!(body["name"], OPERATION, "{body}");
+            body.get("timeout").map(|t| t.as_str().unwrap().to_owned())
+        })
+        .collect()
+}
+
+/// Without `--timeout`, `wait-operation` asks until the operation is done,
+/// each call leaving the API's own wait of a minute, and prints it done.
 #[tokio::test(flavor = "multi_thread")]
-async fn wait_operation_asks_until_done_unless_given_a_timeout() {
+async fn wait_operation_asks_until_done() {
     let answered = Arc::new(AtomicUsize::new(0));
     let count = Arc::clone(&answered);
     // Running for the first two wait calls, done from the third.
-    let server = recording(move |r: &Received| {
-        assert_eq!(r.method, "POST");
-        assert_eq!(r.path, "/v1beta1/projects/p/zones/z/operations/op-1:wait");
+    let server = recording(move |_: &Received| {
         if count.fetch_add(1, Ordering::SeqCst) < 2 {
             Response::json(RUNNING)
         } else {
@@ -223,15 +235,14 @@ async fn wait_operation_asks_until_done_unless_given_a_timeout() {
             .await,
     );
     assert_eq!(printed, json(DONE));
-    let requests = server.requests();
-    assert_eq!(requests.len(), 3, "{requests:?}");
-    for r in &requests {
-        let body: serde_json::Value = serde_json::from_slice(&r.body).unwrap();
-        assert!(body.get("timeout").is_none(), "{body}");
-        assert_eq!(body["name"], OPERATION, "{body}");
-    }
+    assert_eq!(wait_calls(&server), [None, None, None]);
+}
 
-    answered.store(0, Ordering::SeqCst);
+/// `--timeout` is the command's deadline: each call asks the API to wait
+/// what is left of it, a minute at most, which is all the API waits.
+#[tokio::test(flavor = "multi_thread")]
+async fn wait_operation_asks_for_at_most_a_minute_at_a_time() {
+    let server = recording(|_: &Received| Response::json(DONE)).await;
     let printed = success(
         &server
             .pvs(&[
@@ -247,11 +258,78 @@ async fn wait_operation_asks_until_done_unless_given_a_timeout() {
             ])
             .await,
     );
-    assert_eq!(printed, json(RUNNING), "one call, the operation as it is");
-    let requests = server.requests();
-    assert_eq!(requests.len(), 4, "{requests:?}");
-    let body: serde_json::Value = serde_json::from_slice(&requests[3].body).unwrap();
-    assert_eq!(body["timeout"], "90s", "{body}");
+    assert_eq!(printed, json(DONE));
+    assert_eq!(wait_calls(&server), [Some("60s".to_owned())]);
+}
+
+/// When `--timeout` passes before the operation is done, the command
+/// prints it as it is and fails.
+#[tokio::test(flavor = "multi_thread")]
+async fn wait_operation_fails_when_its_timeout_passes() {
+    let server = recording(|_: &Received| Response::json(RUNNING)).await;
+    let started = std::time::Instant::now();
+    let output = server
+        .pvs(&[
+            "wait-operation",
+            "--operation",
+            OPERATION,
+            "--timeout",
+            "2s",
+        ])
+        .await;
+    let elapsed = started.elapsed();
+    assert_eq!(output.status.code(), Some(1), "{}", stdout(&output));
+    assert_eq!(stdout(&output), json(RUNNING));
+    assert!(
+        elapsed >= std::time::Duration::from_secs(2)
+            && elapsed < std::time::Duration::from_secs(10),
+        "{elapsed:?}"
+    );
+    let calls = wait_calls(&server);
+    assert!(calls.len() >= 2 && calls.len() <= 4, "{calls:?}");
+    assert_eq!(calls[0].as_deref(), Some("2s"));
+}
+
+const FAILED: &str = r#"{"name":"projects/p/zones/z/operations/op-1","done":true,"error":{"code":8,"message":"the zone has no capacity left"}}"#;
+
+/// A failed operation is printed, its error included, by both commands;
+/// `wait-operation` then fails, as a command waiting for its own operation
+/// does, and `get-operation`, which only reads it, doesn't.
+#[tokio::test(flavor = "multi_thread")]
+async fn wait_operation_fails_with_a_failed_operation() {
+    let server = recording(|_: &Received| Response::json(FAILED)).await;
+    let output = server
+        .pvs(&["wait-operation", "--operation", OPERATION])
+        .await;
+    assert_eq!(output.status.code(), Some(1), "{}", stdout(&output));
+    let printed = stdout(&output);
+    assert_eq!(printed, json(FAILED));
+    assert_eq!(printed["error"]["message"], "the zone has no capacity left");
+
+    let printed = success(
+        &server
+            .pvs(&["get-operation", "--operation", OPERATION])
+            .await,
+    );
+    assert_eq!(printed, json(FAILED));
+
+    // `create-volume` waiting for the same failed operation fails too.
+    let description = common::failure(
+        &server
+            .pvs(&[
+                "create-volume",
+                "--project",
+                "p",
+                "--zone",
+                "z",
+                "--size-gib",
+                "8",
+                "--storage-class",
+                "gp1",
+            ])
+            .await,
+    );
+    assert!(description.contains("no capacity left"), "{description}");
 }
 
 /// A value `--timeout` can't read, or an operation name that could step
@@ -276,6 +354,18 @@ async fn operation_commands_refuse_bad_names_and_durations() {
             String::from_utf8_lossy(&output.stderr)
         );
     }
+    let description = failure(
+        &server
+            .pvs(&[
+                "wait-operation",
+                "--operation",
+                OPERATION,
+                "--timeout",
+                "0s",
+            ])
+            .await,
+    );
+    assert!(description.contains("longer than zero"), "{description}");
     for command in ["get-operation", "wait-operation"] {
         for operation in [
             "..",
@@ -334,4 +424,115 @@ async fn the_location_endpoint_is_https_or_this_machine() {
         "the endpoint override is said on stderr"
     );
     let _ = stdout(&output);
+}
+
+/// Each group's `--endpoint` variable redirects that group alone: the pvs
+/// one leaves `origin location` at its own, and the shared variable of
+/// earlier versions redirects nothing.
+#[tokio::test(flavor = "multi_thread")]
+async fn each_groups_endpoint_variable_redirects_that_group_alone() {
+    let pvs = recording(|_: &Received| {
+        Response::json(r#"{"name":"projects/p/zones/z/volumes/v","sizeGib":8}"#)
+    })
+    .await;
+    let location = recording(location).await;
+    let (pvs_url, location_url) = (pvs.server.url(), location.server.url());
+    let env = [
+        ("ORIGINCLOUD_PVS_ENDPOINT", pvs_url.as_str()),
+        ("ORIGINCLOUD_LOCATION_ENDPOINT", location_url.as_str()),
+        ("ORIGINCLOUD_ENDPOINT", "http://127.0.0.1:9"),
+    ];
+    let home = pvs.home.path();
+
+    let output = origin(home, &["location", "list-zones"], &env).await;
+    assert_eq!(success(&output), json(ZONES));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(&format!(
+            "Sending the `origin location` calls to {location_url}, from --endpoint or ORIGINCLOUD_LOCATION_ENDPOINT"
+        )),
+        "{stderr}"
+    );
+    let output = origin(
+        home,
+        &[
+            "pvs",
+            "get-volume",
+            "--volume",
+            "projects/p/zones/z/volumes/v",
+        ],
+        &env,
+    )
+    .await;
+    assert_eq!(success(&output)["sizeGib"], 8);
+
+    assert_eq!(location.requests().len(), 1);
+    assert_eq!(location.requests()[0].path, "/v1beta1/zones");
+    assert_eq!(pvs.requests().len(), 1);
+    assert_eq!(
+        pvs.requests()[0].path,
+        "/v1beta1/projects/p/zones/z/volumes/v"
+    );
+
+    // `--endpoint` given to one group isn't an option of the other's.
+    let output = origin(
+        home,
+        &["--endpoint", &pvs_url, "location", "list-zones"],
+        &[],
+    )
+    .await;
+    assert_eq!(output.status.code(), Some(2));
+}
+
+/// A list given no `--zone` looks up the zones at the location service, not
+/// at the pvs `--endpoint`: at the location group's own endpoint when its
+/// variable names one, and says where.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_zone_lookup_goes_to_the_location_service_not_the_pvs_endpoint() {
+    let pvs = recording(|r: &Received| match r.path.as_str() {
+        "/v1beta1/projects/p/zones/z-a/volumes" => {
+            Response::json(r#"{"volumes":[{"name":"projects/p/zones/z-a/volumes/v-a"}]}"#)
+        }
+        _ => Response::json(r#"{"error":{"code":404,"status":"NOT_FOUND","message":"not pvs"}}"#)
+            .with_status(404),
+    })
+    .await;
+    let location = recording(location).await;
+    let location_url = location.server.url();
+    let output = pvs
+        .pvs_with(
+            &["list-volumes", "--project", "p"],
+            &[("ORIGINCLOUD_LOCATION_ENDPOINT", &location_url)],
+        )
+        .await;
+    let printed = success(&output);
+    assert_eq!(
+        printed["volumes"],
+        serde_json::json!([{ "name": "projects/p/zones/z-a/volumes/v-a" }])
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(&format!(
+            "Looking up the zones at {location_url}, from ORIGINCLOUD_LOCATION_ENDPOINT"
+        )),
+        "{stderr}"
+    );
+    let location_paths: Vec<String> = location.requests().iter().map(|r| r.path.clone()).collect();
+    assert_eq!(location_paths, ["/v1beta1/zones"]);
+    let pvs_paths: Vec<String> = pvs.requests().iter().map(|r| r.path.clone()).collect();
+    assert_eq!(pvs_paths, ["/v1beta1/projects/p/zones/z-a/volumes"]);
+
+    // An invalid location endpoint is refused before any request.
+    let description = failure(
+        &pvs.pvs_with(
+            &["list-volumes", "--project", "p"],
+            &[("ORIGINCLOUD_LOCATION_ENDPOINT", "http://192.0.2.1:9")],
+        )
+        .await,
+    );
+    assert!(
+        description.contains("ORIGINCLOUD_LOCATION_ENDPOINT"),
+        "{description}"
+    );
+    assert_eq!(pvs.requests().len(), 1);
 }

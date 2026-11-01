@@ -136,10 +136,11 @@ every method of the API, with the API's own descriptions as help:
 - **Operations.** A service whose methods answer with operations has two
   commands for them, which call its own host: `get-operation` prints an
   operation as it is now, and `wait-operation` waits until it is done and
-  prints it, with its `response` or its `error`; `--timeout` makes it wait
-  once, at most that long, and print the operation as it is then. Both take
-  the operation's `name`, as `--no-wait` printed it, or its id with
-  `--project` and `--zone`:
+  prints it, with its `response` or its `error`, exiting with status 1 when
+  it failed. `--timeout` (such as `5m`) bounds the wait: when it passes
+  first, `wait-operation` prints the operation as it is and exits with
+  status 1. Both take the operation's `name`, as `--no-wait` printed it, or
+  its id with `--project` and `--zone`:
 
   ```sh
   origin pvs create-volume --size-gib 8 --storage-class gp1 --no-wait
@@ -159,10 +160,15 @@ every method of the API, with the API's own descriptions as help:
   `ORIGINCLOUD_CLIENT_ID` and `ORIGINCLOUD_CLIENT_SECRET` for a service
   account.
 
-`--endpoint URL` (or `ORIGINCLOUD_ENDPOINT`), an option of each of these
-groups, such as `origin pvs --endpoint URL`, sends the calls to another base
-URL, such as a test server's: `https://`, or `http://` to this machine only.
-The CLI says so on standard error whenever it is used.
+`--endpoint URL`, an option of each of these groups, such as
+`origin pvs --endpoint URL`, sends that group's calls to another base URL,
+such as a test server's: `https://`, or `http://` to this machine only. Each
+group has its own environment variable for it, `ORIGINCLOUD_PVS_ENDPOINT` and
+`ORIGINCLOUD_LOCATION_ENDPOINT`, so that redirecting one service leaves the
+others at their own hosts. A `pvs` list without `--zone` looks up the zones at
+the location service, so `ORIGINCLOUD_LOCATION_ENDPOINT`, not the `pvs`
+endpoint, redirects that lookup. The CLI says on standard error whenever an
+endpoint is used.
 
 ## Contributing
 

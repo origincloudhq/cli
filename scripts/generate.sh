@@ -11,7 +11,9 @@
 #
 # The commands use the Rust SDK's request and response types, so the SDK
 # commit Cargo.lock pins must have been generated from the same API
-# revision: both modes check that its API_REVISION is this one.
+# revision: both modes check that its API_REVISION is this one. The
+# generator also reads that commit's clients, which say which services
+# answer at a region's host.
 #
 # Needs cargo, git and network access: the API's dependencies are
 # downloaded from the Buf Schema Registry at the commits its buf.lock pins,
@@ -46,11 +48,12 @@ if [[ "${sdk_revision}" != "${revision}" ]]; then
   echo "FAILED: the SDK commit ${sdk:0:12} was generated from origincloudhq/api@${sdk_revision:0:12}, not API_REVISION's ${revision:0:12}; run scripts/update.sh, or pin the SDK commit generated from it"
   exit 1
 fi
+git -C "${tmp}/sdk" checkout --quiet FETCH_HEAD
 
 git init --quiet "${tmp}/api"
 git -C "${tmp}/api" fetch --quiet --depth 1 "${API_REPOSITORY}" "${revision}"
 git -C "${tmp}/api" checkout --quiet FETCH_HEAD
-(cd "${ROOT}" && cargo run --quiet --locked -p origincloud-cli-generator -- "${tmp}/api" "${tmp}/gen")
+(cd "${ROOT}" && cargo run --quiet --locked -p origincloud-cli-generator -- "${tmp}/api" "${tmp}/sdk" "${tmp}/gen")
 
 # The generated files, relative to the repository.
 generated() {

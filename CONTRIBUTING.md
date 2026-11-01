@@ -47,7 +47,11 @@ answer with long-running operations (`origin pvs get-operation`), because
 every service serves the operations its methods return at its own host; the
 SDKs bind them to that host the same way. The generator also writes
 `services.rs`, which makes each service a group of `origin` with its
-`--endpoint`, and the descriptors of every package it read, `api.binpb`, from
+`--endpoint` and that option's own variable (`ORIGINCLOUD_PVS_ENDPOINT`),
+whose help names the service's host: regional (`pvs.{region}.origincloudapis.eu`
+with a region) or not as the Rust SDK's clients say, which
+`scripts/generate.sh` hands the generator at the commit `Cargo.lock` pins. It
+writes the descriptors of every package it read, `api.binpb`, from
 which the tests check that every method has a command, and that every delete
 and every one-way change is refused without `--yes` before any request. The
 README describes the scheme for users; `generator/src/commands.rs` implements
@@ -109,7 +113,9 @@ pull request:
 4. Mention the group in the README.
 
 Nothing else names a service: the scripts, the generator and the tests find
-every service in the API.
+every service in the API. A file under `origincloud/` whose package isn't
+shaped `origincloud.{service}.{version}` fails generation, rather than being
+left out unnoticed.
 
 ## Checks
 

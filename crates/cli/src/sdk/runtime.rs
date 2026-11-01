@@ -28,38 +28,115 @@ const CREDENTIAL_VARIABLES: [&str; 3] = [
     "ORIGINCLOUD_CLIENT_SECRET",
 ];
 
-/// What a command runs with: the profile, and the endpoint override.
+/// What the runtime knows of a generated group, which the generator writes
+/// in `generated/services.rs`.
+pub struct Group {
+    /// `pvs`, as in `origin pvs`.
+    pub name: &'static str,
+    /// The environment variable of its `--endpoint`, its own:
+    /// `ORIGINCLOUD_PVS_ENDPOINT`.
+    pub endpoint_variable: &'static str,
+    /// Whether, with a region, its calls go to the region's host, as the
+    /// SDK's clients say, and as its `--endpoint` help says.
+    #[allow(dead_code)]
+    pub regional: bool,
+    /// The endpoint its calls go to through `client`.
+    #[allow(dead_code)]
+    pub service: fn(&Client) -> origincloud_core::Service,
+}
+
+/// The group whose `--endpoint` redirects the zone lookup of a list given no
+/// `--zone`.
+const LOCATION: &str = "location";
+
+/// What a command runs with: the profile, its group, and the group's
+/// endpoint override.
 pub struct Context<'a> {
     profile: &'a ClientProfile,
-    /// The base URL every call goes to instead of the service's own host.
+    group: &'static Group,
+    /// The base URL every call of the group goes to instead of the
+    /// service's own host.
     endpoint: Option<String>,
 }
 
 impl<'a> Context<'a> {
-    /// The context of a command, with the endpoint `--endpoint` names, which
-    /// must be `https://`, or `http://` to this machine. Using one is said on
-    /// standard error, so that it is never forgotten in a shell's
-    /// environment.
-    pub fn new(profile: &'a ClientProfile, endpoint: Option<&str>) -> anyhow::Result<Self> {
+    /// The context of a command of `group`, with the endpoint its
+    /// `--endpoint`, or its own variable, names, which must be `https://`,
+    /// or `http://` to this machine. Using one is said on standard error, so
+    /// that it is never forgotten in a shell's environment.
+    pub fn new(
+        profile: &'a ClientProfile,
+        group: &'static Group,
+        endpoint: Option<&str>,
+    ) -> anyhow::Result<Self> {
         let endpoint = endpoint.map(check_endpoint).transpose()?;
         if let Some(endpoint) = &endpoint {
-            eprintln!("Sending the calls to {endpoint} instead of the service's own host.");
+            eprintln!(
+                "Sending the `origin {}` calls to {endpoint}, from --endpoint or {}, instead of \
+                 the service's own host.",
+                group.name, group.endpoint_variable
+            );
         }
-        Ok(Self { profile, endpoint })
+        Ok(Self {
+            profile,
+            group,
+            endpoint,
+        })
     }
 
     /// The client of a command that changes nothing irreversibly.
     pub fn client(&self) -> anyhow::Result<ReadClient> {
-        Ok(ReadClient(self.build()?))
+        Ok(ReadClient(self.build(self.endpoint.as_deref())?))
     }
 
     /// The client of a delete, or of an irreversible change: only to be had
     /// with the proof that `--yes` was given.
     pub fn confirmed_client(&self, _confirmed: Confirmed) -> anyhow::Result<ConfirmedClient> {
-        Ok(ConfirmedClient(self.build()?))
+        Ok(ConfirmedClient(self.build(self.endpoint.as_deref())?))
     }
 
-    fn build(&self) -> anyhow::Result<Client> {
+    /// The client of the location service, for the zone lookup of a list
+    /// given no `--zone`: not the group's endpoint override, which is for
+    /// the group's own service, but the location group's, from its
+    /// variable, when one is set.
+    fn location_client(&self) -> anyhow::Result<ReadClient> {
+        if self.group.name == LOCATION {
+            return self.client();
+        }
+        let variable = super::generated::GROUPS
+            .iter()
+            .find(|g| g.name == LOCATION)
+            .map(|g| g.endpoint_variable);
+        let endpoint = variable.and_then(|v| {
+            std::env::var(v)
+                .ok()
+                .filter(|e| !e.is_empty())
+                .map(|e| (v, e))
+        });
+        match endpoint {
+            Some((variable, endpoint)) => {
+                let endpoint = check_endpoint(&endpoint).with_context(|| variable.to_owned())?;
+                eprintln!(
+                    "Looking up the zones at {endpoint}, from {variable}, instead of the location \
+                     service's own host."
+                );
+                Ok(ReadClient(self.build(Some(&endpoint))?))
+            }
+            None => {
+                if self.endpoint.is_some() {
+                    eprintln!(
+                        "Looking up the zones at the location service's own host{}.",
+                        variable
+                            .map(|v| format!(", which {v} would redirect"))
+                            .unwrap_or_default()
+                    );
+                }
+                Ok(ReadClient(self.build(None)?))
+            }
+        }
+    }
+
+    fn build(&self, endpoint: Option<&str>) -> anyhow::Result<Client> {
         let mut builder = Client::builder()
             .user_agent(format!("origin-cli/{}", env!("CARGO_PKG_VERSION")))
             .region(self.profile.region.clone().unwrap_or_default());
@@ -72,7 +149,7 @@ impl<'a> Context<'a> {
         } else {
             builder.credentials(CliSessionCredentials::default())
         };
-        if let Some(endpoint) = &self.endpoint {
+        if let Some(endpoint) = endpoint {
             builder = builder.endpoint(endpoint);
         }
         builder.build().map_err(api_error)
@@ -151,9 +228,11 @@ impl ConfirmedClient {
     }
 }
 
-/// The zones that offer `service`, by id, in catalog order.
-pub async fn zones(client: &ReadClient, service: &str) -> anyhow::Result<Vec<String>> {
+/// The zones that offer `service`, by id, in catalog order, from the
+/// location service.
+pub async fn zones(ctx: &Context<'_>, service: &str) -> anyhow::Result<Vec<String>> {
     use origincloud_location::v1beta1::{ListZonesRequest, LocationClient};
+    let client = ctx.location_client()?;
     let listed = LocationClient::new(client.sdk())
         .list_zones(ListZonesRequest::default())
         .await
@@ -385,6 +464,82 @@ impl SerializableOutput for Json {
     }
 }
 
+/// An operation a command waited for, printed as the API sends it, with
+/// exit status 1 when it failed or isn't done.
+struct Waited {
+    json: serde_json::Value,
+    succeeded: bool,
+}
+
+impl SerializableOutput for Waited {
+    fn to_json(&self) -> Result<serde_json::Value, SerializationError> {
+        Ok(self.json.clone())
+    }
+
+    fn exit_code(&self) -> i32 {
+        if self.succeeded {
+            0
+        } else {
+            1
+        }
+    }
+}
+
+/// `operation`, which a command waited for: printed whatever its outcome,
+/// the command failing unless it is done without an error.
+pub fn waited(operation: &origincloud_core::longrunning::Operation) -> Box<dyn SerializableOutput> {
+    use origincloud_core::longrunning::OperationResult;
+    let succeeded = operation.done && !matches!(operation.result, Some(OperationResult::Error(_)));
+    Box::new(Waited {
+        json: serde_json::to_value(operation).unwrap_or(serde_json::Value::Null),
+        succeeded,
+    })
+}
+
+/// The most one wait call asks the API to wait: a minute, the most it waits.
+const MOST_PER_CALL: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// The least time between two wait calls, should the API answer one early
+/// with the operation not done.
+const LEAST_BETWEEN_CALLS: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// When `--timeout`, a deadline of the command's, passes.
+pub fn deadline_after(
+    timeout: origincloud_core::protobuf::Duration,
+) -> anyhow::Result<std::time::Instant> {
+    let timeout = std::time::Duration::try_from(timeout)
+        .ok()
+        .filter(|t| !t.is_zero())
+        .ok_or_else(|| anyhow!("--timeout must be longer than zero"))?;
+    std::time::Instant::now()
+        .checked_add(timeout)
+        .ok_or_else(|| anyhow!("--timeout is too long"))
+}
+
+/// Whether `deadline` has passed.
+pub fn passed(deadline: std::time::Instant) -> bool {
+    std::time::Instant::now() >= deadline
+}
+
+/// How long the next wait call asks the API to wait: until `deadline`, in
+/// whole seconds rounded up, at least one and at most a minute.
+pub fn wait_for(deadline: std::time::Instant) -> origincloud_core::protobuf::Duration {
+    let left = deadline.saturating_duration_since(std::time::Instant::now());
+    let seconds = left.as_secs() + u64::from(left.subsec_nanos() > 0);
+    std::time::Duration::from_secs(seconds.clamp(1, MOST_PER_CALL.as_secs())).into()
+}
+
+/// Sleeps, before the next wait call, until a second after `started`, the
+/// last call's start, without going past `deadline`: an API answering early
+/// isn't called in a tight loop.
+pub async fn pace(started: std::time::Instant, deadline: Option<std::time::Instant>) {
+    let mut until = started + LEAST_BETWEEN_CALLS;
+    if let Some(deadline) = deadline {
+        until = until.min(deadline);
+    }
+    tokio::time::sleep_until(until.into()).await;
+}
+
 /// `value` in its proto3 JSON mapping, as the API sends it.
 pub fn json(value: &impl Serialize) -> anyhow::Result<Box<dyn SerializableOutput>> {
     Ok(Box::new(Json(serde_json::to_value(value)?)))
@@ -456,7 +611,9 @@ mod tests {
         let mut profile = ClientProfile::default();
         profile.default_project = Some("default-project".to_owned());
         let profile = Box::leak(Box::new(profile));
-        Context::new(profile, None).unwrap().names(given)
+        Context::new(profile, &super::super::generated::PVS, None)
+            .unwrap()
+            .names(given)
     }
 
     const VOLUME: &str = "projects/{project}/zones/{zone}/volumes/{volume}";
@@ -622,6 +779,60 @@ mod tests {
             "18446744073709551616s",
         ] {
             assert!(duration(bad).is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn a_wait_call_asks_for_what_is_left_of_the_deadline_up_to_a_minute() {
+        use std::time::{Duration, Instant};
+        let secs = |d: origincloud_core::protobuf::Duration| d.seconds;
+        assert_eq!(secs(wait_for(Instant::now() + Duration::from_secs(90))), 60);
+        assert_eq!(
+            secs(wait_for(Instant::now() + Duration::from_millis(2500))),
+            3
+        );
+        assert_eq!(secs(wait_for(Instant::now())), 1);
+        assert!(passed(Instant::now()));
+        assert!(!passed(
+            deadline_after(Duration::from_secs(5).into()).unwrap()
+        ));
+        assert!(deadline_after(Duration::ZERO.into()).is_err());
+    }
+
+    #[test]
+    fn a_waited_operation_fails_the_command_unless_done_without_an_error() {
+        let read = |json: &str| -> origincloud_core::longrunning::Operation {
+            serde_json::from_str(json).unwrap()
+        };
+        let done = read(
+            r#"{"name":"o","done":true,"response":{"@type":"type.googleapis.com/google.protobuf.Empty"}}"#,
+        );
+        let failed = read(r#"{"name":"o","done":true,"error":{"code":9,"message":"no"}}"#);
+        let running = read(r#"{"name":"o"}"#);
+        assert_eq!(waited(&done).exit_code(), 0);
+        assert_eq!(waited(&failed).exit_code(), 1);
+        assert_eq!(waited(&failed).to_json().unwrap()["error"]["message"], "no");
+        assert_eq!(waited(&running).exit_code(), 1);
+    }
+
+    /// The help of each group's `--endpoint` says what the SDK does: a
+    /// regional group's calls go to the region's host.
+    #[test]
+    fn a_groups_regional_host_is_the_sdks() {
+        let client = Client::builder()
+            .region("r9")
+            .credentials(origincloud_core::AccessToken::new("t"))
+            .build()
+            .unwrap();
+        for group in super::super::generated::GROUPS {
+            let url = (group.service)(&client);
+            let host = url.base_url().unwrap().host_str().unwrap().to_owned();
+            let regional = host == format!("{}.r9.origincloudapis.eu", group.name);
+            assert_eq!(regional, group.regional, "{}: {host}", group.name);
+            assert_eq!(
+                group.endpoint_variable,
+                format!("ORIGINCLOUD_{}_ENDPOINT", group.name.to_uppercase())
+            );
         }
     }
 

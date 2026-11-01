@@ -201,9 +201,37 @@ impl Recording {
         self.run("pvs", args).await
     }
 
+    /// Runs `origin pvs` with `args`, the zone lookup of a list given no
+    /// `--zone` sent to the server too, through the location group's
+    /// variable.
+    pub async fn pvs_zonal(&self, args: &[&str], env: &[(&str, &str)]) -> Output {
+        let url = self.server.url();
+        let mut env = env.to_vec();
+        env.push(("ORIGINCLOUD_LOCATION_ENDPOINT", &url));
+        self.run_with("pvs", args, &env).await
+    }
+
     pub fn requests(&self) -> Vec<Received> {
         self.received.lock().unwrap().clone()
     }
+}
+
+/// Runs `origin` with `args` and only `env` in its environment, with a
+/// login session in `home`.
+pub async fn origin(home: &Path, args: &[&str], env: &[(&str, &str)]) -> Output {
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_origin"));
+    command
+        .args(args)
+        .env_clear()
+        .env("HOME", home)
+        .env("XDG_DATA_HOME", home)
+        .env("XDG_CONFIG_HOME", home);
+    for (name, value) in env {
+        command.env(name, value);
+    }
+    tokio::task::spawn_blocking(move || command.output().expect("origin runs"))
+        .await
+        .unwrap()
 }
 
 pub fn stdout(output: &Output) -> serde_json::Value {

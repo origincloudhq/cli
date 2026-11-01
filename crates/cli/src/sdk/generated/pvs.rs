@@ -3,8 +3,9 @@
 
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
-    api_error, duration, json, list_json, names_any, success, tags, wait, waiting, zones,
-    ConfirmedClient, Context, ReadClient,
+    api_error, deadline_after, duration, json, list_json, names_any, pace, passed,
+    success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient, Context,
+    ReadClient,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -113,7 +114,7 @@ pub enum Commands {
     #[command(
         name = "wait-operation",
         about = "Waits until an operation is done or `--timeout` has passed, whichever comes first, and returns it as it is then",
-        long_about = "Waits until an operation is done or `--timeout` has passed, whichever comes first, and returns it as it is then.\n\nThe operation is one an `origin pvs` command answered with, such as the one `--no-wait` prints. Without `--timeout`, the command waits until the operation is done; Ctrl-C stops the waiting, not the operation."
+        long_about = "Waits until an operation is done or `--timeout` has passed, whichever comes first, and returns it as it is then.\n\nThe operation is one an `origin pvs` command answered with, such as the one `--no-wait` prints. Without `--timeout`, the command waits until the operation is done; Ctrl-C stops the waiting, not the operation. It prints the operation, and exits with status 1 when the operation failed, or isn't done when `--timeout` passes."
     )]
     WaitOperation(WaitOperationArgs),
 }
@@ -141,6 +142,12 @@ pub async fn run(
         Commands::GetOperation(args) => get_operation(ctx, args).await,
         Commands::WaitOperation(args) => wait_operation(ctx, args).await,
     }
+}
+/// The endpoint the group's calls go to, which also serves its operations.
+pub(crate) fn service(
+    client: &::origincloud_core::Client,
+) -> ::origincloud_core::Service {
+    ::origincloud_pvs::v1beta1::SnapshotClient::new(client).service().clone()
 }
 /// The flags of `get-snapshot`.
 #[derive(clap::Args, Debug)]
@@ -236,7 +243,7 @@ async fn list_snapshots(
             }
             names.check_without("projects/{project}/zones/{zone}", "zone")?;
             let mut parents = Vec::new();
-            for zone in zones(&client, "pvs").await? {
+            for zone in zones(ctx, "pvs").await? {
                 parents
                     .push(
                         names
@@ -801,7 +808,7 @@ async fn list_volumes(
             }
             names.check_without("projects/{project}/zones/{zone}", "zone")?;
             let mut parents = Vec::new();
-            for zone in zones(&client, "pvs").await? {
+            for zone in zones(ctx, "pvs").await? {
                 parents
                     .push(
                         names
@@ -1279,8 +1286,7 @@ pub struct GetOperationArgs {
     /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The operation to return, `projects/{project}/zones/{zone}/operations/{operation}`,
-    /// exactly as a method returned it.
+    /// The operation.
     ///
     /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/operations/{operation}`.
     #[arg(long = "operation", value_name = "OPERATION")]
@@ -1318,7 +1324,7 @@ async fn call_get_operation(
     ::origincloud_core::Error,
 > {
     ::origincloud_core::longrunning::v1beta1::OperationClient::new(
-            ::origincloud_pvs::v1beta1::SnapshotClient::new(client.sdk()).service(),
+            &service(client.sdk()),
         )
         .get_operation(request)
         .await
@@ -1332,16 +1338,12 @@ pub struct WaitOperationArgs {
     /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The operation to wait for, exactly as a method returned it.
+    /// The operation.
     ///
     /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/operations/{operation}`.
     #[arg(long = "operation", value_name = "OPERATION")]
     pub operation: String,
-    /// The longest to wait, at most a minute; a minute when not set.
-    ///
-    /// Such as `30s` or `1m`.
-    ///
-    /// With it, the command asks once and prints the operation as it is then; without it, the command asks again, a minute at a time, until the operation is done.
+    /// How long to wait for the operation, such as `30s` or `5m`. Without it, the command waits as long as the operation takes. When it passes first, the command prints the operation as it is and exits with status 1.
     #[arg(long = "timeout", value_name = "DURATION", value_parser = duration)]
     pub timeout: Option<::origincloud_core::protobuf::Duration>,
 }
@@ -1367,20 +1369,27 @@ async fn wait_operation(
         timeout: args.timeout,
     };
     let client = ctx.client()?;
-    let mut response = call_wait_operation(&client, request.clone())
-        .await
-        .map_err(api_error)?;
-    if args.timeout.is_none() {
-        if !response.done {
+    let deadline = args.timeout.map(deadline_after).transpose()?;
+    let mut request = request;
+    let mut announced = false;
+    let response = loop {
+        let started = ::std::time::Instant::now();
+        if let Some(deadline) = deadline {
+            request.timeout = Some(wait_for(deadline));
+        }
+        let response = call_wait_operation(&client, request.clone())
+            .await
+            .map_err(api_error)?;
+        if response.done || deadline.is_some_and(passed) {
+            break response;
+        }
+        if !announced {
             waiting(&response.name);
+            announced = true;
         }
-        while !response.done {
-            response = call_wait_operation(&client, request.clone())
-                .await
-                .map_err(api_error)?;
-        }
-    }
-    json(&response)
+        pace(started, deadline).await;
+    };
+    Ok(waited(&response))
 }
 async fn call_wait_operation(
     client: &ReadClient,
@@ -1390,7 +1399,7 @@ async fn call_wait_operation(
     ::origincloud_core::Error,
 > {
     ::origincloud_core::longrunning::v1beta1::OperationClient::new(
-            ::origincloud_pvs::v1beta1::SnapshotClient::new(client.sdk()).service(),
+            &service(client.sdk()),
         )
         .wait_operation(request)
         .await

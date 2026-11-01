@@ -3,15 +3,32 @@
 
 use crate::config::ClientProfile;
 use crate::output::SerializableOutput;
-use crate::sdk::runtime::Context;
+use crate::sdk::runtime::{Context, Group};
 /// `origin location`.
 pub mod location {
     include!("location.rs");
 }
+/// What the runtime knows of `origin location`.
+pub(crate) static LOCATION: Group = Group {
+    name: "location",
+    endpoint_variable: "ORIGINCLOUD_LOCATION_ENDPOINT",
+    regional: false,
+    service: location::service,
+};
 /// `origin pvs`.
 pub mod pvs {
     include!("pvs.rs");
 }
+/// What the runtime knows of `origin pvs`.
+pub(crate) static PVS: Group = Group {
+    name: "pvs",
+    endpoint_variable: "ORIGINCLOUD_PVS_ENDPOINT",
+    regional: true,
+    service: pvs::service,
+};
+/// Every generated group.
+#[allow(dead_code)]
+pub(crate) static GROUPS: &[&Group] = &[&LOCATION, &PVS];
 /// The command groups generated from the API definitions, one per service.
 #[derive(clap::Subcommand, Debug)]
 pub enum ServiceCommands {
@@ -31,11 +48,11 @@ pub enum ServiceCommands {
 /// `origin location`: its options, and the command.
 #[derive(clap::Args, Debug)]
 pub struct LocationCli {
-    /// Base URL the calls go to instead of the service's host, `https://location.origincloudapis.eu`, such as a test server's. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`).
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host, `https://location.origincloudapis.eu`, the same in every region. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`).
     #[arg(
         long,
         value_name = "URL",
-        env = "ORIGINCLOUD_ENDPOINT",
+        env = "ORIGINCLOUD_LOCATION_ENDPOINT",
         global = true,
         help_heading = "Global options"
     )]
@@ -46,11 +63,11 @@ pub struct LocationCli {
 /// `origin pvs`: its options, and the command.
 #[derive(clap::Args, Debug)]
 pub struct PvsCli {
-    /// Base URL the calls go to instead of the service's host, `https://pvs.origincloudapis.eu`, such as a test server's. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`).
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host: `https://pvs.origincloudapis.eu`, or `https://pvs.{region}.origincloudapis.eu` when the profile names a `region`. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`). A list without `--zone` looks up the zones at the location service, not here; `ORIGINCLOUD_LOCATION_ENDPOINT` sends that lookup elsewhere.
     #[arg(
         long,
         value_name = "URL",
-        env = "ORIGINCLOUD_ENDPOINT",
+        env = "ORIGINCLOUD_PVS_ENDPOINT",
         global = true,
         help_heading = "Global options"
     )]
@@ -65,11 +82,11 @@ pub async fn run(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     match command {
         ServiceCommands::Location(cli) => {
-            let ctx = Context::new(profile, cli.endpoint.as_deref())?;
+            let ctx = Context::new(profile, &LOCATION, cli.endpoint.as_deref())?;
             location::run(&ctx, cli.command).await
         }
         ServiceCommands::Pvs(cli) => {
-            let ctx = Context::new(profile, cli.endpoint.as_deref())?;
+            let ctx = Context::new(profile, &PVS, cli.endpoint.as_deref())?;
             pvs::run(&ctx, cli.command).await
         }
     }

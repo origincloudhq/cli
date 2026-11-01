@@ -34,7 +34,11 @@
 //!   commands of every group whose methods answer with operations, sent to
 //!   that group's host, which serves its operations. A method answering
 //!   with the operation as it is after waiting up to its `timeout` is
-//!   called again until the operation is done, unless `--timeout` is given.
+//!   called again until the operation is done, or until `--timeout`, a
+//!   deadline of the command's, passes; it exits with status 1 when the
+//!   operation failed or isn't done.
+//! - A name field without a resource reference takes its help from its
+//!   pattern, not from its comment, which describes it as one string.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -75,6 +79,9 @@ pub struct Generated {
     pub skipped: Vec<String>,
     /// Whether the group has the operation methods' commands.
     pub operations: bool,
+    /// Whether a list of the group looks up the zones, at the location
+    /// service, when given no `--zone`.
+    pub lists_zones: bool,
 }
 
 /// What every method's generation shares.
@@ -115,6 +122,9 @@ struct Command {
     handler: String,
     doc: String,
     code: String,
+    /// Whether, given no `--zone`, it lists every zone the location service
+    /// says offers the service.
+    lists_zones: bool,
 }
 
 /// The service a package names: `pvs` for `origincloud.pvs.v1beta1`.
@@ -207,18 +217,12 @@ pub fn generate(
         .flat_map(|s| s.methods())
         .any(|m| operation_result(pool, &m).is_some());
     let mut with_operations = false;
-    if let (true, Some(operations), Some(first)) =
-        (answers_with_operations, operations, services.first())
-    {
+    if let (true, Some(operations)) = (answers_with_operations, operations) {
         let ops = Cx {
             package: operations,
             own: OPERATIONS,
             sdk: sdk_module(operations),
-            host: Some(format!(
-                "{}::{}::new(client.sdk()).service()",
-                cx.sdk,
-                client_name(first)
-            )),
+            host: Some("&service(client.sdk())".to_owned()),
             fields: fields(operations),
             ..cx
         };
@@ -251,8 +255,8 @@ pub fn generate(
     code.push_str(
         "#[allow(unused_imports)]\n\
          use crate::sdk::runtime::{\n\
-             api_error, duration, json, list_json, names_any, success, tags, wait, waiting, zones,\n\
-             ConfirmedClient, Context, ReadClient,\n\
+             api_error, deadline_after, duration, json, list_json, names_any, pace, passed, success,\n\
+             tags, wait, wait_for, waited, waiting, zones, ConfirmedClient, Context, ReadClient,\n\
          };\n\
          #[allow(unused_imports)]\n\
          use crate::confirm;\n\
@@ -295,6 +299,20 @@ pub fn generate(
         )?;
     }
     code.push_str("    }\n}\n\n");
+    // The group's endpoint: that of its first service's client, which every
+    // client of the package shares, and which serves its operations.
+    if let Some(first) = services.first() {
+        code.push_str(&docs::attributes(
+            "The endpoint the group's calls go to, which also serves its operations.",
+            "",
+        ));
+        writeln!(
+            code,
+            "pub(crate) fn service(client: &::origincloud_core::Client) -> ::origincloud_core::Service {{ {}::{}::new(client).service().clone() }}\n",
+            cx.sdk,
+            client_name(first)
+        )?;
+    }
     for c in &commands {
         code.push_str(&c.code);
         code.push('\n');
@@ -304,6 +322,7 @@ pub fn generate(
         code: unparse(&code)?,
         skipped,
         operations: with_operations,
+        lists_zones: commands.iter().any(|c| c.lists_zones),
     })
 }
 
@@ -323,11 +342,23 @@ pub struct Group {
     pub details: String,
     /// The host its calls go to, such as `pvs.origincloudapis.eu`.
     pub host: String,
+    /// Whether, with a region, its calls go to the region's host,
+    /// `pvs.{region}.origincloudapis.eu`, as the SDK's clients say.
+    pub regional: bool,
+    /// Whether a list of it looks up the zones at the location service.
+    pub lists_zones: bool,
 }
 
 /// The group of `package`: its help from `commands.toml`, or from the
 /// comment of its only service.
-pub fn group(pool: &DescriptorPool, comments: &Comments, policy: &Policy, package: &str) -> Group {
+pub fn group(
+    pool: &DescriptorPool,
+    comments: &Comments,
+    policy: &Policy,
+    package: &str,
+    regional: bool,
+    lists_zones: bool,
+) -> Group {
     let service = service_of(package);
     let services = services_of(pool, package);
     let host = services
@@ -377,17 +408,66 @@ pub fn group(pool: &DescriptorPool, comments: &Comments, policy: &Policy, packag
         about: about.trim_end_matches('.').to_owned(),
         details,
         host,
+        regional,
+        lists_zones,
     }
 }
 
-/// The groups, as subcommands of `origin` with their `--endpoint`, and the
-/// code that runs a command of one.
+/// The environment variable of a group's `--endpoint`:
+/// `ORIGINCLOUD_PVS_ENDPOINT`. Each group has its own, so that redirecting
+/// one service's calls leaves the others' alone.
+fn endpoint_variable(service: &str) -> String {
+    format!(
+        "ORIGINCLOUD_{}_ENDPOINT",
+        service.to_uppercase().replace('-', "_")
+    )
+}
+
+/// The help of a group's `--endpoint`.
+fn endpoint_doc(g: &Group, groups: &[Group]) -> String {
+    let mut doc = String::from("Base URL to send the calls to, such as a test server's");
+    if g.host.is_empty() {
+        doc.push_str(", instead of the service's own host.");
+    } else if g.regional {
+        let (label, rest) = g.host.split_once('.').unwrap_or((&g.host, ""));
+        let _ = write!(
+            doc,
+            ", instead of the service's own host: `https://{}`, or `https://{label}.{{region}}.{rest}` \
+             when the profile names a `region`.",
+            g.host
+        );
+    } else {
+        let _ = write!(
+            doc,
+            ", instead of the service's own host, `https://{}`, the same in every region.",
+            g.host
+        );
+    }
+    doc.push_str(
+        " It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, \
+         `[::1]`).",
+    );
+    if g.lists_zones {
+        if let Some(location) = groups.iter().find(|l| l.service == "location") {
+            let _ = write!(
+                doc,
+                " A list without `--zone` looks up the zones at the location service, not here; \
+                 `{}` sends that lookup elsewhere.",
+                endpoint_variable(&location.service)
+            );
+        }
+    }
+    doc
+}
+
+/// The groups, as subcommands of `origin` with their `--endpoint`, what the
+/// runtime knows of each, and the code that runs a command of one.
 pub fn services(groups: &[Group]) -> Result<String> {
     let mut code = String::new();
     code.push_str(
         "use crate::config::ClientProfile;\n\
          use crate::output::SerializableOutput;\n\
-         use crate::sdk::runtime::Context;\n\n",
+         use crate::sdk::runtime::{Context, Group};\n\n",
     );
     for g in groups {
         code.push_str(&docs::attributes(&format!("`origin {}`.", g.service), ""));
@@ -397,7 +477,30 @@ pub fn services(groups: &[Group]) -> Result<String> {
             ident(&g.service),
             format!("{}.rs", g.service)
         )?;
+        code.push_str(&docs::attributes(
+            &format!("What the runtime knows of `origin {}`.", g.service),
+            "",
+        ));
+        writeln!(
+            code,
+            "pub(crate) static {}: Group = Group {{ name: {:?}, endpoint_variable: {:?}, regional: {}, service: {}::service }};",
+            g.service.to_uppercase().replace('-', "_"),
+            g.service,
+            endpoint_variable(&g.service),
+            g.regional,
+            ident(&g.service)
+        )?;
     }
+    code.push_str(&docs::attributes("Every generated group.", ""));
+    let all: Vec<String> = groups
+        .iter()
+        .map(|g| format!("&{}", g.service.to_uppercase().replace('-', "_")))
+        .collect();
+    writeln!(
+        code,
+        "#[allow(dead_code)]\npub(crate) static GROUPS: &[&Group] = &[{}];",
+        all.join(", ")
+    )?;
     code.push_str(&docs::attributes(
         "The command groups generated from the API definitions, one per service.",
         "",
@@ -424,11 +527,6 @@ pub fn services(groups: &[Group]) -> Result<String> {
     code.push_str("}\n\n");
     for g in groups {
         let variant = g.service.to_upper_camel_case();
-        let host = if g.host.is_empty() {
-            String::new()
-        } else {
-            format!(", `https://{}`", g.host)
-        };
         code.push_str(&docs::attributes(
             &format!("`origin {}`: its options, and the command.", g.service),
             "",
@@ -437,17 +535,11 @@ pub fn services(groups: &[Group]) -> Result<String> {
             code,
             "#[derive(clap::Args, Debug)]\npub struct {variant}Cli {{"
         )?;
-        code.push_str(&docs::attributes(
-            &format!(
-                "Base URL the calls go to instead of the service's host{host}, such as a test \
-                 server's. It must be `https://`, or `http://` to this machine (`localhost`, \
-                 `127.0.0.1`, `[::1]`)."
-            ),
-            "    ",
-        ));
+        code.push_str(&docs::attributes(&endpoint_doc(g, groups), "    "));
         writeln!(
             code,
-            "    #[arg(long, value_name = \"URL\", env = \"ORIGINCLOUD_ENDPOINT\", global = true, help_heading = \"Global options\")]\n    pub endpoint: Option<String>,\n    #[command(subcommand)]\n    pub command: {}::Commands,\n}}\n",
+            "    #[arg(long, value_name = \"URL\", env = {:?}, global = true, help_heading = \"Global options\")]\n    pub endpoint: Option<String>,\n    #[command(subcommand)]\n    pub command: {}::Commands,\n}}\n",
+            endpoint_variable(&g.service),
             ident(&g.service)
         )?;
     }
@@ -458,8 +550,9 @@ pub fn services(groups: &[Group]) -> Result<String> {
     for g in groups {
         writeln!(
             code,
-            "        ServiceCommands::{}(cli) => {{ let ctx = Context::new(profile, cli.endpoint.as_deref())?; {}::run(&ctx, cli.command).await }}",
+            "        ServiceCommands::{}(cli) => {{ let ctx = Context::new(profile, &{}, cli.endpoint.as_deref())?; {}::run(&ctx, cli.command).await }}",
             g.service.to_upper_camel_case(),
+            g.service.to_uppercase().replace('-', "_"),
             ident(&g.service)
         )?;
     }
@@ -1071,8 +1164,11 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             }
         } else if name == "name" {
             if let Some(resource) = http_resource(cx.pool, m, &name) {
+                // The field's comment describes the name as one string; the
+                // flag takes it by its parts too, which its help says.
                 let leaf = leaf_of(&resource.pattern);
-                let expr = leaf_name(&mut b, &resource, &leaf, &help(&comment(&field)))?;
+                let what = format!("The {}.", resource.singular.replace('_', " "));
+                let expr = leaf_name(&mut b, &resource, &leaf, &what)?;
                 target = Some((resource.singular.clone(), "request.name".to_owned()));
                 b.prelude.push(format!("let {fid} = {expr};"));
                 b.request.push(fid);
@@ -1093,12 +1189,15 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         }
         let expr = value(&mut b, &field, &k, required, creating, &doc)?;
         if name == "timeout" && waits {
+            // The flag is a deadline of the command's: each call waits a
+            // minute at most, as the API allows, and the command calls again
+            // until the operation is done or the deadline passes.
             if let Some(flag) = b.flags.iter_mut().find(|f| f.ident == fid) {
-                flag.doc.push_str(
-                    "\n\nWith it, the command asks once and prints the operation as it is then; \
-                     without it, the command asks again, a minute at a time, until the operation \
-                     is done.",
-                );
+                flag.doc = "How long to wait for the operation, such as `30s` or `5m`. Without \
+                            it, the command waits as long as the operation takes. When it passes \
+                            first, the command prints the operation as it is and exits with \
+                            status 1."
+                    .to_owned();
             }
         }
         b.request.push(init(&fid, &expr));
@@ -1191,13 +1290,17 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         let _ = writeln!(
             call,
             "let client = ctx.client()?;\n\
-             let mut response = call_{handler}(&client, request.clone()).await.map_err(api_error)?;\n\
-             if args.timeout.is_none() {{\n\
-                 if !response.done {{ waiting(&response.name); }}\n\
-                 while !response.done {{\n\
-                     response = call_{handler}(&client, request.clone()).await.map_err(api_error)?;\n\
-                 }}\n\
-             }}"
+             let deadline = args.timeout.map(deadline_after).transpose()?;\n\
+             let mut request = request;\n\
+             let mut announced = false;\n\
+             let response = loop {{\n\
+                 let started = ::std::time::Instant::now();\n\
+                 if let Some(deadline) = deadline {{ request.timeout = Some(wait_for(deadline)); }}\n\
+                 let response = call_{handler}(&client, request.clone()).await.map_err(api_error)?;\n\
+                 if response.done || deadline.is_some_and(passed) {{ break response; }}\n\
+                 if !announced {{ waiting(&response.name); announced = true; }}\n\
+                 pace(started, deadline).await;\n\
+             }};"
         );
     } else if list.is_none() {
         let _ = writeln!(
@@ -1209,6 +1312,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     // What the command prints.
     let mut tail = String::new();
     match (&result, &list) {
+        _ if waits => tail.push_str("Ok(waited(&response))\n"),
         (Some(r), _) => {
             b.flags.push(Flag {
                 ident: "no_wait".to_owned(),
@@ -1257,7 +1361,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                                  if paging {{ anyhow::bail!(\"--page-size and --page-token list one page of one zone: they need --zone\"); }}\n\
                                  names.check_without({pattern:?}, \"zone\")?;\n\
                                  let mut parents = Vec::new();\n\
-                                 for zone in zones(&client, {service:?}).await? {{\n\
+                                 for zone in zones(ctx, {service:?}).await? {{\n\
                                      parents.push(names.with_part(\"zone\", &zone).name({pattern:?}, None)?);\n\
                                  }}\n\
                                  parents\n\
@@ -1452,7 +1556,8 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         if waits {
             text.push_str(
                 " Without `--timeout`, the command waits until the operation is done; Ctrl-C \
-                 stops the waiting, not the operation.",
+                 stops the waiting, not the operation. It prints the operation, and exits with \
+                 status 1 when the operation failed, or isn't done when `--timeout` passes.",
             );
         }
         text
@@ -1463,6 +1568,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         handler,
         doc,
         code,
+        lists_zones: zonal_parent.is_some(),
     })
 }
 

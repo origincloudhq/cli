@@ -189,9 +189,16 @@ fn every_service_has_a_group() {
     assert!(groups.iter().any(|g| g == "location"), "{groups:?}");
     for name in &groups {
         let group = group(name);
-        assert!(
-            has_flag(&group, "endpoint"),
-            "`origin {name}` has no --endpoint"
+        let endpoint = group
+            .get_arguments()
+            .find(|a| a.get_long() == Some("endpoint"))
+            .unwrap_or_else(|| panic!("`origin {name}` has no --endpoint"));
+        // Each group's own variable: redirecting one service leaves the
+        // others alone.
+        assert_eq!(
+            endpoint.get_env().and_then(|e| e.to_str()),
+            Some(format!("ORIGINCLOUD_{}_ENDPOINT", name.to_uppercase()).as_str()),
+            "origin {name} --endpoint"
         );
     }
     assert!(origincloud_cli::command()

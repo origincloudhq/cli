@@ -3,8 +3,9 @@
 
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
-    api_error, duration, json, list_json, names_any, success, tags, wait, waiting, zones,
-    ConfirmedClient, Context, ReadClient,
+    api_error, deadline_after, duration, json, list_json, names_any, pace, passed,
+    success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient, Context,
+    ReadClient,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -50,6 +51,12 @@ pub async fn run(
         Commands::GetZone(args) => get_zone(ctx, args).await,
         Commands::ListZones(args) => list_zones(ctx, args).await,
     }
+}
+/// The endpoint the group's calls go to, which also serves its operations.
+pub(crate) fn service(
+    client: &::origincloud_core::Client,
+) -> ::origincloud_core::Service {
+    ::origincloud_location::v1beta1::LocationClient::new(client).service().clone()
 }
 /// The flags of `get-region`.
 #[derive(clap::Args, Debug)]
