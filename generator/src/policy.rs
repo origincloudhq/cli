@@ -1,7 +1,7 @@
 //! The choices the API definitions don't express, from `commands.toml`
 //! beside the generator: what a command group's help says, methods left
-//! without a command, fields left out of a command, and changes that can't
-//! be undone.
+//! without a command or without an MCP tool, fields left out of a command
+//! and its tool, and changes that can't be undone.
 
 use std::path::Path;
 
@@ -18,6 +18,9 @@ pub struct Policy {
     /// Methods left without a command.
     #[serde(default)]
     pub no_command: Vec<NoCommand>,
+    /// Methods left without an MCP tool.
+    #[serde(default)]
+    pub no_tool: Vec<NoCommand>,
     /// Fields left out of a method's command.
     #[serde(default)]
     pub exclude: Vec<Exclusion>,
@@ -41,7 +44,7 @@ pub struct Group {
     pub details: String,
 }
 
-/// A method left without a command.
+/// A method left without a command, or without an MCP tool.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NoCommand {
@@ -101,6 +104,12 @@ impl Policy {
             .any(|n| n.service == service && n.method == method)
     }
 
+    pub fn no_tool(&self, service: &str, method: &str) -> bool {
+        self.no_tool
+            .iter()
+            .any(|n| n.service == service && n.method == method)
+    }
+
     pub fn excluded(&self, service: &str, method: &str, field: &str) -> bool {
         self.exclude
             .iter()
@@ -114,10 +123,14 @@ impl Policy {
     }
 
     /// Every `(service, method, field)` the table names; the field is empty
-    /// for a method left without a command.
+    /// for a method left without a command or a tool.
     pub fn entries(&self) -> impl Iterator<Item = (&str, &str, &str)> {
         let no_command = self
             .no_command
+            .iter()
+            .map(|n| (n.service.as_str(), n.method.as_str(), ""));
+        let no_tool = self
+            .no_tool
             .iter()
             .map(|n| (n.service.as_str(), n.method.as_str(), ""));
         let exclude = self
@@ -128,7 +141,7 @@ impl Policy {
             .one_way
             .iter()
             .map(|o| (o.service.as_str(), o.method.as_str(), o.field.as_str()));
-        no_command.chain(exclude).chain(one_way)
+        no_command.chain(no_tool).chain(exclude).chain(one_way)
     }
 }
 
@@ -149,6 +162,11 @@ mod tests {
             method = "WaitOperation"
             why = "x"
 
+            [[no_tool]]
+            service = "pvs"
+            method = "ImportVolume"
+            why = "z"
+
             [[exclude]]
             service = "pvs"
             method = "ImportVolume"
@@ -160,9 +178,11 @@ mod tests {
         assert_eq!(policy.group("pvs").unwrap().about, "Volumes");
         assert!(policy.no_command("longrunning", "WaitOperation"));
         assert!(!policy.no_command("pvs", "WaitOperation"));
+        assert!(policy.no_tool("pvs", "ImportVolume"));
+        assert!(!policy.no_tool("longrunning", "WaitOperation"));
         assert!(policy.excluded("pvs", "ImportVolume", "volume.source_snapshot"));
         assert!(!policy.excluded("other", "ImportVolume", "volume.source_snapshot"));
-        assert_eq!(policy.entries().count(), 2);
+        assert_eq!(policy.entries().count(), 3);
         // Every entry says why.
         assert!(
             toml::from_str::<Policy>("[[no_command]]\nservice = \"pvs\"\nmethod = \"X\"\n")

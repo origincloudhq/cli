@@ -40,6 +40,14 @@ pub async fn run() -> ! {
             &profile,
             handler::network::run_network_command(&profile, &api_url, cmd).await,
         ),
+        // The MCP session owns standard output: nothing is printed on it.
+        Some(Commands::Mcp(cmd)) => match handler::mcp::run_mcp_command(&profile, cmd).await {
+            Ok(()) => exit(0),
+            Err(err) => {
+                eprintln!("origin mcp: {err:#}");
+                exit(1);
+            }
+        },
         Some(Commands::Services(cmd)) => {
             print_output_and_exit(&profile, crate::sdk::run(&profile, cmd).await)
         }

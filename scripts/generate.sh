@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # Generates the command groups of every service of the API (`origin pvs`,
-# `origin location`, ...) from the API definitions in origincloudhq/api at
-# the commit API_REVISION names, with this repository's generator
-# (generator/), built at the versions Cargo.lock pins, into
-# crates/cli/src/sdk/generated/.
+# `origin location`, ...) and its MCP tools from the API definitions in
+# origincloudhq/api at the commit API_REVISION names, with this repository's
+# generator (generator/), built at the versions Cargo.lock pins, into
+# crates/cli/src/sdk/generated/ and crates/mcp/src/generated/.
 #
 #   scripts/generate.sh           # generate them again
 #   scripts/generate.sh --check   # check the checked-in code is current
@@ -24,7 +24,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly ROOT
 readonly API_REPOSITORY="https://github.com/origincloudhq/api.git"
 readonly SDK_REPOSITORY="https://github.com/origincloudhq/sdk-rust.git"
-readonly GENERATED="crates/cli/src/sdk/generated"
+readonly GENERATED=("crates/cli/src/sdk/generated" "crates/mcp/src/generated")
 
 case "${1:-}" in
   "") mode="write" ;;
@@ -57,13 +57,16 @@ git -C "${tmp}/api" checkout --quiet FETCH_HEAD
 
 # The generated files, relative to the repository.
 generated() {
-  [[ -d "$1/${GENERATED}" ]] || return 0
-  (cd "$1" && find "${GENERATED}" -type f | LC_ALL=C sort)
+  local dir
+  for dir in "${GENERATED[@]}"; do
+    [[ -d "$1/${dir}" ]] || continue
+    (cd "$1" && find "${dir}" -type f)
+  done | LC_ALL=C sort
 }
 
 if [[ "${mode}" == write ]]; then
   generated "${ROOT}" | (cd "${ROOT}" && xargs -r rm -f)
-  (cd "${tmp}/gen" && find "${GENERATED}" -type f -exec cp --parents {} "${ROOT}" \;)
+  generated "${tmp}/gen" | (cd "${tmp}/gen" && xargs -r cp --parents -t "${ROOT}")
   echo "wrote $(generated "${ROOT}" | wc -l) files from origincloudhq/api@${revision:0:12}"
   exit 0
 fi

@@ -6,6 +6,7 @@ use crate::handler::admin::AdministrationCommands;
 use crate::handler::compute::ComputeCommands;
 use crate::handler::iam::IamCommands;
 use crate::handler::id::IdentityCommands;
+use crate::handler::mcp::McpCommands;
 use crate::handler::network::NetworkCommands;
 use crate::handler::storage::StorageCommands;
 use crate::sdk::ServiceCommands;
@@ -62,6 +63,10 @@ pub(crate) enum Commands {
     /// Network Service.
     #[command(subcommand)]
     Network(NetworkCommands),
+
+    /// Serve Origin Cloud's API to an AI agent over MCP.
+    #[command(subcommand)]
+    Mcp(McpCommands),
 
     /// The groups generated from the API definitions, one per service, such
     /// as `location` and `pvs`.

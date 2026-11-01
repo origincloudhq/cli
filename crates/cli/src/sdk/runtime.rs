@@ -176,6 +176,26 @@ impl<'a> Context<'a> {
     }
 }
 
+/// The client of `origin mcp serve`'s calls to `service`, made as the
+/// group's commands make theirs: the profile's region, the SDK's
+/// credentials from the environment or the login session, and the group's
+/// endpoint variable, such as `ORIGINCLOUD_PVS_ENDPOINT`. It goes around
+/// [`Context::confirmed_client`]: the MCP client's approval of a tool
+/// marked destructive stands in for `--yes`, which an agent can't give.
+pub(crate) fn mcp_client(profile: &ClientProfile, service: &str) -> anyhow::Result<Client> {
+    let group = super::generated::GROUPS
+        .iter()
+        .copied()
+        .find(|g| g.name == service)
+        .ok_or_else(|| anyhow!("the CLI has no group for the service {service}"))?;
+    let endpoint = std::env::var(group.endpoint_variable)
+        .ok()
+        .filter(|e| !e.is_empty());
+    let ctx = Context::new(profile, group, endpoint.as_deref())
+        .with_context(|| group.endpoint_variable.to_owned())?;
+    ctx.build(ctx.endpoint.as_deref())
+}
+
 /// `endpoint`, if it is an `https://` URL, or an `http://` one to this
 /// machine.
 fn check_endpoint(endpoint: &str) -> anyhow::Result<String> {
