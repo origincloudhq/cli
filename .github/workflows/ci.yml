@@ -2,6 +2,8 @@
 # are what the pinned API definitions generate (scripts/generate.sh
 # --check), the code is formatted and lint-free, and the tests pass,
 # among them the one checking that every method of the API has a command.
+# It also makes everything a release would publish (build.yml), without
+# publishing it.
 #
 # The regeneration pull request is opened with the workflow token, which
 # starts no pull_request run, so regenerate.yml dispatches this workflow on
@@ -51,4 +53,10 @@ jobs:
         run: cargo test --locked --workspace
 
       - name: Scripts
-        run: shellcheck scripts/*.sh
+        run: shellcheck scripts/*.sh release/*.sh
+
+      - name: Release scripts
+        run: for test in release/*.test.sh; do "${test}"; done
+
+  build:
+    uses: ./.github/workflows/build.yml
