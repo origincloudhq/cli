@@ -1478,6 +1478,7 @@ dependencies = [
  "origincloud-mcp",
  "origincloud-oauth-login",
  "origincloud-pvs",
+ "origincloud-scratch",
  "prost-reflect",
  "reqwest",
  "rmcp",
@@ -1509,6 +1510,7 @@ dependencies = [
  "serde_json",
  "sha3",
  "syn 2.0.119",
+ "tempfile",
  "toml",
  "ureq",
 ]
@@ -1582,6 +1584,16 @@ dependencies = [
 name = "origincloud-pvs"
 version = "0.1.0"
 source = "git+https://github.com/origincloudhq/sdk-rust?rev=3d5a94ef21fa91878675363804e3cd0e88a7c177#3d5a94ef21fa91878675363804e3cd0e88a7c177"
+dependencies = [
+ "origincloud-core",
+ "pbjson",
+ "prost",
+ "serde",
+]
+
+[[package]]
+name = "origincloud-scratch"
+version = "0.0.0"
 dependencies = [
  "origincloud-core",
  "pbjson",

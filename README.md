@@ -123,16 +123,61 @@ every method of the API, with the API's own descriptions as help:
   method doesn't take although its request has it (`import-volume` has no
   `--source-snapshot`). A boolean takes its value, `--flag true` or
   `--flag false`, and a create always states it. A duration is given as
-  `30s`, `2m` or `1m30s`.
+  `30s`, `2m` or `1m30s`, a time as RFC 3339, such as
+  `2026-11-01T12:00:00Z`.
 - **Tags.** `--tag KEY=VALUE`, repeated for more. On an update, `--tag`
   replaces all of a resource's tags, and `--no-tags` removes them all; the two
   exclude each other, so the tags are only emptied when you say so. To set or
   remove one tag and keep the others, use `origin storage set-resource-tags`
   and `origin storage remove-resource-tags`.
+- **Lists.** A repeated field is a flag named in the singular, repeated for
+  each element, in order: `--security-group sg-1 --security-group sg-2`.
+  Where the API doesn't keep a list's order, the flag's help says so, and an
+  element given twice is refused.
+- **Optional fields.** A field the API marks optional is left out when its
+  flag isn't given, and sent when it is, zero or empty included
+  (`--max-connections 0`). An update sets it, or with `--no-` and its name
+  (`--no-max-connections`) unsets it.
+- **Choices.** A oneof, a choice of fields of which a request carries at most
+  one, is one flag per field, and giving two is refused: `--mirror-network`,
+  `--mirror-address` or `--mirror-log`. Where the API requires a choice, a
+  create must give exactly one. An update sets the one given, which replaces
+  whichever was set, and `--no-` and the choice's name (`--no-mirror`) sets
+  none of an optional one.
+- **Nested fields.** A field holding a message is one flag whose value is
+  comma-separated `KEY=VALUE` pairs, the keys being the message's field
+  names, with `_` or `-`; a repeated one takes one flag per element:
+
+  ```sh
+  --rule protocol=TCP,port=443,cidr=0.0.0.0/0 --rule protocol=UDP,port=53
+  ```
+
+  Each key is typed and checked like a flag of its own (an enum's values, a
+  number, `true` or `false`, a duration, a time, a resource name by its id or
+  whole name), a required key must be given, and the flag's help lists the
+  keys. Every such field also has a `-json` flag taking the field as the
+  API's JSON, or `@FILE` to read it from a file, for what pairs can't say: a
+  value with a comma, or a message nested deeper. Its fields are named as the
+  command prints them, in camel case, or as the API definitions name them.
+  Before anything is sent it is checked at every depth, each refusal naming
+  its path: a field the message doesn't have, a key given twice, a value of
+  the wrong type, an enum value that isn't one, an element given twice where
+  the API keeps each once. A resource name in a field of the message itself
+  is completed with `--project` and `--zone`, as in the pairs; one nested
+  deeper must be whole:
+
+  ```sh
+  --rules-json '[{"protocol": "TCP", "match": {"headers": [{"name": "x-env", "value": "prod"}]}}]'
+  ```
+
 - **Updates.** An update changes only what its flags name: `update-volume
   --volume vol-123 --tag team=web` replaces its tags and keeps its size. It
-  needs at least one. Growing a volume can't be undone and is charged, so
-  `--size-gib` needs `--yes`.
+  needs at least one. A list, a map or a nested message is replaced whole:
+  give every element to keep, and the keys of a nested message not given are
+  reset; the flags' one-line help says so, and the command says on standard
+  error which keys it resets. `--no-` and the field's name (`--no-logging`)
+  empties one that isn't required. Growing a volume can't be undone and is
+  charged, so `--size-gib` needs `--yes`.
 - **Waiting.** A command whose method answers with a long-running operation
   (most creates, updates and deletes) waits until it is done and prints the
   result; `--no-wait` prints the operation as soon as

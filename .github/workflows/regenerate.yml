@@ -10,8 +10,16 @@
 # new method needs, are kept: a later run generates on top of them, with
 # main merged in, and never closes a pull request that has them. Merging
 # main resolves conflicts in what scripts/update.sh writes again anyway
-# (API_REVISION, Cargo.lock and crates/cli/src/sdk/generated); any other
+# (API_REVISION, Cargo.lock, crates/cli/src/sdk/generated, and the scratch
+# service's testing/scratch/sdk/src/generated and Cargo.toml); any other
 # conflict fails the run until someone merges main into the branch by hand.
+#
+# When generation fails, such as on a field the generator can't make a flag
+# of, the pull request is opened or refreshed all the same, with the SDK and
+# API_REVISION moved alone, the generated code left as it was, and the
+# generator's error in its description; then the run fails. A fix pushed to
+# that branch is kept, as any added commit is, and the next run generates
+# with it.
 #
 # The pull request is opened with the workflow token, which starts no
 # pull_request run, so this dispatches CI on the branch; its result shows on
@@ -73,7 +81,7 @@ jobs:
               if ! git merge --quiet --no-edit origin/main; then
                 for path in $(git diff --name-only --diff-filter=U); do
                   case "${path}" in
-              API_REVISION | Cargo.lock | crates/cli/src/sdk/generated/*)
+              API_REVISION | Cargo.lock | crates/cli/src/sdk/generated/* | testing/scratch/sdk/src/generated/* | testing/scratch/sdk/Cargo.toml)
                       if git checkout --quiet --ours -- "${path}" 2>/dev/null; then
                         git add -- "${path}"
                       else
@@ -108,14 +116,36 @@ jobs:
       - name: Cache
         uses: 'Swatinem/rust-cache@v2'
 
+      # A failed generation keeps the SDK's and API_REVISION's moves alone,
+      # and its error for the pull request; the run fails at its end.
       - name: Update
-        run: scripts/update.sh
+        run: |
+          set -euo pipefail
+          status=0
+          # Both streams: generate.sh says FAILED on standard output.
+          scripts/update.sh > "${RUNNER_TEMP}/update.log" 2>&1 || status=$?
+          cat "${RUNNER_TEMP}/update.log"
+          if [[ "${status}" -eq 0 ]]; then
+            exit 0
+          fi
+          kept=(API_REVISION Cargo.toml Cargo.lock)
+          mkdir -p "${RUNNER_TEMP}/kept"
+          cp "${kept[@]}" "${RUNNER_TEMP}/kept/"
+          git checkout --quiet -- .
+          git clean --quiet -fd
+          for file in "${kept[@]}"; do cp "${RUNNER_TEMP}/kept/${file}" "${file}"; done
+          delimiter="FAILURE_${RANDOM}${RANDOM}${RANDOM}"
+          {
+            echo "FAILURE<<${delimiter}"
+            { grep -v '^\s*$' "${RUNNER_TEMP}/update.log" || true; } | tail -n 40
+            echo "${delimiter}"
+          } >> "$GITHUB_ENV"
 
       - name: Pull request
         run: |
           set -euo pipefail
           open="$(gh pr list --head "${BRANCH}" --base main --state open --json number,isCrossRepository --jq 'map(select(.isCrossRepository | not))[0].number // empty')"
-          if [[ "${BASE}" == main && -z "$(git status --porcelain)" ]]; then
+          if [[ "${BASE}" == main && -z "$(git status --porcelain)" && -z "${FAILURE:-}" ]]; then
             echo "already current"
             # The branch goes only as the Base step found it, and its pull
             # request closes with it; one pushed to meanwhile stays.
@@ -131,28 +161,61 @@ jobs:
             exit 0
           fi
 
+          # A failure before anything moved has nothing to push: the branch
+          # and its pull request stay as they are, which hears of it.
+          if [[ -n "${FAILURE:-}" && -z "$(git status --porcelain)" ]]; then
+            if [[ -n "${open}" ]]; then
+              fence='```'
+              gh pr comment "${open}" --body "A run failed before moving anything; scripts/update.sh said:
+
+          ${fence}
+          ${FAILURE}
+          ${fence}"
+            fi
+            exit 0
+          fi
+
           revision="$(cat API_REVISION)"
           git switch --quiet -C "${BRANCH}"
           if [[ -n "$(git status --porcelain)" ]]; then
             git add --all
-            git commit --quiet -m "Regenerate from origincloudhq/api@${revision:0:12}" \
-              -m "API: https://github.com/origincloudhq/api/compare/${FROM}...${revision}"
+            if [[ -n "${FAILURE:-}" ]]; then
+              git commit --quiet -m "Move to origincloudhq/api@${revision:0:12}; generation fails" \
+                -m "API: https://github.com/origincloudhq/api/compare/${FROM}...${revision}" \
+                -m "The generated code is left as it was: see the pull request."
+            else
+              git commit --quiet -m "Regenerate from origincloudhq/api@${revision:0:12}" \
+                -m "API: https://github.com/origincloudhq/api/compare/${FROM}...${revision}"
+            fi
           fi
 
-          # Unchanged since the last run: nothing to push or check again.
-          if [[ -n "${LEASE}" ]] && git diff --quiet "${LEASE}" HEAD; then
+          # Unchanged since the last run: nothing to push or check again,
+          # but a failure's description is refreshed.
+          if [[ -n "${LEASE}" ]] && git diff --quiet "${LEASE}" HEAD && [[ -z "${FAILURE:-}" ]]; then
             echo "pull request #${open:-?} is current"
             exit 0
           fi
           # Replaces the branch only as this run found it: a commit pushed
           # meanwhile fails the run instead of being lost.
-          git push --quiet --force-with-lease="${BRANCH}:${LEASE}" origin "${BRANCH}"
+          if ! git diff --quiet "${LEASE:-HEAD}" HEAD || [[ -z "${LEASE}" ]]; then
+            git push --quiet --force-with-lease="${BRANCH}:${LEASE}" origin "${BRANCH}"
+          fi
 
           body="Generated from [origincloudhq/api@${revision:0:12}](https://github.com/origincloudhq/api/commit/${revision}) ([changes](https://github.com/origincloudhq/api/compare/${PREVIOUS}...${revision})) by scripts/update.sh.
 
           The MCP tools are moved to their newest commit, the Rust SDK to the commit they are built on, and API_REVISION to the API revision that commit was generated from.
 
           If CI fails, the API uses something the generator (generator/) doesn't support yet, such as a method it can't make a command for; extend it on this branch."
+          if [[ -n "${FAILURE:-}" ]]; then
+            fence='```'
+            body="Moves to [origincloudhq/api@${revision:0:12}](https://github.com/origincloudhq/api/commit/${revision}) ([changes](https://github.com/origincloudhq/api/compare/${PREVIOUS}...${revision})), but **generation fails**, so this moves the Rust SDK and API_REVISION alone and leaves the generated code as it was. scripts/update.sh said:
+
+          ${fence}
+          ${FAILURE}
+          ${fence}
+
+          Extend the generator (generator/) on this branch, or leave the method or the field out in generator/commands.toml with the reason, and run scripts/generate.sh. Commits added here are kept by later runs, which generate with them."
+          fi
           if [[ -n "${open}" ]]; then
             gh pr edit "${open}" --body "${body}"
           else
@@ -160,3 +223,9 @@ jobs:
               --title "Regenerate from the latest API" --body "${body}"
           fi
           gh workflow run ci.yml --ref "${BRANCH}"
+
+      - name: Generation
+        if: env.FAILURE != ''
+        run: |
+          echo "::error::generation failed; the regenerate pull request has the error"
+          exit 1
