@@ -87,7 +87,14 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-CI also checks the scripts with shellcheck.
+CI also checks the scripts with shellcheck, runs the release scripts' tests
+(`release/*.test.sh`), and builds everything a release publishes, for every
+platform, without publishing it.
+
+## Releases
+
+Releases are made from `main` by the Release workflow; [RELEASING.md](RELEASING.md)
+says how, and what `release/` holds.
 
 ## License
 

@@ -1,0 +1,92 @@
+# Builds what a release publishes: `origin` for every platform, the Debian
+# packages, the installer and the licence, with their SHA256SUMS, as the
+# artifact `release-assets` (release/assemble.sh). release.yml calls it to
+# make a release; ci.yml calls it on every pull request and every push to
+# main, so that the release build is known to work before a release needs
+# it.
+#
+# No cache: what this builds reaches customers, so it builds from the
+# source and Cargo.lock alone.
+name: Build
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  binary:
+    name: origin-${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      # One platform failing shouldn't hide whether the others build.
+      fail-fast: false
+      matrix:
+        include:
+          # Static musl binaries, built in a cross image (release/build.sh),
+          # so both architectures build on an x86_64 runner.
+          - platform: linux-amd64
+            runner: ubuntu-latest
+          - platform: linux-arm64
+            runner: ubuntu-latest
+          # Xcode builds both macOS architectures on Apple silicon.
+          - platform: darwin-arm64
+            runner: macos-15
+          - platform: darwin-amd64
+            runner: macos-15
+    steps:
+      - name: Checkout
+        uses: 'actions/checkout@v4'
+
+      - name: Build
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: release/build.sh "${PLATFORM}" dist
+
+      - name: Upload
+        uses: 'actions/upload-artifact@v4'
+        with:
+          name: origin-${{ matrix.platform }}
+          path: dist/origin-${{ matrix.platform }}
+          if-no-files-found: error
+
+  assets:
+    needs: binary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: 'actions/checkout@v4'
+
+      - name: Download the binaries
+        uses: 'actions/download-artifact@v4'
+        with:
+          pattern: origin-*
+          path: binaries
+          merge-multiple: true
+
+      - name: Assemble
+        run: release/assemble.sh binaries assets
+
+      # The packages as apt users get them: installed on a clean Debian,
+      # where the binary must run and report the version they carry.
+      - name: Install the amd64 package
+        run: |
+          set -euo pipefail
+          for deb in assets/*.deb; do dpkg-deb --info "${deb}"; dpkg-deb --contents "${deb}"; done
+          version="$(dpkg-deb --field assets/origincloud-cli_*_amd64.deb Version)"
+          reported="$(docker run --rm -v "${PWD}/assets:/assets:ro" debian:12-slim \
+            sh -c 'dpkg -i /assets/origincloud-cli_*_amd64.deb >/dev/null && origin --version')"
+          echo "${reported}"
+          [[ "${reported}" == "origin ${version/\~/-}" ]] \
+            || { echo "::error::the installed package reports '${reported}', not origin ${version/\~/-}"; exit 1; }
+
+      - name: Upload
+        uses: 'actions/upload-artifact@v4'
+        with:
+          name: release-assets
+          path: assets/
+          if-no-files-found: error

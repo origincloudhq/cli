@@ -1,0 +1,135 @@
+# Releases the CLI: builds it for every platform (build.yml), attaches the
+# binaries, the Debian packages, install.sh, LICENSE and SHA256SUMS to the
+# GitHub release <version>, then has origincloudhq/packages publish that
+# release to packages.origincloud.eu and waits for it. RELEASING.md says how
+# to make one.
+#
+# Dispatched from main with the version: vX.Y.Z makes a release, which
+# becomes the channel's latest and enters the apt suite; vX.Y.Z-<suffix>
+# makes a prerelease, which does neither; anything else is refused
+# (release/version.sh). crates/cli/Cargo.toml must be at that version
+# already.
+name: Release
+run-name: Release ${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'vX.Y.Z for a release, vX.Y.Z-<suffix> for a prerelease (v1.11.0-rc.1); crates/cli/Cargo.toml must be at that version'
+        required: true
+
+# One release at a time; a second waits rather than racing the first for
+# its tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Before anything is built, so that a wrong version costs seconds. The
+  # inputs reach the shell through the environment, never interpolated into
+  # the script: `${{ }}` is substituted before the shell parses anything, so
+  # quoting it does not contain a value.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: 'actions/checkout@v4'
+
+      # A release is a commit of main, which CI has checked: the tag then
+      # never names a commit only a branch has.
+      - name: Check the version
+        id: version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" != refs/heads/main ]]; then
+            echo "::error::releases are made from main, not ${GITHUB_REF}"
+            exit 1
+          fi
+          release/version.sh "${VERSION}" | tee -a "${GITHUB_OUTPUT}"
+
+  build:
+    needs: version
+    uses: ./.github/workflows/build.yml
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: 'actions/checkout@v4'
+
+      - name: Download the assets
+        uses: 'actions/download-artifact@v4'
+        with:
+          name: release-assets
+          path: ${{ runner.temp }}/assets
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: release/github-release.sh "${VERSION}" "${GITHUB_SHA}" "${PRERELEASE}" "${RUNNER_TEMP}/assets"
+
+  # origincloudhq/packages holds the signing key and the bucket's
+  # credentials, and publishes from this release's assets; this job starts
+  # its Publish workflow with a token of the dispatch App and waits for that
+  # run, so a failed publish fails the release here. Rerunning the job
+  # publishes again; whatever is published already with the same bytes is
+  # skipped. The rules the channel and the apt repository keep (a published
+  # version is immutable, the latest only moves forward and only to a
+  # release) are that repository's.
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      # An unset secret or variable resolves to an empty string rather than
+      # failing, so it is checked here instead of failing inside the token
+      # action.
+      - name: Check the dispatch configuration
+        env:
+          PACKAGES_DISPATCH_APP_ID: ${{ vars.PACKAGES_DISPATCH_APP_ID }}
+          PACKAGES_DISPATCH_APP_PRIVATE_KEY: ${{ secrets.PACKAGES_DISPATCH_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          missing=''
+          for key in PACKAGES_DISPATCH_APP_ID PACKAGES_DISPATCH_APP_PRIVATE_KEY; do
+            [ -n "${!key:-}" ] || missing="${missing} ${key}"
+          done
+          if [ -n "${missing}" ]; then
+            echo "::error::unset or empty:${missing}: the dispatch App's ID (a repository variable) and private key (a repository secret), RELEASING.md"
+            exit 1
+          fi
+
+      - name: Token for the publisher
+        id: token
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1.12.0
+        with:
+          app-id: ${{ vars.PACKAGES_DISPATCH_APP_ID }}
+          private-key: ${{ secrets.PACKAGES_DISPATCH_APP_PRIVATE_KEY }}
+          owner: origincloudhq
+          repositories: packages
+
+      - name: Checkout the publisher
+        uses: 'actions/checkout@v4'
+        with:
+          repository: origincloudhq/packages
+          token: ${{ steps.token.outputs.token }}
+          path: publisher
+
+      - name: Publish to packages.origincloud.eu
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          TAG: ${{ inputs.version }}
+        run: ./publisher/scripts/dispatch.sh "${GITHUB_REPOSITORY}" "${TAG}"
