@@ -868,6 +868,8 @@ enum Elem {
 /// JSON form, which every message field has.
 #[derive(Clone)]
 struct Nested {
+    /// The message's full name, by which the JSON flag checks its value.
+    full_name: String,
     /// The message's Rust type.
     rust: String,
     /// The keys, in field order.
@@ -1105,6 +1107,7 @@ fn nested(cx: &Cx<'_>, m: &MessageDescriptor) -> Result<Nested, String> {
         cx.helpers.borrow_mut().insert(parser.clone(), code);
     }
     Ok(Nested {
+        full_name: m.full_name().to_owned(),
         rust,
         keys,
         json_only,
@@ -2135,7 +2138,7 @@ fn value(
                 long: json_long,
                 doc: json_doc(doc, n, &long, false),
                 ty: format!("Option<JsonArg<{}>>", n.rust),
-                attrs: json_attrs(&n.rust, required && n.parser.is_none()),
+                attrs: json_attrs(&n.rust, &n.full_name, required && n.parser.is_none()),
             })?;
             if n.parser.is_some() {
                 if completions.is_empty() {
@@ -2183,7 +2186,11 @@ fn value(
                 long: json_long,
                 doc: json_doc(doc, n, &one_long, true),
                 ty: format!("Option<JsonArg<Vec<{}>>>", n.rust),
-                attrs: json_attrs(&format!("Vec<{}>", n.rust), required && n.parser.is_none()),
+                attrs: json_attrs(
+                    &format!("Vec<{}>", n.rust),
+                    &n.full_name,
+                    required && n.parser.is_none(),
+                ),
             })?;
             if n.parser.is_some() {
                 if completions.is_empty() {
@@ -2414,7 +2421,7 @@ fn update_field(
                 long: json_long,
                 doc: format!("{}{replaced}", json_doc(comment, n, &one_long, repeated)),
                 ty: format!("Option<JsonArg<{json_ty}>>"),
-                attrs: json_attrs(&json_ty, false),
+                attrs: json_attrs(&json_ty, &n.full_name, false),
             })?;
             b.add_flag(Flag {
                 ident: none.clone(),
@@ -2663,8 +2670,9 @@ fn json_doc(comment: &str, n: &Nested, keyed_long: &str, repeated: bool) -> Stri
         doc.push_str("\n\n");
     }
     doc.push_str(&format!(
-        "{what} whose fields are named in camel case, as the command prints them; `@FILE` reads it \
-         from a file."
+        "{what} whose fields are named in camel case, as the command prints them, or as the API \
+         definitions name them; `@FILE` reads it from a file. A field the message doesn't have is \
+         refused, at any depth. Resource names in it are sent as given: give whole names."
     ));
     if n.parser.is_some() {
         doc.push_str(&format!(" Instead of `--{keyed_long}`."));
@@ -2673,10 +2681,10 @@ fn json_doc(comment: &str, n: &Nested, keyed_long: &str, repeated: bool) -> Stri
 }
 
 /// The attributes of a message field's JSON flag, whose value is a `ty`.
-fn json_attrs(ty: &str, required: bool) -> Vec<String> {
+fn json_attrs(ty: &str, message: &str, required: bool) -> Vec<String> {
     let mut attrs = vec![
         "value_name = \"JSON\"".to_owned(),
-        format!("value_parser = json_arg::<{ty}>"),
+        format!("value_parser = |text: &str| json_arg::<{ty}>(text, {message:?})"),
     ];
     if required {
         attrs.push("required = true".to_owned());

@@ -25,7 +25,9 @@
 //! - `services.rs`: the groups, `origin {service}`, each with its
 //!   `--endpoint`, and the code running a command of one;
 //! - `api.binpb`: the descriptors of those packages, which the coverage
-//!   test reads to check that every method has a command.
+//!   test reads to check that every method has a command, and by which a
+//!   message field's JSON flag refuses a field the message doesn't have;
+//!   `test-api.binpb`, the same for the test services.
 //!
 //! A method the generator can't make a command for, such as one with a
 //! field of a type it doesn't support, fails generation, naming the method
@@ -190,6 +192,15 @@ fn generate(
         Path::new(OUT_DIR).join("api.binpb"),
         descriptor(pool, &described),
     );
+    // The test services' descriptors, by which their JSON flags check their
+    // values, as the published groups' do by `api.binpb`.
+    if !compiled.test_packages.is_empty() {
+        let tests: Vec<&str> = compiled.test_packages.iter().map(String::as_str).collect();
+        files.insert(
+            Path::new(OUT_DIR).join("test-api.binpb"),
+            descriptor(pool, &tests),
+        );
+    }
     Ok(files)
 }
 

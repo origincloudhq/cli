@@ -145,7 +145,10 @@ every method of the API, with the API's own descriptions as help:
   name), a required key must be given, and the flag's help lists the keys.
   Every such field also has a `-json` flag taking the field as the API's
   JSON, or `@FILE` to read it from a file, for what pairs can't say: a value
-  with a comma, or a message nested deeper:
+  with a comma, or a message nested deeper. Its fields are named as the
+  command prints them, in camel case, or as the API definitions name them; a
+  field the message doesn't have is refused, naming its path, before anything
+  is sent. Resource names in it are sent as given, so give whole names:
 
   ```sh
   --rules-json '[{"protocol": "TCP", "match": {"headers": [{"name": "x-env", "value": "prod"}]}}]'

@@ -64,7 +64,11 @@ resource name), each parsed and checked as such, and its required fields
 enforced; a repeated one is that flag repeated. Every message field also has
 a `--{field}-json` flag taking its JSON, the only form of what pairs can't
 say, such as a message nested deeper or a list inside a message; a message
-with a required field of that kind has the JSON flag alone. In an update,
+with a required field of that kind has the JSON flag alone. That flag checks
+its value against the message's descriptor, from `api.binpb` (and
+`test-api.binpb` for the test services), at every depth, and refuses a key
+that is neither a field's name nor its JSON name: the SDK's decoder would
+drop it silently. Resource names in it are sent as given. In an update,
 setting any of a field's flags names the field itself in `update_mask` and
 sends it whole, as the API design requires of nested and repeated fields;
 `--no-{field}` empties it. A repeated scalar or resource name is a

@@ -21,6 +21,9 @@ origincloud-oauth-login = { path = "../oauth-login" }
 origincloud-core.workspace = true
 origincloud-pvs.workspace = true
 origincloud-location.workspace = true
+# A message field's JSON flag checks its value against the API's
+# descriptors, which the generator checks in beside the commands.
+prost-reflect = "0.16"
 # The tests' scratch service, whose command group the `test-services`
 # feature compiles in: see testing/scratch/.
 origincloud-scratch = { path = "../../testing/scratch/sdk", optional = true }
@@ -50,7 +53,6 @@ fake-server.workspace = true
 # The coverage and generated-command tests read the API descriptors the
 # generator checked in, and its table of choices.
 heck = "0.5"
-prost-reflect = "0.16"
 serde.workspace = true
 toml = "0.8"
 # The config-path tests resolve against a real directory tree, so they need a

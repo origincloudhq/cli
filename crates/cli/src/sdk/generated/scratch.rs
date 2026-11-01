@@ -136,11 +136,14 @@ pub struct CreateFirewallArgs {
         required_unless_present = "rules_json"
     )]
     pub rule: Vec<::origincloud_scratch::v1::Rule>,
-    /// The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them; `@FILE` reads it from a file. Instead of `--rule`.
+    /// The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. A field the message doesn't have is refused, at any depth. Resource names in it are sent as given: give whole names. Instead of `--rule`.
     #[arg(
         long = "rules-json",
         value_name = "JSON",
-        value_parser = json_arg::<Vec<::origincloud_scratch::v1::Rule>>
+        value_parser = |text:&str|json_arg::<Vec<::origincloud_scratch::v1::Rule>>(
+            text,
+            "origincloud.scratch.v1.Rule"
+        )
     )]
     pub rules_json: Option<JsonArg<Vec<::origincloud_scratch::v1::Rule>>>,
     /// The ports the firewall opens to every source.
@@ -178,11 +181,14 @@ pub struct CreateFirewallArgs {
         conflicts_with = "logging_json"
     )]
     pub logging: Option<::origincloud_scratch::v1::Logging>,
-    /// As the API's JSON, an object whose fields are named in camel case, as the command prints them; `@FILE` reads it from a file. Instead of `--logging`.
+    /// As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. A field the message doesn't have is refused, at any depth. Resource names in it are sent as given: give whole names. Instead of `--logging`.
     #[arg(
         long = "logging-json",
         value_name = "JSON",
-        value_parser = json_arg::<::origincloud_scratch::v1::Logging>
+        value_parser = |text:&str|json_arg::<::origincloud_scratch::v1::Logging>(
+            text,
+            "origincloud.scratch.v1.Logging"
+        )
     )]
     pub logging_json: Option<JsonArg<::origincloud_scratch::v1::Logging>>,
     /// The firewall's tags.
@@ -331,13 +337,16 @@ pub struct UpdateFirewallArgs {
         conflicts_with = "rules_json"
     )]
     pub rule: Vec<::origincloud_scratch::v1::Rule>,
-    /// The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them; `@FILE` reads it from a file. Instead of `--rule`.
+    /// The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. A field the message doesn't have is refused, at any depth. Resource names in it are sent as given: give whole names. Instead of `--rule`.
     ///
     /// The list is replaced whole: give every element to keep. `--no-rules` removes them all. Left as it is when none of these is given.
     #[arg(
         long = "rules-json",
         value_name = "JSON",
-        value_parser = json_arg::<Vec<::origincloud_scratch::v1::Rule>>
+        value_parser = |text:&str|json_arg::<Vec<::origincloud_scratch::v1::Rule>>(
+            text,
+            "origincloud.scratch.v1.Rule"
+        )
     )]
     pub rules_json: Option<JsonArg<Vec<::origincloud_scratch::v1::Rule>>>,
     /// Remove all of its rules.
@@ -389,13 +398,16 @@ pub struct UpdateFirewallArgs {
         conflicts_with = "logging_json"
     )]
     pub logging: Option<::origincloud_scratch::v1::Logging>,
-    /// As the API's JSON, an object whose fields are named in camel case, as the command prints them; `@FILE` reads it from a file. Instead of `--logging`.
+    /// As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. A field the message doesn't have is refused, at any depth. Resource names in it are sent as given: give whole names. Instead of `--logging`.
     ///
     /// It is replaced whole: a key not given is reset. `--no-logging` removes it. Left as it is when none of these is given.
     #[arg(
         long = "logging-json",
         value_name = "JSON",
-        value_parser = json_arg::<::origincloud_scratch::v1::Logging>
+        value_parser = |text:&str|json_arg::<::origincloud_scratch::v1::Logging>(
+            text,
+            "origincloud.scratch.v1.Logging"
+        )
     )]
     pub logging_json: Option<JsonArg<::origincloud_scratch::v1::Logging>>,
     /// Remove its logging.

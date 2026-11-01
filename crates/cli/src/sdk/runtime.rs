@@ -450,16 +450,109 @@ pub fn duration(value: &str) -> Result<origincloud_core::protobuf::Duration, Str
 pub struct JsonArg<T>(pub T);
 
 /// Reads a JSON flag's value: `value` itself, or, as `@FILE`, the file's
-/// content.
+/// content, the JSON of the message `message` or a list of them. A field the
+/// message doesn't have, at any depth, is refused, naming its path; the
+/// SDK's decoder would drop it, and the request go without it.
 #[allow(dead_code)]
-pub fn json_arg<T: DeserializeOwned>(value: &str) -> Result<JsonArg<T>, String> {
+pub fn json_arg<T: DeserializeOwned>(value: &str, message: &str) -> Result<JsonArg<T>, String> {
     let text = match value.strip_prefix('@') {
         Some(path) => std::fs::read_to_string(path).map_err(|e| format!("reading {path}: {e}"))?,
         None => value.to_owned(),
     };
-    serde_json::from_str(&text)
+    let json: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("not JSON: {e}"))?;
+    let descriptor =
+        message_descriptor(message).ok_or_else(|| format!("no definition of {message}"))?;
+    match &json {
+        serde_json::Value::Array(items) => {
+            for (i, item) in items.iter().enumerate() {
+                check_fields(item, &descriptor, &format!("[{i}]"))?;
+            }
+        }
+        other => check_fields(other, &descriptor, "")?,
+    }
+    serde_json::from_value(json)
         .map(JsonArg)
         .map_err(|e| format!("not its JSON: {e}"))
+}
+
+/// The descriptors of the API's messages, which the generator checked in.
+#[allow(dead_code)]
+static DESCRIPTORS: std::sync::LazyLock<Vec<prost_reflect::DescriptorPool>> =
+    std::sync::LazyLock::new(|| {
+        #[allow(unused_mut)]
+        let mut pools = vec![prost_reflect::DescriptorPool::decode(
+            include_bytes!("generated/api.binpb").as_slice(),
+        )
+        .expect("the checked-in descriptors decode")];
+        #[cfg(feature = "test-services")]
+        pools.push(
+            prost_reflect::DescriptorPool::decode(
+                include_bytes!("generated/test-api.binpb").as_slice(),
+            )
+            .expect("the checked-in descriptors decode"),
+        );
+        pools
+    });
+
+#[allow(dead_code)]
+fn message_descriptor(name: &str) -> Option<prost_reflect::MessageDescriptor> {
+    DESCRIPTORS
+        .iter()
+        .find_map(|pool| pool.get_message_by_name(name))
+}
+
+/// Checks every key of `value`, when it is an object, names a field of
+/// `message`, by its name or its JSON name, as the API's JSON parser
+/// accepts either, and so on into the messages it holds.
+#[allow(dead_code)]
+fn check_fields(
+    value: &serde_json::Value,
+    message: &prost_reflect::MessageDescriptor,
+    path: &str,
+) -> Result<(), String> {
+    use prost_reflect::Kind;
+    use serde_json::Value;
+    let Value::Object(object) = value else {
+        return Ok(());
+    };
+    // The well-known types have JSON forms of their own: a duration is a
+    // string, a struct any object.
+    if message.package_name() == "google.protobuf" {
+        return Ok(());
+    }
+    for (key, value) in object {
+        let here = if path.is_empty() {
+            key.clone()
+        } else {
+            format!("{path}.{key}")
+        };
+        let field = message
+            .get_field_by_name(key)
+            .or_else(|| message.get_field_by_json_name(key))
+            .ok_or_else(|| format!("{here} isn't a field of {}", message.name()))?;
+        let Kind::Message(inner) = field.kind() else {
+            continue;
+        };
+        if field.is_map() {
+            if let (Kind::Message(entry), Value::Object(entries)) =
+                (inner.map_entry_value_field().kind(), value)
+            {
+                for (k, v) in entries {
+                    check_fields(v, &entry, &format!("{here}[{k:?}]"))?;
+                }
+            }
+        } else if field.is_list() {
+            if let Value::Array(items) = value {
+                for (i, item) in items.iter().enumerate() {
+                    check_fields(item, &inner, &format!("{here}[{i}]"))?;
+                }
+            }
+        } else {
+            check_fields(value, &inner, &here)?;
+        }
+    }
+    Ok(())
 }
 
 /// The pairs of a nested message's `KEY=VALUE,...` form, in order. A key is
@@ -991,14 +1084,37 @@ mod tests {
     fn a_json_flag_takes_json_or_a_file() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("v.json");
-        std::fs::write(&path, "[1, 2]").unwrap();
-        let read: JsonArg<Vec<i32>> = json_arg(&format!("@{}", path.display())).unwrap();
-        assert_eq!(read.0, [1, 2]);
-        assert_eq!(json_arg::<Vec<i32>>("[3]").unwrap().0, [3]);
-        assert!(json_arg::<Vec<i32>>("{")
+        std::fs::write(&path, r#"{"sizeGib": 8}"#).unwrap();
+        let volume = "origincloud.pvs.v1beta1.Volume";
+        type Volume = origincloud_pvs::v1beta1::Volume;
+        let read: JsonArg<Volume> = json_arg(&format!("@{}", path.display()), volume).unwrap();
+        assert_eq!(read.0.size_gib, 8);
+        // Its name in the definitions, or its JSON name.
+        assert_eq!(
+            json_arg::<Volume>(r#"{"size_gib": 9}"#, volume)
+                .unwrap()
+                .0
+                .size_gib,
+            9
+        );
+        let list = json_arg::<Vec<Volume>>(r#"[{"sizeGib": 1}, {"size_gib": 2}]"#, volume).unwrap();
+        assert_eq!(list.0.len(), 2);
+        // A field it doesn't have is refused, by its path.
+        assert_eq!(
+            json_arg::<Volume>(r#"{"sizeGb": 8}"#, volume).unwrap_err(),
+            "sizeGb isn't a field of Volume"
+        );
+        assert_eq!(
+            json_arg::<Vec<Volume>>(r#"[{"sizeGib": 1}, {"tag": {}}]"#, volume).unwrap_err(),
+            "[1].tag isn't a field of Volume"
+        );
+        assert!(json_arg::<Volume>("{", volume)
+            .unwrap_err()
+            .starts_with("not JSON"));
+        assert!(json_arg::<Volume>(r#"{"sizeGib": "x"}"#, volume)
             .unwrap_err()
             .starts_with("not its JSON"));
-        assert!(json_arg::<Vec<i32>>("@/no/such/file")
+        assert!(json_arg::<Volume>("@/no/such/file", volume)
             .unwrap_err()
             .starts_with("reading"));
     }

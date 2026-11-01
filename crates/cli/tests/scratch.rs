@@ -139,6 +139,80 @@ async fn a_json_flag_sets_a_field_two_levels_deep() {
     assert_eq!(sent["logging"], json!({"enabled": true}));
 }
 
+/// A JSON flag refuses a field the message doesn't have, at any depth,
+/// naming its path, before anything is sent: the SDK's decoder would drop
+/// it, and the rule go without it. A field is named as the command prints
+/// it, in camel case, or as the API definitions do.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_json_flag_refuses_a_field_the_message_doesnt_have() {
+    let server = recording(echo).await;
+    let create = ["create-firewall", "--project", "p", "--zone", "z"];
+    for (flag, value, says) in [
+        (
+            "--rules-json",
+            r#"[{"protocl": "TCP"}]"#,
+            "[0].protocl isn't a field of Rule",
+        ),
+        (
+            "--rules-json",
+            r#"[{"protocol": "TCP"}, {"protocol": "UDP", "match": {"headrs": []}}]"#,
+            "[1].match.headrs isn't a field of Match",
+        ),
+        (
+            "--rules-json",
+            r#"[{"protocol": "TCP", "match": {"headers": [{"name": "a"}, {"nam": "b"}]}}]"#,
+            "[0].match.headers[1].nam isn't a field of Header",
+        ),
+        (
+            "--logging-json",
+            r#"{"enabled": true, "samplePercnt": 5}"#,
+            "samplePercnt isn't a field of Logging",
+        ),
+    ] {
+        let mut args = create.to_vec();
+        if flag != "--rules-json" {
+            args.extend(["--rule", "protocol=TCP"]);
+        }
+        args.extend([flag, value]);
+        let output = scratch(&server, &args).await;
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.code(), Some(2), "{value}: {stderr}");
+        assert!(stderr.contains(flag), "{value}: {stderr}");
+        assert!(stderr.contains(says), "{says}: {stderr}");
+    }
+    assert!(server.requests().is_empty(), "{:?}", server.requests());
+
+    // Camel case, as the command prints it, and the definitions' snake case
+    // both name a field, and are sent alike.
+    for (rules, logging) in [
+        (
+            r#"[{"protocol": "TCP", "idleTimeout": "30s"}]"#,
+            r#"{"samplePercent": 5}"#,
+        ),
+        (
+            r#"[{"protocol": "TCP", "idle_timeout": "30s"}]"#,
+            r#"{"sample_percent": 5}"#,
+        ),
+    ] {
+        let args = [
+            &create[..],
+            &["--rules-json", rules, "--logging-json", logging],
+        ]
+        .concat();
+        success(&scratch(&server, &args).await);
+    }
+    let requests = server.requests();
+    assert_eq!(requests.len(), 2);
+    for r in &requests {
+        let sent = body(r);
+        assert_eq!(
+            sent["rules"],
+            json!([{"protocol": "TCP", "idleTimeout": "30s"}])
+        );
+        assert_eq!(sent["logging"], json!({"samplePercent": 5}));
+    }
+}
+
 /// The parser refuses, before anything is sent, a nested value that isn't
 /// one: a required key missing, a value of the wrong type, an unknown key,
 /// a key only the JSON flag sets, a key given twice, both forms of one
@@ -182,7 +256,7 @@ async fn a_bad_nested_value_is_refused_before_any_request() {
             &["--rule", "protocol=TCP", "--rules-json", "[]"],
             "cannot be used with",
         ),
-        (&["--rules-json", "[{"], "not its JSON"),
+        (&["--rules-json", "[{"], "not JSON"),
         (
             &["--rule", "protocol=TCP", "--logging", "enabled=yes"],
             "enabled",
