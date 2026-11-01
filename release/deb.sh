@@ -13,7 +13,9 @@
 # <binary-dir> holds origin-linux-amd64 and origin-linux-arm64.
 #
 # A package holds /usr/bin/origin and the licence, as
-# /usr/share/doc/origincloud-cli/copyright. It is reproducible: fixed
+# /usr/share/doc/origincloud-cli/copyright, with DEBIAN/md5sums over both,
+# which `dpkg --verify` checks the installed files against. It is
+# reproducible: fixed
 # modification times (SOURCE_DATE_EPOCH, by default the last commit's time),
 # root-owned, xz. A version in packages.origincloud.eu's pool is immutable,
 # so a rerun of a release has to rebuild the same bytes from the same
@@ -62,6 +64,8 @@ Description: Origin Cloud command-line interface
  The origin command manages Origin Cloud organisations, projects, access,
  instances, networks and volumes from a terminal or a script.
 CONTROL
+  ( cd "${root}" && find usr -type f | LC_ALL=C sort | xargs md5sum ) > "${root}/DEBIAN/md5sums"
+  chmod 0644 "${root}/DEBIAN/md5sums"
   # Directories are 0755 whatever the caller's umask, so the bytes don't
   # depend on who builds.
   find "${root}" -type d -exec chmod 0755 {} +

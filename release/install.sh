@@ -8,11 +8,18 @@
 #   ORIGIN_VERSION      version to install, e.g. v1.10.0 (default: the
 #                       latest stable release, read from cli/latest)
 #   ORIGIN_INSTALL_DIR  where to put the binary (default: $HOME/.local/bin)
-#   ORIGIN_BASE_URL     where to fetch from (default:
-#                       https://packages.origincloud.eu). For a
-#                       mirror of the same layout - the checksum is still
-#                       verified, so a mirror cannot serve a different
-#                       binary than the release it copied.
+#   ORIGIN_BASE_URL     an https mirror of packages.origincloud.eu's layout to
+#                       download the binary from. Only the binary: cli/latest,
+#                       SHA256SUMS and its signature always come from
+#                       packages.origincloud.eu, and with a mirror the
+#                       signature must verify, so gpg is required. A mirror
+#                       can't get another binary than the release's installed.
+#
+# What is checked: the binary against SHA256SUMS, always; SHA256SUMS against
+# the release key's signature (SHA256SUMS.asc) whenever gpg is installed. The
+# release key's fingerprint is pinned below, so a key served alongside the
+# signature can't stand in for it. Without gpg, SHA256SUMS is trusted on
+# packages.origincloud.eu's HTTPS certificate alone, and the script says so.
 #
 # POSIX sh, not bash: this runs on whatever the customer has, including a
 # minimal container image where /bin/sh is dash or busybox ash.
@@ -25,6 +32,7 @@
 set -eu
 
 BASE_URL="https://packages.origincloud.eu"
+RELEASE_KEY_FINGERPRINT="FEE6FD74A88C5DB8959F5A1B0BE6AF842E0B034A"
 DOCS_URL="https://github.com/origincloudhq/cli#install"
 BINARY="origin"
 
@@ -66,11 +74,17 @@ checksum_of() {
     fi
 }
 
+# HTTPS only, for every download, a mirror's too: curl is told so, and the
+# check here covers wget as well.
 download() {
     url="$1"
     dest="$2"
+    case "${url}" in
+        https://*) ;;
+        *) err "refusing ${url}: downloads are over https only" ;;
+    esac
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "${url}" -o "${dest}" || err "download failed: ${url}"
+        curl -fsSL --proto '=https' --tlsv1.2 "${url}" -o "${dest}" || err "download failed: ${url}"
     elif command -v wget >/dev/null 2>&1; then
         wget -qO "${dest}" "${url}" || err "download failed: ${url}"
     else
@@ -78,23 +92,56 @@ download() {
     fi
 }
 
+# SHA256SUMS ($1) carries a good signature ($2) by the release key, whose
+# public key ($3) is imported into a keyring of its own: the user's is left
+# alone. The signer's fingerprint must be the pinned one, so another key
+# served in its place verifies nothing.
+verify_signature() {
+    gnupg_home="${tmp}/gnupg"
+    mkdir -m 700 "${gnupg_home}"
+    gpg --homedir "${gnupg_home}" --batch --quiet --import "$3" >/dev/null 2>&1 \
+        || err "the release key at ${BASE_URL}/origincloud-release.asc can't be imported"
+    status="$(gpg --homedir "${gnupg_home}" --batch --status-fd 1 --verify "$2" "$1" 2>/dev/null || true)"
+    signer="$(printf '%s\n' "${status}" | awk '$2 == "VALIDSIG" { print $NF; exit }')"
+    if ! printf '%s\n' "${status}" | grep -q '^\[GNUPG:\] GOODSIG ' \
+       || [ "${signer}" != "${RELEASE_KEY_FINGERPRINT}" ]; then
+        err "SHA256SUMS doesn't carry a good signature by the release key ${RELEASE_KEY_FINGERPRINT}. Nothing was installed."
+    fi
+}
+
+cleanup() {
+    if [ -n "${gnupg_home}" ] && command -v gpgconf >/dev/null 2>&1; then
+        gpgconf --homedir "${gnupg_home}" --kill all >/dev/null 2>&1 || true
+    fi
+    if [ -n "${staged}" ]; then rm -f "${staged}"; fi
+    if [ -n "${tmp}" ]; then rm -rf "${tmp}"; fi
+}
+
 main() {
     platform="$(detect_platform)"
     asset="${BINARY}-${platform}"
 
-    root="${ORIGIN_BASE_URL:-${BASE_URL}}"
-    root="${root%/}"
+    mirror="${ORIGIN_BASE_URL:-}"
+    mirror="${mirror%/}"
     install_dir="${ORIGIN_INSTALL_DIR:-${HOME}/.local/bin}"
 
-    tmp="$(mktemp -d)"
+    have_gpg=false
+    if command -v gpg >/dev/null 2>&1; then have_gpg=true; fi
+    if [ -n "${mirror}" ] && [ "${have_gpg}" = false ]; then
+        err "ORIGIN_BASE_URL is set, and installing from a mirror needs gpg, to check the release key's signature. Install gnupg, or unset ORIGIN_BASE_URL."
+    fi
+
+    tmp="" staged="" gnupg_home=""
     # Cleared on every exit path, including the error ones above: a failed
     # install must not leave a half-downloaded binary behind for someone to
-    # find and run later.
-    trap 'rm -rf "${tmp}"' EXIT INT TERM
+    # find and run later. An interrupt exits after cleaning up.
+    trap cleanup EXIT
+    trap 'cleanup; exit 130' INT TERM
+    tmp="$(mktemp -d)"
 
     version="${ORIGIN_VERSION:-}"
     if [ -z "${version}" ]; then
-        download "${root}/cli/latest" "${tmp}/latest"
+        download "${BASE_URL}/cli/latest" "${tmp}/latest"
         version="$(tr -d ' \t\r\n' < "${tmp}/latest")"
     fi
     # The version becomes part of a URL and a log line; anything but a
@@ -103,12 +150,20 @@ main() {
         v[0-9]*) ;;
         *) err "'${version}' is not a CLI version (expected e.g. v1.10.0)" ;;
     esac
-    base="${root}/cli/${version}"
 
     log "Installing ${BINARY} ${version} (${platform}) into ${install_dir}"
 
-    download "${base}/${asset}" "${tmp}/${asset}"
-    download "${base}/SHA256SUMS" "${tmp}/SHA256SUMS"
+    download "${BASE_URL}/cli/${version}/SHA256SUMS" "${tmp}/SHA256SUMS"
+    if [ "${have_gpg}" = true ]; then
+        download "${BASE_URL}/cli/${version}/SHA256SUMS.asc" "${tmp}/SHA256SUMS.asc"
+        download "${BASE_URL}/origincloud-release.asc" "${tmp}/release-key.asc"
+        verify_signature "${tmp}/SHA256SUMS" "${tmp}/SHA256SUMS.asc" "${tmp}/release-key.asc"
+        log "SHA256SUMS is signed by the release key ${RELEASE_KEY_FINGERPRINT}"
+    else
+        log "gpg not found: SHA256SUMS is trusted on ${BASE_URL}'s HTTPS certificate alone"
+    fi
+
+    download "${mirror:-${BASE_URL}}/cli/${version}/${asset}" "${tmp}/${asset}"
 
     expected="$(grep " \{1,2\}${asset}\$" "${tmp}/SHA256SUMS" | cut -d' ' -f1)"
     [ -n "${expected}" ] || err "${asset} is not listed in SHA256SUMS - refusing to install something the release does not vouch for."
@@ -121,11 +176,15 @@ main() {
 The download is corrupt or has been tampered with. Nothing was installed."
     fi
 
+    # Staged in the install directory, then renamed over the old binary: a
+    # rename within one filesystem is atomic, so the destination is always
+    # either the old binary or the whole verified new one.
     mkdir -p "${install_dir}"
-    chmod +x "${tmp}/${asset}"
-    # Move into place only after verification, so an interrupted or failed
-    # run never leaves a runnable binary at the destination.
-    mv "${tmp}/${asset}" "${install_dir}/${BINARY}"
+    staged="$(mktemp "${install_dir}/.${BINARY}.XXXXXX")"
+    cat "${tmp}/${asset}" > "${staged}"
+    chmod 0755 "${staged}"
+    mv -f "${staged}" "${install_dir}/${BINARY}"
+    staged=""
 
     log "Installed ${install_dir}/${BINARY}"
 

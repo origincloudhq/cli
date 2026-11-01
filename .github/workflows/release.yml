@@ -39,10 +39,15 @@ jobs:
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - name: Checkout
-        uses: 'actions/checkout@v4'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # A release is a commit of main, which CI has checked: the tag then
-      # never names a commit only a branch has.
+      # never names a commit only a branch has. The environment `release`,
+      # which only main may use, enforces that for the jobs that write
+      # (release, publish) whatever this file says on a branch; this check
+      # only makes a run from a branch fail before it builds.
       - name: Check the version
         id: version
         env:
@@ -62,14 +67,17 @@ jobs:
   release:
     needs: [version, build]
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: write
     steps:
       - name: Checkout
-        uses: 'actions/checkout@v4'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Download the assets
-        uses: 'actions/download-artifact@v4'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: release-assets
           path: ${{ runner.temp }}/assets
@@ -93,6 +101,11 @@ jobs:
   publish:
     needs: release
     runs-on: ubuntu-latest
+    # The dispatch App's key is a secret of this environment, which only main
+    # may use: a run dispatched from any other branch doesn't get it, however
+    # the workflow file there reads. The job needs no GITHUB_TOKEN.
+    environment: release
+    permissions: {}
     steps:
       # An unset secret or variable resolves to an empty string rather than
       # failing, so it is checked here instead of failing inside the token
@@ -108,7 +121,7 @@ jobs:
             [ -n "${!key:-}" ] || missing="${missing} ${key}"
           done
           if [ -n "${missing}" ]; then
-            echo "::error::unset or empty:${missing}: the dispatch App's ID (a repository variable) and private key (a repository secret), RELEASING.md"
+            echo "::error::unset or empty:${missing}: the dispatch App's ID (a repository variable) and private key (a secret of the environment release), RELEASING.md"
             exit 1
           fi
 
@@ -120,13 +133,18 @@ jobs:
           private-key: ${{ secrets.PACKAGES_DISPATCH_APP_PRIVATE_KEY }}
           owner: origincloudhq
           repositories: packages
+          # Only what dispatch.sh needs: starting Publish and watching its
+          # run, and reading the repository for this checkout.
+          permission-actions: write
+          permission-contents: read
 
       - name: Checkout the publisher
-        uses: 'actions/checkout@v4'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: origincloudhq/packages
           token: ${{ steps.token.outputs.token }}
           path: publisher
+          persist-credentials: false
 
       - name: Publish to packages.origincloud.eu
         env:

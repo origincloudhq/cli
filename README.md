@@ -12,15 +12,19 @@ The CLI is published at `packages.origincloud.eu`, as one binary per platform
 The Linux builds are statically linked.
 
 With the install script, which picks the binary for your machine, checks it
-against `SHA256SUMS` and installs it to `~/.local/bin`:
+against `SHA256SUMS`, and `SHA256SUMS` against the release key's signature
+when `gpg` is installed, and installs it to `~/.local/bin`:
 
 ```sh
 curl -fsSL https://packages.origincloud.eu/install.sh | sh
 origin --version
 ```
 
-`ORIGIN_VERSION` (such as `v1.10.0`) installs a specific version, and
-`ORIGIN_INSTALL_DIR` another directory.
+`ORIGIN_VERSION` (such as `v1.10.0`) installs a specific version,
+`ORIGIN_INSTALL_DIR` another directory, and `ORIGIN_BASE_URL` downloads the
+binary from an HTTPS mirror instead; with a mirror, `SHA256SUMS` still comes
+from packages.origincloud.eu and its signature must verify, so `gpg` is
+required.
 
 With apt, on Debian and Ubuntu (`amd64` and `arm64`):
 

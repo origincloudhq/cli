@@ -62,15 +62,18 @@ a fix is a new version.
 2. **build** (`build.yml`, which CI runs too): builds `origin` for
    `linux-amd64` and `linux-arm64` (static musl binaries, in a cross image)
    and for `darwin-arm64` and `darwin-amd64` (on a macOS runner), and checks
-   that each binary is its platform's (`release/build.sh`,
-   `release/check-arch.sh`). Then it builds the Debian packages
+   that each binary is its platform's, and each Linux one static
+   (`release/build.sh`, `release/check-arch.sh`). Then it builds the Debian packages
    (`release/deb.sh`), adds `install.sh` and `LICENSE`, writes `SHA256SUMS`
    over all of them (`release/assemble.sh`), and installs the amd64 package on
    a clean Debian, where it must report its version.
 3. **release**: creates the GitHub release for the tag, at the commit that was
    built, as a draft; attaches the assets; then publishes it, as a prerelease
    for a suffixed version (`release/github-release.sh`). The tag is created
-   then.
+   then, and checked to point at the commit that was built. The notes are
+   GitHub's generated ones, unless a draft release for the tag exists: to
+   write the notes by hand, create a draft for the tag before running the
+   workflow; it is replaced, and its notes become the release's.
 4. **publish**: starts origincloudhq/packages' **Publish** workflow for this
    repository and the tag, with a token of the dispatch App, and waits for
    it. That repository holds the signing key and the bucket's credentials,
@@ -82,8 +85,10 @@ a fix is a new version.
   whole run: the jobs that passed keep their artifacts, so the binaries stay
   the same bytes. A whole new run builds new binaries, which GitHub and
   packages.origincloud.eu refuse under a version they already have.
-- **release** resumes: a draft an earlier attempt left is replaced, and a
-  release that already holds exactly these assets is kept.
+- **release** resumes: a draft an earlier attempt left is replaced (the log
+  says what it deleted), and a release that already holds exactly these
+  assets is kept. A failed request to GitHub fails the job, saying which;
+  rerun it.
 - **publish** resumes: whatever is published already with the same bytes is
   skipped. If it failed on the publisher's side, its run (linked in the log)
   says why.
@@ -92,15 +97,82 @@ a fix is a new version.
 
 ## One-time setup
 
-The **publish** job needs the dispatch App of origincloudhq/packages, whose
-ID and private key are set in this repository, and this repository has to be
-the producer of the `cli` channel in that repository's `producers.conf`. Its
-[`docs/github-apps.md`](https://github.com/origincloudhq/packages/blob/main/docs/github-apps.md)
-describes the Apps; with the App's private key downloaded as a `.pem` file:
+The jobs that write, **release** and **publish**, run in the GitHub
+environment `release`, which only `main` may use. The **publish** job needs
+the dispatch App of origincloudhq/packages, `origincloud-packages-dispatch`:
+a GitHub App owned by origincloudhq, installed on that repository only, with
+the repository permissions Actions (read and write) and Contents (read). Its
+ID is a repository variable here, its private key a secret of the
+environment, so that a run from any other branch never gets it, whatever the
+workflow file on that branch says. origincloudhq/packages has to list this
+repository as the producer of the `cli` channel and of `origincloud-cli`.
+
+Run these once, as a repository admin, in this order: the environment has
+to exist, limited to `main`, before the first run, because a job naming an
+environment that doesn't exist creates it without any limit.
 
 ```sh
+# The environment `release`, deployable from main only
+gh api -X PUT repos/origincloudhq/cli/environments/release \
+  -F 'deployment_branch_policy[protected_branches]=false' \
+  -F 'deployment_branch_policy[custom_branch_policies]=true'
+gh api -X POST repos/origincloudhq/cli/environments/release/deployment-branch-policies \
+  -f name=main -f type=branch
+
+# The dispatch App: its ID, and a private key generated for this repository
+# (the App's settings -> Private keys -> Generate a private key)
 gh variable set PACKAGES_DISPATCH_APP_ID --repo origincloudhq/cli --body <dispatch app id>
-gh secret set PACKAGES_DISPATCH_APP_PRIVATE_KEY --repo origincloudhq/cli < origincloud-packages-dispatch.*.private-key.pem
+gh secret set PACKAGES_DISPATCH_APP_PRIVATE_KEY --repo origincloudhq/cli --env release \
+  < origincloud-packages-dispatch.*.private-key.pem
+shred -u origincloud-packages-dispatch.*.private-key.pem
+
+# main: changed by pull request only, after CI, never force-pushed or deleted.
+# 15368 is GitHub Actions, so that only its checks count.
+gh api -X POST repos/origincloudhq/cli/rulesets --input - <<'JSON'
+{
+  "name": "main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] } },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "pull_request", "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false } },
+    { "type": "required_status_checks", "parameters": {
+        "strict_required_status_checks_policy": false,
+        "required_status_checks": [
+          { "context": "check", "integration_id": 15368 },
+          { "context": "build / assets", "integration_id": 15368 } ] } }
+  ]
+}
+JSON
+
+# Optional: release tags can't be moved or deleted. Creating them stays
+# allowed, because the release job's token creates each one.
+gh api -X POST repos/origincloudhq/cli/rulesets --input - <<'JSON'
+{
+  "name": "release tags",
+  "target": "tag",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/tags/v*"], "exclude": [] } },
+  "rules": [ { "type": "update" }, { "type": "deletion" } ]
+}
+JSON
+```
+
+To check it:
+
+```sh
+gh api repos/origincloudhq/cli/environments/release --jq '.deployment_branch_policy'
+gh api repos/origincloudhq/cli/environments/release/deployment-branch-policies --jq '.branch_policies[].name'
+gh secret list --repo origincloudhq/cli --env release
+gh variable list --repo origincloudhq/cli
+gh api repos/origincloudhq/cli/rulesets --jq '.[].name'
 ```
 
 The release itself is made with the workflow's own token, which needs no

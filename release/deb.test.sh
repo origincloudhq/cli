@@ -41,6 +41,14 @@ else
   bad "/usr/bin/origin should be the arm64 binary, 0755, root:root"
 fi
 
+dpkg-deb -e "${work}/one/origincloud-cli_1.9.16_arm64.deb" "${work}/control"
+if [[ "$(awk '{ print $2 }' "${work}/control/md5sums" | tr '\n' ' ')" == "usr/bin/origin usr/share/doc/origincloud-cli/copyright " ]] \
+   && (cd "${work}/x" && md5sum --quiet -c "${work}/control/md5sums"); then
+  ok "DEBIAN/md5sums lists every file, matching what the package installs"
+else
+  bad "DEBIAN/md5sums should list /usr/bin/origin and the copyright file with their checksums"
+fi
+
 if cmp -s "${work}/x/usr/share/doc/origincloud-cli/copyright" "${ROOT}/LICENSE"; then
   ok "carries the licence as /usr/share/doc/origincloud-cli/copyright"
 else
