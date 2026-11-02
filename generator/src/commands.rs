@@ -270,8 +270,9 @@ pub fn generate(
     code.push_str(
         "#[allow(unused_imports)]\n\
          use crate::sdk::runtime::{\n\
-             api_error, deadline_after, duration, json, list_json, names_any, pace, passed, success,\n\
-             tags, wait, wait_for, waited, waiting, zones, ConfirmedClient, Context, ReadClient,\n\
+             api_error, deadline_after, duration, json, list_json, names_any, pace, passed, shown_once,\n\
+             success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient, Context,\n\
+             ReadClient,\n\
          };\n\
          #[allow(unused_imports)]\n\
          use crate::confirm;\n\
@@ -1267,6 +1268,9 @@ struct Build {
     flags: Vec<Flag>,
     /// The shared name parts, in order of first use.
     components: Vec<String>,
+    /// The flags taking a whole name that gives a name part, by the part:
+    /// such a part can come from one of them instead of its own flag.
+    whole_names: BTreeMap<String, Vec<String>>,
     /// Statements learning name parts from whole names given.
     learn: Vec<String>,
     /// Statements before the request.
@@ -1305,15 +1309,37 @@ impl Build {
             }
         }
     }
+
+    /// Adds the name parts of `pattern` but its last, `leaf`, which `flag`
+    /// takes, by its id or as a whole name giving the others.
+    fn add_reference(&mut self, pattern: &str, leaf: &str, flag: &str) {
+        self.add_components(pattern, Some(leaf));
+        for var in variables(pattern).into_iter().filter(|v| v != leaf) {
+            let flags = self.whole_names.entry(var).or_default();
+            if !flags.iter().any(|f| f == flag) {
+                flags.push(flag.to_owned());
+            }
+        }
+    }
 }
+
+/// The help of a name part's flag. The defaults of `--project`, `--zone`
+/// and `--region` are the runtime's (`Context::names`), in its order: the
+/// environment before the profile.
+/// The name parts with a default, from the environment or the profile.
+const DEFAULTED: [&str; 3] = ["project", "zone", "region"];
 
 fn component_doc(var: &str) -> String {
     match var {
-        "project" => "The project, such as `my-project-123`. The profile's `default-project`, or \
-                      `ORIGINCLOUD_PROJECT`, when not given."
+        "project" => "The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the \
+                      profile's `default-project`, when not given."
             .to_owned(),
-        "zone" => "The zone, such as `eu-central1-az1`. The profile's `default-zone`, or \
-                   `ORIGINCLOUD_ZONE`, when not given."
+        "zone" => "The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's \
+                   `default-zone`, when not given."
+            .to_owned(),
+        "region" => "The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's \
+                     `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or \
+                     `default-zone`), when not given."
             .to_owned(),
         other => format!("The `{{{other}}}` part of the resource names the command builds."),
     }
@@ -1379,7 +1405,6 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     let update = request
         .get_field_by_name("update_mask")
         .is_some_and(|f| matches!(f.kind(), Kind::Message(ref k) if k.full_name() == FIELD_MASK));
-    let creating = !update && request.fields().any(|f| body_message(cx, &f).is_some());
     let paging = request.get_field_by_name("page_token").is_some();
     let response = m.output();
     let list = paging.then(|| list_field(&response)).flatten();
@@ -1408,16 +1433,32 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     let mut zonal_parent: Option<String> = None;
 
     // A first pass for the vocabulary of the help: which flag sets which
-    // field.
+    // field. A field of the resource the command has no flag for, as the
+    // second pass decides, is left to be named as the JSON it prints names
+    // it: an output-only one, such as a generated key, a create's own
+    // name, and an update's immutable fields.
     for field in request.fields() {
         if excluded(field.name()) {
             continue;
         }
         if let Some(body) = body_message(cx, &field) {
             for f in body.fields() {
-                if !excluded(&format!("{}.{}", field.name(), f.name())) {
-                    b.vocabulary.insert(f.name().to_owned(), flag_name(cx, &f));
+                let fb = behaviors(cx.pool, &f);
+                if excluded(&format!("{}.{}", field.name(), f.name()))
+                    || fb.contains(&OUTPUT_ONLY)
+                    || (update && fb.contains(&IMMUTABLE))
+                {
+                    continue;
                 }
+                if fb.contains(&IDENTIFIER) {
+                    // An update's resource flag, `--volume`.
+                    if let Some(r) = resource_of(cx, &body).filter(|_| update) {
+                        b.vocabulary
+                            .insert(f.name().to_owned(), leaf_of(&r.pattern).to_kebab_case());
+                    }
+                    continue;
+                }
+                b.vocabulary.insert(f.name().to_owned(), flag_name(cx, &f));
             }
         } else if field.name() == "name" {
             if let Some(r) = named_resource(cx, m, &field) {
@@ -1553,7 +1594,6 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                         &f,
                         &k,
                         field_required,
-                        creating,
                         unordered,
                         &help(&comment(&f)),
                     )?;
@@ -1649,7 +1689,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             doc.push_str(" One is generated when not given.");
         }
         let unordered = behaviors(cx.pool, &field).contains(&UNORDERED_LIST);
-        let expr = value(&mut b, &field, &k, required, creating, unordered, &doc)?;
+        let expr = value(&mut b, &field, &k, required, unordered, &doc)?;
         if name == "timeout" && waits {
             // The flag is a deadline of the command's: each call waits a
             // minute at most, as the API allows, and the command calls again
@@ -1874,8 +1914,37 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                     items.trim_start_matches("r#").to_lower_camel_case()
                 );
             }
-            None => tail.push_str("json(&response)\n"),
+            None => {
+                // A secret shown this once is said so, beside the response.
+                for entry in cx.policy.shown_once(cx.own, m.name()) {
+                    let field = response
+                        .get_field_by_name(&entry.field)
+                        .filter(|f| f.kind() == Kind::String && !f.is_list())
+                        .ok_or_else(|| {
+                            format!(
+                                "commands.toml's shown_once names {}, which isn't a string of \
+                                 its response",
+                                entry.field
+                            )
+                        })?;
+                    let _ = writeln!(
+                        tail,
+                        "shown_once(&response.{}, {:?});",
+                        ident(field.name()),
+                        entry.notice
+                    );
+                }
+                tail.push_str("json(&response)\n");
+            }
         },
+    }
+    let shown = tail.contains("shown_once(");
+    if !shown && !cx.policy.shown_once(cx.own, m.name()).is_empty() {
+        return Err(
+            "commands.toml's shown_once is only for a method answering with its response, \
+             not a list, an operation or nothing"
+                .to_owned(),
+        );
     }
 
     if destructive || !one_way.is_empty() {
@@ -1914,12 +1983,27 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     }
     let _ = writeln!(code, "pub struct {args} {{");
     for var in &b.components {
+        let mut attrs = vec![format!("value_name = {:?}", var.to_uppercase())];
         let doc = if var == "zone" && zonal_parent.is_some() {
             "The zone to list, such as `eu-central1-az1`. Without it, every zone that offers \
              the service is listed, in catalog order; the profile's `default-zone` isn't used \
              for lists."
                 .to_owned()
+        } else if DEFAULTED.contains(&var.as_str()) {
+            component_doc(var)
+        } else if let Some(flags) = b.whole_names.get(var) {
+            // Only the runtime knows whether one of them is given a whole
+            // name, which gives the part.
+            let flags: Vec<String> = flags.iter().map(|f| format!("`--{f}`")).collect();
+            format!(
+                "{} Needed unless {} is given a whole name, which has it.",
+                component_doc(var),
+                flags.join(" or ")
+            )
         } else {
+            // Nothing else gives it: clap requires it, and the usage line
+            // shows it.
+            attrs.push("required = true".to_owned());
             component_doc(var)
         };
         Flag {
@@ -1927,7 +2011,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             long: var.to_kebab_case(),
             doc,
             ty: "Option<String>".to_owned(),
-            attrs: vec![format!("value_name = {:?}", var.to_uppercase())],
+            attrs,
         }
         .render(&mut code);
     }
@@ -2176,7 +2260,7 @@ fn leaf_name(
 ) -> Result<String, String> {
     let fid = ident(leaf);
     let long = leaf.to_kebab_case();
-    b.add_components(&resource.pattern, Some(leaf));
+    b.add_reference(&resource.pattern, leaf, &long);
     b.add_flag(Flag {
         ident: fid.clone(),
         long: long.clone(),
@@ -2201,14 +2285,10 @@ fn value(
     field: &FieldDescriptor,
     k: &Kind2,
     required: bool,
-    creating: bool,
     unordered: bool,
     doc: &str,
 ) -> Result<String, String> {
     let fid = ident(field.name());
-    // A boolean a create sets is always stated, `true` or `false`: its
-    // default reads the same as leaving it out.
-    let bool_required = required || creating;
     let required_attr = |attrs: &mut Vec<String>| {
         if required {
             attrs.push("required = true".to_owned());
@@ -2239,23 +2319,20 @@ fn value(
                 ident: fid.clone(),
                 long,
                 doc: doc.to_owned(),
-                ty: if bool_required {
-                    "bool"
-                } else {
-                    "Option<bool>"
-                }
-                .to_owned(),
+                ty: if required { "bool" } else { "Option<bool>" }.to_owned(),
+                // One the API doesn't require is optional, in a create too:
+                // left out, it is `false`, as the API reads a missing one.
                 attrs: [
                     "value_name = \"true|false\"",
                     "action = clap::ArgAction::Set",
                     "required = true",
                 ]
                 .into_iter()
-                .take(if bool_required { 3 } else { 2 })
+                .take(if required { 3 } else { 2 })
                 .map(str::to_owned)
                 .collect(),
             })?;
-            if bool_required {
+            if required {
                 format!("args.{fid}")
             } else {
                 format!("args.{fid}.unwrap_or_default()")
@@ -2387,7 +2464,7 @@ fn value(
         }
         Kind2::Reference(resource) => {
             let leaf = leaf_of(&resource.pattern);
-            b.add_components(&resource.pattern, Some(&leaf));
+            b.add_reference(&resource.pattern, &leaf, &long);
             b.add_flag(Flag {
                 ident: fid.clone(),
                 long: long.clone(),
@@ -2617,7 +2694,7 @@ fn update_field(
         }
         Kind2::Reference(resource) => {
             let leaf = leaf_of(&resource.pattern);
-            b.add_components(&resource.pattern, Some(&leaf));
+            b.add_reference(&resource.pattern, &leaf, &long);
             b.add_flag(Flag {
                 ident: fid.clone(),
                 long: long.clone(),
@@ -2794,7 +2871,7 @@ fn oneof_flags(
             }
             Kind2::Reference(resource) => {
                 let leaf = leaf_of(&resource.pattern);
-                b.add_components(&resource.pattern, Some(&leaf));
+                b.add_reference(&resource.pattern, &leaf, &long);
                 b.add_flag(Flag {
                     ident: fid.clone(),
                     long: long.clone(),
@@ -2938,7 +3015,7 @@ fn list_elements(
         ),
         Elem::Reference(resource) => {
             let leaf = leaf_of(&resource.pattern);
-            b.add_components(&resource.pattern, Some(&leaf));
+            b.add_reference(&resource.pattern, &leaf, long);
             b.learn.push(format!(
                 "for value in &args.{one} {{ names.learn({:?}, {long:?}, Some(value.as_str()))?; }}",
                 resource.pattern
@@ -2980,7 +3057,7 @@ fn completions(b: &mut Build, n: &Nested, var: &str, flag: &str) -> Vec<String> 
     for key in &n.keys {
         if let Kind2::Reference(resource) = &key.kind {
             let leaf = leaf_of(&resource.pattern);
-            b.add_components(&resource.pattern, Some(&leaf));
+            b.add_reference(&resource.pattern, &leaf, flag);
             b.needs_names = true;
             let id = &key.ident;
             let label = format!("{flag} {}", key.name);

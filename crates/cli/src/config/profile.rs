@@ -1,6 +1,7 @@
 use super::file_io::{read_file_opt, safe_file};
 use super::paths::{self, ENV_CONFIG_DIR_USER};
 use crate::config::env::{env_or, expect_env, try_env};
+use crate::identity::region_of_zone;
 use crate::output::{SerializableOutput, SerializationError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -16,8 +17,8 @@ const ENV_OUTPUT_FORMAT: &str = "ORIGINCLOUD_OUTPUT_FORMAT";
 /// when `--project` or `--zone` isn't given.
 const ENV_PROJECT: &str = "ORIGINCLOUD_PROJECT";
 const ENV_ZONE: &str = "ORIGINCLOUD_ZONE";
-/// The region whose front door the generated commands of a regional
-/// service call; the same variable the SDKs read.
+/// The region the generated commands work in (see
+/// [`ClientProfile::region_in_effect`]); the same variable the SDKs read.
 const ENV_REGION: &str = "ORIGINCLOUD_REGION";
 
 fn config_base_dir() -> String {
@@ -46,16 +47,34 @@ pub(crate) struct ClientProfile {
     /// `eu-central1-az1`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_zone: Option<String>,
-    /// The region whose front door the generated commands of a regional
-    /// service, such as `pvs`, call,
-    /// `{service}.{region}.origincloudapis.eu`; the regionless endpoint,
-    /// which serves every resource, when unset.
+    /// The region the generated commands work in, such as `eu-central1`:
+    /// see [`ClientProfile::region_in_effect`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<String>,
     /// The file this profile was loaded from when `--config` named one, so a
     /// save writes back to it rather than to the default location.
     #[serde(skip)]
     source: Option<PathBuf>,
+}
+
+/// Where the region in effect comes from.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) enum RegionSource {
+    /// `ORIGINCLOUD_REGION`, or the profile's `region`.
+    Region,
+    /// The region of the default zone, `ORIGINCLOUD_ZONE` or the profile's
+    /// `default-zone`.
+    Zone,
+}
+
+impl RegionSource {
+    /// Where the region came from, in the words of a message about it.
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::Region => "ORIGINCLOUD_REGION, or the profile's region",
+            Self::Zone => "the region of ORIGINCLOUD_ZONE, or of the profile's default-zone",
+        }
+    }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Copy, Clone)]
@@ -107,6 +126,26 @@ impl ClientProfile {
         let mut profile = read_file_opt::<Self>(&path).unwrap_or_default();
         profile.source = config_file.map(Path::to_path_buf);
         profile
+    }
+
+    /// The region the generated commands work in, resolved as the AWS
+    /// CLI resolves its own: `ORIGINCLOUD_REGION`, else the profile's
+    /// `region`, else the region of the default zone (`eu-central1` for
+    /// `eu-central1-az1`); `None` when none of them gives one. `--region`,
+    /// where a command has it, comes before all of them.
+    ///
+    /// It is the region whose front door the calls of a regional service go
+    /// to, `{service}.{region}.origincloudapis.eu` (the regionless host,
+    /// which serves every resource, without one), the `--region` of the
+    /// names a command builds when not given, and the region
+    /// `origin mcp serve` tells the agent: one resolution for all three.
+    /// The environment comes first because [`Self::load`] overlays it.
+    pub fn region_in_effect(&self) -> Option<(String, RegionSource)> {
+        if let Some(region) = &self.region {
+            return Some((region.clone(), RegionSource::Region));
+        }
+        let zone = self.default_zone.as_deref()?;
+        region_of_zone(zone).map(|region| (region.to_owned(), RegionSource::Zone))
     }
 
     pub fn safe_to_file(&self) -> Result<(), std::io::Error> {
@@ -229,6 +268,53 @@ mod tests {
         let file = ClientProfile::load_file(None);
         assert!(file.default_username.is_none());
         assert!(file.default_zone.is_none());
+        for key in ALL_ENV {
+            std::env::remove_var(key);
+        }
+    }
+
+    /// The region in effect is `ORIGINCLOUD_REGION`, else the file's
+    /// `region`, else the region of the default zone, itself
+    /// `ORIGINCLOUD_ZONE` before the file's `default-zone`.
+    #[test]
+    fn the_region_is_the_environments_then_the_files_then_the_zones() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        isolate(dir.path());
+        let file = dir.path().join("profile.json");
+        let region = || ClientProfile::load(Some(&file)).region_in_effect();
+
+        assert_eq!(region(), None);
+        fs::write(&file, r#"{"default_zone":"eu-central1-az1"}"#).unwrap();
+        assert_eq!(
+            region(),
+            Some(("eu-central1".to_owned(), RegionSource::Zone))
+        );
+        std::env::set_var(ENV_ZONE, "eu-central2-az1");
+        assert_eq!(
+            region(),
+            Some(("eu-central2".to_owned(), RegionSource::Zone))
+        );
+        fs::write(
+            &file,
+            r#"{"default_zone":"eu-central1-az1","region":"eu-central3"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            region(),
+            Some(("eu-central3".to_owned(), RegionSource::Region))
+        );
+        std::env::set_var(ENV_REGION, "eu-central4");
+        assert_eq!(
+            region(),
+            Some(("eu-central4".to_owned(), RegionSource::Region))
+        );
+
+        // A zone not named after its region implies none.
+        std::env::remove_var(ENV_REGION);
+        fs::write(&file, r#"{"default_zone":"z-a"}"#).unwrap();
+        std::env::set_var(ENV_ZONE, "z-a");
+        assert_eq!(region(), None);
         for key in ALL_ENV {
             std::env::remove_var(key);
         }

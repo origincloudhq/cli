@@ -139,7 +139,12 @@ impl<'a> Context<'a> {
     fn build(&self, endpoint: Option<&str>) -> anyhow::Result<Client> {
         let mut builder = Client::builder()
             .user_agent(format!("origin-cli/{}", env!("CARGO_PKG_VERSION")))
-            .region(self.profile.region.clone().unwrap_or_default());
+            .region(
+                self.profile
+                    .region_in_effect()
+                    .map(|(region, _)| region)
+                    .unwrap_or_default(),
+            );
         let from_environment = CREDENTIAL_VARIABLES
             .iter()
             .any(|name| std::env::var(name).is_ok_and(|v| !v.is_empty()));
@@ -158,26 +163,39 @@ impl<'a> Context<'a> {
     /// The resource names of a command, from its name-part flags (such as
     /// `--project`), each `None` when not given.
     pub fn names(&self, parts: &[(&'static str, Option<&str>)]) -> Names {
-        let defaults = [
-            ("project", &self.profile.default_project),
-            ("zone", &self.profile.default_zone),
-        ];
+        let profile = |var: &str, value: &Option<String>| {
+            value.clone().map(|v| {
+                let from = format!(
+                    "ORIGINCLOUD_{}, or the profile's default-{var}",
+                    var.to_uppercase()
+                );
+                (var.to_owned(), (v, from))
+            })
+        };
+        let region = self
+            .profile
+            .region_in_effect()
+            .map(|(v, from)| ("region".to_owned(), (v, from.describe().to_owned())));
         Names {
             given: parts
                 .iter()
                 .filter_map(|(var, value)| value.map(|v| ((*var).to_owned(), v.to_owned())))
                 .collect(),
             learned: BTreeMap::new(),
-            defaults: defaults
-                .into_iter()
-                .filter_map(|(var, value)| value.clone().map(|v| (var.to_owned(), v)))
-                .collect(),
+            defaults: [
+                profile("project", &self.profile.default_project),
+                profile("zone", &self.profile.default_zone),
+                region,
+            ]
+            .into_iter()
+            .flatten()
+            .collect(),
         }
     }
 }
 
 /// The client of `origin mcp serve`'s calls to `service`, made as the
-/// group's commands make theirs: the profile's region, the SDK's
+/// group's commands make theirs: the region in effect, the SDK's
 /// credentials from the environment or the login session, and the group's
 /// endpoint variable, such as `ORIGINCLOUD_PVS_ENDPOINT`. It goes around
 /// [`Context::confirmed_client`]: the MCP client's approval of a tool
@@ -268,14 +286,16 @@ pub async fn zones(ctx: &Context<'_>, service: &str) -> anyhow::Result<Vec<Strin
 
 /// Resource names from their parts. A part comes from its flag
 /// (`--project`), else from a whole name given to another flag, else from
-/// the profile.
+/// the environment or the profile.
 #[derive(Clone)]
 pub struct Names {
     given: BTreeMap<String, String>,
     /// Parts learned from whole names, with the flag and value each came
     /// from.
     learned: BTreeMap<String, (String, String)>,
-    defaults: BTreeMap<String, String>,
+    /// The defaults of `project`, `zone` and `region`, with where each came
+    /// from.
+    defaults: BTreeMap<String, (String, String)>,
 }
 
 /// The flag of a name part: `--project`.
@@ -381,22 +401,20 @@ impl Names {
         if let Some((value, _)) = self.learned.get(var) {
             return Ok(value.clone());
         }
-        if let Some(value) = self.defaults.get(var) {
-            return checked(
-                &format!(
-                    "the profile's default-{var}, or ORIGINCLOUD_{}",
-                    var.to_uppercase()
-                ),
-                value,
-            );
+        if let Some((value, from)) = self.defaults.get(var) {
+            return checked(from, value);
         }
-        let hint = match var {
-            "project" | "zone" => {
-                format!(", or set a default with `origin config profile-set default-{var} <{var}>`")
-            }
-            _ => String::new(),
+        let key = match var {
+            "project" | "zone" => format!("default-{var}"),
+            "region" => "region".to_owned(),
+            _ => bail!("{} is required", flag(var)),
         };
-        bail!("{} is required{hint}", flag(var))
+        bail!(
+            "{} is required: give it, set ORIGINCLOUD_{}, or set a default with \
+             `origin config profile-set {key} <{var}>`",
+            flag(var),
+            var.to_uppercase()
+        )
     }
 }
 
@@ -609,6 +627,15 @@ pub fn waiting(name: &str) {
     }
 }
 
+/// Says `notice` on standard error when `value`, a field of the response
+/// holding a secret the API returns this once (`commands.toml`'s
+/// `shown_once`), isn't empty: the output is its only copy.
+pub fn shown_once(value: &str, notice: &str) {
+    if !value.is_empty() {
+        eprintln!("{notice}");
+    }
+}
+
 /// An SDK error for the user: the API's own message and code, the request
 /// id to quote to support, and each refused field.
 pub fn api_error(err: origincloud_core::Error) -> anyhow::Error {
@@ -637,6 +664,10 @@ mod tests {
     fn names(given: &[(&'static str, Option<&'static str>)]) -> Names {
         let mut profile = ClientProfile::default();
         profile.default_project = Some("default-project".to_owned());
+        names_with(profile, given)
+    }
+
+    fn names_with(profile: ClientProfile, given: &[(&'static str, Option<&'static str>)]) -> Names {
         let profile = Box::leak(Box::new(profile));
         Context::new(profile, &super::super::generated::PVS, None)
             .unwrap()
@@ -676,10 +707,65 @@ mod tests {
         let n = names(&[("project", Some("p")), ("zone", None)]);
         let err = n.name(ZONE, None).unwrap_err().to_string();
         assert!(err.contains("--zone is required"), "{err}");
-        assert!(err.contains("profile-set default-zone"), "{err}");
+        assert!(err.contains("ORIGINCLOUD_ZONE"), "{err}");
+        assert!(
+            err.contains("`origin config profile-set default-zone <zone>`"),
+            "{err}"
+        );
         assert!(n.check_without(ZONE, "zone").is_ok());
         let n = names(&[("project", Some("a/b")), ("zone", None)]);
         assert!(n.check_without(ZONE, "zone").is_err());
+    }
+
+    const REGIONAL: &str = "projects/{project}/regions/{region}";
+
+    /// `--region` defaults to the region in effect: the profile's region,
+    /// else the region of its default zone; without either, the refusal
+    /// names the flag, the variable and the command setting a default.
+    #[test]
+    fn a_missing_region_is_the_profiles_or_its_zones() {
+        let mut profile = ClientProfile::default();
+        profile.default_project = Some("p".to_owned());
+        let given = [("project", None), ("region", None)];
+        let err = names_with(profile.clone(), &given)
+            .name(REGIONAL, None)
+            .unwrap_err()
+            .to_string();
+        for part in [
+            "--region is required",
+            "ORIGINCLOUD_REGION",
+            "`origin config profile-set region <region>`",
+        ] {
+            assert!(err.contains(part), "{part}: {err}");
+        }
+
+        profile.default_zone = Some("eu-central1-az1".to_owned());
+        let n = names_with(profile.clone(), &given);
+        assert_eq!(
+            n.name(REGIONAL, None).unwrap(),
+            "projects/p/regions/eu-central1"
+        );
+        profile.region = Some("eu-central2".to_owned());
+        let n = names_with(profile.clone(), &given);
+        assert_eq!(
+            n.name(REGIONAL, None).unwrap(),
+            "projects/p/regions/eu-central2"
+        );
+        let n = names_with(
+            profile.clone(),
+            &[("project", None), ("region", Some("r9"))],
+        );
+        assert_eq!(n.name(REGIONAL, None).unwrap(), "projects/p/regions/r9");
+
+        profile.region = Some("a/b".to_owned());
+        let err = names_with(profile, &given)
+            .name(REGIONAL, None)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.starts_with("ORIGINCLOUD_REGION, or the profile's region:"),
+            "{err}"
+        );
     }
 
     #[test]

@@ -143,7 +143,11 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
 - `[[one_way]]` marks a change that can't be undone, with the refusal's verb
   and consequence: a command setting that field requires `--yes`, like every
   delete. The generated code reaches the SDK's method only through a wrapper
-  that takes the client `--yes` makes.
+  that takes the client `--yes` makes;
+- `[[shown_once]]` names a field of a method's response holding a secret
+  the API returns in that response alone, such as `CreateKeyPair`'s
+  `private_key`: the command prints the response as any other, and its
+  `notice` on standard error when the field isn't empty.
 
 The coverage test fails when an entry names a service, a method or a field
 the API doesn't have, so an entry can't silently stop applying; regenerate

@@ -70,6 +70,7 @@ file `--config` names:
 ```sh
 origin config profile-set default-project my-project-123
 origin config profile-set default-zone eu-central1-az1
+origin config profile-set region eu-central1
 origin config profile
 ```
 
@@ -79,11 +80,12 @@ origin config profile
 | `output-format` | `ORIGINCLOUD_OUTPUT_FORMAT` | `json`, the only format; `--output` overrides it. |
 | `default-project` | `ORIGINCLOUD_PROJECT` | `--project` of the generated commands, such as `origin pvs`'s, when not given. |
 | `default-zone` | `ORIGINCLOUD_ZONE` | `--zone` of the generated commands, when not given; not of the lists, which list every zone without `--zone`. |
-| `region` | `ORIGINCLOUD_REGION` | The region whose front door the `compute`, `network` and `pvs` commands call, such as `pvs.{region}.origincloudapis.eu`; the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource, when unset. The `location` and `resourcemanager` commands always call their regionless host. The `network` commands' `--region` doesn't default to it. |
+| `region` | `ORIGINCLOUD_REGION` | The region the generated commands work in: the `--region` of the `network` commands' regional resources, when not given, and the front door the `compute`, `network` and `pvs` commands call, such as `pvs.{region}.origincloudapis.eu`. Without it, the region of the default zone (`eu-central1` for `eu-central1-az1`); without either, `--region` must be given, and the calls go to the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource. The `location` and `resourcemanager` commands always call their regionless host. |
 
-An environment variable overrides the profile's value while a command runs;
-`origin config profile-set` changes the file alone, and checks the value
-first. A command that fails
+As in the AWS CLI, a flag comes first, then the environment variable, then
+the profile's value: an environment variable overrides the profile while a
+command runs, and `origin config profile-set` changes the file alone, and
+checks the value first. A command that fails
 prints `{"code": "failure", "description": "..."}` and exits with status 1;
 a command line the CLI can't parse exits with status 2 before sending
 anything.
@@ -91,6 +93,11 @@ anything.
 Irreversible commands (every delete, `origin iam revoke-service-account`,
 and growing a volume with `origin pvs update-volume --size-gib`) refuse to run without `--yes` and say
 what they would have done; the refusal happens before any request.
+
+`origin compute create-key-pair` without `--public-key` prints the private
+key it generates as `privateKey`, which the API returns this once, and says
+so on standard error: save it, readable by you alone, such as with
+`origin compute create-key-pair | (umask 077; jq -r .privateKey > my-key)`.
 
 ## The generated commands
 
@@ -120,21 +127,25 @@ every method of the API, with the API's own descriptions as help:
   `--zone` are shared by every name a command builds, and default to the
   profile's `default-project` and `default-zone`; a regional resource of
   `origin network`, such as a VPC, takes `--region` instead of `--zone`,
-  which has no default; the resource's own id is the
+  which defaults to the profile's `region`, or the region of its
+  `default-zone`; the resource's own id is the
   flag named after it (`--volume vol-123`, `--zone eu-central1-az1` for
   `origin location get-zone`), or after the field for a reference
   (`--source-snapshot snapshot-123`, `--storage-class gp1`). That flag also
   takes a whole name, such as
   `--volume projects/my-project-123/zones/eu-central1-az1/volumes/vol-123`,
   whose project and zone then fill in the others: the `name` of a listed
-  volume can be passed straight on.
+  volume can be passed straight on. A part of a parent's name without a
+  default, such as `--instance` of `origin compute
+  create-volume-attachment`, is required, unless a whole name given to
+  another flag has it.
 - **Other flags.** Each other field of the request, and of the volume or
   snapshot it carries, is the flag of its name in kebab case: `size_gib` is
   `--size-gib`. Output-only fields aren't flags, and neither is a field the
   method doesn't take although its request has it (`import-volume` has no
   `--source-snapshot`). A boolean takes its value, `--flag true` or
-  `--flag false`, and a create always states it. A duration is given as
-  `30s`, `2m` or `1m30s`, a time as RFC 3339, such as
+  `--flag false`; left out, one the API doesn't require is `false`. A
+  duration is given as `30s`, `2m` or `1m30s`, a time as RFC 3339, such as
   `2026-11-01T12:00:00Z`.
 - **Tags.** `--tag KEY=VALUE`, repeated for more. On an update, `--tag`
   replaces all of a resource's tags, and `--no-tags` removes them all; the two
@@ -253,7 +264,7 @@ or, for a client configured in JSON:
   the API's JSON, as its input schema describes, and answers with the
   response. Arguments the schema doesn't describe, such as a misspelt field,
   are refused, not dropped. `current_context` tells the agent the profile's
-  `default-project`, `default-zone` and `region`.
+  `default-project` and `default-zone`, and the region the commands use.
 - **Resource names.** Whole, such as
   `projects/my-project-123/zones/eu-central1-az1/volumes/vol-123`.
 - **Operations.** A tool starting an operation waits for it up to 30
@@ -266,8 +277,8 @@ or, for a client configured in JSON:
 - **Toolsets.** A service's tools are its toolset: `--toolsets pvs,location`
   serves only those.
 - **Credentials and endpoints.** As the generated commands': the login
-  session or the SDK's variables, the profile's `region`, and each service's
-  endpoint variable, such as `ORIGINCLOUD_PVS_ENDPOINT`.
+  session or the SDK's variables, the region the commands use, and each
+  service's endpoint variable, such as `ORIGINCLOUD_PVS_ENDPOINT`.
 
 The tools are the library [origincloudhq/mcp](https://github.com/origincloudhq/mcp),
 which a server on the network can serve as well.

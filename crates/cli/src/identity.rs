@@ -157,6 +157,14 @@ pub(crate) fn is_region(s: &str) -> bool {
     is_id(s)
 }
 
+/// The region of the zone `zone`, which the platform names `{region}-az{n}`:
+/// `eu-central1` for `eu-central1-az1`. `None` for a zone not named so.
+pub(crate) fn region_of_zone(zone: &str) -> Option<&str> {
+    let (region, number) = zone.rsplit_once("-az")?;
+    (!number.is_empty() && number.bytes().all(|b| b.is_ascii_digit()) && is_region(region))
+        .then_some(region)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -177,6 +185,22 @@ mod tests {
         }
         assert!(is_region("eu-central1"));
         assert!(!is_region("EU-central1") && !is_region("eu.central1") && !is_region(""));
+    }
+
+    #[test]
+    fn a_zone_names_its_region() {
+        assert_eq!(region_of_zone("eu-central1-az1"), Some("eu-central1"));
+        assert_eq!(region_of_zone("eu-central1-az12"), Some("eu-central1"));
+        for other in [
+            "eu-central1",
+            "eu-central1-az",
+            "eu-central1-aza",
+            "-az1",
+            "EU-az1",
+            "z-a",
+        ] {
+            assert_eq!(region_of_zone(other), None, "{other}");
+        }
     }
 
     #[test]

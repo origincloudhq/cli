@@ -51,8 +51,10 @@ Resource names are given as their parts (`--project`, `--region` or \
 `--zone`, `--vpc`), or the resource's flag takes a whole name. VPCs, route \
 tables, ACLs, security groups, internet gateways and DNS policies are \
 regional (`--region`); subnets, network interfaces, floating IPs and NAT \
-gateways are zonal (`--zone`). `--project` and `--zone` default to the \
-profile's `default-project` and `default-zone`; `--region` has no default."""
+gateways are zonal (`--zone`). `--project`, `--zone` and `--region` \
+default to `ORIGINCLOUD_PROJECT`, `ORIGINCLOUD_ZONE` and `ORIGINCLOUD_REGION`, \
+else to the profile's `default-project`, `default-zone` and `region`; \
+`--region`, else to the region of the default zone."""
 
 [[service]]
 name = "resourcemanager"
@@ -284,3 +286,18 @@ method = "UpdateVolume"
 field = "volume.size_gib"
 verb = "grow"
 consequence = "A volume never shrinks back, and its larger size is charged."
+
+# A field of a method's response holding a secret the API returns in that
+# response alone, such as a generated private key. The command prints the
+# response as any other does and, when the field isn't empty, says `notice`
+# on standard error: that it can't be had again, and how to keep it.
+[[shown_once]]
+service = "compute"
+method = "CreateKeyPair"
+field = "private_key"
+notice = """
+`privateKey` holds the generated private key, which the API returns this \
+once: the platform keeps only the public key. Save it now to a file only you \
+can read, such as by piping the output through \
+`(umask 077; jq -r .privateKey > my-key)`. A lost key can't be fetched \
+again: delete the key pair and create another."""

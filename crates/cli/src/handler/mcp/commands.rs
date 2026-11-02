@@ -10,10 +10,12 @@ pub(crate) enum McpCommands {
     /// server: `origin mcp serve`. It has a tool per method of the API, in a
     /// toolset per service, and calls them as this profile: with its login,
     /// or the credentials in ORIGINCLOUD_ACCESS_TOKEN, or
-    /// ORIGINCLOUD_CLIENT_ID and ORIGINCLOUD_CLIENT_SECRET, its `region`,
-    /// and each service's endpoint variable, such as
-    /// ORIGINCLOUD_PVS_ENDPOINT. The tool `current_context` tells the agent
-    /// the profile's `default-project` and `default-zone`.
+    /// ORIGINCLOUD_CLIENT_ID and ORIGINCLOUD_CLIENT_SECRET, in the region
+    /// the commands use (ORIGINCLOUD_REGION, else the profile's `region`,
+    /// else the region of the default zone), and with each service's
+    /// endpoint variable, such as ORIGINCLOUD_PVS_ENDPOINT. The tool
+    /// `current_context` tells the agent the profile's `default-project`
+    /// and `default-zone`, and that region.
     ///
     /// The tools that delete something, or change it for good, are marked
     /// destructive for the client to confirm: they don't ask for `--yes`.

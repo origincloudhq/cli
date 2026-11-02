@@ -118,7 +118,7 @@ pub enum ServiceCommands {
     #[command(
         name = "network",
         about = "Network service: VPCs, subnets, route tables, ACLs, security groups, gateways, floating IPs, network interfaces and DNS policies",
-        long_about = "Network service: VPCs, subnets, route tables, ACLs, security groups, gateways, floating IPs, network interfaces and DNS policies.\n\nResource names are given as their parts (`--project`, `--region` or `--zone`, `--vpc`), or the resource's flag takes a whole name. VPCs, route tables, ACLs, security groups, internet gateways and DNS policies are regional (`--region`); subnets, network interfaces, floating IPs and NAT gateways are zonal (`--zone`). `--project` and `--zone` default to the profile's `default-project` and `default-zone`; `--region` has no default."
+        long_about = "Network service: VPCs, subnets, route tables, ACLs, security groups, gateways, floating IPs, network interfaces and DNS policies.\n\nResource names are given as their parts (`--project`, `--region` or `--zone`, `--vpc`), or the resource's flag takes a whole name. VPCs, route tables, ACLs, security groups, internet gateways and DNS policies are regional (`--region`); subnets, network interfaces, floating IPs and NAT gateways are zonal (`--zone`). `--project`, `--zone` and `--region` default to `ORIGINCLOUD_PROJECT`, `ORIGINCLOUD_ZONE` and `ORIGINCLOUD_REGION`, else to the profile's `default-project`, `default-zone` and `region`; `--region`, else to the region of the default zone."
     )]
     Network(NetworkCli),
     #[command(

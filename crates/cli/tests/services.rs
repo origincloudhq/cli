@@ -1,7 +1,8 @@
 //! The location service's commands and the operation commands against a
 //! local server that records every request: the paths they call, the JSON
 //! they print, and the names and values they refuse before sending
-//! anything.
+//! anything; and what the other groups' commands add to it: the default of
+//! a regional name's `--region`, and the notice of a secret shown once.
 
 mod common;
 
@@ -535,4 +536,107 @@ async fn the_zone_lookup_goes_to_the_location_service_not_the_pvs_endpoint() {
         "{description}"
     );
     assert_eq!(pvs.requests().len(), 1);
+}
+
+/// A regional name's `--region` is the flag, else `ORIGINCLOUD_REGION`, else
+/// the profile's `region` (`origin config profile-set region`), else the
+/// region of the default zone; without any, the refusal names each way of
+/// giving one, before any request.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_regional_name_takes_the_flag_then_the_environment_then_the_profile() {
+    let server = recording(|_: &Received| Response::json(r#"{"vpcs":[]}"#)).await;
+    let list = |args: &'static [&'static str], env: &'static [(&'static str, &'static str)]| {
+        let mut all = vec!["list-vpcs", "--project", "p"];
+        all.extend(args);
+        let server = &server;
+        async move { server.run_with("network", &all, env).await }
+    };
+    let set = |key: &'static str, value: &'static str| {
+        let home = server.home.path().to_owned();
+        async move {
+            success(&origin(&home, &["config", "profile-set", key, value], &[]).await);
+        }
+    };
+
+    let description = failure(&list(&[], &[]).await);
+    for part in [
+        "--region is required",
+        "ORIGINCLOUD_REGION",
+        "`origin config profile-set region <region>`",
+    ] {
+        assert!(description.contains(part), "{part}: {description}");
+    }
+    assert!(server.requests().is_empty());
+
+    set("default-zone", "eu-central1-az1").await;
+    success(&list(&[], &[]).await);
+    set("region", "eu-central2").await;
+    success(&list(&[], &[]).await);
+    success(&list(&[], &[("ORIGINCLOUD_REGION", "eu-central3")]).await);
+    success(
+        &list(
+            &["--region", "eu-central4"],
+            &[("ORIGINCLOUD_REGION", "eu-central3")],
+        )
+        .await,
+    );
+
+    let paths: Vec<String> = server.requests().iter().map(|r| r.path.clone()).collect();
+    assert_eq!(
+        paths,
+        [
+            "/v1beta1/projects/p/regions/eu-central1/vpcs",
+            "/v1beta1/projects/p/regions/eu-central2/vpcs",
+            "/v1beta1/projects/p/regions/eu-central3/vpcs",
+            "/v1beta1/projects/p/regions/eu-central4/vpcs",
+        ]
+    );
+}
+
+/// A generated private key is printed in the JSON as the API sends it, and
+/// standard error says it is shown this once and how to keep it; an
+/// imported key, whose response has none, says nothing.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_generated_private_key_comes_with_a_notice() {
+    const GENERATED: &str = r#"{"name":"projects/p/keyPairs/k","publicKey":"ssh-ed25519 AAAA","privateKey":"-----BEGIN OPENSSH PRIVATE KEY-----"}"#;
+    const IMPORTED: &str = r#"{"name":"projects/p/keyPairs/k","publicKey":"ssh-ed25519 AAAA"}"#;
+    let server = recording(|r: &Received| {
+        if String::from_utf8_lossy(&r.body).contains("publicKey") {
+            Response::json(IMPORTED)
+        } else {
+            Response::json(GENERATED)
+        }
+    })
+    .await;
+
+    let output = server
+        .run("compute", &["create-key-pair", "--project", "p"])
+        .await;
+    assert_eq!(success(&output), json(GENERATED));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    for part in [
+        "`privateKey`",
+        "this once",
+        "umask 077",
+        "jq -r .privateKey",
+    ] {
+        assert!(stderr.contains(part), "{part}: {stderr}");
+    }
+    assert!(!stderr.contains("BEGIN OPENSSH"), "{stderr}");
+
+    let output = server
+        .run(
+            "compute",
+            &[
+                "create-key-pair",
+                "--project",
+                "p",
+                "--public-key",
+                "ssh-ed25519 AAAA",
+            ],
+        )
+        .await;
+    assert_eq!(success(&output), json(IMPORTED));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stderr.contains("privateKey"), "{stderr}");
 }

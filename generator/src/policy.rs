@@ -1,7 +1,8 @@
 //! The choices the API definitions don't express, from `commands.toml`
 //! beside the generator: what a command group's help says, methods left
 //! without a command, fields left out of a command, changes that can't be
-//! undone, and the hand-written groups the generated ones replace.
+//! undone, secrets a response shows once, and the hand-written groups the
+//! generated ones replace.
 
 use std::path::Path;
 
@@ -38,6 +39,10 @@ pub struct Policy {
     /// Fields whose change can't be undone: setting one needs `--yes`.
     #[serde(default)]
     pub one_way: Vec<OneWay>,
+    /// Fields of a response holding a secret the API returns in that
+    /// response alone.
+    #[serde(default)]
+    pub shown_once: Vec<ShownOnce>,
 }
 
 /// The help of a service's command group, when its definitions don't say
@@ -125,6 +130,21 @@ pub struct OneWay {
     pub consequence: String,
 }
 
+/// A field of a method's response holding a secret the API returns in that
+/// response alone, such as a generated private key: the command says so on
+/// standard error when the response carries one.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShownOnce {
+    pub service: String,
+    pub method: String,
+    /// The field of the response, such as `private_key`.
+    pub field: String,
+    /// What standard error says: that it can't be had again, and how to
+    /// keep it.
+    pub notice: String,
+}
+
 impl Policy {
     pub fn load(path: &Path) -> Result<Self> {
         let text =
@@ -170,8 +190,17 @@ impl Policy {
             .find(|o| o.service == service && o.method == method && o.field == field)
     }
 
-    /// Every `(service, method, field)` the table names; the field is empty
-    /// for a method left without a command.
+    pub fn shown_once(&self, service: &str, method: &str) -> Vec<&ShownOnce> {
+        self.shown_once
+            .iter()
+            .filter(|s| s.service == service && s.method == method)
+            .collect()
+    }
+
+    /// Every `(service, method, field)` the table names, the field a path
+    /// from the request; the field is empty for a method left without a
+    /// command. The fields of `shown_once`, which are a response's, aren't
+    /// among them: generation fails for one the response doesn't have.
     pub fn entries(&self) -> impl Iterator<Item = (&str, &str, &str)> {
         let no_command = self
             .no_command
@@ -211,9 +240,17 @@ mod tests {
             method = "ImportVolume"
             field = "volume.source_snapshot"
             why = "y"
+
+            [[shown_once]]
+            service = "compute"
+            method = "CreateKeyPair"
+            field = "private_key"
+            notice = "z"
             "#,
         )
         .unwrap();
+        assert_eq!(policy.shown_once("compute", "CreateKeyPair")[0].notice, "z");
+        assert!(policy.shown_once("compute", "GetKeyPair").is_empty());
         assert_eq!(policy.group("pvs").unwrap().about, "Volumes");
         assert!(policy.no_command("longrunning", "WaitOperation"));
         assert!(!policy.no_command("pvs", "WaitOperation"));

@@ -19,7 +19,9 @@ async fn serve(profile: &ClientProfile, args: ServeArgs) -> anyhow::Result<()> {
         defaults: Defaults {
             project: profile.default_project.clone(),
             zone: profile.default_zone.clone(),
-            region: profile.region.clone(),
+            // The region the tools' calls go to, which is also the one the
+            // commands complete regional names with.
+            region: profile.region_in_effect().map(|(region, _)| region),
         },
     };
     let server = Server::new(ProfileClients(profile.clone()), options)?;
