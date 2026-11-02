@@ -32,24 +32,32 @@ git init --quiet "${tmp}/mcp"
 git -C "${tmp}/mcp" fetch --quiet --depth 1 "${MCP_REPOSITORY}" "${mcp}"
 sdk="$(git -C "${tmp}/mcp" show FETCH_HEAD:Cargo.toml | grep -m1 -oE 'sdk-rust", rev = "[0-9a-f]{40}"' | grep -oE '[0-9a-f]{40}')"
 [[ "${sdk}" =~ ^[0-9a-f]{40}$ ]] || { echo "the MCP commit ${mcp:0:12} pins no commit of ${SDK_REPOSITORY}" >&2; exit 1; }
-if ! grep -qF "rev = \"${mcp}\"" Cargo.toml; then
-  sed -i -E "s|(git = \"https://github.com/origincloudhq/mcp\", rev = \")[0-9a-f]{40}(\")|\1${mcp}\2|" Cargo.toml
-  cargo update --quiet -p origincloud-mcp
-fi
 git init --quiet "${tmp}/sdk"
 git -C "${tmp}/sdk" fetch --quiet --depth 1 "${SDK_REPOSITORY}" "${sdk}"
 revision="$(git -C "${tmp}/sdk" show FETCH_HEAD:API_REVISION | tr -d '[:space:]')"
 [[ "${revision}" =~ ^[0-9a-f]{40}$ ]] || { echo "the SDK commit ${sdk:0:12} has no API_REVISION" >&2; exit 1; }
 
+# Both revisions move in Cargo.toml before the lock moves, in one `cargo
+# update`: moving the MCP crate alone would have the lock hold the SDK's
+# crates at two commits, its and the CLI's, which `cargo update -p` can't
+# then name ("`origincloud-core` is ambiguous").
+packages=()
+if ! grep -qF "rev = \"${mcp}\"" Cargo.toml; then
+  sed -i -E "s|(git = \"https://github.com/origincloudhq/mcp\", rev = \")[0-9a-f]{40}(\")|\1${mcp}\2|" Cargo.toml
+  packages+=(-p origincloud-mcp)
+fi
 if ! grep -qF "rev = \"${sdk}\"" Cargo.toml; then
   sed -i -E "s|(git = \"https://github.com/origincloudhq/sdk-rust\", rev = \")[0-9a-f]{40}(\")|\1${sdk}\2|" Cargo.toml
   # Every crate Cargo.toml takes from the SDK: a service's crate is added
   # there when its command group is (CONTRIBUTING.md).
-  packages=()
+  crates=0
   while read -r crate; do
     packages+=(-p "${crate}")
+    crates=$((crates + 1))
   done < <(grep -oE '^[a-z0-9-]+ = \{ git = "https://github.com/origincloudhq/sdk-rust"' Cargo.toml | cut -d' ' -f1)
-  [[ "${#packages[@]}" -gt 0 ]] || { echo "Cargo.toml takes no crate from ${SDK_REPOSITORY}" >&2; exit 1; }
+  [[ "${crates}" -gt 0 ]] || { echo "Cargo.toml takes no crate from ${SDK_REPOSITORY}" >&2; exit 1; }
+fi
+if [[ "${#packages[@]}" -gt 0 ]]; then
   cargo update --quiet "${packages[@]}"
 fi
 echo "${revision}" > API_REVISION

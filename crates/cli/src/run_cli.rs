@@ -51,10 +51,6 @@ pub async fn run() -> ! {
         Some(Commands::Services(cmd)) => {
             print_output_and_exit(&profile, crate::sdk::run(&profile, cmd).await)
         }
-        Some(Commands::Storage(cmd)) => print_output_and_exit(
-            &profile,
-            handler::storage::run_storage_command(&api_url, cmd).await,
-        ),
         Some(Commands::Config(cmd)) => print_output_and_exit(
             &profile,
             handler::config::run_config_command(&profile, cli.config.as_deref(), cmd).await,

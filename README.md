@@ -128,8 +128,8 @@ every method of the API, with the API's own descriptions as help:
 - **Tags.** `--tag KEY=VALUE`, repeated for more. On an update, `--tag`
   replaces all of a resource's tags, and `--no-tags` removes them all; the two
   exclude each other, so the tags are only emptied when you say so. To set or
-  remove one tag and keep the others, use `origin storage set-resource-tags`
-  and `origin storage remove-resource-tags`.
+  remove one tag and keep the others, give every tag to keep with `--tag`:
+  `origin pvs get-volume` and `get-snapshot` show the current ones.
 - **Lists.** A repeated field is a flag named in the singular, repeated for
   each element, in order: `--security-group sg-1 --security-group sg-2`.
   Where the API doesn't keep a list's order, the flag's help says so, and an

@@ -8,7 +8,6 @@ use crate::handler::iam::IamCommands;
 use crate::handler::id::IdentityCommands;
 use crate::handler::mcp::McpCommands;
 use crate::handler::network::NetworkCommands;
-use crate::handler::storage::StorageCommands;
 use crate::sdk::ServiceCommands;
 use clap::{Parser, Subcommand};
 
@@ -72,10 +71,6 @@ pub(crate) enum Commands {
     /// as `location` and `pvs`.
     #[command(flatten)]
     Services(ServiceCommands),
-
-    /// Tag changes by key on volumes and snapshots, keeping their other tags.
-    #[command(subcommand)]
-    Storage(StorageCommands),
 
     /// Cli configuration.
     #[command(subcommand)]

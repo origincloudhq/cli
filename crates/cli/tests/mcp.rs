@@ -98,12 +98,12 @@ fn read_only_and_toolsets_narrow_it() {
 #[test]
 fn an_unknown_toolset_is_refused() {
     let output = Command::new(env!("CARGO_BIN_EXE_origin"))
-        .args(["mcp", "serve", "--toolsets", "compute"])
+        .args(["mcp", "serve", "--toolsets", "no-such-service"])
         .env_clear()
         .output()
         .unwrap();
     assert!(!output.status.success());
     assert!(output.stdout.is_empty(), "nothing on standard output");
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("compute"), "{stderr}");
+    assert!(stderr.contains("no-such-service"), "{stderr}");
 }
