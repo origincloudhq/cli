@@ -1060,7 +1060,7 @@ pub struct GetAclAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{subnet}` part of the resource names the command builds.
+    /// The `{subnet}` part of the resource names the command builds. Needed unless `--acl-association` is given a whole name, which has it.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: Option<String>,
     /// The association to return.
@@ -1120,7 +1120,7 @@ pub struct ListAclAssociationsArgs {
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{subnet}` part of the resource names the command builds.
-    #[arg(long = "subnet", value_name = "SUBNET")]
+    #[arg(long = "subnet", value_name = "SUBNET", required = true)]
     pub subnet: Option<String>,
     /// The most associations to return; the server clamps it, and 0 means
     /// its default.
@@ -1235,7 +1235,7 @@ pub struct CreateAclAssociationArgs {
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{subnet}` part of the resource names the command builds.
-    #[arg(long = "subnet", value_name = "SUBNET")]
+    #[arg(long = "subnet", value_name = "SUBNET", required = true)]
     pub subnet: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
@@ -1318,7 +1318,7 @@ pub struct DeleteAclAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{subnet}` part of the resource names the command builds.
+    /// The `{subnet}` part of the resource names the command builds. Needed unless `--acl-association` is given a whole name, which has it.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: Option<String>,
     /// The association to remove.
@@ -1403,7 +1403,7 @@ pub struct GetAclRuleArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{acl}` part of the resource names the command builds.
+    /// The `{acl}` part of the resource names the command builds. Needed unless `--rule` is given a whole name, which has it.
     #[arg(long = "acl", value_name = "ACL")]
     pub acl: Option<String>,
     /// The rule to return.
@@ -1463,7 +1463,7 @@ pub struct ListAclRulesArgs {
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{acl}` part of the resource names the command builds.
-    #[arg(long = "acl", value_name = "ACL")]
+    #[arg(long = "acl", value_name = "ACL", required = true)]
     pub acl: Option<String>,
     /// The most rules to return; the server clamps it, and 0 means its
     /// default.
@@ -1541,7 +1541,7 @@ pub struct CreateAclRuleArgs {
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{acl}` part of the resource names the command builds.
-    #[arg(long = "acl", value_name = "ACL")]
+    #[arg(long = "acl", value_name = "ACL", required = true)]
     pub acl: Option<String>,
     /// Which traffic the rule applies to.
     #[arg(long = "direction", value_parser = ["INGRESS", "EGRESS"])]
@@ -1647,7 +1647,7 @@ pub struct DeleteAclRuleArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{acl}` part of the resource names the command builds.
+    /// The `{acl}` part of the resource names the command builds. Needed unless `--rule` is given a whole name, which has it.
     #[arg(long = "acl", value_name = "ACL")]
     pub acl: Option<String>,
     /// The rule to remove.
@@ -1858,10 +1858,9 @@ pub struct CreateDnsPolicyArgs {
     #[arg(
         long = "relay-enabled",
         value_name = "true|false",
-        action = clap::ArgAction::Set,
-        required = true
+        action = clap::ArgAction::Set
     )]
-    pub relay_enabled: bool,
+    pub relay_enabled: Option<bool>,
     /// The resolvers to relay to, at most 5 IPv4 or IPv6 addresses, tried in
     /// order. At least one while `--relay-enabled` is on.
     ///
@@ -1892,7 +1891,7 @@ async fn create_dns_policy(
         );
     let parent = names.name("projects/{project}/regions/{region}", None)?;
     let dns_policy = ::origincloud_network::v1beta1::DnsPolicy {
-        relay_enabled: args.relay_enabled,
+        relay_enabled: args.relay_enabled.unwrap_or_default(),
         upstream_servers: args.upstream_server.clone(),
         tags: tags(&args.tag),
         ..::core::default::Default::default()
@@ -2204,7 +2203,7 @@ pub struct GetDnsPolicyAssociationArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{vpc}` part of the resource names the command builds.
+    /// The `{vpc}` part of the resource names the command builds. Needed unless `--dns-policy-association` is given a whole name, which has it.
     #[arg(long = "vpc", value_name = "VPC")]
     pub vpc: Option<String>,
     /// The association to return.
@@ -2266,7 +2265,7 @@ pub struct ListDnsPolicyAssociationsArgs {
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{vpc}` part of the resource names the command builds.
-    #[arg(long = "vpc", value_name = "VPC")]
+    #[arg(long = "vpc", value_name = "VPC", required = true)]
     pub vpc: Option<String>,
     /// The most associations to return; the server clamps it, and 0 means
     /// its default.
@@ -2346,7 +2345,7 @@ pub struct CreateDnsPolicyAssociationArgs {
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{vpc}` part of the resource names the command builds.
-    #[arg(long = "vpc", value_name = "VPC")]
+    #[arg(long = "vpc", value_name = "VPC", required = true)]
     pub vpc: Option<String>,
     /// The DNS policy the VPC relays through, in the VPC's project and region.
     ///
@@ -2425,7 +2424,7 @@ pub struct DeleteDnsPolicyAssociationArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{vpc}` part of the resource names the command builds.
+    /// The `{vpc}` part of the resource names the command builds. Needed unless `--dns-policy-association` is given a whole name, which has it.
     #[arg(long = "vpc", value_name = "VPC")]
     pub vpc: Option<String>,
     /// The association to remove.
@@ -2879,7 +2878,7 @@ pub struct GetFloatingIpAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{floating_ip}` part of the resource names the command builds.
+    /// The `{floating_ip}` part of the resource names the command builds. Needed unless `--association` is given a whole name, which has it.
     #[arg(long = "floating-ip", value_name = "FLOATING_IP")]
     pub floating_ip: Option<String>,
     /// The association to return.
@@ -2941,7 +2940,7 @@ pub struct ListFloatingIpAssociationsArgs {
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{floating_ip}` part of the resource names the command builds.
-    #[arg(long = "floating-ip", value_name = "FLOATING_IP")]
+    #[arg(long = "floating-ip", value_name = "FLOATING_IP", required = true)]
     pub floating_ip: Option<String>,
     /// The most associations to return; the server clamps it, and 0 means
     /// its default.
@@ -3059,7 +3058,7 @@ pub struct CreateFloatingIpAssociationArgs {
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{floating_ip}` part of the resource names the command builds.
-    #[arg(long = "floating-ip", value_name = "FLOATING_IP")]
+    #[arg(long = "floating-ip", value_name = "FLOATING_IP", required = true)]
     pub floating_ip: Option<String>,
     /// The network interface the address reaches, in the floating IP's project
     /// and zone.
@@ -3140,7 +3139,7 @@ pub struct DeleteFloatingIpAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{floating_ip}` part of the resource names the command builds.
+    /// The `{floating_ip}` part of the resource names the command builds. Needed unless `--association` is given a whole name, which has it.
     #[arg(long = "floating-ip", value_name = "FLOATING_IP")]
     pub floating_ip: Option<String>,
     /// The association to remove.
@@ -4484,7 +4483,7 @@ pub struct GetRouteArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{route_table}` part of the resource names the command builds.
+    /// The `{route_table}` part of the resource names the command builds. Needed unless `--route` is given a whole name, which has it.
     #[arg(long = "route-table", value_name = "ROUTE_TABLE")]
     pub route_table: Option<String>,
     /// The route to return.
@@ -4544,7 +4543,7 @@ pub struct ListRoutesArgs {
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{route_table}` part of the resource names the command builds.
-    #[arg(long = "route-table", value_name = "ROUTE_TABLE")]
+    #[arg(long = "route-table", value_name = "ROUTE_TABLE", required = true)]
     pub route_table: Option<String>,
     /// The most routes to return; the server clamps it, and 0 means its
     /// default.
@@ -4621,7 +4620,7 @@ pub struct CreateRouteArgs {
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{route_table}` part of the resource names the command builds.
-    #[arg(long = "route-table", value_name = "ROUTE_TABLE")]
+    #[arg(long = "route-table", value_name = "ROUTE_TABLE", required = true)]
     pub route_table: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
@@ -4739,7 +4738,7 @@ pub struct DeleteRouteArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{route_table}` part of the resource names the command builds.
+    /// The `{route_table}` part of the resource names the command builds. Needed unless `--route` is given a whole name, which has it.
     #[arg(long = "route-table", value_name = "ROUTE_TABLE")]
     pub route_table: Option<String>,
     /// The route to remove.
@@ -5214,7 +5213,7 @@ pub struct GetRouteTableAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{subnet}` part of the resource names the command builds.
+    /// The `{subnet}` part of the resource names the command builds. Needed unless `--route-table-association` is given a whole name, which has it.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: Option<String>,
     /// The association to return.
@@ -5276,7 +5275,7 @@ pub struct ListRouteTableAssociationsArgs {
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{subnet}` part of the resource names the command builds.
-    #[arg(long = "subnet", value_name = "SUBNET")]
+    #[arg(long = "subnet", value_name = "SUBNET", required = true)]
     pub subnet: Option<String>,
     /// The most associations to return; the server clamps it, and 0 means
     /// its default.
@@ -5391,7 +5390,7 @@ pub struct CreateRouteTableAssociationArgs {
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{subnet}` part of the resource names the command builds.
-    #[arg(long = "subnet", value_name = "SUBNET")]
+    #[arg(long = "subnet", value_name = "SUBNET", required = true)]
     pub subnet: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
@@ -5474,7 +5473,7 @@ pub struct DeleteRouteTableAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{subnet}` part of the resource names the command builds.
+    /// The `{subnet}` part of the resource names the command builds. Needed unless `--route-table-association` is given a whole name, which has it.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: Option<String>,
     /// The association to remove.
@@ -5957,7 +5956,7 @@ pub struct GetSecurityGroupAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{network_interface}` part of the resource names the command builds.
+    /// The `{network_interface}` part of the resource names the command builds. Needed unless `--security-group-association` is given a whole name, which has it.
     #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE")]
     pub network_interface: Option<String>,
     /// The association to return.
@@ -6025,7 +6024,7 @@ pub struct ListSecurityGroupAssociationsArgs {
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{network_interface}` part of the resource names the command builds.
-    #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE")]
+    #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE", required = true)]
     pub network_interface: Option<String>,
     /// The most associations to return; the server clamps it, and 0 means
     /// its default.
@@ -6144,7 +6143,7 @@ pub struct CreateSecurityGroupAssociationArgs {
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{network_interface}` part of the resource names the command builds.
-    #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE")]
+    #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE", required = true)]
     pub network_interface: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
@@ -6233,7 +6232,7 @@ pub struct DeleteSecurityGroupAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{network_interface}` part of the resource names the command builds.
+    /// The `{network_interface}` part of the resource names the command builds. Needed unless `--security-group-association` is given a whole name, which has it.
     #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE")]
     pub network_interface: Option<String>,
     /// The association to remove.
@@ -6324,7 +6323,7 @@ pub struct GetSecurityGroupRuleArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{security_group}` part of the resource names the command builds.
+    /// The `{security_group}` part of the resource names the command builds. Needed unless `--rule` is given a whole name, which has it.
     #[arg(long = "security-group", value_name = "SECURITY_GROUP")]
     pub security_group: Option<String>,
     /// The rule to return.
@@ -6386,7 +6385,7 @@ pub struct ListSecurityGroupRulesArgs {
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{security_group}` part of the resource names the command builds.
-    #[arg(long = "security-group", value_name = "SECURITY_GROUP")]
+    #[arg(long = "security-group", value_name = "SECURITY_GROUP", required = true)]
     pub security_group: Option<String>,
     /// The most rules to return; the server clamps it, and 0 means its
     /// default.
@@ -6470,7 +6469,7 @@ pub struct CreateSecurityGroupRuleArgs {
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{security_group}` part of the resource names the command builds.
-    #[arg(long = "security-group", value_name = "SECURITY_GROUP")]
+    #[arg(long = "security-group", value_name = "SECURITY_GROUP", required = true)]
     pub security_group: Option<String>,
     /// Which traffic the rule applies to.
     #[arg(long = "direction", value_parser = ["INGRESS", "EGRESS"])]
@@ -6503,13 +6502,8 @@ pub struct CreateSecurityGroupRuleArgs {
     #[arg(long = "peer-security-group", value_name = "SECURITY_GROUP")]
     pub peer_security_group: Option<String>,
     /// The peer as the rule's own group's members.
-    #[arg(
-        long = "same-group",
-        value_name = "true|false",
-        action = clap::ArgAction::Set,
-        required = true
-    )]
-    pub same_group: bool,
+    #[arg(long = "same-group", value_name = "true|false", action = clap::ArgAction::Set)]
+    pub same_group: Option<bool>,
     /// What the rule is for.
     #[arg(long = "description")]
     pub description: Option<String>,
@@ -6567,7 +6561,7 @@ async fn create_security_group_rule(
         last_port: args.last_port.unwrap_or_default(),
         cidr_block: args.cidr_block.clone().unwrap_or_default(),
         peer_security_group,
-        same_group: args.same_group,
+        same_group: args.same_group.unwrap_or_default(),
         description: args.description.clone().unwrap_or_default(),
         ..::core::default::Default::default()
     };
@@ -6607,7 +6601,7 @@ pub struct DeleteSecurityGroupRuleArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{security_group}` part of the resource names the command builds.
+    /// The `{security_group}` part of the resource names the command builds. Needed unless `--rule` is given a whole name, which has it.
     #[arg(long = "security-group", value_name = "SECURITY_GROUP")]
     pub security_group: Option<String>,
     /// The rule to remove.
@@ -6883,10 +6877,9 @@ pub struct CreateSubnetArgs {
     #[arg(
         long = "auto-assign-public-ip",
         value_name = "true|false",
-        action = clap::ArgAction::Set,
-        required = true
+        action = clap::ArgAction::Set
     )]
-    pub auto_assign_public_ip: bool,
+    pub auto_assign_public_ip: Option<bool>,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
     ///
@@ -6927,7 +6920,7 @@ async fn create_subnet(
         )?;
     let subnet = ::origincloud_network::v1beta1::Subnet {
         vpc,
-        auto_assign_public_ip: args.auto_assign_public_ip,
+        auto_assign_public_ip: args.auto_assign_public_ip.unwrap_or_default(),
         tags: tags(&args.tag),
         ..::core::default::Default::default()
     };

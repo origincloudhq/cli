@@ -1911,7 +1911,7 @@ pub struct GetVolumeAttachmentArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{instance}` part of the resource names the command builds.
+    /// The `{instance}` part of the resource names the command builds. Needed unless `--volume-attachment` is given a whole name, which has it.
     #[arg(long = "instance", value_name = "INSTANCE")]
     pub instance: Option<String>,
     /// The attachment to return.
@@ -1973,7 +1973,7 @@ pub struct ListVolumeAttachmentsArgs {
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{instance}` part of the resource names the command builds.
-    #[arg(long = "instance", value_name = "INSTANCE")]
+    #[arg(long = "instance", value_name = "INSTANCE", required = true)]
     pub instance: Option<String>,
     /// The most attachments to return; the server clamps it, and 0 means its
     /// default.
@@ -2113,7 +2113,7 @@ pub struct CreateVolumeAttachmentArgs {
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{instance}` part of the resource names the command builds.
-    #[arg(long = "instance", value_name = "INSTANCE")]
+    #[arg(long = "instance", value_name = "INSTANCE", required = true)]
     pub instance: Option<String>,
     /// The volume, in the instance's project and zone.
     ///
@@ -2198,7 +2198,7 @@ pub struct DeleteVolumeAttachmentArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{instance}` part of the resource names the command builds.
+    /// The `{instance}` part of the resource names the command builds. Needed unless `--volume-attachment` is given a whole name, which has it.
     #[arg(long = "instance", value_name = "INSTANCE")]
     pub instance: Option<String>,
     /// The attachment to delete, detaching its volume.

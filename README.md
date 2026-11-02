@@ -130,14 +130,17 @@ every method of the API, with the API's own descriptions as help:
   takes a whole name, such as
   `--volume projects/my-project-123/zones/eu-central1-az1/volumes/vol-123`,
   whose project and zone then fill in the others: the `name` of a listed
-  volume can be passed straight on.
+  volume can be passed straight on. A part of a parent's name without a
+  default, such as `--instance` of `origin compute
+  create-volume-attachment`, is required, unless a whole name given to
+  another flag has it.
 - **Other flags.** Each other field of the request, and of the volume or
   snapshot it carries, is the flag of its name in kebab case: `size_gib` is
   `--size-gib`. Output-only fields aren't flags, and neither is a field the
   method doesn't take although its request has it (`import-volume` has no
   `--source-snapshot`). A boolean takes its value, `--flag true` or
-  `--flag false`, and a create always states it. A duration is given as
-  `30s`, `2m` or `1m30s`, a time as RFC 3339, such as
+  `--flag false`; left out, one the API doesn't require is `false`. A
+  duration is given as `30s`, `2m` or `1m30s`, a time as RFC 3339, such as
   `2026-11-01T12:00:00Z`.
 - **Tags.** `--tag KEY=VALUE`, repeated for more. On an update, `--tag`
   replaces all of a resource's tags, and `--no-tags` removes them all; the two
