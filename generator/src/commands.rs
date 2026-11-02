@@ -1307,13 +1307,20 @@ impl Build {
     }
 }
 
+/// The help of a name part's flag. The defaults of `--project`, `--zone`
+/// and `--region` are the runtime's (`Context::names`), in its order: the
+/// environment before the profile.
 fn component_doc(var: &str) -> String {
     match var {
-        "project" => "The project, such as `my-project-123`. The profile's `default-project`, or \
-                      `ORIGINCLOUD_PROJECT`, when not given."
+        "project" => "The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the \
+                      profile's `default-project`, when not given."
             .to_owned(),
-        "zone" => "The zone, such as `eu-central1-az1`. The profile's `default-zone`, or \
-                   `ORIGINCLOUD_ZONE`, when not given."
+        "zone" => "The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's \
+                   `default-zone`, when not given."
+            .to_owned(),
+        "region" => "The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's \
+                     `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or \
+                     `default-zone`), when not given."
             .to_owned(),
         other => format!("The `{{{other}}}` part of the resource names the command builds."),
     }

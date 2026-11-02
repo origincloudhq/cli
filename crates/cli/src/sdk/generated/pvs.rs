@@ -152,10 +152,10 @@ pub(crate) fn service(
 /// The flags of `get-snapshot`.
 #[derive(clap::Args, Debug)]
 pub struct GetSnapshotArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The snapshot to return.
@@ -202,7 +202,7 @@ async fn call_get_snapshot(
 /// The flags of `list-snapshots`.
 #[derive(clap::Args, Debug)]
 pub struct ListSnapshotsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -297,10 +297,10 @@ async fn call_list_snapshots(
 /// The flags of `create-snapshot`.
 #[derive(clap::Args, Debug)]
 pub struct CreateSnapshotArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The volume copied, in the same project and zone.
@@ -380,10 +380,10 @@ async fn call_create_snapshot(
     )
 )]
 pub struct UpdateSnapshotArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The snapshot to change.
@@ -451,10 +451,10 @@ async fn call_update_snapshot(
 /// The flags of `delete-snapshot`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteSnapshotArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The snapshot to delete.
@@ -525,10 +525,10 @@ async fn call_delete_snapshot(
 /// The flags of `protect-snapshot`.
 #[derive(clap::Args, Debug)]
 pub struct ProtectSnapshotArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The snapshot to protect; it must be `COMPLETED`.
@@ -588,10 +588,10 @@ async fn call_protect_snapshot(
 /// The flags of `unprotect-snapshot`.
 #[derive(clap::Args, Debug)]
 pub struct UnprotectSnapshotArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The snapshot to unprotect; it must be `COMPLETED`, or `ERROR` so that
@@ -719,10 +719,10 @@ async fn call_list_storage_classes(
 /// The flags of `get-volume`.
 #[derive(clap::Args, Debug)]
 pub struct GetVolumeArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The volume to return.
@@ -767,7 +767,7 @@ async fn call_get_volume(
 /// The flags of `list-volumes`.
 #[derive(clap::Args, Debug)]
 pub struct ListVolumesArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -862,10 +862,10 @@ async fn call_list_volumes(
 /// The flags of `create-volume`.
 #[derive(clap::Args, Debug)]
 pub struct CreateVolumeArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The size in GiB, at least 1. Growing it resizes the volume; it never
@@ -969,10 +969,10 @@ async fn call_create_volume(
 /// The flags of `import-volume`.
 #[derive(clap::Args, Debug)]
 pub struct ImportVolumeArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The size in GiB, at least 1. Growing it resizes the volume; it never
@@ -1064,10 +1064,10 @@ async fn call_import_volume(
     )
 )]
 pub struct UpdateVolumeArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The volume to change.
@@ -1206,10 +1206,10 @@ async fn call_update_volume_confirmed(
 /// The flags of `delete-volume`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteVolumeArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The volume to delete.
@@ -1280,10 +1280,10 @@ async fn call_delete_volume(
 /// The flags of `get-operation`.
 #[derive(clap::Args, Debug)]
 pub struct GetOperationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The operation.
@@ -1332,10 +1332,10 @@ async fn call_get_operation(
 /// The flags of `wait-operation`.
 #[derive(clap::Args, Debug)]
 pub struct WaitOperationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The operation.

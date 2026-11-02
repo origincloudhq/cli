@@ -536,3 +536,58 @@ async fn the_zone_lookup_goes_to_the_location_service_not_the_pvs_endpoint() {
     );
     assert_eq!(pvs.requests().len(), 1);
 }
+
+/// A regional name's `--region` is the flag, else `ORIGINCLOUD_REGION`, else
+/// the profile's `region` (`origin config profile-set region`), else the
+/// region of the default zone; without any, the refusal names each way of
+/// giving one, before any request.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_regional_name_takes_the_flag_then_the_environment_then_the_profile() {
+    let server = recording(|_: &Received| Response::json(r#"{"vpcs":[]}"#)).await;
+    let list = |args: &'static [&'static str], env: &'static [(&'static str, &'static str)]| {
+        let mut all = vec!["list-vpcs", "--project", "p"];
+        all.extend(args);
+        let server = &server;
+        async move { server.run_with("network", &all, env).await }
+    };
+    let set = |key: &'static str, value: &'static str| {
+        let home = server.home.path().to_owned();
+        async move {
+            success(&origin(&home, &["config", "profile-set", key, value], &[]).await);
+        }
+    };
+
+    let description = failure(&list(&[], &[]).await);
+    for part in [
+        "--region is required",
+        "ORIGINCLOUD_REGION",
+        "`origin config profile-set region <region>`",
+    ] {
+        assert!(description.contains(part), "{part}: {description}");
+    }
+    assert!(server.requests().is_empty());
+
+    set("default-zone", "eu-central1-az1").await;
+    success(&list(&[], &[]).await);
+    set("region", "eu-central2").await;
+    success(&list(&[], &[]).await);
+    success(&list(&[], &[("ORIGINCLOUD_REGION", "eu-central3")]).await);
+    success(
+        &list(
+            &["--region", "eu-central4"],
+            &[("ORIGINCLOUD_REGION", "eu-central3")],
+        )
+        .await,
+    );
+
+    let paths: Vec<String> = server.requests().iter().map(|r| r.path.clone()).collect();
+    assert_eq!(
+        paths,
+        [
+            "/v1beta1/projects/p/regions/eu-central1/vpcs",
+            "/v1beta1/projects/p/regions/eu-central2/vpcs",
+            "/v1beta1/projects/p/regions/eu-central3/vpcs",
+            "/v1beta1/projects/p/regions/eu-central4/vpcs",
+        ]
+    );
+}

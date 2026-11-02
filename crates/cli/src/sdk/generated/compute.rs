@@ -374,10 +374,10 @@ async fn call_list_image_families(
 /// The flags of `get-image`.
 #[derive(clap::Args, Debug)]
 pub struct GetImageArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The image to return.
@@ -424,7 +424,7 @@ async fn call_get_image(
 /// The flags of `list-images`.
 #[derive(clap::Args, Debug)]
 pub struct ListImagesArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -519,10 +519,10 @@ async fn call_list_images(
 /// The flags of `create-image`.
 #[derive(clap::Args, Debug)]
 pub struct CreateImageArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// What the image holds, as you describe it.
@@ -656,10 +656,10 @@ async fn call_create_image(
     )
 )]
 pub struct UpdateImageArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The image to change.
@@ -736,10 +736,10 @@ async fn call_update_image(
 /// The flags of `delete-image`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteImageArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The image to delete.
@@ -798,10 +798,10 @@ async fn call_delete_image(
 /// The flags of `get-instance`.
 #[derive(clap::Args, Debug)]
 pub struct GetInstanceArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The instance to return.
@@ -848,7 +848,7 @@ async fn call_get_instance(
 /// The flags of `list-instances`.
 #[derive(clap::Args, Debug)]
 pub struct ListInstancesArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -943,10 +943,10 @@ async fn call_list_instances(
 /// The flags of `create-instance`.
 #[derive(clap::Args, Debug)]
 pub struct CreateInstanceArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The instance type, `instanceTypes/{instance_type}`, such as
@@ -1182,10 +1182,10 @@ async fn call_create_instance(
     )
 )]
 pub struct UpdateInstanceArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The instance to change.
@@ -1286,10 +1286,10 @@ async fn call_update_instance(
 /// The flags of `delete-instance`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteInstanceArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The instance to terminate.
@@ -1360,10 +1360,10 @@ async fn call_delete_instance(
 /// The flags of `start-instance`.
 #[derive(clap::Args, Debug)]
 pub struct StartInstanceArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The instance to start.
@@ -1423,10 +1423,10 @@ async fn call_start_instance(
 /// The flags of `stop-instance`.
 #[derive(clap::Args, Debug)]
 pub struct StopInstanceArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The instance to stop.
@@ -1486,7 +1486,7 @@ async fn call_stop_instance(
 /// The flags of `get-key-pair`.
 #[derive(clap::Args, Debug)]
 pub struct GetKeyPairArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The key pair to return.
@@ -1532,7 +1532,7 @@ async fn call_get_key_pair(
 /// The flags of `list-key-pairs`.
 #[derive(clap::Args, Debug)]
 pub struct ListKeyPairsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The most key pairs to return; the server clamps it, and 0 means its
@@ -1597,7 +1597,7 @@ async fn call_list_key_pairs(
 /// The flags of `create-key-pair`.
 #[derive(clap::Args, Debug)]
 pub struct CreateKeyPairArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The OpenSSH public key line, such as `ssh-ed25519 AAAA... comment`.
@@ -1656,7 +1656,7 @@ async fn call_create_key_pair(
     )
 )]
 pub struct UpdateKeyPairArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The key pair to change.
@@ -1723,7 +1723,7 @@ async fn call_update_key_pair(
 /// The flags of `delete-key-pair`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteKeyPairArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The key pair to delete.
@@ -1781,7 +1781,7 @@ async fn call_delete_key_pair(
 /// The flags of `get-public-image`.
 #[derive(clap::Args, Debug)]
 pub struct GetPublicImageArgs {
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The image to return, `zones/{zone}/images/{image}`.
@@ -1905,10 +1905,10 @@ async fn call_list_public_images(
 /// The flags of `get-volume-attachment`.
 #[derive(clap::Args, Debug)]
 pub struct GetVolumeAttachmentArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{instance}` part of the resource names the command builds.
@@ -1966,7 +1966,7 @@ async fn call_get_volume_attachment(
 /// The flags of `list-volume-attachments`.
 #[derive(clap::Args, Debug)]
 pub struct ListVolumeAttachmentsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -2106,10 +2106,10 @@ async fn call_list_volume_attachments(
 /// The flags of `create-volume-attachment`.
 #[derive(clap::Args, Debug)]
 pub struct CreateVolumeAttachmentArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{instance}` part of the resource names the command builds.
@@ -2192,10 +2192,10 @@ async fn call_create_volume_attachment(
 /// The flags of `delete-volume-attachment`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteVolumeAttachmentArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{instance}` part of the resource names the command builds.
@@ -2277,10 +2277,10 @@ async fn call_delete_volume_attachment(
 /// The flags of `get-operation`.
 #[derive(clap::Args, Debug)]
 pub struct GetOperationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The operation.
@@ -2329,10 +2329,10 @@ async fn call_get_operation(
 /// The flags of `wait-operation`.
 #[derive(clap::Args, Debug)]
 pub struct WaitOperationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The operation.

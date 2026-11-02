@@ -668,10 +668,10 @@ pub(crate) fn service(
 /// The flags of `get-acl`.
 #[derive(clap::Args, Debug)]
 pub struct GetAclArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The ACL to return.
@@ -718,10 +718,10 @@ async fn call_get_acl(
 /// The flags of `list-acls`.
 #[derive(clap::Args, Debug)]
 pub struct ListAclsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The most ACLs to return; the server clamps it, and 0 means its
@@ -807,10 +807,10 @@ async fn call_list_acls(
 /// The flags of `create-acl`.
 #[derive(clap::Args, Debug)]
 pub struct CreateAclArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The VPC the ACL belongs to, in the same project and region.
@@ -892,10 +892,10 @@ async fn call_create_acl(
     )
 )]
 pub struct UpdateAclArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The acl to change.
@@ -978,10 +978,10 @@ async fn call_update_acl(
 /// The flags of `delete-acl`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteAclArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The ACL to delete.
@@ -1054,10 +1054,10 @@ async fn call_delete_acl(
 /// The flags of `get-acl-association`.
 #[derive(clap::Args, Debug)]
 pub struct GetAclAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{subnet}` part of the resource names the command builds.
@@ -1113,7 +1113,7 @@ async fn call_get_acl_association(
 /// The flags of `list-acl-associations`.
 #[derive(clap::Args, Debug)]
 pub struct ListAclAssociationsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -1228,16 +1228,16 @@ async fn call_list_acl_associations(
 /// The flags of `create-acl-association`.
 #[derive(clap::Args, Debug)]
 pub struct CreateAclAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{subnet}` part of the resource names the command builds.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The ACL that filters the subnet's traffic, in the subnet's VPC.
@@ -1312,10 +1312,10 @@ async fn call_create_acl_association(
 /// The flags of `delete-acl-association`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteAclAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{subnet}` part of the resource names the command builds.
@@ -1397,10 +1397,10 @@ async fn call_delete_acl_association(
 /// The flags of `get-acl-rule`.
 #[derive(clap::Args, Debug)]
 pub struct GetAclRuleArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{acl}` part of the resource names the command builds.
@@ -1456,10 +1456,10 @@ async fn call_get_acl_rule(
 /// The flags of `list-acl-rules`.
 #[derive(clap::Args, Debug)]
 pub struct ListAclRulesArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{acl}` part of the resource names the command builds.
@@ -1534,10 +1534,10 @@ async fn call_list_acl_rules(
 /// The flags of `create-acl-rule`.
 #[derive(clap::Args, Debug)]
 pub struct CreateAclRuleArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{acl}` part of the resource names the command builds.
@@ -1641,10 +1641,10 @@ async fn call_create_acl_rule(
 /// The flags of `delete-acl-rule`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteAclRuleArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{acl}` part of the resource names the command builds.
@@ -1724,10 +1724,10 @@ async fn call_delete_acl_rule(
 /// The flags of `get-dns-policy`.
 #[derive(clap::Args, Debug)]
 pub struct GetDnsPolicyArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The DNS policy to return.
@@ -1776,10 +1776,10 @@ async fn call_get_dns_policy(
 /// The flags of `list-dns-policies`.
 #[derive(clap::Args, Debug)]
 pub struct ListDnsPoliciesArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The most DNS policies to return; the server clamps it, and 0 means
@@ -1847,10 +1847,10 @@ async fn call_list_dns_policies(
 /// The flags of `create-dns-policy`.
 #[derive(clap::Args, Debug)]
 pub struct CreateDnsPolicyArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// Whether the resolver relays names it can't answer itself to
@@ -1942,10 +1942,10 @@ async fn call_create_dns_policy(
     )
 )]
 pub struct UpdateDnsPolicyArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The dns policy to change.
@@ -2055,10 +2055,10 @@ async fn call_update_dns_policy(
 /// The flags of `delete-dns-policy`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteDnsPolicyArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The DNS policy to delete.
@@ -2131,10 +2131,10 @@ async fn call_delete_dns_policy(
 /// The flags of `set-default-dns-policy`.
 #[derive(clap::Args, Debug)]
 pub struct SetDefaultDnsPolicyArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The DNS policy to make the default.
@@ -2198,10 +2198,10 @@ async fn call_set_default_dns_policy(
 /// The flags of `get-dns-policy-association`.
 #[derive(clap::Args, Debug)]
 pub struct GetDnsPolicyAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{vpc}` part of the resource names the command builds.
@@ -2259,10 +2259,10 @@ async fn call_get_dns_policy_association(
 /// The flags of `list-dns-policy-associations`.
 #[derive(clap::Args, Debug)]
 pub struct ListDnsPolicyAssociationsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{vpc}` part of the resource names the command builds.
@@ -2339,10 +2339,10 @@ async fn call_list_dns_policy_associations(
 /// The flags of `create-dns-policy-association`.
 #[derive(clap::Args, Debug)]
 pub struct CreateDnsPolicyAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{vpc}` part of the resource names the command builds.
@@ -2419,10 +2419,10 @@ async fn call_create_dns_policy_association(
 /// The flags of `delete-dns-policy-association`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteDnsPolicyAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{vpc}` part of the resource names the command builds.
@@ -2504,10 +2504,10 @@ async fn call_delete_dns_policy_association(
 /// The flags of `get-floating-ip`.
 #[derive(clap::Args, Debug)]
 pub struct GetFloatingIpArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The floating IP to return.
@@ -2554,7 +2554,7 @@ async fn call_get_floating_ip(
 /// The flags of `list-floating-ips`.
 #[derive(clap::Args, Debug)]
 pub struct ListFloatingIpsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -2649,10 +2649,10 @@ async fn call_list_floating_ips(
 /// The flags of `create-floating-ip`.
 #[derive(clap::Args, Debug)]
 pub struct CreateFloatingIpArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -2715,10 +2715,10 @@ async fn call_create_floating_ip(
     )
 )]
 pub struct UpdateFloatingIpArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The floating ip to change.
@@ -2799,10 +2799,10 @@ async fn call_update_floating_ip(
 /// The flags of `delete-floating-ip`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteFloatingIpArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The floating IP to release.
@@ -2873,10 +2873,10 @@ async fn call_delete_floating_ip(
 /// The flags of `get-floating-ip-association`.
 #[derive(clap::Args, Debug)]
 pub struct GetFloatingIpAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{floating_ip}` part of the resource names the command builds.
@@ -2934,7 +2934,7 @@ async fn call_get_floating_ip_association(
 /// The flags of `list-floating-ip-associations`.
 #[derive(clap::Args, Debug)]
 pub struct ListFloatingIpAssociationsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -3052,10 +3052,10 @@ async fn call_list_floating_ip_associations(
 /// The flags of `create-floating-ip-association`.
 #[derive(clap::Args, Debug)]
 pub struct CreateFloatingIpAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{floating_ip}` part of the resource names the command builds.
@@ -3134,10 +3134,10 @@ async fn call_create_floating_ip_association(
 /// The flags of `delete-floating-ip-association`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteFloatingIpAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{floating_ip}` part of the resource names the command builds.
@@ -3219,10 +3219,10 @@ async fn call_delete_floating_ip_association(
 /// The flags of `get-internet-gateway`.
 #[derive(clap::Args, Debug)]
 pub struct GetInternetGatewayArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The internet gateway to return.
@@ -3271,10 +3271,10 @@ async fn call_get_internet_gateway(
 /// The flags of `list-internet-gateways`.
 #[derive(clap::Args, Debug)]
 pub struct ListInternetGatewaysArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The most internet gateways to return; the server clamps it, and 0
@@ -3366,10 +3366,10 @@ async fn call_list_internet_gateways(
 /// The flags of `create-internet-gateway`.
 #[derive(clap::Args, Debug)]
 pub struct CreateInternetGatewayArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The VPC the gateway connects, in the same project and region.
@@ -3453,10 +3453,10 @@ async fn call_create_internet_gateway(
     )
 )]
 pub struct UpdateInternetGatewayArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The internet gateway to change.
@@ -3541,10 +3541,10 @@ async fn call_update_internet_gateway(
 /// The flags of `delete-internet-gateway`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteInternetGatewayArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The internet gateway to delete.
@@ -3619,10 +3619,10 @@ async fn call_delete_internet_gateway(
 /// The flags of `get-nat-gateway`.
 #[derive(clap::Args, Debug)]
 pub struct GetNatGatewayArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The NAT gateway to return.
@@ -3669,7 +3669,7 @@ async fn call_get_nat_gateway(
 /// The flags of `list-nat-gateways`.
 #[derive(clap::Args, Debug)]
 pub struct ListNatGatewaysArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -3764,10 +3764,10 @@ async fn call_list_nat_gateways(
 /// The flags of `create-nat-gateway`.
 #[derive(clap::Args, Debug)]
 pub struct CreateNatGatewayArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The public subnet the gateway lives in, in the same project and zone.
@@ -3865,10 +3865,10 @@ async fn call_create_nat_gateway(
     )
 )]
 pub struct UpdateNatGatewayArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The nat gateway to change.
@@ -3949,10 +3949,10 @@ async fn call_update_nat_gateway(
 /// The flags of `delete-nat-gateway`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteNatGatewayArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The NAT gateway to delete.
@@ -4023,10 +4023,10 @@ async fn call_delete_nat_gateway(
 /// The flags of `get-network-interface`.
 #[derive(clap::Args, Debug)]
 pub struct GetNetworkInterfaceArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The network interface to return.
@@ -4075,7 +4075,7 @@ async fn call_get_network_interface(
 /// The flags of `list-network-interfaces`.
 #[derive(clap::Args, Debug)]
 pub struct ListNetworkInterfacesArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -4194,10 +4194,10 @@ async fn call_list_network_interfaces(
 /// The flags of `create-network-interface`.
 #[derive(clap::Args, Debug)]
 pub struct CreateNetworkInterfaceArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The subnet the interface has its addresses in, in the same project
@@ -4297,10 +4297,10 @@ async fn call_create_network_interface(
     )
 )]
 pub struct UpdateNetworkInterfaceArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The network interface to change.
@@ -4402,10 +4402,10 @@ async fn call_update_network_interface(
 /// The flags of `delete-network-interface`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteNetworkInterfaceArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The network interface to delete.
@@ -4478,10 +4478,10 @@ async fn call_delete_network_interface(
 /// The flags of `get-route`.
 #[derive(clap::Args, Debug)]
 pub struct GetRouteArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{route_table}` part of the resource names the command builds.
@@ -4537,10 +4537,10 @@ async fn call_get_route(
 /// The flags of `list-routes`.
 #[derive(clap::Args, Debug)]
 pub struct ListRoutesArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{route_table}` part of the resource names the command builds.
@@ -4614,16 +4614,16 @@ async fn call_list_routes(
 /// The flags of `create-route`.
 #[derive(clap::Args, Debug)]
 pub struct CreateRouteArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{route_table}` part of the resource names the command builds.
     #[arg(long = "route-table", value_name = "ROUTE_TABLE")]
     pub route_table: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The destination: the IPv4 default route, written with an all-zero
@@ -4733,10 +4733,10 @@ async fn call_create_route(
 /// The flags of `delete-route`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteRouteArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{route_table}` part of the resource names the command builds.
@@ -4816,10 +4816,10 @@ async fn call_delete_route(
 /// The flags of `get-route-table`.
 #[derive(clap::Args, Debug)]
 pub struct GetRouteTableArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The route table to return.
@@ -4868,10 +4868,10 @@ async fn call_get_route_table(
 /// The flags of `list-route-tables`.
 #[derive(clap::Args, Debug)]
 pub struct ListRouteTablesArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The most route tables to return; the server clamps it, and 0 means
@@ -4961,10 +4961,10 @@ async fn call_list_route_tables(
 /// The flags of `create-route-table`.
 #[derive(clap::Args, Debug)]
 pub struct CreateRouteTableArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The VPC the table routes for, in the same project and region.
@@ -5046,10 +5046,10 @@ async fn call_create_route_table(
     )
 )]
 pub struct UpdateRouteTableArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The route table to change.
@@ -5132,10 +5132,10 @@ async fn call_update_route_table(
 /// The flags of `delete-route-table`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteRouteTableArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The route table to delete.
@@ -5208,10 +5208,10 @@ async fn call_delete_route_table(
 /// The flags of `get-route-table-association`.
 #[derive(clap::Args, Debug)]
 pub struct GetRouteTableAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{subnet}` part of the resource names the command builds.
@@ -5269,7 +5269,7 @@ async fn call_get_route_table_association(
 /// The flags of `list-route-table-associations`.
 #[derive(clap::Args, Debug)]
 pub struct ListRouteTableAssociationsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -5384,16 +5384,16 @@ async fn call_list_route_table_associations(
 /// The flags of `create-route-table-association`.
 #[derive(clap::Args, Debug)]
 pub struct CreateRouteTableAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{subnet}` part of the resource names the command builds.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The route table the subnet uses, in the subnet's VPC.
@@ -5468,10 +5468,10 @@ async fn call_create_route_table_association(
 /// The flags of `delete-route-table-association`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteRouteTableAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{subnet}` part of the resource names the command builds.
@@ -5553,10 +5553,10 @@ async fn call_delete_route_table_association(
 /// The flags of `get-security-group`.
 #[derive(clap::Args, Debug)]
 pub struct GetSecurityGroupArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The security group to return.
@@ -5605,10 +5605,10 @@ async fn call_get_security_group(
 /// The flags of `list-security-groups`.
 #[derive(clap::Args, Debug)]
 pub struct ListSecurityGroupsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The most security groups to return; the server clamps it, and 0
@@ -5698,10 +5698,10 @@ async fn call_list_security_groups(
 /// The flags of `create-security-group`.
 #[derive(clap::Args, Debug)]
 pub struct CreateSecurityGroupArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The VPC the group belongs to, in the same project and region.
@@ -5785,10 +5785,10 @@ async fn call_create_security_group(
     )
 )]
 pub struct UpdateSecurityGroupArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The security group to change.
@@ -5873,10 +5873,10 @@ async fn call_update_security_group(
 /// The flags of `delete-security-group`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteSecurityGroupArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The security group to delete.
@@ -5951,10 +5951,10 @@ async fn call_delete_security_group(
 /// The flags of `get-security-group-association`.
 #[derive(clap::Args, Debug)]
 pub struct GetSecurityGroupAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{network_interface}` part of the resource names the command builds.
@@ -6018,7 +6018,7 @@ async fn call_get_security_group_association(
 /// The flags of `list-security-group-associations`.
 #[derive(clap::Args, Debug)]
 pub struct ListSecurityGroupAssociationsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -6137,16 +6137,16 @@ async fn call_list_security_group_associations(
 /// The flags of `create-security-group-association`.
 #[derive(clap::Args, Debug)]
 pub struct CreateSecurityGroupAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{network_interface}` part of the resource names the command builds.
     #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE")]
     pub network_interface: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The security group, in the interface's VPC.
@@ -6227,10 +6227,10 @@ async fn call_create_security_group_association(
 /// The flags of `delete-security-group-association`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteSecurityGroupAssociationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The `{network_interface}` part of the resource names the command builds.
@@ -6318,10 +6318,10 @@ async fn call_delete_security_group_association(
 /// The flags of `get-security-group-rule`.
 #[derive(clap::Args, Debug)]
 pub struct GetSecurityGroupRuleArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{security_group}` part of the resource names the command builds.
@@ -6379,10 +6379,10 @@ async fn call_get_security_group_rule(
 /// The flags of `list-security-group-rules`.
 #[derive(clap::Args, Debug)]
 pub struct ListSecurityGroupRulesArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{security_group}` part of the resource names the command builds.
@@ -6463,10 +6463,10 @@ async fn call_list_security_group_rules(
 /// The flags of `create-security-group-rule`.
 #[derive(clap::Args, Debug)]
 pub struct CreateSecurityGroupRuleArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{security_group}` part of the resource names the command builds.
@@ -6601,10 +6601,10 @@ async fn call_create_security_group_rule(
 /// The flags of `delete-security-group-rule`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteSecurityGroupRuleArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The `{security_group}` part of the resource names the command builds.
@@ -6686,10 +6686,10 @@ async fn call_delete_security_group_rule(
 /// The flags of `get-subnet`.
 #[derive(clap::Args, Debug)]
 pub struct GetSubnetArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The subnet to return.
@@ -6736,13 +6736,13 @@ async fn call_get_subnet(
 /// The flags of `list-subnets`.
 #[derive(clap::Args, Debug)]
 pub struct ListSubnetsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The most subnets to return; the server clamps it, and 0 means its
@@ -6862,13 +6862,13 @@ async fn call_list_subnets(
 /// The flags of `create-subnet`.
 #[derive(clap::Args, Debug)]
 pub struct CreateSubnetArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The VPC the subnet is part of, in the same project and in the zone's
@@ -6966,10 +6966,10 @@ async fn call_create_subnet(
     )
 )]
 pub struct UpdateSubnetArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The subnet to change.
@@ -7064,10 +7064,10 @@ async fn call_update_subnet(
 /// The flags of `delete-subnet`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteSubnetArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The subnet to delete.
@@ -7138,10 +7138,10 @@ async fn call_delete_subnet(
 /// The flags of `get-vpc`.
 #[derive(clap::Args, Debug)]
 pub struct GetVpcArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The VPC to return.
@@ -7188,10 +7188,10 @@ async fn call_get_vpc(
 /// The flags of `list-vpcs`.
 #[derive(clap::Args, Debug)]
 pub struct ListVpcsArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The most VPCs to return; the server clamps it, and 0 means its
@@ -7255,10 +7255,10 @@ async fn call_list_vpcs(
 /// The flags of `create-vpc`.
 #[derive(clap::Args, Debug)]
 pub struct CreateVpcArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The private IPv4 range (RFC 1918), from `/16` to `/28`. A free `/16`
@@ -7329,10 +7329,10 @@ async fn call_create_vpc(
     )
 )]
 pub struct UpdateVpcArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The vpc to change.
@@ -7415,10 +7415,10 @@ async fn call_update_vpc(
 /// The flags of `delete-vpc`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteVpcArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{region}` part of the resource names the command builds.
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
     /// The VPC to delete.
@@ -7491,10 +7491,10 @@ async fn call_delete_vpc(
 /// The flags of `get-operation`.
 #[derive(clap::Args, Debug)]
 pub struct GetOperationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The operation.
@@ -7543,10 +7543,10 @@ async fn call_get_operation(
 /// The flags of `wait-operation`.
 #[derive(clap::Args, Debug)]
 pub struct WaitOperationArgs {
-    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The operation.
