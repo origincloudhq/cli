@@ -64,7 +64,10 @@ pub(crate) enum ComputeCommands {
         boot_volume_storage_class: Option<String>,
 
         /// Security groups to attach to the primary network interface.
-        /// Repeatable. Omitted defaults to the VPC's default security group.
+        /// Repeatable. Omitted, the interface gets the VPC's default security
+        /// group when the VPC has one, and none otherwise: an interface in no
+        /// security group admits and sends nothing but ARP, IPv6 neighbor
+        /// discovery and replies to its own traffic.
         #[arg(long)]
         security_group_urn: Vec<Urn>,
 

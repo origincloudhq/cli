@@ -10,6 +10,7 @@ query GetSubnet($subnetUrn: Urn!) {
             }
             vpcId
             aclUrn
+            routeTableUrn
             availabilityZone
             ipv6Network {
                 networkCidr
