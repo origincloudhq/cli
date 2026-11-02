@@ -125,8 +125,15 @@ refuse, with the parts of googleapis in `generator/testdata/`.
 What the API definitions don't express is in `generator/commands.toml`, by
 service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
 
+- `hand_written` lists the hand-written groups the CLI still has (the
+  coverage test checks it is the CLI's), and `[[retired]]` what a retired
+  one dropped with nothing generated in its place, with the reason: see
+  "A service replacing a hand-written group" below;
 - `[[service]]` gives a group's help, for a package with several services;
-  a package with one takes it from that service's comment;
+  a package with one takes it from that service's comment. The generator
+  warns, and the coverage test fails, when a package with several services
+  has no entry. `replaces` names the hand-written groups the service
+  supersedes under another name, such as `admin` for `resourcemanager`;
 - `[[no_command]]` leaves a method without a command, with the reason. The
   coverage test fails for any method of the API that has neither a command
   nor an entry here, which is what keeps the CLI at parity with the API;
@@ -175,11 +182,49 @@ pull request:
    run `cargo update --workspace`, which adds it to `Cargo.lock` and moves
    nothing else. `scripts/update.sh` keeps it at the SDK's head from then on.
 2. If the service's package has several services, give the group's help a
-   `[[service]]` entry in `generator/commands.toml`, and regenerate.
-3. If a hand-written group has the service's name (such as `compute`), the
-   two collide and the command tree test fails: retire the hand-written group
-   in the same pull request, or rename it.
+   `[[service]]` entry in `generator/commands.toml`, and regenerate; the
+   generator warns, and the coverage test fails, until it has one.
+3. If the service replaces a hand-written group, by name (`compute`, `iam`)
+   or by its entry's `replaces` (`resourcemanager` replaces `admin`),
+   generation fails until that group is retired in the same pull request, as
+   the next section says.
 4. Mention the group in the README.
+
+A list without a parent (a top-level collection, such as
+`ListOrganizations`) and one filtering on other fields (`ListProjects`'s
+required `organization`) page through the request as its flags make it; a
+client-chosen id (AIP-133, `CreateProject`'s `project_id`) is a flag like any
+request field, required when the API requires it. A reference to a resource
+type the API doesn't declare, such as one of a package not published yet, is
+a string flag taking the whole name.
+
+### A service replacing a hand-written group
+
+The hand-written groups (`admin`, `compute`, `iam`, ...) call the GraphQL API.
+When the API gains the service that replaces one, the generated group lands
+and the hand-written one goes in the same change, so that `origin` never has
+both. Generation fails until then, naming the group, which on the regeneration
+pull request puts the switch on that pull request. The switch:
+
+1. In `crates/cli/src/root_command.rs`, remove the group's variant of
+   `Commands` and its `use`; in `crates/cli/src/run_cli.rs`, its arm; in
+   `crates/cli/src/handler/mod.rs`, its module, and delete
+   `crates/cli/src/handler/{group}/`.
+2. Delete its GraphQL client, `crates/cli/src/service_apis/{name}.rs`, its
+   module line, and its queries, `crates/cli/graphql/{name}/`, unless another
+   group still uses part of it: `origin id login` uses `service_apis::iam`'s
+   current user, so retiring `iam` keeps that part, or moves `id` to the
+   generated group, and deletes the rest (clippy names what nothing uses any
+   more, as it does `identity.rs`'s URN helpers once `compute` goes).
+3. Take the group off `hand_written` in `generator/commands.toml`, and add a
+   `[[retired]]` entry, with the reason and what to use instead, for each of
+   its commands nothing generated replaces (such as `admin
+   register-organisation`, or `iam`'s invitations).
+4. Regenerate, and update the README's list of groups.
+
+The coverage test checks that `hand_written` is the CLI's hand-written groups,
+that no `[[retired]]` command still exists, and that no `replaces` names a
+group still there.
 
 Nothing else names a service: the scripts, the generator and the tests find
 every service in the API. A file under `origincloud/` whose package isn't

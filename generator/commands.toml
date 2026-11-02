@@ -8,6 +8,13 @@
 # service, a method or a field the API doesn't have, so that an entry can't
 # silently stop applying.
 
+# The hand-written groups the CLI still has, which call the GraphQL API. A
+# service of the API named like one (`compute`), or whose [[service]] entry
+# says it `replaces` one (`resourcemanager` replaces `admin`), fails
+# generation until that group is retired in the same change, as
+# CONTRIBUTING.md says. The coverage test checks this list is the CLI's.
+hand_written = ["admin", "compute", "config", "iam", "id", "mcp", "network", "storage", "version"]
+
 # The help of a command group, when the API's comments don't give it: a
 # package with one service takes it from that service's comment, so only a
 # package with several needs an entry.
@@ -18,6 +25,15 @@ details = """
 Resource names are given as their parts (`--project`, `--zone`, `--volume`), \
 or the resource's flag takes a whole name; `--project` and `--zone` default \
 to the profile's `default-project` and `default-zone`."""
+
+# A command of a retired hand-written group that no generated command
+# replaces, with the reason and what to use instead. The coverage test fails
+# when the command still exists.
+#
+# [[retired]]
+# group = "admin"
+# command = "register-organisation"
+# why = "Signing up creates the organization; resourcemanager's create-organization creates more."
 
 # Methods left without a command, with the reason. Every other method of the
 # API has one: the coverage test fails for a method that has neither.

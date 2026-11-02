@@ -1,7 +1,7 @@
 //! The choices the API definitions don't express, from `commands.toml`
 //! beside the generator: what a command group's help says, methods left
-//! without a command, fields left out of a command, and changes that can't
-//! be undone.
+//! without a command, fields left out of a command, changes that can't be
+//! undone, and the hand-written groups the generated ones replace.
 
 use std::path::Path;
 
@@ -12,6 +12,16 @@ use serde::Deserialize;
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Policy {
+    /// The hand-written groups the CLI still has, such as `compute`. A
+    /// service named like one, or replacing one, fails generation until it
+    /// is retired in the same change.
+    #[serde(default)]
+    pub hand_written: Vec<String>,
+    /// What retired hand-written groups dropped without a generated
+    /// command in its place, with the reason.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub retired: Vec<Retired>,
     /// The help of command groups.
     #[serde(default)]
     pub service: Vec<Group>,
@@ -39,6 +49,24 @@ pub struct Group {
     /// What `origin {name} --help` adds below it.
     #[serde(default)]
     pub details: String,
+    /// The hand-written groups the service replaces although it isn't named
+    /// like them, such as `admin` for `resourcemanager`.
+    #[serde(default)]
+    pub replaces: Vec<String>,
+}
+
+/// A command of a retired hand-written group that no generated command
+/// replaces.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+pub struct Retired {
+    /// The hand-written group, such as `admin`.
+    pub group: String,
+    /// Its command, such as `register-organisation`.
+    pub command: String,
+    /// Why nothing replaces it, and what to use instead.
+    pub why: String,
 }
 
 /// A method left without a command.
@@ -93,6 +121,20 @@ impl Policy {
 
     pub fn group(&self, service: &str) -> Option<&Group> {
         self.service.iter().find(|g| g.name == service)
+    }
+
+    /// The hand-written groups `service` collides with or replaces, which
+    /// are still there.
+    pub fn superseded(&self, service: &str) -> Vec<&str> {
+        let replaced = self
+            .group(service)
+            .map(|g| g.replaces.as_slice())
+            .unwrap_or_default();
+        self.hand_written
+            .iter()
+            .filter(|h| *h == service || replaced.contains(h))
+            .map(String::as_str)
+            .collect()
     }
 
     pub fn no_command(&self, service: &str, method: &str) -> bool {

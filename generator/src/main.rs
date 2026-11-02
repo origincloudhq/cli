@@ -133,6 +133,30 @@ fn generate(
         }
     }
 
+    // A generated group can't sit beside the hand-written group it
+    // replaces: that one goes in the same change.
+    let mut collisions = Vec::new();
+    for service in services.keys() {
+        for hand_written in policy.superseded(service) {
+            collisions.push(format!(
+                "the service {service} replaces the hand-written `origin {hand_written}`: retire \
+                 that group in this change, take it off `hand_written` in generator/commands.toml, \
+                 and list what nothing replaces under [[retired]] (CONTRIBUTING.md, \"A service \
+                 replacing a hand-written group\")"
+            ));
+        }
+        let several = services_in(pool, &services[service]) > 1;
+        if several && policy.group(service).is_none() {
+            eprintln!(
+                "warning: the package {} has several services, so its group's help needs a \
+                 [[service]] entry, name = {service:?}, in generator/commands.toml; until then \
+                 it reads \"The {service} service\"",
+                services[service]
+            );
+        }
+    }
+    ensure!(collisions.is_empty(), "{}", collisions.join("\n"));
+
     let mut files: BTreeMap<PathBuf, Vec<u8>> = BTreeMap::new();
     let mut groups = Vec::new();
     let mut skipped = Vec::new();
@@ -202,6 +226,13 @@ fn generate(
         );
     }
     Ok(files)
+}
+
+/// How many services `package` declares.
+fn services_in(pool: &DescriptorPool, package: &str) -> usize {
+    pool.services()
+        .filter(|s| s.package_name() == package)
+        .count()
 }
 
 /// Compiles every file under each root's `origincloud/`, with source info
@@ -814,6 +845,139 @@ mod tests {
             "{code}"
         );
         assert!(flat.contains("pick,"), "{code}");
+    }
+
+    const FOLDERS: &str = r#"
+        syntax = "proto3";
+        package origincloud.folders.v1;
+        import "google/api/annotations.proto";
+        import "google/api/field_behavior.proto";
+        import "google/api/resource.proto";
+        import "google/protobuf/field_mask.proto";
+        // Folders.
+        service FolderService {
+          // Lists every organization.
+          rpc ListOrgs(ListOrgsRequest) returns (ListOrgsResponse) {
+            option (google.api.http) = {get: "/v1/orgs"};
+          }
+          // Lists an organization's folders.
+          rpc ListFolders(ListFoldersRequest) returns (ListFoldersResponse) {
+            option (google.api.http) = {get: "/v1/folders"};
+          }
+          // Creates a folder under the id the caller chooses.
+          rpc CreateFolder(CreateFolderRequest) returns (Folder) {
+            option (google.api.http) = {post: "/v1/folders" body: "folder"};
+          }
+          // Returns a folder's budget.
+          rpc GetFolderBudget(GetFolderBudgetRequest) returns (FolderBudget) {
+            option (google.api.http) = {get: "/v1/{name=folders/*/budget}"};
+          }
+          // Sets or removes a folder's budget.
+          rpc UpdateFolderBudget(UpdateFolderBudgetRequest) returns (FolderBudget) {
+            option (google.api.http) = {patch: "/v1/{budget.name=folders/*/budget}" body: "budget"};
+          }
+        }
+        message Org {
+          option (google.api.resource) = { type: "folders.origincloudapis.eu/Org" pattern: "orgs/{org}" };
+          string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+        }
+        message Folder {
+          option (google.api.resource) = { type: "folders.origincloudapis.eu/Folder" pattern: "folders/{folder}" };
+          string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+          string org = 2 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "folders.origincloudapis.eu/Org"];
+          string owner = 3 [(google.api.resource_reference).type = "people.origincloudapis.eu/Person"];
+        }
+        message FolderBudget {
+          option (google.api.resource) = { type: "folders.origincloudapis.eu/FolderBudget" pattern: "folders/{folder}/budget" singular: "folderBudget" };
+          string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+          optional int64 max_items = 2;
+        }
+        message ListOrgsRequest { int32 page_size = 1; string page_token = 2; }
+        message ListOrgsResponse { repeated Org orgs = 1; string next_page_token = 2; }
+        message ListFoldersRequest {
+          string org = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "folders.origincloudapis.eu/Org"];
+          bool show_deleted = 4;
+          int32 page_size = 2;
+          string page_token = 3;
+        }
+        message ListFoldersResponse { repeated Folder folders = 1; string next_page_token = 2; }
+        message CreateFolderRequest {
+          Folder folder = 1 [(google.api.field_behavior) = REQUIRED];
+          string folder_id = 2 [(google.api.field_behavior) = REQUIRED];
+        }
+        message GetFolderBudgetRequest {
+          string name = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "folders.origincloudapis.eu/FolderBudget"];
+        }
+        message UpdateFolderBudgetRequest {
+          FolderBudget budget = 1 [(google.api.field_behavior) = REQUIRED];
+          google.protobuf.FieldMask update_mask = 2;
+        }
+    "#;
+
+    /// A list without a parent, a list filtering on other fields, a
+    /// client-chosen id, a singleton and an optional number, as
+    /// resourcemanager has them; and a reference to a type the API doesn't
+    /// declare.
+    #[test]
+    fn top_level_lists_filters_client_ids_and_singletons() {
+        let dir = api("folders/v1/folders.proto", FOLDERS);
+        let files = generated(&[dir.path()]).unwrap();
+        let code = file(&files, "folders.rs");
+        let flat: String = code.split_whitespace().collect();
+        let between = |from: &str, to: &str| -> String {
+            let start = flat.find(from).unwrap_or_else(|| panic!("no {from}"));
+            let end = start + flat[start..].find(to).unwrap_or(flat.len() - start);
+            flat[start..end].to_owned()
+        };
+        // Neither list sets a parent: each pages through its request.
+        assert!(!flat.contains("request.parent"), "{code}");
+        let orgs = between("asyncfnlist_orgs(", "asyncfncall_list_orgs");
+        assert!(
+            orgs.contains("request.page_token=page.next_page_token;"),
+            "{orgs}"
+        );
+        // A required filter is a required flag, completed as a name.
+        let folders = between("pubstructListFoldersArgs", "asyncfnlist_folders");
+        assert!(
+            folders.contains("#[arg(long=\"org\",value_name=\"ORG\")]puborg:String,"),
+            "{folders}"
+        );
+        assert!(
+            folders.contains("pubshow_deleted:Option<bool>"),
+            "{folders}"
+        );
+        // A client-chosen id is a required flag.
+        let create = between("pubstructCreateFolderArgs", "asyncfncreate_folder");
+        assert!(create.contains("pubfolder_id:String,"), "{create}");
+        // A type the API doesn't declare: a string, the whole name.
+        assert!(create.contains("pubowner:Option<String>,"), "{create}");
+        // A singleton, by its parent's id, and an optional number set or
+        // unset.
+        let budget = between(
+            "pubstructUpdateFolderBudgetArgs",
+            "asyncfnupdate_folder_budget",
+        );
+        assert!(budget.contains("pubfolder:String,"), "{budget}");
+        assert!(budget.contains("pubmax_items:Option<i64>,"), "{budget}");
+        assert!(budget.contains("pubno_max_items:bool,"), "{budget}");
+    }
+
+    /// A service named like a hand-written group, or replacing one, fails
+    /// generation until that group is retired.
+    #[test]
+    fn a_service_replacing_a_hand_written_group_fails_until_it_is_retired() {
+        let tiny = api("tiny/v1/tiny.proto", TINY);
+        for table in [
+            "hand_written = [\"tiny\", \"admin\"]",
+            "hand_written = [\"admin\"]\n[[service]]\nname = \"tiny\"\nabout = \"Tiny\"\nreplaces = [\"admin\"]",
+        ] {
+            let policy: policy::Policy = toml::from_str(table).unwrap();
+            let err = generated_with(&[tiny.path()], &policy).unwrap_err().to_string();
+            assert!(err.contains("replaces the hand-written `origin "), "{err}");
+            assert!(err.contains("[[retired]]"), "{err}");
+        }
+        let policy: policy::Policy = toml::from_str("hand_written = [\"admin\"]").unwrap();
+        assert!(generated_with(&[tiny.path()], &policy).is_ok());
     }
 
     #[test]

@@ -23,6 +23,10 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 struct Table {
     #[serde(default)]
+    hand_written: Vec<String>,
+    #[serde(default)]
+    retired: Vec<Retired>,
+    #[serde(default)]
     service: Vec<Group>,
     #[serde(default)]
     no_command: Vec<NoCommand>,
@@ -35,6 +39,15 @@ struct Table {
 #[derive(Deserialize)]
 struct Group {
     name: String,
+    #[serde(default)]
+    replaces: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct Retired {
+    group: String,
+    command: String,
+    why: String,
 }
 
 #[derive(Deserialize)]
@@ -204,7 +217,8 @@ fn every_service_has_a_group() {
     assert!(origincloud_cli::command()
         .find_subcommand(OPERATIONS)
         .is_none());
-    assert_eq!(operation_groups(&pool()), ["pvs"]);
+    // pvs answers with operations; a new service may too.
+    assert!(operation_groups(&pool()).iter().any(|g| g == "pvs"));
 }
 
 /// Every entry of the table names a service and a method of the API, and a
@@ -383,7 +397,87 @@ fn every_hand_written_destructive_command_requires_yes() {
             }
         }
     }
-    assert!(checked >= 15, "only {checked} destructive commands found");
+    // Each retirement of a hand-written group lowers the count; none at
+    // all would mean the test reads nothing.
+    let table = table();
+    assert!(
+        checked > 0 || table.hand_written.is_empty(),
+        "no destructive command found"
+    );
+}
+
+/// The groups the generated ones aren't: the hand-written groups, and
+/// clap's `help`.
+fn hand_written_groups() -> BTreeSet<String> {
+    let mut generated = groups(&pool());
+    if cfg!(feature = "test-services") {
+        generated.push("scratch".to_owned());
+    }
+    origincloud_cli::command()
+        .get_subcommands()
+        .map(|g| g.get_name().to_owned())
+        .filter(|g| g != "help" && !generated.contains(g))
+        .collect()
+}
+
+/// `hand_written` in the table is the CLI's hand-written groups, so that a
+/// service named like one, or replacing one, fails generation until it is
+/// retired; and each retired command is gone.
+#[test]
+fn the_table_knows_the_hand_written_groups() {
+    let table = table();
+    let listed: BTreeSet<String> = table.hand_written.iter().cloned().collect();
+    assert_eq!(
+        listed,
+        hand_written_groups(),
+        "hand_written in generator/commands.toml isn't the CLI's hand-written groups"
+    );
+    let root = origincloud_cli::command();
+    for retired in &table.retired {
+        let still = root
+            .find_subcommand(&retired.group)
+            .is_some_and(|g| g.find_subcommand(&retired.command).is_some());
+        assert!(
+            !still,
+            "commands.toml retires origin {} {}, which the CLI still has",
+            retired.group, retired.command
+        );
+        assert!(
+            !retired.why.trim().is_empty(),
+            "{} {} says no why",
+            retired.group,
+            retired.command
+        );
+    }
+    for group in &table.service {
+        if let Some(name) = group.replaces.iter().find(|r| listed.contains(*r)) {
+            panic!(
+                "{} replaces origin {name}, which is still hand-written",
+                group.name
+            );
+        }
+    }
+}
+
+/// A package with several services has a [[service]] entry for its group's
+/// help: it has no one comment to take it from.
+#[test]
+fn a_group_of_several_services_has_its_help() {
+    let pool = pool();
+    let table = table();
+    for name in groups(&pool) {
+        let services = pool
+            .services()
+            .filter(|s| common::service_of(s.package_name()) == name)
+            .count();
+        if services > 1 {
+            assert!(
+                table.service.iter().any(|g| g.name == name),
+                "origin {name} has {services} services: give its help a [[service]] entry, \
+                 name = {name:?}, in generator/commands.toml"
+            );
+        }
+    }
 }
 
 #[test]

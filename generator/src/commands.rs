@@ -1009,14 +1009,11 @@ fn kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
 
 /// A field's kind, whatever oneof it is in.
 fn kind_of(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
-    let resource = |t: &str| {
-        cx.resources
-            .get(t)
-            .cloned()
-            .ok_or_else(|| format!("the field {} refers to the unknown type {t}", field.name()))
-    };
+    // A reference to a type the API doesn't declare, such as one of a
+    // package not published yet, has no pattern to complete an id with:
+    // it is a string, the whole name.
     let referenced = match reference(cx.pool, field) {
-        Some((t, false)) => Some(resource(&t)?),
+        Some((t, false)) => cx.resources.get(&t).cloned(),
         _ => None,
     };
     if field.is_map() {
@@ -1089,8 +1086,11 @@ fn key_kind_of(cx: &Cx<'_>, field: &FieldDescriptor) -> Option<Kind2> {
     if field.is_list() || field.is_map() {
         return None;
     }
-    if let Some((t, false)) = reference(cx.pool, field) {
-        return cx.resources.get(&t).cloned().map(Kind2::Reference);
+    if let Some(resource) = reference(cx.pool, field)
+        .filter(|(_, child)| !child)
+        .and_then(|(t, _)| cx.resources.get(&t).cloned())
+    {
+        return Some(Kind2::Reference(resource));
     }
     match field.kind() {
         Kind::Bool => Some(Kind2::Bool),
@@ -1803,6 +1803,9 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                  }}\n\
                  list_json(&{response_ty} {{ {items}: items, ..::core::default::Default::default() }}, {field:?})"
             );
+            // A list in every zone sets the parent of each; any other pages
+            // through the request as its flags made it, with a parent, other
+            // filters, or neither (a top-level collection).
             match &zonal_parent {
                 Some(pattern) => {
                     let _ = writeln!(
@@ -1839,8 +1842,15 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                              let page = call_{handler}(&client, request).await.map_err(api_error)?;\n\
                              return list_json(&page, {field:?});\n\
                          }}\n\
-                         let parents = [request.parent.clone()];\n\
-                         {pages}"
+                         let mut request = request;\n\
+                         let mut items = Vec::new();\n\
+                         loop {{\n\
+                             let page = call_{handler}(&client, request.clone()).await.map_err(api_error)?;\n\
+                             items.extend(page.{items});\n\
+                             if page.next_page_token.is_empty() {{ break; }}\n\
+                             request.page_token = page.next_page_token;\n\
+                         }}\n\
+                         list_json(&{response_ty} {{ {items}: items, ..::core::default::Default::default() }}, {field:?})"
                     );
                 }
             }
