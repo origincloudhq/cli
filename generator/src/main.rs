@@ -897,6 +897,8 @@ mod tests {
         message ListFoldersRequest {
           string org = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "folders.origincloudapis.eu/Org"];
           bool show_deleted = 4;
+          string owner = 5 [(google.api.resource_reference).type = "people.origincloudapis.eu/Person"];
+          repeated string watchers = 6 [(google.api.resource_reference).type = "people.origincloudapis.eu/Person"];
           int32 page_size = 2;
           string page_token = 3;
         }
@@ -946,6 +948,10 @@ mod tests {
             folders.contains("pubshow_deleted:Option<bool>"),
             "{folders}"
         );
+        // A request's own reference to a type the API doesn't declare, as
+        // its body's: a string, the whole name, or several.
+        assert!(folders.contains("pubowner:Option<String>,"), "{folders}");
+        assert!(folders.contains("pubwatcher:Vec<String>,"), "{folders}");
         // A client-chosen id is a required flag.
         let create = between("pubstructCreateFolderArgs", "asyncfncreate_folder");
         assert!(create.contains("pubfolder_id:String,"), "{create}");

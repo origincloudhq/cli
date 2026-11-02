@@ -1584,12 +1584,20 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             continue;
         }
 
-        if let Some((t, child)) = reference(cx.pool, &field) {
-            let resource = cx
-                .resources
-                .get(&t)
-                .ok_or_else(|| format!("{name} refers to the unknown type {t}"))?
-                .clone();
+        // A reference to a type the API doesn't declare, such as one of a
+        // package not published yet, is a string flag taking the whole name,
+        // as in a request's body; a parent can't be, it has no pattern.
+        let referenced = match reference(cx.pool, &field) {
+            Some((t, child)) => match cx.resources.get(&t) {
+                Some(resource) => Some((resource.clone(), child)),
+                None if child => {
+                    return Err(format!("{name} is a child of the unknown type {t}"));
+                }
+                None => None,
+            },
+            None => None,
+        };
+        if let Some((resource, child)) = referenced {
             if child {
                 let pattern = parent_pattern(&resource.pattern);
                 if pattern.is_empty() {
