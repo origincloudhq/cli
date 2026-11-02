@@ -152,8 +152,13 @@ behaves is a change to the generator or the runtime. Never edit the
 generated files.
 
 The regeneration workflow (`.github/workflows/regenerate.yml`) moves the CLI
-to the newest SDK, and the API revision it was generated from, daily, and opens
-a pull request when that changes anything. If the API gained a method the
+to the newest origincloudhq/mcp, the SDK commit that is built on, and the API
+revision it was generated from, when origincloudhq/mcp's main moves, and
+daily, and opens a pull request when that changes anything. Once its CI
+passes, `merge-regeneration.yml` merges it, unless someone added commits to
+it, which then wait for review; the merge uses a GitHub App's token (the
+variable `REGENERATE_APP_ID` and the secret `REGENERATE_APP_PRIVATE_KEY`),
+and without it the pull request is merged by hand. If the API gained a method the
 generator can't make a command for, generation fails, naming the method and
 the field: the run opens or refreshes the pull request all the same, with
 the SDK and `API_REVISION` moved alone and the generator's error in its
