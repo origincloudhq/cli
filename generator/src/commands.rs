@@ -270,8 +270,9 @@ pub fn generate(
     code.push_str(
         "#[allow(unused_imports)]\n\
          use crate::sdk::runtime::{\n\
-             api_error, deadline_after, duration, json, list_json, names_any, pace, passed, success,\n\
-             tags, wait, wait_for, waited, waiting, zones, ConfirmedClient, Context, ReadClient,\n\
+             api_error, deadline_after, duration, json, list_json, names_any, pace, passed, shown_once,\n\
+             success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient, Context,\n\
+             ReadClient,\n\
          };\n\
          #[allow(unused_imports)]\n\
          use crate::confirm;\n\
@@ -1432,16 +1433,32 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     let mut zonal_parent: Option<String> = None;
 
     // A first pass for the vocabulary of the help: which flag sets which
-    // field.
+    // field. A field of the resource the command has no flag for, as the
+    // second pass decides, is left to be named as the JSON it prints names
+    // it: an output-only one, such as a generated key, a create's own
+    // name, and an update's immutable fields.
     for field in request.fields() {
         if excluded(field.name()) {
             continue;
         }
         if let Some(body) = body_message(cx, &field) {
             for f in body.fields() {
-                if !excluded(&format!("{}.{}", field.name(), f.name())) {
-                    b.vocabulary.insert(f.name().to_owned(), flag_name(cx, &f));
+                let fb = behaviors(cx.pool, &f);
+                if excluded(&format!("{}.{}", field.name(), f.name()))
+                    || fb.contains(&OUTPUT_ONLY)
+                    || (update && fb.contains(&IMMUTABLE))
+                {
+                    continue;
                 }
+                if fb.contains(&IDENTIFIER) {
+                    // An update's resource flag, `--volume`.
+                    if let Some(r) = resource_of(cx, &body).filter(|_| update) {
+                        b.vocabulary
+                            .insert(f.name().to_owned(), leaf_of(&r.pattern).to_kebab_case());
+                    }
+                    continue;
+                }
+                b.vocabulary.insert(f.name().to_owned(), flag_name(cx, &f));
             }
         } else if field.name() == "name" {
             if let Some(r) = named_resource(cx, m, &field) {
@@ -1897,8 +1914,37 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                     items.trim_start_matches("r#").to_lower_camel_case()
                 );
             }
-            None => tail.push_str("json(&response)\n"),
+            None => {
+                // A secret shown this once is said so, beside the response.
+                for entry in cx.policy.shown_once(cx.own, m.name()) {
+                    let field = response
+                        .get_field_by_name(&entry.field)
+                        .filter(|f| f.kind() == Kind::String && !f.is_list())
+                        .ok_or_else(|| {
+                            format!(
+                                "commands.toml's shown_once names {}, which isn't a string of \
+                                 its response",
+                                entry.field
+                            )
+                        })?;
+                    let _ = writeln!(
+                        tail,
+                        "shown_once(&response.{}, {:?});",
+                        ident(field.name()),
+                        entry.notice
+                    );
+                }
+                tail.push_str("json(&response)\n");
+            }
         },
+    }
+    let shown = tail.contains("shown_once(");
+    if !shown && !cx.policy.shown_once(cx.own, m.name()).is_empty() {
+        return Err(
+            "commands.toml's shown_once is only for a method answering with its response, \
+             not a list, an operation or nothing"
+                .to_owned(),
+        );
     }
 
     if destructive || !one_way.is_empty() {

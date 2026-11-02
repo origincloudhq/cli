@@ -4,8 +4,8 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, duration, json, list_json, names_any, pace, passed,
-    success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient, Context,
-    ReadClient,
+    shown_once, success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient,
+    Context, ReadClient,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -84,7 +84,7 @@ pub enum Commands {
     #[command(
         name = "create-instance",
         about = "Launches an instance",
-        long_about = "Launches an instance. The operation is done once the instance is `RUNNING`, or failed once it is `FAILED`, with the reason in `--state-reason`; a failed instance still exists, and can be started again or deleted."
+        long_about = "Launches an instance. The operation is done once the instance is `RUNNING`, or failed once it is `FAILED`, with the reason in `stateReason`; a failed instance still exists, and can be started again or deleted."
     )]
     CreateInstance(CreateInstanceArgs),
     #[command(
@@ -125,8 +125,8 @@ pub enum Commands {
     ListKeyPairs(ListKeyPairsArgs),
     #[command(
         name = "create-key-pair",
-        about = "Creates a key pair: imports `--public-key`, or, left empty, generates an `ssh-ed25519` key and returns its private half in `--private-key`, in this response only",
-        long_about = "Creates a key pair: imports `--public-key`, or, left empty, generates an `ssh-ed25519` key and returns its private half in `--private-key`, in this response only. A repeat of a generating request with the same `--request-id` can't return the private key again, and is refused with `FAILED_PRECONDITION`: delete the key pair and create another."
+        about = "Creates a key pair: imports `--public-key`, or, left empty, generates an `ssh-ed25519` key and returns its private half in `privateKey`, in this response only",
+        long_about = "Creates a key pair: imports `--public-key`, or, left empty, generates an `ssh-ed25519` key and returns its private half in `privateKey`, in this response only. A repeat of a generating request with the same `--request-id` can't return the private key again, and is refused with `FAILED_PRECONDITION`: delete the key pair and create another."
     )]
     CreateKeyPair(CreateKeyPairArgs),
     #[command(
@@ -1633,6 +1633,10 @@ async fn create_key_pair(
     };
     let client = ctx.client()?;
     let response = call_create_key_pair(&client, request).await.map_err(api_error)?;
+    shown_once(
+        &response.private_key,
+        "`privateKey` holds the generated private key, which the API returns this once: the platform keeps only the public key. Save it now to a file only you can read, such as by piping the output through `(umask 077; jq -r .privateKey > my-key)`. A lost key can't be fetched again: delete the key pair and create another.",
+    );
     json(&response)
 }
 async fn call_create_key_pair(

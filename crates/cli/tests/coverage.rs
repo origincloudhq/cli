@@ -36,6 +36,8 @@ struct Table {
     exclude: Vec<Entry>,
     #[serde(default)]
     one_way: Vec<Entry>,
+    #[serde(default)]
+    shown_once: Vec<Entry>,
 }
 
 #[derive(Deserialize)]
@@ -287,6 +289,25 @@ fn every_table_entry_names_a_method_and_a_field() {
                 message = next;
             }
         }
+    }
+    // A secret shown once is a field of the response.
+    for entry in &table.shown_once {
+        let (_, method) = methods
+            .iter()
+            .find(|(s, m)| *s == entry.service && m.name() == entry.method)
+            .unwrap_or_else(|| {
+                panic!(
+                    "commands.toml names {} {}, which the API doesn't have",
+                    entry.service, entry.method
+                )
+            });
+        assert!(
+            method.output().get_field_by_name(&entry.field).is_some(),
+            "commands.toml names {} {} {}, which its response doesn't have",
+            entry.service,
+            entry.method,
+            entry.field
+        );
     }
     for n in &table.no_command {
         assert!(

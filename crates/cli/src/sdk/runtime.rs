@@ -627,6 +627,15 @@ pub fn waiting(name: &str) {
     }
 }
 
+/// Says `notice` on standard error when `value`, a field of the response
+/// holding a secret the API returns this once (`commands.toml`'s
+/// `shown_once`), isn't empty: the output is its only copy.
+pub fn shown_once(value: &str, notice: &str) {
+    if !value.is_empty() {
+        eprintln!("{notice}");
+    }
+}
+
 /// An SDK error for the user: the API's own message and code, the request
 /// id to quote to support, and each refused field.
 pub fn api_error(err: origincloud_core::Error) -> anyhow::Error {

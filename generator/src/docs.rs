@@ -1,10 +1,10 @@
 //! Help text: the proto comments, in the words of a command line.
 //!
 //! - the API linter's directives, `(-- ... --)`, are removed;
-//! - a request field in backticks, such as `size_gib`, becomes the flag that
-//!   sets it, `--size-gib`;
-//! - any other field in backticks becomes its name in the JSON the command
-//!   prints, such as `nextPageToken`.
+//! - a field in backticks that a flag of the command sets, such as
+//!   `size_gib`, becomes that flag, `--size-gib`;
+//! - any other field in backticks, such as an output-only one, becomes its
+//!   name in the JSON the command prints, such as `nextPageToken`.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::LazyLock;

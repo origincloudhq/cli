@@ -173,3 +173,74 @@ async fn a_missing_parent_part_is_a_usage_error() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("--instance <INSTANCE>"), "{stderr}");
 }
+
+/// The flags a text names in backticks, `--private-key` in "returns it in
+/// `--private-key`".
+fn flags_named(text: &str) -> Vec<String> {
+    text.split('`')
+        .skip(1)
+        .step_by(2)
+        .filter_map(|quoted| quoted.strip_prefix("--"))
+        .map(|f| f.split([' ', '=']).next().unwrap_or_default().to_owned())
+        .collect()
+}
+
+/// The help of every generated command names only flags it has: the
+/// fields of the API's comments a command can't set, such as an
+/// output-only field, are named as the JSON it prints names them, such as
+/// `privateKey`.
+#[test]
+fn the_help_names_only_flags_the_command_has() {
+    let pool = pool();
+    let root = origincloud_cli::command();
+    let mut wrong = Vec::new();
+    let mut groups: Vec<String> = methods(&pool).into_iter().map(|(s, _)| s).collect();
+    groups.dedup();
+    for group in root
+        .get_subcommands()
+        .filter(|g| groups.contains(&g.get_name().to_owned()))
+    {
+        for command in group.get_subcommands() {
+            let mut texts: Vec<String> = [command.get_about(), command.get_long_about()]
+                .into_iter()
+                .flatten()
+                .map(ToString::to_string)
+                .collect();
+            for arg in command.get_arguments() {
+                texts.extend(
+                    [arg.get_help(), arg.get_long_help()]
+                        .into_iter()
+                        .flatten()
+                        .map(ToString::to_string),
+                );
+            }
+            for named in texts.iter().flat_map(|t| flags_named(t)) {
+                // The operation commands name the flag of the commands
+                // whose operations they read.
+                let elsewhere = named == "no-wait" && command.get_name().ends_with("-operation");
+                let has =
+                    flag(command, &named).is_some() || flag(group, &named).is_some() || elsewhere;
+                if !has {
+                    wrong.push(format!(
+                        "origin {} {}: --{named}",
+                        group.get_name(),
+                        command.get_name()
+                    ));
+                }
+            }
+        }
+    }
+    wrong.dedup();
+    assert!(
+        wrong.is_empty(),
+        "help naming flags the command lacks:\n{}",
+        wrong.join("\n")
+    );
+
+    let help = subcommand("compute", "create-key-pair")
+        .get_long_about()
+        .unwrap()
+        .to_string();
+    assert!(help.contains("`privateKey`"), "{help}");
+    assert!(!help.contains("--private-key"), "{help}");
+}

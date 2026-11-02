@@ -94,6 +94,11 @@ Irreversible commands (every delete, `origin iam revoke-service-account`,
 and growing a volume with `origin pvs update-volume --size-gib`) refuse to run without `--yes` and say
 what they would have done; the refusal happens before any request.
 
+`origin compute create-key-pair` without `--public-key` prints the private
+key it generates as `privateKey`, which the API returns this once, and says
+so on standard error: save it, readable by you alone, such as with
+`origin compute create-key-pair | (umask 077; jq -r .privateKey > my-key)`.
+
 ## The generated commands
 
 A group per service of the API:

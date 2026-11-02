@@ -1,7 +1,8 @@
 //! The location service's commands and the operation commands against a
 //! local server that records every request: the paths they call, the JSON
 //! they print, and the names and values they refuse before sending
-//! anything.
+//! anything; and what the other groups' commands add to it: the default of
+//! a regional name's `--region`, and the notice of a secret shown once.
 
 mod common;
 
@@ -590,4 +591,52 @@ async fn a_regional_name_takes_the_flag_then_the_environment_then_the_profile() 
             "/v1beta1/projects/p/regions/eu-central4/vpcs",
         ]
     );
+}
+
+/// A generated private key is printed in the JSON as the API sends it, and
+/// standard error says it is shown this once and how to keep it; an
+/// imported key, whose response has none, says nothing.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_generated_private_key_comes_with_a_notice() {
+    const GENERATED: &str = r#"{"name":"projects/p/keyPairs/k","publicKey":"ssh-ed25519 AAAA","privateKey":"-----BEGIN OPENSSH PRIVATE KEY-----"}"#;
+    const IMPORTED: &str = r#"{"name":"projects/p/keyPairs/k","publicKey":"ssh-ed25519 AAAA"}"#;
+    let server = recording(|r: &Received| {
+        if String::from_utf8_lossy(&r.body).contains("publicKey") {
+            Response::json(IMPORTED)
+        } else {
+            Response::json(GENERATED)
+        }
+    })
+    .await;
+
+    let output = server
+        .run("compute", &["create-key-pair", "--project", "p"])
+        .await;
+    assert_eq!(success(&output), json(GENERATED));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    for part in [
+        "`privateKey`",
+        "this once",
+        "umask 077",
+        "jq -r .privateKey",
+    ] {
+        assert!(stderr.contains(part), "{part}: {stderr}");
+    }
+    assert!(!stderr.contains("BEGIN OPENSSH"), "{stderr}");
+
+    let output = server
+        .run(
+            "compute",
+            &[
+                "create-key-pair",
+                "--project",
+                "p",
+                "--public-key",
+                "ssh-ed25519 AAAA",
+            ],
+        )
+        .await;
+    assert_eq!(success(&output), json(IMPORTED));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stderr.contains("privateKey"), "{stderr}");
 }
