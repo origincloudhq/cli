@@ -534,7 +534,7 @@ pub struct UpdateFirewallArgs {
     pub rules_json: Option<JsonArg<Vec<::origincloud_scratch::v1::Rule>>>,
     /// The ports the firewall opens to every source.
     ///
-    /// Repeat for more. Replaces all of them; `--no-ports` removes them all. Left as they are when neither is given.
+    /// Repeat for more. Replaces all of them, so give every one to keep; `--no-ports` removes them all. Left as they are when neither is given.
     #[arg(long = "port")]
     pub port: Vec<i32>,
     /// Remove all of its ports.
@@ -544,7 +544,7 @@ pub struct UpdateFirewallArgs {
     ///
     /// Each by its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}`.
     ///
-    /// Repeat for more. Replaces all of them; `--no-networks` removes them all. Left as they are when neither is given.
+    /// Repeat for more. Replaces all of them, so give every one to keep; `--no-networks` removes them all. Left as they are when neither is given.
     #[arg(long = "network", value_name = "NETWORK")]
     pub network: Vec<String>,
     /// Remove all of its networks.
@@ -554,7 +554,7 @@ pub struct UpdateFirewallArgs {
     ///
     /// The API doesn't keep their order, and each must be unique.
     ///
-    /// Repeat for more. Replaces all of them; `--no-aliases` removes them all. Left as they are when neither is given.
+    /// Repeat for more. Replaces all of them, so give every one to keep; `--no-aliases` removes them all. Left as they are when neither is given.
     #[arg(long = "alias")]
     pub alias: Vec<String>,
     /// Remove all of its aliases.
@@ -585,7 +585,7 @@ pub struct UpdateFirewallArgs {
     pub no_logging: bool,
     /// The firewall's tags.
     ///
-    /// As KEY=VALUE; repeat for more. Replaces all of them; `--no-tags` removes them all. Left as they are when neither is given.
+    /// As KEY=VALUE; repeat for more. Replaces all of them, so give every one to keep; `--no-tags` removes them all. Left as they are when neither is given.
     #[arg(long = "tag", value_name = "KEY=VALUE")]
     pub tag: Vec<TagArg>,
     /// Remove all of its tags.

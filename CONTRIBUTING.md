@@ -21,7 +21,7 @@ time on it. CI must pass: the checks below, run on every pull request.
 ## How the CLI is built
 
 - `crates/cli` is the `origin` binary. The command groups `admin`, `iam`,
-  `compute`, `network`, `storage`, `id` and `config` are written by hand
+  `compute`, `network`, `id` and `config` are written by hand
   (`src/handler/`, `src/service_apis/`) and call the GraphQL API with the
   queries in `graphql/`, checked against `graphql/schema.graphql`, the schema
   `graph.origincloudapis.eu` serves.

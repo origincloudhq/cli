@@ -10,12 +10,11 @@
 
 # The hand-written groups the CLI still has: the ones calling the GraphQL
 # API until the API has the service replacing each (`admin`, `compute`,
-# `iam`, `network`, `storage`), and the CLI's own (`config`, `id`, `mcp`,
-# `version`). A service of the API named like one (`compute`), or replacing
+# `iam`, `network`), and the CLI's own (`config`, `id`, `mcp`, `version`). A service of the API named like one (`compute`), or replacing
 # one under another name ([[replacement]] below), fails generation until
 # that group is retired in the same change, as CONTRIBUTING.md says. The
 # coverage test checks this list is the CLI's.
-hand_written = ["admin", "compute", "config", "iam", "id", "mcp", "network", "storage", "version"]
+hand_written = ["admin", "compute", "config", "iam", "id", "mcp", "network", "version"]
 
 # A service replacing a hand-written group under another name. It is written
 # before the API has the service, so that generation fails as soon as a
@@ -42,11 +41,15 @@ to the profile's `default-project` and `default-zone`."""
 # crates/cli/tests/hand_written.txt lists is a command of the CLI or has an
 # entry here: the coverage test fails for one gone without an entry, and for
 # an entry naming a command the CLI still has or never had.
-#
-# [[retired]]
-# group = "admin"
-# command = "register-organisation"
-# why = "Signing up creates the organization; resourcemanager's create-organization creates more."
+[[retired]]
+group = "storage"
+command = "set-resource-tags"
+why = "Set tags with `origin pvs update-volume --tag` / `update-snapshot --tag`; the API replaces the tag map whole, so give every tag to keep."
+
+[[retired]]
+group = "storage"
+command = "remove-resource-tags"
+why = "Set tags with `origin pvs update-volume --tag` / `update-snapshot --tag`; the API replaces the tag map whole, so give every tag to keep."
 
 # Methods left without a command, with the reason. Every other method of the
 # API has one: the coverage test fails for a method that has neither.

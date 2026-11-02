@@ -2502,10 +2502,11 @@ fn update_field(
             };
             // A required list can't be emptied: it has no `--no-` flag.
             let rest = if required {
-                "Replaces all of them; left as they are when not given.".to_owned()
+                "Replaces all of them, so give every one to keep; left as they are when not given."
+                    .to_owned()
             } else {
                 format!(
-                    "Replaces all of them; `--no-{long}` removes them all. Left as they are when neither is given."
+                    "Replaces all of them, so give every one to keep; `--no-{long}` removes them all. Left as they are when neither is given."
                 )
             };
             b.add_flag(Flag {

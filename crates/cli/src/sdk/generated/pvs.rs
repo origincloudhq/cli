@@ -394,7 +394,7 @@ pub struct UpdateSnapshotArgs {
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
     ///
-    /// As KEY=VALUE; repeat for more. Replaces all of them; `--no-tags` removes them all. Left as they are when neither is given.
+    /// As KEY=VALUE; repeat for more. Replaces all of them, so give every one to keep; `--no-tags` removes them all. Left as they are when neither is given.
     #[arg(long = "tag", value_name = "KEY=VALUE")]
     pub tag: Vec<TagArg>,
     /// Remove all of its tags.
@@ -1086,7 +1086,7 @@ pub struct UpdateVolumeArgs {
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
     ///
-    /// As KEY=VALUE; repeat for more. Replaces all of them; `--no-tags` removes them all. Left as they are when neither is given.
+    /// As KEY=VALUE; repeat for more. Replaces all of them, so give every one to keep; `--no-tags` removes them all. Left as they are when neither is given.
     #[arg(long = "tag", value_name = "KEY=VALUE")]
     pub tag: Vec<TagArg>,
     /// Remove all of its tags.
