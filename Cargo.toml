@@ -13,15 +13,15 @@ homepage = "https://origincloud.eu"
 # API_REVISION: the generated commands use its request and response types,
 # so the two must come from the same API definitions. scripts/update.sh moves
 # both together, and scripts/generate.sh --check fails when they differ.
-origincloud-core = { git = "https://github.com/origincloudhq/sdk-rust", rev = "f9d6a668d7bd61fa58570af693b01e4d8eda9508" }
-origincloud-pvs = { git = "https://github.com/origincloudhq/sdk-rust", rev = "f9d6a668d7bd61fa58570af693b01e4d8eda9508" }
-origincloud-location = { git = "https://github.com/origincloudhq/sdk-rust", rev = "f9d6a668d7bd61fa58570af693b01e4d8eda9508" }
-fake-server = { git = "https://github.com/origincloudhq/sdk-rust", rev = "f9d6a668d7bd61fa58570af693b01e4d8eda9508" }
+origincloud-core = { git = "https://github.com/origincloudhq/sdk-rust", rev = "a60ad4a49c3f71d4ed859b2ccf080ebb6e00236a" }
+origincloud-pvs = { git = "https://github.com/origincloudhq/sdk-rust", rev = "a60ad4a49c3f71d4ed859b2ccf080ebb6e00236a" }
+origincloud-location = { git = "https://github.com/origincloudhq/sdk-rust", rev = "a60ad4a49c3f71d4ed859b2ccf080ebb6e00236a" }
+fake-server = { git = "https://github.com/origincloudhq/sdk-rust", rev = "a60ad4a49c3f71d4ed859b2ccf080ebb6e00236a" }
 # The MCP tools `origin mcp serve` serves, at a commit built on the same SDK
 # commit as the lines above: the CLI hands them the SDK's `Client`, so both
 # must be the same crate. scripts/update.sh moves the three together, and
 # scripts/generate.sh --check fails when they differ.
-origincloud-mcp = { git = "https://github.com/origincloudhq/mcp", rev = "64bc9d79cdc2cef7e46c967b21883693b918e0d5" }
+origincloud-mcp = { git = "https://github.com/origincloudhq/mcp", rev = "8930851832223277a24ec5b7bab1b6221585db19" }
 
 anyhow = "1"
 base64 = "0.22"
