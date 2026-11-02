@@ -1,5 +1,0 @@
-mutation DeleteDnsPolicy($input: NetworkDeleteDnsPolicyInput!) {
-    network {
-        deleteDnsPolicy(input: $input)
-    }
-}

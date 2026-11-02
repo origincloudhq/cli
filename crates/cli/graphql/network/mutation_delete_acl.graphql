@@ -1,5 +1,0 @@
-mutation DeleteAcl($input: NetworkDeleteAclInput!) {
-    network {
-        deleteAcl(input: $input)
-    }
-}

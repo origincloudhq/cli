@@ -1,8 +1,0 @@
-mutation SetResourceTags($input: NetworkSetResourceTagsInput!) {
-    network {
-        setResourceTags(input: $input) {
-            key
-            value
-        }
-    }
-}

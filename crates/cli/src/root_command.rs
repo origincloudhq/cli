@@ -2,12 +2,9 @@ use std::path::PathBuf;
 
 use crate::config::OutputFormat;
 use crate::handler;
-use crate::handler::admin::AdministrationCommands;
-use crate::handler::compute::ComputeCommands;
 use crate::handler::iam::IamCommands;
 use crate::handler::id::IdentityCommands;
 use crate::handler::mcp::McpCommands;
-use crate::handler::network::NetworkCommands;
 use crate::sdk::ServiceCommands;
 use clap::{Parser, Subcommand};
 
@@ -47,21 +44,9 @@ pub(crate) enum Commands {
     #[command(subcommand)]
     Id(IdentityCommands),
 
-    /// Administration Service.
-    #[command(subcommand)]
-    Admin(AdministrationCommands),
-
-    /// Compute Service.
-    #[command(subcommand)]
-    Compute(ComputeCommands),
-
     /// IAM Service.
     #[command(subcommand)]
     Iam(IamCommands),
-
-    /// Network Service.
-    #[command(subcommand)]
-    Network(NetworkCommands),
 
     /// Serve Origin Cloud's API to an AI agent over MCP.
     #[command(subcommand)]

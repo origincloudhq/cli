@@ -1,5 +1,0 @@
-mutation DeleteRouteTable($input: NetworkDeleteRouteTableInput!) {
-    network {
-        deleteRouteTable(input: $input)
-    }
-}

@@ -1,5 +1,0 @@
-mutation DeleteOrganisation($input: AdminDeleteOrganisationInput!) {
-    admin {
-        deleteOrganisation(input: $input)
-    }
-}

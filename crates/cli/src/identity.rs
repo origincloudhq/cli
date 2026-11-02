@@ -119,32 +119,6 @@ pub struct Urn(String);
 /// The segments before the resource id, which may itself contain `:`.
 const URN_SEGMENTS: usize = 8;
 
-impl Urn {
-    /// The segment at `index`, empty ones as `None`.
-    fn segment(&self, index: usize) -> Option<&str> {
-        self.0
-            .splitn(URN_SEGMENTS, ':')
-            .nth(index)
-            .filter(|s| !s.is_empty())
-    }
-
-    /// The organisation the URN names, if any.
-    pub fn org_id(&self) -> Option<OrgId> {
-        self.segment(5).and_then(|s| s.parse().ok())
-    }
-
-    /// The project the URN names, if any.
-    pub fn project_id(&self) -> Option<ProjectId> {
-        self.segment(6).and_then(|s| s.parse().ok())
-    }
-
-    /// The URN of a project, as the administration service names it: with
-    /// no region, `urn:origin:cloud:admin::{org}::{project}`.
-    pub fn of_project(org_id: &OrgId, project_id: &ProjectId) -> Self {
-        Self(format!("urn:origin:cloud:admin::{org_id}::{project_id}"))
-    }
-}
-
 impl FromStr for Urn {
     type Err = String;
 
@@ -206,20 +180,6 @@ mod tests {
     }
 
     #[test]
-    fn a_urn_names_its_organisation_and_project() {
-        let urn: Urn =
-            "urn:origin:cloud:compute:eu-central1:0a1b2c3d4e5f:my-project-123:instance/abc123"
-                .parse()
-                .unwrap();
-        assert_eq!(urn.org_id().unwrap().to_string(), "0a1b2c3d4e5f");
-        assert_eq!(urn.project_id().unwrap().to_string(), "my-project-123");
-        assert_eq!(
-            Urn::of_project(&urn.org_id().unwrap(), &urn.project_id().unwrap()).to_string(),
-            "urn:origin:cloud:admin::0a1b2c3d4e5f::my-project-123"
-        );
-    }
-
-    #[test]
     fn a_resource_id_may_contain_colons() {
         let urn: Urn = "urn:origin:cloud:iam::0a1b2c3d4e5f::role/a:b"
             .parse()
@@ -228,7 +188,6 @@ mod tests {
             urn.to_string(),
             "urn:origin:cloud:iam::0a1b2c3d4e5f::role/a:b"
         );
-        assert!(urn.project_id().is_none());
     }
 
     #[test]

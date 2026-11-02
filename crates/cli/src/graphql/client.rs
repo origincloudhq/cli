@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use super::auth::{OAuthAuthenticationError, OAuthClientAuthenticator, TokenProvider};
 use http::header;
 use serde::de::DeserializeOwned;
@@ -100,28 +98,6 @@ fn parse_graphql_response<T: DeserializeOwned>(body: &str) -> Result<Option<T>, 
         .map_err(|err| Error::Other(format!("failed to decode response data: {err}")))
 }
 
-/// Whether the answer to a try was lost or the platform says to try again:
-/// a transport failure (no response, or none in time), a gateway's
-/// 502/503/504, or errors every one of which is marked `retryable`.
-fn is_retryable(err: &Error) -> bool {
-    match err {
-        Error::Transport(err) => !(err.is_builder() || err.is_decode() || err.is_redirect()),
-        Error::UnexpectedStatus { status } => matches!(status.as_u16(), 502..=504),
-        Error::Execution(errors) => {
-            !errors.is_empty()
-                && errors.iter().all(|error| {
-                    error
-                        .extensions
-                        .as_ref()
-                        .and_then(|ext| ext.get("retryable"))
-                        .and_then(serde_json::Value::as_bool)
-                        .unwrap_or(false)
-                })
-        }
-        Error::Other(_) | Error::Authentication(_) | Error::NoData { .. } => false,
-    }
-}
-
 /// A response without `errors` must carry `data`; its absence is an error
 /// naming the operation, never a value the caller has to unwrap.
 fn require_data<T>(data: Option<T>, operation: &'static str) -> Result<T, Error> {
@@ -131,38 +107,6 @@ fn require_data<T>(data: Option<T>, operation: &'static str) -> Result<T, Error>
 /// The header a request's idempotency key travels in.
 pub const IDEMPOTENCY_KEY_HEADER: &str = "Idempotency-Key";
 
-/// How a call is tried again when its answer was lost: a transport failure,
-/// a gateway's 502/503/504, or errors the platform marks `retryable`. Every
-/// try sends the same request with the same idempotency key, so a mutation
-/// that took effect on an earlier try isn't applied again: its first result
-/// comes back instead.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Retries {
-    /// Tries in all, the first included.
-    pub tries: u32,
-    /// The wait before the second try; each later wait doubles it.
-    pub first_wait: Duration,
-}
-
-impl Retries {
-    /// A single try.
-    pub const NONE: Retries = Retries {
-        tries: 1,
-        first_wait: Duration::ZERO,
-    };
-}
-
-impl Default for Retries {
-    /// Three tries, one and two seconds apart: longer than a front door
-    /// takes to answer that a zone is unavailable.
-    fn default() -> Self {
-        Retries {
-            tries: 3,
-            first_wait: Duration::from_secs(1),
-        }
-    }
-}
-
 /// The read-your-writes token a mutation's response carries and a later
 /// read presents.
 pub const CONSISTENCY_TOKEN_HEADER: &str = "origin-consistency-token";
@@ -171,26 +115,19 @@ pub struct GenericGraphQLClient<Auth> {
     authenticator: Auth,
     url: Url,
     http_client: reqwest::Client,
-    retries: Retries,
     /// The last consistency token a response gave this client, sent with
     /// every call after it, so the client reads its own writes.
     consistency: std::sync::Mutex<Option<String>>,
 }
 
 impl<Auth> GenericGraphQLClient<Auth> {
-    /// A client that tries each call once.
     pub fn new(url: Url, authenticator: Auth) -> Self {
         Self {
             authenticator,
             url,
             http_client: Default::default(),
-            retries: Retries::NONE,
             consistency: Default::default(),
         }
-    }
-
-    pub fn retrying(self, retries: Retries) -> Self {
-        Self { retries, ..self }
     }
 }
 
@@ -209,44 +146,24 @@ where
 {
     /// Sends the operation and returns its `data`. A response with neither
     /// `data` nor `errors` is [`Error::NoData`]. The call carries an
-    /// idempotency key of its own, kept across its tries ([`Retries`]).
+    /// idempotency key of its own.
     pub async fn call<T: graphql_client::GraphQLQuery>(
         &self,
         variables: T::Variables,
     ) -> Result<T::ResponseData, Error> {
         let request_body = T::build_query(variables);
         let key = uuid::Uuid::new_v4().to_string();
-        let mut wait = self.retries.first_wait;
-        let mut tried = 1;
-        loop {
-            match self.try_once::<T>(&request_body, &key).await {
-                Err(err) if tried < self.retries.tries && is_retryable(&err) => {
-                    tracing::warn!(operation = request_body.operation_name, %err, "trying again in {wait:?}");
-                    tokio::time::sleep(wait).await;
-                    wait *= 2;
-                    tried += 1;
-                }
-                answered => return answered,
-            }
-        }
-    }
-
-    async fn try_once<T: graphql_client::GraphQLQuery>(
-        &self,
-        request_body: &graphql_client::QueryBody<T::Variables>,
-        key: &str,
-    ) -> Result<T::ResponseData, Error> {
         let token = self.authenticator.get_token().await?;
         let operation = request_body.operation_name;
         let mut request = self
             .http_client
             .post(self.url.clone())
             .header(header::AUTHORIZATION, format!("Bearer {}", token.token()))
-            .header(IDEMPOTENCY_KEY_HEADER, key);
+            .header(IDEMPOTENCY_KEY_HEADER, &key);
         if let Some(consistency) = self.consistency_token() {
             request = request.header(CONSISTENCY_TOKEN_HEADER, consistency);
         }
-        let response = request.json(request_body).send().await?;
+        let response = request.json(&request_body).send().await?;
 
         if !response.status().is_success() {
             return Err(Error::UnexpectedStatus {
@@ -273,30 +190,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn execution(body: &str) -> Error {
-        parse_graphql_response::<serde_json::Value>(body).unwrap_err()
-    }
-
-    #[test]
-    fn only_a_lost_answer_or_a_retryable_error_is_tried_again() {
-        let unavailable = execution(
-            r#"{"data":null,"errors":[{"message":"Service unavailable.","extensions":{"code":"SERVICE_UNAVAILABLE","retryable":true}}]}"#,
-        );
-        let invalid = execution(
-            r#"{"data":null,"errors":[{"message":"bad size","extensions":{"code":"BAD_USER_INPUT","retryable":false}}]}"#,
-        );
-        let unmarked = execution(r#"{"data":null,"errors":[{"message":"no extensions"}]}"#);
-        assert!(is_retryable(&unavailable));
-        assert!(!is_retryable(&invalid));
-        assert!(!is_retryable(&unmarked));
-        assert!(is_retryable(&Error::UnexpectedStatus {
-            status: http::StatusCode::SERVICE_UNAVAILABLE
-        }));
-        assert!(!is_retryable(&Error::UnexpectedStatus {
-            status: http::StatusCode::UNAUTHORIZED
-        }));
-    }
 
     struct FixedToken;
 
@@ -332,10 +225,7 @@ mod tests {
         }
     }
 
-    const UNAVAILABLE: &str =
-        "HTTP/1.1 503 Service Unavailable\r\ncontent-length: 0\r\nconnection: close\r\n\r\n";
     const ANSWERED: &str = "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 23\r\nconnection: close\r\n\r\n{\"data\":{\"value\":\"ok\"}}";
-    const CONFLICT: &str = "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 80\r\nconnection: close\r\n\r\n{\"data\":null,\"errors\":[{\"message\":\"conflict\",\"extensions\":{\"code\":\"CONFLICT\"}}]}";
 
     /// A server giving `answers` to its requests in turn, recording each
     /// request's idempotency key.
@@ -380,21 +270,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_call_tried_again_sends_the_same_idempotency_key() {
-        let (url, keys) = server(&[UNAVAILABLE, ANSWERED]).await;
-        let client = GenericGraphQLClient::new(url, FixedAuthenticator).retrying(Retries {
-            tries: 3,
-            first_wait: Duration::from_millis(10),
-        });
-        let data = client
-            .call::<Ping>(())
-            .await
-            .expect("answered on the second try");
-        assert_eq!(data.value, "ok");
+    async fn a_call_carries_an_idempotency_key_of_its_own() {
+        let (url, keys) = server(&[ANSWERED, ANSWERED]).await;
+        let client = GenericGraphQLClient::new(url, FixedAuthenticator);
+        for _ in 0..2 {
+            client.call::<Ping>(()).await.expect("answered");
+        }
         let keys = keys.lock().unwrap().clone();
-        assert_eq!(keys.len(), 2);
-        assert!(!keys[0].is_empty(), "the first try carried no key");
-        assert_eq!(keys[0], keys[1], "the second try carried another key");
+        assert!(!keys[0].is_empty(), "the call carried no key");
+        assert_ne!(keys[0], keys[1], "two calls carried the same key");
     }
 
     const ANSWERED_WITH_TOKEN: &str = "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\norigin-consistency-token: v1.abc\r\ncontent-length: 23\r\nconnection: close\r\n\r\n{\"data\":{\"value\":\"ok\"}}";
@@ -413,33 +297,6 @@ mod tests {
             client.call::<Ping>(()).await.expect("answered");
         }
         assert_eq!(*tokens.lock().unwrap(), ["", "", "v1.abc", "v1.abc"]);
-    }
-
-    #[tokio::test]
-    async fn a_call_is_tried_no_more_than_its_tries() {
-        let (url, keys) = server(&[UNAVAILABLE, UNAVAILABLE, UNAVAILABLE]).await;
-        let client = GenericGraphQLClient::new(url, FixedAuthenticator).retrying(Retries {
-            tries: 2,
-            first_wait: Duration::from_millis(10),
-        });
-        let failed = client.call::<Ping>(()).await;
-        assert!(
-            matches!(failed, Err(Error::UnexpectedStatus { .. })),
-            "{failed:?}"
-        );
-        assert_eq!(keys.lock().unwrap().len(), 2);
-    }
-
-    #[tokio::test]
-    async fn an_answer_that_is_not_retryable_is_not_tried_again() {
-        let (url, keys) = server(&[CONFLICT, ANSWERED]).await;
-        let client = GenericGraphQLClient::new(url, FixedAuthenticator).retrying(Retries {
-            tries: 3,
-            first_wait: Duration::from_millis(10),
-        });
-        let refused = client.call::<Ping>(()).await;
-        assert!(matches!(refused, Err(Error::Execution(_))), "{refused:?}");
-        assert_eq!(keys.lock().unwrap().len(), 1);
     }
 
     #[derive(serde::Deserialize, Debug, PartialEq)]

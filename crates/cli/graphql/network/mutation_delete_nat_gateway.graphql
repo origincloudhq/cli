@@ -1,5 +1,0 @@
-mutation DeleteNatGateway($input: NetworkDeleteNatGatewayInput!) {
-    network {
-        deleteNatGateway(input: $input)
-    }
-}

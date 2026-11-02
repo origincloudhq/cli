@@ -54,7 +54,7 @@ cargo install --locked --path crates/cli
 ```sh
 origin id login                      # log in through your browser
 origin id login --device             # or with a code, on a machine without one
-origin admin list-organisations
+origin resourcemanager list-organizations
 origin location list-zones
 origin pvs list-volumes --project my-project-123 --zone eu-central1-az1
 origin --help                        # every command group
@@ -79,7 +79,7 @@ origin config profile
 | `output-format` | `ORIGINCLOUD_OUTPUT_FORMAT` | `json`, the only format; `--output` overrides it. |
 | `default-project` | `ORIGINCLOUD_PROJECT` | `--project` of the generated commands, such as `origin pvs`'s, when not given. |
 | `default-zone` | `ORIGINCLOUD_ZONE` | `--zone` of the generated commands, when not given; not of the lists, which list every zone without `--zone`. |
-| `region` | `ORIGINCLOUD_REGION` | The region whose front door the `pvs` commands call, `pvs.{region}.origincloudapis.eu`; the regionless `pvs.origincloudapis.eu`, which serves every resource, when unset. The `location` commands always call `location.origincloudapis.eu`. |
+| `region` | `ORIGINCLOUD_REGION` | The region whose front door the `compute`, `network` and `pvs` commands call, such as `pvs.{region}.origincloudapis.eu`; the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource, when unset. The `location` and `resourcemanager` commands always call their regionless host. The `network` commands' `--region` doesn't default to it. |
 
 An environment variable overrides the profile's value while a command runs;
 `origin config profile-set` changes the file alone, and checks the value
@@ -88,17 +88,26 @@ prints `{"code": "failure", "description": "..."}` and exits with status 1;
 a command line the CLI can't parse exits with status 2 before sending
 anything.
 
-Irreversible commands (every delete, `terminate-instance`,
-`release-floating-ip`, `revoke-service-account`, and growing a volume with
-`origin pvs update-volume --size-gib`) refuse to run without `--yes` and say
+Irreversible commands (every delete, `origin iam revoke-service-account`,
+and growing a volume with `origin pvs update-volume --size-gib`) refuse to run without `--yes` and say
 what they would have done; the refusal happens before any request.
 
-## The generated commands: `pvs` and `location`
+## The generated commands
 
-`origin pvs` covers the persistent volume service: volumes, snapshots and
-storage classes, and the operations its changes answer with. `origin location`
-covers the regions and zones, and which services each zone offers. Their
-commands are generated from the API definitions in
+A group per service of the API:
+
+- `origin compute`: instances, images, key pairs, volume attachments, and the
+  instance types and image families on offer.
+- `origin network`: VPCs, subnets, route tables and routes, ACLs, security
+  groups and their rules, internet and NAT gateways, floating IPs, network
+  interfaces and DNS policies, and the associations between them.
+- `origin pvs`: the persistent volume service's volumes, snapshots and
+  storage classes.
+- `origin resourcemanager`: organizations and projects, and their quotas.
+- `origin location`: the regions and zones, and which services each zone
+  offers.
+
+Their commands are generated from the API definitions in
 [origincloudhq/api](https://github.com/origincloudhq/api) and call the
 [Rust SDK](https://github.com/origincloudhq/sdk-rust), so there is one for
 every method of the API, with the API's own descriptions as help:
@@ -109,7 +118,9 @@ every method of the API, with the API's own descriptions as help:
 - **Resource names.** A resource is named by its parts, each an id of
   letters, digits, `-` and `_`. `--project` and
   `--zone` are shared by every name a command builds, and default to the
-  profile's `default-project` and `default-zone`; the resource's own id is the
+  profile's `default-project` and `default-zone`; a regional resource of
+  `origin network`, such as a VPC, takes `--region` instead of `--zone`,
+  which has no default; the resource's own id is the
   flag named after it (`--volume vol-123`, `--zone eu-central1-az1` for
   `origin location get-zone`), or after the field for a reference
   (`--source-snapshot snapshot-123`, `--storage-class gp1`). That flag also
@@ -198,8 +209,9 @@ every method of the API, with the API's own descriptions as help:
 
 - **Lists.** A list command lists every page; `--page-size` or `--page-token`
   asks for one page, whose `nextPageToken` names the next. Without `--zone`,
-  `list-volumes` and `list-snapshots` list every zone that offers the service,
-  in catalog order, as one list; one page needs `--zone`. An empty list prints
+  a list of zonal resources, such as `list-volumes` or `list-instances`,
+  lists every zone that offers the service, in catalog order, as one list;
+  one page needs `--zone`. An empty list prints
   as `[]`.
 - **Output.** The API's JSON: the resource as the API returns it, with its
   fields in camel case, such as `sizeGib`.
@@ -212,10 +224,10 @@ every method of the API, with the API's own descriptions as help:
 `--endpoint URL`, an option of each of these groups, such as
 `origin pvs --endpoint URL`, sends that group's calls to another base URL,
 such as a test server's: `https://`, or `http://` to this machine only. Each
-group has its own environment variable for it, `ORIGINCLOUD_PVS_ENDPOINT` and
-`ORIGINCLOUD_LOCATION_ENDPOINT`, so that redirecting one service leaves the
-others at their own hosts. A `pvs` list without `--zone` looks up the zones at
-the location service, so `ORIGINCLOUD_LOCATION_ENDPOINT`, not the `pvs`
+group has its own environment variable for it, `ORIGINCLOUD_{SERVICE}_ENDPOINT`,
+such as `ORIGINCLOUD_PVS_ENDPOINT`, so that redirecting one service leaves the
+others at their own hosts. A list without `--zone` looks up the zones at
+the location service, so `ORIGINCLOUD_LOCATION_ENDPOINT`, not the group's
 endpoint, redirects that lookup. The CLI says on standard error whenever an
 endpoint is used.
 
@@ -262,8 +274,8 @@ which a server on the network can serve as well.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), which describes how the `pvs` and
-`location` commands are generated.
+See [CONTRIBUTING.md](CONTRIBUTING.md), which describes how the commands of
+each service are generated.
 
 ## License
 

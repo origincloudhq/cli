@@ -24,21 +24,9 @@ pub async fn run() -> ! {
             &profile,
             handler::id::run_identity_command(&profile, &api_url, id_cmd).await,
         ),
-        Some(Commands::Admin(admin_cmd)) => print_output_and_exit(
-            &profile,
-            handler::admin::run_admin_command(&profile, &api_url, admin_cmd).await,
-        ),
-        Some(Commands::Compute(cmd)) => print_output_and_exit(
-            &profile,
-            handler::compute::run_compute_command(&profile, &api_url, cmd).await,
-        ),
         Some(Commands::Iam(cmd)) => print_output_and_exit(
             &profile,
             handler::iam::run_iam_command(&profile, &api_url, cmd).await,
-        ),
-        Some(Commands::Network(cmd)) => print_output_and_exit(
-            &profile,
-            handler::network::run_network_command(&profile, &api_url, cmd).await,
         ),
         // The MCP session owns standard output: nothing is printed on it.
         Some(Commands::Mcp(cmd)) => match handler::mcp::run_mcp_command(&profile, cmd).await {
