@@ -141,8 +141,8 @@ fn generate(
             collisions.push(format!(
                 "the service {service} replaces the hand-written `origin {hand_written}`: retire \
                  that group in this change, take it off `hand_written` in generator/commands.toml, \
-                 and list what nothing replaces under [[retired]] (CONTRIBUTING.md, \"A service \
-                 replacing a hand-written group\")"
+                 and list each of its commands nothing of the same name replaces under [[retired]] \
+                 (CONTRIBUTING.md, \"A service replacing a hand-written group\")"
             ));
         }
         let several = services_in(pool, &services[service]) > 1;
@@ -975,15 +975,25 @@ mod tests {
         let tiny = api("tiny/v1/tiny.proto", TINY);
         for table in [
             "hand_written = [\"tiny\", \"admin\"]",
-            "hand_written = [\"admin\"]\n[[service]]\nname = \"tiny\"\nabout = \"Tiny\"\nreplaces = [\"admin\"]",
+            "hand_written = [\"admin\"]\n[[replacement]]\ngroup = \"admin\"\nservice = \"tiny\"",
         ] {
             let policy: policy::Policy = toml::from_str(table).unwrap();
-            let err = generated_with(&[tiny.path()], &policy).unwrap_err().to_string();
+            let err = generated_with(&[tiny.path()], &policy)
+                .unwrap_err()
+                .to_string();
             assert!(err.contains("replaces the hand-written `origin "), "{err}");
             assert!(err.contains("[[retired]]"), "{err}");
         }
-        let policy: policy::Policy = toml::from_str("hand_written = [\"admin\"]").unwrap();
-        assert!(generated_with(&[tiny.path()], &policy).is_ok());
+        // A replacement of another service, or of a group already retired,
+        // doesn't apply.
+        for table in [
+            "hand_written = [\"admin\"]",
+            "hand_written = [\"admin\"]\n[[replacement]]\ngroup = \"admin\"\nservice = \"other\"",
+            "hand_written = []\n[[replacement]]\ngroup = \"admin\"\nservice = \"tiny\"",
+        ] {
+            let policy: policy::Policy = toml::from_str(table).unwrap();
+            assert!(generated_with(&[tiny.path()], &policy).is_ok(), "{table}");
+        }
     }
 
     #[test]
