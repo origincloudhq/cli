@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # Generates the command groups of every service of the API (`origin pvs`,
-# `origin location`, ...) and its MCP tools from the API definitions in
-# origincloudhq/api at the commit API_REVISION names, with this repository's
-# generator (generator/), built at the versions Cargo.lock pins, into
-# crates/cli/src/sdk/generated/ and crates/mcp/src/generated/.
+# `origin location`, ...) from the API definitions in origincloudhq/api at
+# the commit API_REVISION names, with this repository's generator
+# (generator/), built at the versions Cargo.lock pins, into
+# crates/cli/src/sdk/generated/.
 #
 #   scripts/generate.sh           # generate them again
 #   scripts/generate.sh --check   # check the checked-in code is current
@@ -13,7 +13,9 @@
 # commit Cargo.lock pins must have been generated from the same API
 # revision: both modes check that its API_REVISION is this one. The
 # generator also reads the SDK's clients, which say which services answer
-# at a region's host.
+# at a region's host. The MCP tools `origin mcp serve` serves
+# (origincloudhq/mcp) must be built on that same SDK commit, which both
+# modes check too.
 #
 # The tests' scratch service (testing/scratch/origincloud/) is generated
 # too: its SDK crate's code, by the SDK's own generator at that commit, into
@@ -32,7 +34,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly ROOT
 readonly API_REPOSITORY="https://github.com/origincloudhq/api.git"
 readonly SDK_REPOSITORY="https://github.com/origincloudhq/sdk-rust.git"
-readonly GENERATED=("crates/cli/src/sdk/generated" "crates/mcp/src/generated" "testing/scratch/sdk/src/generated" "testing/scratch/sdk/Cargo.toml")
+readonly MCP_REPOSITORY="https://github.com/origincloudhq/mcp.git"
+readonly GENERATED=("crates/cli/src/sdk/generated" "testing/scratch/sdk/src/generated" "testing/scratch/sdk/Cargo.toml")
 
 case "${1:-}" in
   "") mode="write" ;;
@@ -57,6 +60,18 @@ if [[ "${sdk_revision}" != "${revision}" ]]; then
   exit 1
 fi
 git -C "${tmp}/sdk" checkout --quiet FETCH_HEAD
+
+# The MCP tools `origin mcp serve` serves must be built on the same SDK
+# commit: the CLI hands them the SDK's `Client`.
+mcp="$(grep -m1 -o 'git+https://github.com/origincloudhq/mcp?rev=[0-9a-f]*#[0-9a-f]\{40\}' "${ROOT}/Cargo.lock" | sed 's/.*#//')"
+[[ "${mcp}" =~ ^[0-9a-f]{40}$ ]] || { echo "Cargo.lock pins no commit of ${MCP_REPOSITORY}" >&2; exit 1; }
+git init --quiet "${tmp}/mcp"
+git -C "${tmp}/mcp" fetch --quiet --depth 1 "${MCP_REPOSITORY}" "${mcp}"
+mcp_sdk="$(git -C "${tmp}/mcp" show FETCH_HEAD:Cargo.toml | grep -m1 -oE 'sdk-rust", rev = "[0-9a-f]{40}"' | grep -oE '[0-9a-f]{40}')"
+if [[ "${mcp_sdk}" != "${sdk}" ]]; then
+  echo "FAILED: the MCP commit ${mcp:0:12} is built on origincloudhq/sdk-rust@${mcp_sdk:0:12}, not the CLI's ${sdk:0:12}; run scripts/update.sh"
+  exit 1
+fi
 
 git init --quiet "${tmp}/api"
 git -C "${tmp}/api" fetch --quiet --depth 1 "${API_REPOSITORY}" "${revision}"

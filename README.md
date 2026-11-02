@@ -257,13 +257,13 @@ or, for a client configured in JSON:
   session or the SDK's variables, the profile's `region`, and each service's
   endpoint variable, such as `ORIGINCLOUD_PVS_ENDPOINT`.
 
-The tools are the library `crates/mcp`, which a server on the network can
-serve as well.
+The tools are the library [origincloudhq/mcp](https://github.com/origincloudhq/mcp),
+which a server on the network can serve as well.
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), which describes how the `pvs` and
-`location` commands and the MCP tools are generated.
+`location` commands are generated.
 
 ## License
 

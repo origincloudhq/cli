@@ -1,5 +1,5 @@
-//! `origin mcp` subcommand group: Origin Cloud's MCP tools (`crates/mcp`)
-//! served to an agent on this machine.
+//! `origin mcp` subcommand group: Origin Cloud's MCP tools (`origincloud-mcp`,
+//! from origincloudhq/mcp) served to an agent on this machine.
 //!
 //! `commands.rs` declares the clap surface (`McpCommands`); `dispatch.rs`
 //! matches each variant and performs the work.
