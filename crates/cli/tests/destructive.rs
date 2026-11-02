@@ -323,12 +323,7 @@ async fn an_endpoint_is_https_or_this_machine_and_only_for_generated_groups() {
     );
 
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_origin"))
-        .args([
-            "--endpoint",
-            "https://example.com",
-            "admin",
-            "list-organisations",
-        ])
+        .args(["--endpoint", "https://example.com", "config", "profile"])
         .env_clear()
         .env("HOME", server.home.path())
         .output()

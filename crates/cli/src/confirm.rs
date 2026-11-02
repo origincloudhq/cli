@@ -1,9 +1,8 @@
 //! The confirmation guard for destructive commands.
 //!
-//! Every irreversible command (every delete, `terminate-instance`,
-//! `release-floating-ip` and `revoke-service-account`, and the `pvs` changes
-//! the generator's table names, such as growing a volume) requires an
-//! explicit `--yes`.
+//! Every irreversible command (every delete, `revoke-service-account`, and
+//! the changes the generator's table names, such as growing a volume)
+//! requires an explicit `--yes`.
 //!
 //! The guard is a type, not a convention: the client method behind a
 //! destructive command takes a [`Confirmed`], whose field is private and

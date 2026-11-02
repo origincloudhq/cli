@@ -9,12 +9,12 @@
 # silently stop applying.
 
 # The hand-written groups the CLI still has: the ones calling the GraphQL
-# API until the API has the service replacing each (`admin`, `compute`,
-# `iam`, `network`), and the CLI's own (`config`, `id`, `mcp`, `version`). A service of the API named like one (`compute`), or replacing
-# one under another name ([[replacement]] below), fails generation until
-# that group is retired in the same change, as CONTRIBUTING.md says. The
-# coverage test checks this list is the CLI's.
-hand_written = ["admin", "compute", "config", "iam", "id", "mcp", "network", "version"]
+# API until the API has the service replacing each (`iam`), and the CLI's
+# own (`config`, `id`, `mcp`, `version`). A service of the API named like
+# one (`iam`), or replacing one under another name ([[replacement]] below),
+# fails generation until that group is retired in the same change, as
+# CONTRIBUTING.md says. The coverage test checks this list is the CLI's.
+hand_written = ["config", "iam", "id", "mcp", "version"]
 
 # A service replacing a hand-written group under another name. It is written
 # before the API has the service, so that generation fails as soon as a
@@ -35,6 +35,29 @@ Resource names are given as their parts (`--project`, `--zone`, `--volume`), \
 or the resource's flag takes a whole name; `--project` and `--zone` default \
 to the profile's `default-project` and `default-zone`."""
 
+[[service]]
+name = "compute"
+about = "Compute service: instances, images, key pairs, volume attachments, and the instance types and image families on offer"
+details = """
+Resource names are given as their parts (`--project`, `--zone`, `--instance`), \
+or the resource's flag takes a whole name; `--project` and `--zone` default \
+to the profile's `default-project` and `default-zone`."""
+
+[[service]]
+name = "network"
+about = "Network service: VPCs, subnets, route tables, ACLs, security groups, gateways, floating IPs, network interfaces and DNS policies"
+details = """
+Resource names are given as their parts (`--project`, `--region` or \
+`--zone`, `--vpc`), or the resource's flag takes a whole name. VPCs, route \
+tables, ACLs, security groups, internet gateways and DNS policies are \
+regional (`--region`); subnets, network interfaces, floating IPs and NAT \
+gateways are zonal (`--zone`). `--project` and `--zone` default to the \
+profile's `default-project` and `default-zone`; `--region` has no default."""
+
+[[service]]
+name = "resourcemanager"
+about = "Resource manager: organizations and projects, and their quotas"
+
 # A hand-written command the CLI no longer has, which no command of the same
 # name replaces (a generated `origin compute get-instance` replaces the
 # hand-written one), with the reason and what to use instead. Every command
@@ -50,6 +73,191 @@ why = "Set tags with `origin pvs update-volume --tag` / `update-snapshot --tag`;
 group = "storage"
 command = "remove-resource-tags"
 why = "Set tags with `origin pvs update-volume --tag` / `update-snapshot --tag`; the API replaces the tag map whole, so give every tag to keep."
+
+[[retired]]
+group = "admin"
+command = "create-organisation"
+why = "Use `origin resourcemanager create-organization --display-name <name>`."
+
+[[retired]]
+group = "admin"
+command = "register-organisation"
+why = "Create the organization with `origin resourcemanager create-organization --display-name <name>`, then set its billing details in the console."
+
+[[retired]]
+group = "admin"
+command = "list-organisations"
+why = "Use `origin resourcemanager list-organizations`."
+
+[[retired]]
+group = "admin"
+command = "get-organisation"
+why = "Use `origin resourcemanager get-organization --organization <id>`."
+
+[[retired]]
+group = "admin"
+command = "update-organisation"
+why = "Use `origin resourcemanager update-organization --organization <id> --display-name <name>`."
+
+[[retired]]
+group = "admin"
+command = "delete-organisation"
+why = "Use `origin resourcemanager delete-organization --organization <id> --yes`."
+
+[[retired]]
+group = "admin"
+command = "create-project"
+why = "Use `origin resourcemanager create-project --organization <id> --project-id <id> --display-name <name>`; the project's id is the one you choose."
+
+[[retired]]
+group = "admin"
+command = "list-projects"
+why = "Use `origin resourcemanager list-projects --organization <id>`."
+
+[[retired]]
+group = "admin"
+command = "get-project"
+why = "Use `origin resourcemanager get-project --project <id>`."
+
+[[retired]]
+group = "admin"
+command = "update-project"
+why = "Use `origin resourcemanager update-project --project <id> --display-name <name>`."
+
+[[retired]]
+group = "admin"
+command = "delete-project"
+why = "Use `origin resourcemanager delete-project --project <id> --yes`."
+
+[[retired]]
+group = "compute"
+command = "attach-volume"
+why = "Use `origin compute create-volume-attachment --instance <instance> --volume <volume>`, with `--device` to choose the device name."
+
+[[retired]]
+group = "compute"
+command = "change-instance-type"
+why = "Use `origin compute update-instance --instance <instance> --instance-type <type>` on a stopped instance."
+
+[[retired]]
+group = "compute"
+command = "detach-volume"
+why = "Use `origin compute delete-volume-attachment --instance <instance> --volume-attachment <attachment> --yes`; `origin compute list-volume-attachments --instance <instance> --volume <volume>` finds the attachment."
+
+[[retired]]
+group = "compute"
+command = "generate-key-pair"
+why = "Use `origin compute create-key-pair` without `--public-key`, named with `--tag origin:name=<name>`; its response carries the private key in `privateKey`, once: save it."
+
+[[retired]]
+group = "compute"
+command = "import-key-pair"
+why = "Use `origin compute create-key-pair --public-key '<OpenSSH public key line>'`, named with `--tag origin:name=<name>`."
+
+[[retired]]
+group = "compute"
+command = "launch-instance"
+why = "Use `origin compute create-instance`, with `--instance-type`, `--image` or `--image-family`, `--key-pair` and `--network-interface`: create the interface first with `origin network create-network-interface --subnet <subnet>`, and give it security groups with `origin network create-security-group-association`."
+
+[[retired]]
+group = "compute"
+command = "set-resource-tags"
+why = "Set tags with `origin compute update-instance --tag` / `update-image --tag` / `update-key-pair --tag`; the API replaces the tags whole, so give every tag to keep."
+
+[[retired]]
+group = "compute"
+command = "remove-resource-tags"
+why = "Set tags with `origin compute update-instance --tag` / `update-image --tag` / `update-key-pair --tag`, giving every tag to keep, or remove them all with `--no-tags`."
+
+[[retired]]
+group = "compute"
+command = "terminate-instance"
+why = "Use `origin compute delete-instance --instance <instance> --yes`."
+
+[[retired]]
+group = "network"
+command = "allocate-floating-ip"
+why = "Use `origin network create-floating-ip`."
+
+[[retired]]
+group = "network"
+command = "associate-floating-ip"
+why = "Use `origin network create-floating-ip-association --floating-ip <floating-ip> --network-interface <interface>`."
+
+[[retired]]
+group = "network"
+command = "disassociate-floating-ip"
+why = "Use `origin network delete-floating-ip-association --floating-ip <floating-ip> --association <association> --yes`; `origin network list-floating-ip-associations --floating-ip <floating-ip>` finds the association."
+
+[[retired]]
+group = "network"
+command = "release-floating-ip"
+why = "Use `origin network delete-floating-ip --floating-ip <floating-ip> --yes`."
+
+[[retired]]
+group = "network"
+command = "associate-route-table"
+why = "Use `origin network create-route-table-association --subnet <subnet> --route-table <route-table>`; it doesn't replace a subnet's association: remove that first with `origin network delete-route-table-association`."
+
+[[retired]]
+group = "network"
+command = "update-subnet-acl"
+why = "Use `origin network create-acl-association --subnet <subnet> --acl <acl>`; it doesn't replace a subnet's association: remove that first with `origin network delete-acl-association`."
+
+[[retired]]
+group = "network"
+command = "attach-dns-policy"
+why = "Use `origin network create-dns-policy-association --vpc <vpc> --dns-policy <dns-policy>`; it doesn't replace a VPC's association: remove that first with `origin network delete-dns-policy-association`."
+
+[[retired]]
+group = "network"
+command = "attach-internet-gateway"
+why = "Use `origin network create-internet-gateway --vpc <vpc>`, then route to it with `origin network create-route --route-table <route-table> --destination 0.0.0.0/0 --internet-gateway <gateway>`."
+
+[[retired]]
+group = "network"
+command = "detach-internet-gateway"
+why = "Use `origin network delete-internet-gateway --internet-gateway <gateway> --yes`, after removing the routes to it with `origin network delete-route`."
+
+[[retired]]
+group = "network"
+command = "update-route-table-routes"
+why = "Add and remove one route at a time with `origin network create-route` and `delete-route`; `origin network list-routes --route-table <route-table>` lists them."
+
+[[retired]]
+group = "network"
+command = "update-acl-rules"
+why = "Add and remove one rule at a time with `origin network create-acl-rule` and `delete-acl-rule`; `origin network list-acl-rules --acl <acl>` lists them."
+
+[[retired]]
+group = "network"
+command = "update-security-group-rules"
+why = "Add and remove one rule at a time with `origin network create-security-group-rule` and `delete-security-group-rule`; `origin network list-security-group-rules --security-group <security-group>` lists them."
+
+[[retired]]
+group = "network"
+command = "set-network-interface-security-groups"
+why = "Add and remove one group at a time with `origin network create-security-group-association` and `delete-security-group-association`; `origin network list-security-group-associations --network-interface <interface>` lists them."
+
+[[retired]]
+group = "network"
+command = "set-network-interface-source-address-check"
+why = "Use `origin network update-network-interface --network-interface <interface> --source-address-check true|false`."
+
+[[retired]]
+group = "network"
+command = "update-subnet-auto-assign-public-ip"
+why = "Use `origin network update-subnet --subnet <subnet> --auto-assign-public-ip true|false`."
+
+[[retired]]
+group = "network"
+command = "set-resource-tags"
+why = "Set tags with the resource's `origin network update-...` command and `--tag`, such as `origin network update-vpc --tag`; the API replaces the tags whole, so give every tag to keep."
+
+[[retired]]
+group = "network"
+command = "remove-resource-tags"
+why = "Set tags with the resource's `origin network update-...` command and `--tag`, such as `origin network update-vpc --tag`, giving every tag to keep, or remove them all with `--no-tags`."
 
 # Methods left without a command, with the reason. Every other method of the
 # API has one: the coverage test fails for a method that has neither.

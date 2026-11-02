@@ -1,5 +1,5 @@
-//! The GraphQL client the hand-written commands (`admin`, `iam`, `compute`,
-//! `network`, `storage`) send their queries with.
+//! The GraphQL client the hand-written commands (`iam`, and `id`'s current
+//! user) send their queries with.
 
 mod auth;
 mod client;

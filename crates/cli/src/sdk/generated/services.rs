@@ -4,6 +4,18 @@
 use crate::config::ClientProfile;
 use crate::output::SerializableOutput;
 use crate::sdk::runtime::{Context, Group};
+/// `origin compute`.
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
+pub mod compute {
+    include!("compute.rs");
+}
+/// What the runtime knows of `origin compute`.
+pub(crate) static COMPUTE: Group = Group {
+    name: "compute",
+    endpoint_variable: "ORIGINCLOUD_COMPUTE_ENDPOINT",
+    regional: true,
+    service: compute::service,
+};
 /// `origin location`.
 #[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
 pub mod location {
@@ -16,6 +28,18 @@ pub(crate) static LOCATION: Group = Group {
     regional: false,
     service: location::service,
 };
+/// `origin network`.
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
+pub mod network {
+    include!("network.rs");
+}
+/// What the runtime knows of `origin network`.
+pub(crate) static NETWORK: Group = Group {
+    name: "network",
+    endpoint_variable: "ORIGINCLOUD_NETWORK_ENDPOINT",
+    regional: true,
+    service: network::service,
+};
 /// `origin pvs`.
 #[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
 pub mod pvs {
@@ -27,6 +51,18 @@ pub(crate) static PVS: Group = Group {
     endpoint_variable: "ORIGINCLOUD_PVS_ENDPOINT",
     regional: true,
     service: pvs::service,
+};
+/// `origin resourcemanager`.
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
+pub mod resourcemanager {
+    include!("resourcemanager.rs");
+}
+/// What the runtime knows of `origin resourcemanager`.
+pub(crate) static RESOURCEMANAGER: Group = Group {
+    name: "resourcemanager",
+    endpoint_variable: "ORIGINCLOUD_RESOURCEMANAGER_ENDPOINT",
+    regional: false,
+    service: resourcemanager::service,
 };
 /// `origin scratch`.
 #[cfg(feature = "test-services")]
@@ -45,15 +81,34 @@ pub(crate) static SCRATCH: Group = Group {
 /// Every generated group.
 #[cfg(not(feature = "test-services"))]
 #[allow(dead_code)]
-pub(crate) static GROUPS: &[&Group] = &[&LOCATION, &PVS];
+pub(crate) static GROUPS: &[&Group] = &[
+    &COMPUTE,
+    &LOCATION,
+    &NETWORK,
+    &PVS,
+    &RESOURCEMANAGER,
+];
 /// Every generated group.
 #[cfg(feature = "test-services")]
 #[allow(dead_code)]
-pub(crate) static GROUPS: &[&Group] = &[&LOCATION, &PVS, &SCRATCH];
+pub(crate) static GROUPS: &[&Group] = &[
+    &COMPUTE,
+    &LOCATION,
+    &NETWORK,
+    &PVS,
+    &RESOURCEMANAGER,
+    &SCRATCH,
+];
 /// The command groups generated from the API definitions, one per service.
 #[derive(clap::Subcommand, Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum ServiceCommands {
+    #[command(
+        name = "compute",
+        about = "Compute service: instances, images, key pairs, volume attachments, and the instance types and image families on offer",
+        long_about = "Compute service: instances, images, key pairs, volume attachments, and the instance types and image families on offer.\n\nResource names are given as their parts (`--project`, `--zone`, `--instance`), or the resource's flag takes a whole name; `--project` and `--zone` default to the profile's `default-project` and `default-zone`."
+    )]
+    Compute(ComputeCli),
     #[command(
         name = "location",
         about = "The platform's regions and zones, and which services each zone offers",
@@ -61,11 +116,23 @@ pub enum ServiceCommands {
     )]
     Location(LocationCli),
     #[command(
+        name = "network",
+        about = "Network service: VPCs, subnets, route tables, ACLs, security groups, gateways, floating IPs, network interfaces and DNS policies",
+        long_about = "Network service: VPCs, subnets, route tables, ACLs, security groups, gateways, floating IPs, network interfaces and DNS policies.\n\nResource names are given as their parts (`--project`, `--region` or `--zone`, `--vpc`), or the resource's flag takes a whole name. VPCs, route tables, ACLs, security groups, internet gateways and DNS policies are regional (`--region`); subnets, network interfaces, floating IPs and NAT gateways are zonal (`--zone`). `--project` and `--zone` default to the profile's `default-project` and `default-zone`; `--region` has no default."
+    )]
+    Network(NetworkCli),
+    #[command(
         name = "pvs",
         about = "Persistent volume service: volumes, snapshots and storage classes",
         long_about = "Persistent volume service: volumes, snapshots and storage classes.\n\nResource names are given as their parts (`--project`, `--zone`, `--volume`), or the resource's flag takes a whole name; `--project` and `--zone` default to the profile's `default-project` and `default-zone`."
     )]
     Pvs(PvsCli),
+    #[command(
+        name = "resourcemanager",
+        about = "Resource manager: organizations and projects, and their quotas",
+        long_about = "Resource manager: organizations and projects, and their quotas."
+    )]
+    Resourcemanager(ResourcemanagerCli),
     #[cfg(feature = "test-services")]
     #[command(
         name = "scratch",
@@ -73,6 +140,21 @@ pub enum ServiceCommands {
         long_about = "Firewalls: rules that guard the networks of a zone."
     )]
     Scratch(ScratchCli),
+}
+/// `origin compute`: its options, and the command.
+#[derive(clap::Args, Debug)]
+pub struct ComputeCli {
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host: `https://compute.origincloudapis.eu`, or `https://compute.{region}.origincloudapis.eu` when the profile names a `region`. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`). A list without `--zone` looks up the zones at the location service, not here; `ORIGINCLOUD_LOCATION_ENDPOINT` sends that lookup elsewhere.
+    #[arg(
+        long,
+        value_name = "URL",
+        env = "ORIGINCLOUD_COMPUTE_ENDPOINT",
+        global = true,
+        help_heading = "Global options"
+    )]
+    pub endpoint: Option<String>,
+    #[command(subcommand)]
+    pub command: compute::Commands,
 }
 /// `origin location`: its options, and the command.
 #[derive(clap::Args, Debug)]
@@ -89,6 +171,21 @@ pub struct LocationCli {
     #[command(subcommand)]
     pub command: location::Commands,
 }
+/// `origin network`: its options, and the command.
+#[derive(clap::Args, Debug)]
+pub struct NetworkCli {
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host: `https://network.origincloudapis.eu`, or `https://network.{region}.origincloudapis.eu` when the profile names a `region`. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`). A list without `--zone` looks up the zones at the location service, not here; `ORIGINCLOUD_LOCATION_ENDPOINT` sends that lookup elsewhere.
+    #[arg(
+        long,
+        value_name = "URL",
+        env = "ORIGINCLOUD_NETWORK_ENDPOINT",
+        global = true,
+        help_heading = "Global options"
+    )]
+    pub endpoint: Option<String>,
+    #[command(subcommand)]
+    pub command: network::Commands,
+}
 /// `origin pvs`: its options, and the command.
 #[derive(clap::Args, Debug)]
 pub struct PvsCli {
@@ -103,6 +200,21 @@ pub struct PvsCli {
     pub endpoint: Option<String>,
     #[command(subcommand)]
     pub command: pvs::Commands,
+}
+/// `origin resourcemanager`: its options, and the command.
+#[derive(clap::Args, Debug)]
+pub struct ResourcemanagerCli {
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host, `https://resourcemanager.origincloudapis.eu`, the same in every region. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`).
+    #[arg(
+        long,
+        value_name = "URL",
+        env = "ORIGINCLOUD_RESOURCEMANAGER_ENDPOINT",
+        global = true,
+        help_heading = "Global options"
+    )]
+    pub endpoint: Option<String>,
+    #[command(subcommand)]
+    pub command: resourcemanager::Commands,
 }
 /// `origin scratch`: its options, and the command.
 #[cfg(feature = "test-services")]
@@ -126,13 +238,25 @@ pub async fn run(
     command: ServiceCommands,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     match command {
+        ServiceCommands::Compute(cli) => {
+            let ctx = Context::new(profile, &COMPUTE, cli.endpoint.as_deref())?;
+            compute::run(&ctx, cli.command).await
+        }
         ServiceCommands::Location(cli) => {
             let ctx = Context::new(profile, &LOCATION, cli.endpoint.as_deref())?;
             location::run(&ctx, cli.command).await
         }
+        ServiceCommands::Network(cli) => {
+            let ctx = Context::new(profile, &NETWORK, cli.endpoint.as_deref())?;
+            network::run(&ctx, cli.command).await
+        }
         ServiceCommands::Pvs(cli) => {
             let ctx = Context::new(profile, &PVS, cli.endpoint.as_deref())?;
             pvs::run(&ctx, cli.command).await
+        }
+        ServiceCommands::Resourcemanager(cli) => {
+            let ctx = Context::new(profile, &RESOURCEMANAGER, cli.endpoint.as_deref())?;
+            resourcemanager::run(&ctx, cli.command).await
         }
         #[cfg(feature = "test-services")]
         ServiceCommands::Scratch(cli) => {

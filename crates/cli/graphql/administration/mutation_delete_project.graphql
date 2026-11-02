@@ -1,5 +1,0 @@
-mutation DeleteProject($input: AdminDeleteProjectInput!) {
-    admin {
-        deleteProject(input: $input)
-    }
-}

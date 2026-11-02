@@ -1,5 +1,0 @@
-mutation DetachInternetGateway($input: NetworkDetachInternetGatewayInput!) {
-    network {
-        detachInternetGateway(input: $input)
-    }
-}

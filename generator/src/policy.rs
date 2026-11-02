@@ -12,7 +12,7 @@ use serde::Deserialize;
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Policy {
-    /// The hand-written groups the CLI still has, such as `compute`. A
+    /// The hand-written groups the CLI still has, such as `iam`. A
     /// service named like one, or replacing one, fails generation until it
     /// is retired in the same change.
     #[serde(default)]

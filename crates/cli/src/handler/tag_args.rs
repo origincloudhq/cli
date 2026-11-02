@@ -29,24 +29,6 @@ impl FromStr for TagArg {
     }
 }
 
-/// `--tag` values as a create mutation's optional tag input, in the module
-/// graphql_client generated for that mutation. Omitted rather than empty, so
-/// a create without tags sends the same request it always has.
-macro_rules! tag_inputs {
-    ($module:ident, $tags:expr) => {{
-        let tags: Vec<TagArg> = $tags;
-        (!tags.is_empty()).then(|| {
-            tags.into_iter()
-                .map(|tag| $module::ResourceTagInput {
-                    key: tag.key,
-                    value: tag.value,
-                })
-                .collect()
-        })
-    }};
-}
-pub(crate) use tag_inputs;
-
 #[cfg(test)]
 mod tests {
     use super::*;

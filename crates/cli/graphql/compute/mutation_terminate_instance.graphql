@@ -1,8 +1,0 @@
-mutation TerminateInstance($input: ComputeTerminateInstanceInput!) {
-    compute {
-        terminateInstance(input: $input) {
-            accepted
-            message
-        }
-    }
-}

@@ -1,5 +1,0 @@
-mutation DeleteSecurityGroup($input: NetworkDeleteSecurityGroupInput!) {
-    network {
-        deleteSecurityGroup(input: $input)
-    }
-}
