@@ -78,6 +78,13 @@ pub struct Network {
     #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
 }
+/// A policy every firewall follows, outside any project.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct FirewallPolicy {
+    /// The policy's resource name.
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+}
 /// One rule of a firewall.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Rule {
@@ -257,6 +264,52 @@ pub struct UpdateFirewallRequest {
     /// The fields to change.
     #[prost(message, optional, tag = "2")]
     pub update_mask: ::core::option::Option<::origincloud_core::protobuf::FieldMask>,
+}
+/// The request for ListFirewallPolicies.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ListFirewallPoliciesRequest {
+    /// The most policies to return in a page.
+    #[prost(int32, tag = "1")]
+    pub page_size: i32,
+    /// The page to return, from a previous list's `next_page_token`.
+    #[prost(string, tag = "2")]
+    pub page_token: ::prost::alloc::string::String,
+}
+/// The response of ListFirewallPolicies.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListFirewallPoliciesResponse {
+    /// The policies.
+    #[prost(message, repeated, tag = "1")]
+    pub firewall_policies: ::prost::alloc::vec::Vec<FirewallPolicy>,
+    /// The next page's token; empty on the last page.
+    #[prost(string, tag = "2")]
+    pub next_page_token: ::prost::alloc::string::String,
+}
+/// The request for ListNetworks.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ListNetworksRequest {
+    /// The firewall whose networks to list.
+    #[prost(string, tag = "1")]
+    pub firewall: ::prost::alloc::string::String,
+    /// Only the networks this person owns, of a service no package declares.
+    #[prost(string, tag = "2")]
+    pub owner: ::prost::alloc::string::String,
+    /// The most networks to return in a page.
+    #[prost(int32, tag = "3")]
+    pub page_size: i32,
+    /// The page to return, from a previous list's `next_page_token`.
+    #[prost(string, tag = "4")]
+    pub page_token: ::prost::alloc::string::String,
+}
+/// The response of ListNetworks.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ListNetworksResponse {
+    /// The networks.
+    #[prost(message, repeated, tag = "1")]
+    pub networks: ::prost::alloc::vec::Vec<Network>,
+    /// The next page's token; empty on the last page.
+    #[prost(string, tag = "2")]
+    pub next_page_token: ::prost::alloc::string::String,
 }
 impl serde::Serialize for CreateFirewallRequest {
     #[allow(deprecated)]
@@ -865,6 +918,113 @@ impl<'de> serde::Deserialize<'de> for Firewall {
             )
     }
 }
+impl serde::Serialize for FirewallPolicy {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.name.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer
+            .serialize_struct("origincloud.scratch.v1.FirewallPolicy", len)?;
+        if !self.name.is_empty() {
+            struct_ser.serialize_field("name", &self.name)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for FirewallPolicy {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &["name"];
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Name,
+            __SkipField__,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(
+                deserializer: D,
+            ) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+                impl serde::de::Visitor<'_> for GeneratedVisitor {
+                    type Value = GeneratedField;
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", & FIELDS)
+                    }
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(
+                        self,
+                        value: &str,
+                    ) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "name" => Ok(GeneratedField::Name),
+                            _ => Ok(GeneratedField::__SkipField__),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = FirewallPolicy;
+            fn expecting(
+                &self,
+                formatter: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                formatter.write_str("struct origincloud.scratch.v1.FirewallPolicy")
+            }
+            fn visit_map<V>(
+                self,
+                mut map_: V,
+            ) -> std::result::Result<FirewallPolicy, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                let mut name__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Name => {
+                            if name__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("name"));
+                            }
+                            name__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::__SkipField__ => {
+                            let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                Ok(FirewallPolicy {
+                    name: name__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer
+            .deserialize_struct(
+                "origincloud.scratch.v1.FirewallPolicy",
+                FIELDS,
+                GeneratedVisitor,
+            )
+    }
+}
 impl serde::Serialize for GetFirewallRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -1087,6 +1247,574 @@ impl<'de> serde::Deserialize<'de> for Header {
         deserializer
             .deserialize_struct(
                 "origincloud.scratch.v1.Header",
+                FIELDS,
+                GeneratedVisitor,
+            )
+    }
+}
+impl serde::Serialize for ListFirewallPoliciesRequest {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if self.page_size != 0 {
+            len += 1;
+        }
+        if !self.page_token.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer
+            .serialize_struct(
+                "origincloud.scratch.v1.ListFirewallPoliciesRequest",
+                len,
+            )?;
+        if self.page_size != 0 {
+            struct_ser.serialize_field("pageSize", &self.page_size)?;
+        }
+        if !self.page_token.is_empty() {
+            struct_ser.serialize_field("pageToken", &self.page_token)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for ListFirewallPoliciesRequest {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &["page_size", "pageSize", "page_token", "pageToken"];
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            PageSize,
+            PageToken,
+            __SkipField__,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(
+                deserializer: D,
+            ) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+                impl serde::de::Visitor<'_> for GeneratedVisitor {
+                    type Value = GeneratedField;
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", & FIELDS)
+                    }
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(
+                        self,
+                        value: &str,
+                    ) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "pageSize" | "page_size" => Ok(GeneratedField::PageSize),
+                            "pageToken" | "page_token" => Ok(GeneratedField::PageToken),
+                            _ => Ok(GeneratedField::__SkipField__),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = ListFirewallPoliciesRequest;
+            fn expecting(
+                &self,
+                formatter: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                formatter
+                    .write_str(
+                        "struct origincloud.scratch.v1.ListFirewallPoliciesRequest",
+                    )
+            }
+            fn visit_map<V>(
+                self,
+                mut map_: V,
+            ) -> std::result::Result<ListFirewallPoliciesRequest, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                let mut page_size__ = None;
+                let mut page_token__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::PageSize => {
+                            if page_size__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("pageSize"));
+                            }
+                            page_size__ = Some(
+                                map_
+                                    .next_value::<::pbjson::private::NumberDeserialize<_>>()?
+                                    .0,
+                            );
+                        }
+                        GeneratedField::PageToken => {
+                            if page_token__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("pageToken"));
+                            }
+                            page_token__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::__SkipField__ => {
+                            let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                Ok(ListFirewallPoliciesRequest {
+                    page_size: page_size__.unwrap_or_default(),
+                    page_token: page_token__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer
+            .deserialize_struct(
+                "origincloud.scratch.v1.ListFirewallPoliciesRequest",
+                FIELDS,
+                GeneratedVisitor,
+            )
+    }
+}
+impl serde::Serialize for ListFirewallPoliciesResponse {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.firewall_policies.is_empty() {
+            len += 1;
+        }
+        if !self.next_page_token.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer
+            .serialize_struct(
+                "origincloud.scratch.v1.ListFirewallPoliciesResponse",
+                len,
+            )?;
+        if !self.firewall_policies.is_empty() {
+            struct_ser.serialize_field("firewallPolicies", &self.firewall_policies)?;
+        }
+        if !self.next_page_token.is_empty() {
+            struct_ser.serialize_field("nextPageToken", &self.next_page_token)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for ListFirewallPoliciesResponse {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "firewall_policies",
+            "firewallPolicies",
+            "next_page_token",
+            "nextPageToken",
+        ];
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            FirewallPolicies,
+            NextPageToken,
+            __SkipField__,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(
+                deserializer: D,
+            ) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+                impl serde::de::Visitor<'_> for GeneratedVisitor {
+                    type Value = GeneratedField;
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", & FIELDS)
+                    }
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(
+                        self,
+                        value: &str,
+                    ) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "firewallPolicies" | "firewall_policies" => {
+                                Ok(GeneratedField::FirewallPolicies)
+                            }
+                            "nextPageToken" | "next_page_token" => {
+                                Ok(GeneratedField::NextPageToken)
+                            }
+                            _ => Ok(GeneratedField::__SkipField__),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = ListFirewallPoliciesResponse;
+            fn expecting(
+                &self,
+                formatter: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                formatter
+                    .write_str(
+                        "struct origincloud.scratch.v1.ListFirewallPoliciesResponse",
+                    )
+            }
+            fn visit_map<V>(
+                self,
+                mut map_: V,
+            ) -> std::result::Result<ListFirewallPoliciesResponse, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                let mut firewall_policies__ = None;
+                let mut next_page_token__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::FirewallPolicies => {
+                            if firewall_policies__.is_some() {
+                                return Err(
+                                    serde::de::Error::duplicate_field("firewallPolicies"),
+                                );
+                            }
+                            firewall_policies__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::NextPageToken => {
+                            if next_page_token__.is_some() {
+                                return Err(
+                                    serde::de::Error::duplicate_field("nextPageToken"),
+                                );
+                            }
+                            next_page_token__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::__SkipField__ => {
+                            let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                Ok(ListFirewallPoliciesResponse {
+                    firewall_policies: firewall_policies__.unwrap_or_default(),
+                    next_page_token: next_page_token__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer
+            .deserialize_struct(
+                "origincloud.scratch.v1.ListFirewallPoliciesResponse",
+                FIELDS,
+                GeneratedVisitor,
+            )
+    }
+}
+impl serde::Serialize for ListNetworksRequest {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.firewall.is_empty() {
+            len += 1;
+        }
+        if !self.owner.is_empty() {
+            len += 1;
+        }
+        if self.page_size != 0 {
+            len += 1;
+        }
+        if !self.page_token.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer
+            .serialize_struct("origincloud.scratch.v1.ListNetworksRequest", len)?;
+        if !self.firewall.is_empty() {
+            struct_ser.serialize_field("firewall", &self.firewall)?;
+        }
+        if !self.owner.is_empty() {
+            struct_ser.serialize_field("owner", &self.owner)?;
+        }
+        if self.page_size != 0 {
+            struct_ser.serialize_field("pageSize", &self.page_size)?;
+        }
+        if !self.page_token.is_empty() {
+            struct_ser.serialize_field("pageToken", &self.page_token)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for ListNetworksRequest {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "firewall",
+            "owner",
+            "page_size",
+            "pageSize",
+            "page_token",
+            "pageToken",
+        ];
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Firewall,
+            Owner,
+            PageSize,
+            PageToken,
+            __SkipField__,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(
+                deserializer: D,
+            ) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+                impl serde::de::Visitor<'_> for GeneratedVisitor {
+                    type Value = GeneratedField;
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", & FIELDS)
+                    }
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(
+                        self,
+                        value: &str,
+                    ) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "firewall" => Ok(GeneratedField::Firewall),
+                            "owner" => Ok(GeneratedField::Owner),
+                            "pageSize" | "page_size" => Ok(GeneratedField::PageSize),
+                            "pageToken" | "page_token" => Ok(GeneratedField::PageToken),
+                            _ => Ok(GeneratedField::__SkipField__),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = ListNetworksRequest;
+            fn expecting(
+                &self,
+                formatter: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                formatter.write_str("struct origincloud.scratch.v1.ListNetworksRequest")
+            }
+            fn visit_map<V>(
+                self,
+                mut map_: V,
+            ) -> std::result::Result<ListNetworksRequest, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                let mut firewall__ = None;
+                let mut owner__ = None;
+                let mut page_size__ = None;
+                let mut page_token__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Firewall => {
+                            if firewall__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("firewall"));
+                            }
+                            firewall__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::Owner => {
+                            if owner__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("owner"));
+                            }
+                            owner__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::PageSize => {
+                            if page_size__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("pageSize"));
+                            }
+                            page_size__ = Some(
+                                map_
+                                    .next_value::<::pbjson::private::NumberDeserialize<_>>()?
+                                    .0,
+                            );
+                        }
+                        GeneratedField::PageToken => {
+                            if page_token__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("pageToken"));
+                            }
+                            page_token__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::__SkipField__ => {
+                            let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                Ok(ListNetworksRequest {
+                    firewall: firewall__.unwrap_or_default(),
+                    owner: owner__.unwrap_or_default(),
+                    page_size: page_size__.unwrap_or_default(),
+                    page_token: page_token__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer
+            .deserialize_struct(
+                "origincloud.scratch.v1.ListNetworksRequest",
+                FIELDS,
+                GeneratedVisitor,
+            )
+    }
+}
+impl serde::Serialize for ListNetworksResponse {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.networks.is_empty() {
+            len += 1;
+        }
+        if !self.next_page_token.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer
+            .serialize_struct("origincloud.scratch.v1.ListNetworksResponse", len)?;
+        if !self.networks.is_empty() {
+            struct_ser.serialize_field("networks", &self.networks)?;
+        }
+        if !self.next_page_token.is_empty() {
+            struct_ser.serialize_field("nextPageToken", &self.next_page_token)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for ListNetworksResponse {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &["networks", "next_page_token", "nextPageToken"];
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Networks,
+            NextPageToken,
+            __SkipField__,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(
+                deserializer: D,
+            ) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+                impl serde::de::Visitor<'_> for GeneratedVisitor {
+                    type Value = GeneratedField;
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", & FIELDS)
+                    }
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(
+                        self,
+                        value: &str,
+                    ) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "networks" => Ok(GeneratedField::Networks),
+                            "nextPageToken" | "next_page_token" => {
+                                Ok(GeneratedField::NextPageToken)
+                            }
+                            _ => Ok(GeneratedField::__SkipField__),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = ListNetworksResponse;
+            fn expecting(
+                &self,
+                formatter: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                formatter.write_str("struct origincloud.scratch.v1.ListNetworksResponse")
+            }
+            fn visit_map<V>(
+                self,
+                mut map_: V,
+            ) -> std::result::Result<ListNetworksResponse, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                let mut networks__ = None;
+                let mut next_page_token__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Networks => {
+                            if networks__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("networks"));
+                            }
+                            networks__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::NextPageToken => {
+                            if next_page_token__.is_some() {
+                                return Err(
+                                    serde::de::Error::duplicate_field("nextPageToken"),
+                                );
+                            }
+                            next_page_token__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::__SkipField__ => {
+                            let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                Ok(ListNetworksResponse {
+                    networks: networks__.unwrap_or_default(),
+                    next_page_token: next_page_token__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer
+            .deserialize_struct(
+                "origincloud.scratch.v1.ListNetworksResponse",
                 FIELDS,
                 GeneratedVisitor,
             )
@@ -2119,5 +2847,76 @@ impl FirewallClient {
             .with_body(body)
             .with_query(query);
         self.service.call(call).await
+    }
+    /// Lists every firewall policy.
+    pub async fn list_firewall_policies(
+        &self,
+        request: ListFirewallPoliciesRequest,
+    ) -> ::core::result::Result<
+        ListFirewallPoliciesResponse,
+        ::origincloud_core::Error,
+    > {
+        let query = ::origincloud_core::query(&request, &[])?;
+        let call = ::origincloud_core::Request::new(
+                ::origincloud_core::Method::GET,
+                ::std::string::String::from("/v1/firewallPolicies"),
+            )
+            .with_query(query)
+            .idempotent();
+        self.service.call(call).await
+    }
+    /// Returns everything [`list_firewall_policies`](Self::list_firewall_policies) lists from `request`'s page on, fetching the next page as the stream reaches it. A page that fails ends the stream with its error.
+    pub fn all_firewall_policies(
+        &self,
+        request: ListFirewallPoliciesRequest,
+    ) -> ::origincloud_core::Pages<FirewallPolicy> {
+        let client = self.clone();
+        ::origincloud_core::Pages::new(
+            request,
+            move |request: ListFirewallPoliciesRequest| {
+                let client = client.clone();
+                async move {
+                    let page = client.list_firewall_policies(request).await?;
+                    Ok((page.firewall_policies, page.next_page_token))
+                }
+            },
+            |request: &mut ListFirewallPoliciesRequest, token: ::std::string::String| {
+                request.page_token = token;
+            },
+        )
+    }
+    /// Lists the networks a firewall guards.
+    pub async fn list_networks(
+        &self,
+        request: ListNetworksRequest,
+    ) -> ::core::result::Result<ListNetworksResponse, ::origincloud_core::Error> {
+        let query = ::origincloud_core::query(&request, &[])?;
+        let call = ::origincloud_core::Request::new(
+                ::origincloud_core::Method::GET,
+                ::std::string::String::from("/v1/networks"),
+            )
+            .with_query(query)
+            .idempotent();
+        self.service.call(call).await
+    }
+    /// Returns everything [`list_networks`](Self::list_networks) lists from `request`'s page on, fetching the next page as the stream reaches it. A page that fails ends the stream with its error.
+    pub fn all_networks(
+        &self,
+        request: ListNetworksRequest,
+    ) -> ::origincloud_core::Pages<Network> {
+        let client = self.clone();
+        ::origincloud_core::Pages::new(
+            request,
+            move |request: ListNetworksRequest| {
+                let client = client.clone();
+                async move {
+                    let page = client.list_networks(request).await?;
+                    Ok((page.networks, page.next_page_token))
+                }
+            },
+            |request: &mut ListNetworksRequest, token: ::std::string::String| {
+                request.page_token = token;
+            },
+        )
     }
 }

@@ -4,7 +4,10 @@ syntax = "proto3";
 // the kinds of fields the generator turns into flags beyond the published
 // API's: repeated scalars and references, a list whose order isn't kept, a
 // nested message, a repeated nested message, a message nested two levels
-// deep, fields with explicit presence (proto3 `optional`), and oneofs.
+// deep, fields with explicit presence (proto3 `optional`), and oneofs; and
+// lists beyond a zone's: one of a top-level collection, and one filtering on
+// a field rather than a parent, with a reference to a type no package
+// declares.
 package origincloud.scratch.v1;
 
 import "google/api/annotations.proto";
@@ -42,6 +45,17 @@ service FirewallService {
       body: "firewall"
     };
     option (google.api.method_signature) = "firewall,update_mask";
+  }
+
+  // Lists every firewall policy.
+  rpc ListFirewallPolicies(ListFirewallPoliciesRequest) returns (ListFirewallPoliciesResponse) {
+    option (google.api.http) = {get: "/v1/firewallPolicies"};
+  }
+
+  // Lists the networks a firewall guards.
+  rpc ListNetworks(ListNetworksRequest) returns (ListNetworksResponse) {
+    option (google.api.http) = {get: "/v1/networks"};
+    option (google.api.method_signature) = "firewall";
   }
 }
 
@@ -121,6 +135,19 @@ message Network {
   };
 
   // The network's resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+}
+
+// A policy every firewall follows, outside any project.
+message FirewallPolicy {
+  option (google.api.resource) = {
+    type: "scratch.origincloudapis.eu/FirewallPolicy"
+    pattern: "firewallPolicies/{firewall_policy}"
+    plural: "firewallPolicies"
+    singular: "firewallPolicy"
+  };
+
+  // The policy's resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 }
 
@@ -248,4 +275,49 @@ message UpdateFirewallRequest {
 
   // The fields to change.
   google.protobuf.FieldMask update_mask = 2;
+}
+
+// The request for ListFirewallPolicies.
+message ListFirewallPoliciesRequest {
+  // The most policies to return in a page.
+  int32 page_size = 1;
+
+  // The page to return, from a previous list's `next_page_token`.
+  string page_token = 2;
+}
+
+// The response of ListFirewallPolicies.
+message ListFirewallPoliciesResponse {
+  // The policies.
+  repeated FirewallPolicy firewall_policies = 1;
+
+  // The next page's token; empty on the last page.
+  string next_page_token = 2;
+}
+
+// The request for ListNetworks.
+message ListNetworksRequest {
+  // The firewall whose networks to list.
+  string firewall = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "scratch.origincloudapis.eu/Firewall"
+  ];
+
+  // Only the networks this person owns, of a service no package declares.
+  string owner = 2 [(google.api.resource_reference).type = "people.origincloudapis.eu/Person"];
+
+  // The most networks to return in a page.
+  int32 page_size = 3;
+
+  // The page to return, from a previous list's `next_page_token`.
+  string page_token = 4;
+}
+
+// The response of ListNetworks.
+message ListNetworksResponse {
+  // The networks.
+  repeated Network networks = 1;
+
+  // The next page's token; empty on the last page.
+  string next_page_token = 2;
 }

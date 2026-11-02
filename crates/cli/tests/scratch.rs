@@ -1025,3 +1025,68 @@ fn the_help_of_choices_and_optional_fields() {
     assert!(long(&arg("create-firewall", "mirror-address")).contains("give at most one"));
     assert!(long(&arg("update-firewall", "mirror-address")).contains("`--no-mirror` sets none"));
 }
+
+/// A list of a top-level collection, with no parent to set, pages through
+/// its request until the last page, and prints every page's items as one.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_top_level_list_pages_through_every_page() {
+    let server = recording(|request| {
+        Response::json(if request.query.contains("pageToken=next") {
+            r#"{"firewallPolicies":[{"name":"firewallPolicies/b"}]}"#
+        } else {
+            r#"{"firewallPolicies":[{"name":"firewallPolicies/a"}],"nextPageToken":"next"}"#
+        })
+    })
+    .await;
+    let printed = success(&scratch(&server, &["list-firewall-policies"]).await);
+    assert_eq!(
+        printed["firewallPolicies"],
+        json!([{"name": "firewallPolicies/a"}, {"name": "firewallPolicies/b"}]),
+        "{printed}"
+    );
+    let requests = server.requests();
+    assert_eq!(requests.len(), 2);
+    assert!(requests
+        .iter()
+        .all(|r| r.method == "GET" && r.path == "/v1/firewallPolicies"));
+}
+
+/// A list filtering on a field rather than a parent takes it as a flag,
+/// a resource name completed from its parts; a reference to a type no
+/// package declares is sent whole.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_filtered_list_sends_its_filters() {
+    let server =
+        recording(|_| Response::json(r#"{"networks":[{"name":"projects/p/zones/z/networks/n"}]}"#))
+            .await;
+    let printed = success(
+        &scratch(
+            &server,
+            &[
+                "list-networks",
+                "--project",
+                "p",
+                "--zone",
+                "z",
+                "--firewall",
+                "f",
+                "--owner",
+                "people/ada",
+            ],
+        )
+        .await,
+    );
+    assert_eq!(
+        printed["networks"][0]["name"],
+        "projects/p/zones/z/networks/n"
+    );
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].path, "/v1/networks");
+    let query = &requests[0].query;
+    assert!(
+        query.contains("firewall=projects%2Fp%2Fzones%2Fz%2Ffirewalls%2Ff"),
+        "{query}"
+    );
+    assert!(query.contains("owner=people%2Fada"), "{query}");
+}

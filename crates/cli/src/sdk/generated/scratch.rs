@@ -33,6 +33,18 @@ pub enum Commands {
         long_about = "Changes a firewall's rules, ports, networks, aliases, logging or tags."
     )]
     UpdateFirewall(UpdateFirewallArgs),
+    #[command(
+        name = "list-firewall-policies",
+        about = "Lists every firewall policy",
+        long_about = "Lists every firewall policy."
+    )]
+    ListFirewallPolicies(ListFirewallPoliciesArgs),
+    #[command(
+        name = "list-networks",
+        about = "Lists the networks a firewall guards",
+        long_about = "Lists the networks a firewall guards."
+    )]
+    ListNetworks(ListNetworksArgs),
 }
 /// Runs `command`.
 pub async fn run(
@@ -43,6 +55,8 @@ pub async fn run(
         Commands::GetFirewall(args) => get_firewall(ctx, args).await,
         Commands::CreateFirewall(args) => create_firewall(ctx, args).await,
         Commands::UpdateFirewall(args) => update_firewall(ctx, args).await,
+        Commands::ListFirewallPolicies(args) => list_firewall_policies(ctx, args).await,
+        Commands::ListNetworks(args) => list_networks(ctx, args).await,
     }
 }
 /// The endpoint the group's calls go to, which also serves its operations.
@@ -916,6 +930,153 @@ async fn call_update_firewall(
 > {
     ::origincloud_scratch::v1::FirewallClient::new(client.sdk())
         .update_firewall(request)
+        .await
+}
+/// The flags of `list-firewall-policies`.
+#[derive(clap::Args, Debug)]
+pub struct ListFirewallPoliciesArgs {
+    /// The most policies to return in a page.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-size")]
+    pub page_size: Option<i32>,
+    /// The page to return, from a previous list's `nextPageToken`.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-token")]
+    pub page_token: Option<String>,
+}
+async fn list_firewall_policies(
+    ctx: &Context<'_>,
+    args: ListFirewallPoliciesArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let request = ::origincloud_scratch::v1::ListFirewallPoliciesRequest {
+        page_size: args.page_size.unwrap_or_default(),
+        page_token: args.page_token.clone().unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    if args.page_size.is_some() || args.page_token.is_some() {
+        let page = call_list_firewall_policies(&client, request)
+            .await
+            .map_err(api_error)?;
+        return list_json(&page, "firewallPolicies");
+    }
+    let mut request = request;
+    let mut items = Vec::new();
+    loop {
+        let page = call_list_firewall_policies(&client, request.clone())
+            .await
+            .map_err(api_error)?;
+        items.extend(page.firewall_policies);
+        if page.next_page_token.is_empty() {
+            break;
+        }
+        request.page_token = page.next_page_token;
+    }
+    list_json(
+        &::origincloud_scratch::v1::ListFirewallPoliciesResponse {
+            firewall_policies: items,
+            ..::core::default::Default::default()
+        },
+        "firewallPolicies",
+    )
+}
+async fn call_list_firewall_policies(
+    client: &ReadClient,
+    request: ::origincloud_scratch::v1::ListFirewallPoliciesRequest,
+) -> ::core::result::Result<
+    ::origincloud_scratch::v1::ListFirewallPoliciesResponse,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_scratch::v1::FirewallClient::new(client.sdk())
+        .list_firewall_policies(request)
+        .await
+}
+/// The flags of `list-networks`.
+#[derive(clap::Args, Debug)]
+pub struct ListNetworksArgs {
+    /// The project, such as `my-project-123`. The profile's `default-project`, or `ORIGINCLOUD_PROJECT`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The zone, such as `eu-central1-az1`. The profile's `default-zone`, or `ORIGINCLOUD_ZONE`, when not given.
+    #[arg(long = "zone", value_name = "ZONE")]
+    pub zone: Option<String>,
+    /// The firewall whose networks to list.
+    ///
+    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
+    #[arg(long = "firewall", value_name = "FIREWALL")]
+    pub firewall: String,
+    /// Only the networks this person owns, of a service no package declares.
+    #[arg(long = "owner")]
+    pub owner: Option<String>,
+    /// The most networks to return in a page.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-size")]
+    pub page_size: Option<i32>,
+    /// The page to return, from a previous list's `nextPageToken`.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-token")]
+    pub page_token: Option<String>,
+}
+async fn list_networks(
+    ctx: &Context<'_>,
+    args: ListNetworksArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names
+        .learn(
+            "projects/{project}/zones/{zone}/firewalls/{firewall}",
+            "firewall",
+            Some(args.firewall.as_str()),
+        )?;
+    let firewall = names
+        .name(
+            "projects/{project}/zones/{zone}/firewalls/{firewall}",
+            Some(("firewall", args.firewall.as_str())),
+        )?;
+    let request = ::origincloud_scratch::v1::ListNetworksRequest {
+        firewall,
+        owner: args.owner.clone().unwrap_or_default(),
+        page_size: args.page_size.unwrap_or_default(),
+        page_token: args.page_token.clone().unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    if args.page_size.is_some() || args.page_token.is_some() {
+        let page = call_list_networks(&client, request).await.map_err(api_error)?;
+        return list_json(&page, "networks");
+    }
+    let mut request = request;
+    let mut items = Vec::new();
+    loop {
+        let page = call_list_networks(&client, request.clone())
+            .await
+            .map_err(api_error)?;
+        items.extend(page.networks);
+        if page.next_page_token.is_empty() {
+            break;
+        }
+        request.page_token = page.next_page_token;
+    }
+    list_json(
+        &::origincloud_scratch::v1::ListNetworksResponse {
+            networks: items,
+            ..::core::default::Default::default()
+        },
+        "networks",
+    )
+}
+async fn call_list_networks(
+    client: &ReadClient,
+    request: ::origincloud_scratch::v1::ListNetworksRequest,
+) -> ::core::result::Result<
+    ::origincloud_scratch::v1::ListNetworksResponse,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_scratch::v1::FirewallClient::new(client.sdk())
+        .list_networks(request)
         .await
 }
 /// A `::origincloud_scratch::v1::Logging` from its `KEY=VALUE,...` form; a key that is a field only the
