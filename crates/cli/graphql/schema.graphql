@@ -957,7 +957,10 @@ input ComputeLaunchInstanceInput {
 	bootVolume: ComputeBootVolumeInput
 	"""
 	Security groups to attach to the primary network interface. Omitted
-	or empty defaults to the VPC's default security group.
+	or empty, the interface gets the VPC's default security group when
+	the VPC has one, and no group when it has none: an interface in no
+	security group is closed, and admits and sends nothing but address
+	resolution and replies to its own traffic.
 	"""
 	securityGroupUrns: [Urn!]
 	"""
@@ -2036,8 +2039,10 @@ input NetworkCreateNetworkInterfaceInput {
 	projectUrn: Urn!
 	subnetUrn: Urn!
 	"""
-	Security groups to attach. Omitted or empty defaults to the owning
-	VPC's default security group.
+	Security groups to attach. Omitted or empty gives the owning VPC's
+	default security group when it has one, and otherwise none: the
+	interface then admits and sends nothing but ARP, IPv6 neighbor
+	discovery and replies to its own traffic.
 	"""
 	securityGroupUrns: [Urn!]
 	"""
@@ -2066,8 +2071,8 @@ input NetworkCreateSecurityGroupInput {
 	"""
 	Rules to seed the security group with at creation time, in addition
 	to (or instead of) adding them afterwards via
-	`updateSecurityGroupRules`. Omit for the previous behavior: an empty,
-	deny-by-default security group in both directions.
+	`updateSecurityGroupRules`. Omit for an empty, deny-by-default
+	security group in both directions.
 	"""
 	ingressRules: [NetworkSecurityGroupRuleInput!]! = []
 	egressRules: [NetworkSecurityGroupRuleInput!]! = []
@@ -2245,7 +2250,9 @@ type NetworkInterface {
 	sourceAddressCheck: Boolean!
 	"""
 	Which security groups this interface enforces. For the rules
-	themselves, follow up with `network { securityGroup(urn) }`.
+	themselves, follow up with `network { securityGroup(urn) }`. Empty
+	when it is in none: it then admits and sends nothing but ARP, IPv6
+	neighbor discovery and replies to its own traffic.
 	"""
 	securityGroupUrns: [Urn!]!
 	"""
@@ -2323,17 +2330,38 @@ type NetworkMutationSchema {
 	except DNS policies. Requires the resource's `update` permission.
 	"""
 	removeResourceTags(input: NetworkRemoveResourceTagsInput!): [ResourceTag!]!
+	"""
+	Creates an empty VPC: no subnet, route table, ACL or security group.
+	Create those with `createSubnet`, `createRouteTable`, `createAcl` and
+	`createSecurityGroup`. Until `attachDnsPolicy` attaches a DNS policy,
+	the VPC relays through the project's default one.
+	"""
 	createVpc(input: NetworkCreateVpcInput!): NetworkVpc!
+	"""
+	Creates a subnet in a VPC. In a VPC with a main route table and a
+	default ACL, such as a project's default VPC, the subnet gets both.
+	Otherwise it starts with neither. Until `associateRouteTable` gives
+	it a route table, it has no route out of the VPC: it counts as a
+	subnet whose route table has no default route, and internet access
+	is decided per VPC and address family, from the route tables of all
+	its subnets. Until `updateSubnetAcl` gives it an ACL, it isn't
+	filtered at its edge.
+	"""
 	createSubnet(input: NetworkCreateSubnetInput!): NetworkSubnet!
 	"""
-	Attaches a new Internet Gateway to a VPC, making its subnets
-	internet-facing. A newly created VPC has none by default - see
-	`createVpc`. Idempotent: attaching to a VPC that already has one
+	Attaches a new Internet Gateway to a VPC. A VPC has none until this
+	is called. A subnet reaches the internet through it once the
+	subnet's route table has a default route to it: add one with
+	`updateRouteTableRoutes`. Only a VPC with a main route table, such as
+	a project's default VPC, gets default routes to the gateway added to
+	that table. Idempotent: attaching to a VPC that already has one
 	returns the existing gateway unchanged.
 	"""
 	attachInternetGateway(input: NetworkAttachInternetGatewayInput!): NetworkInternetGateway!
 	"""
 	Detaches a VPC's Internet Gateway, making its subnets private again.
+	Removes the default routes attaching it added to a main route table;
+	refuses while any other route table still has a route to it.
 	Idempotent: detaching a VPC with no gateway attached is a no-op.
 	Returns whether a gateway was actually detached.
 	"""
@@ -2358,9 +2386,10 @@ type NetworkMutationSchema {
 	"""
 	deleteSubnet(input: NetworkDeleteSubnetInput!): Boolean!
 	"""
-	Reassigns which ACL enforces a subnet's traffic - how a non-default
-	ACL from `createAcl` is actually put to use. Refuses if `aclUrn`
-	belongs to a different VPC than the subnet.
+	Sets which ACL enforces a subnet's traffic - how an ACL from
+	`createAcl` is put to use. A subnet with no ACL isn't filtered at its
+	edge; its interfaces' security groups still apply. Refuses if
+	`aclUrn` belongs to a different VPC than the subnet.
 	"""
 	updateSubnetAcl(input: NetworkUpdateSubnetAclInput!): NetworkSubnet!
 	"""
@@ -2436,16 +2465,18 @@ type NetworkMutationSchema {
 	"""
 	deleteNatGateway(input: NetworkDeleteNatGatewayInput!): Boolean!
 	"""
-	Creates an additional route table in a VPC.
+	Creates a route table in a VPC.
 	
 	It starts with the VPC's local routes and no default route, so a
-	subnet associated with it reaches its own VPC and nothing else. Add
-	a default with `updateRouteTableRoutes`.
+	subnet associated with it has no route out of the VPC. Internet
+	access is decided per VPC and address family, from the route tables
+	of all its subnets. Add a default with `updateRouteTableRoutes`.
 	"""
 	createRouteTable(input: NetworkCreateRouteTableInput!): NetworkRouteTable!
 	"""
 	Replaces a route table's routes with the list given — this is not a
-	patch. Send every route the table should have.
+	patch. Send every route the table should have. Refuses two routes to
+	the same destination.
 	
 	An `INTERNET_GATEWAY` route must name a gateway attached to this
 	table's own VPC.
@@ -2463,48 +2494,53 @@ type NetworkMutationSchema {
 	deleteRouteTable(input: NetworkDeleteRouteTableInput!): Boolean!
 	"""
 	Points a subnet at a route table, replacing whichever one it used
-	before. The table must belong to the subnet's own VPC.
+	before. The table must belong to the subnet's own VPC. A subnet with
+	no route table has no route out of the VPC: it counts as a subnet
+	whose route table has no default route.
 	"""
 	associateRouteTable(input: NetworkAssociateRouteTableInput!): NetworkSubnet!
 	"""
-	Creates an additional, non-default ACL in a VPC, for enforcing
-	different rules on a subset of its subnets. Every VPC already has one
-	default ACL, created with it and shared by every subnet.
+	Creates an ACL in a VPC, for filtering traffic at the edge of the
+	subnets it is assigned to. A subnet has no ACL until
+	`updateSubnetAcl` assigns one, except in a VPC created with a default
+	ACL, such as a project's default VPC, whose new subnets get that ACL.
 	
 	Starts with an empty rule list and enforces nothing until you add
-	rules with `updateAclRules` and attach it with `updateSubnetAcl`.
+	rules with `updateAclRules` and assign it with `updateSubnetAcl`.
 	"""
 	createAcl(input: NetworkCreateAclInput!): NetworkAcl!
 	"""
 	Deletes a non-default ACL.
 	
-	Refuses to delete a VPC's default ACL: every subnet is created with
-	it unless reassigned, and it is removed only as part of `deleteVpc`.
+	Refuses to delete a VPC's default ACL: the VPC's new subnets are
+	created with it, and it is removed only as part of `deleteVpc`.
 	Also refuses while any subnet still has this ACL assigned.
 	"""
 	deleteAcl(input: NetworkDeleteAclInput!): Boolean!
 	"""
 	Replaces an ACL's rules wholesale. Enforcement is picked up by
 	whichever subnet(s) are associated with this ACL (`Subnet.aclUrn`),
-	not by the owning VPC directly.
+	not by the owning VPC directly. Refuses two rules of one direction
+	at the same priority.
 	"""
 	updateAclRules(input: NetworkUpdateAclRulesInput!): NetworkAcl!
 	"""
-	Creates an additional, non-default security group in a VPC. Every VPC
-	already has one default security group created with it; this is for
-	callers that want more.
+	Creates a security group in a VPC. A network interface in no
+	security group admits and sends nothing but ARP, IPv6 neighbor
+	discovery and replies to its own traffic.
 	
 	`ingressRules`/`egressRules` seed the group at creation time. Omit
 	either one to start deny-by-default in that direction. Rules can be
-	added or replaced later with `updateSecurityGroupRules`.
+	added or replaced later with `updateSecurityGroupRules`. Refuses the
+	same rule listed twice in one direction.
 	"""
 	createSecurityGroup(input: NetworkCreateSecurityGroupInput!): NetworkSecurityGroup!
 	"""
 	Deletes a non-default security group.
 	
-	Refuses to delete a VPC's default security group: instance launches
-	fall back to it when none is given, and it is removed only as part of
-	`deleteVpc`. Also refuses while any network interface still carries
+	Refuses to delete a VPC's default security group: network interfaces
+	created in the VPC without groups get it, and it is removed only as
+	part of `deleteVpc`. Also refuses while any network interface still carries
 	it: remove it from the interface with
 	`setNetworkInterfaceSecurityGroups` first.
 	"""
@@ -2513,7 +2549,7 @@ type NetworkMutationSchema {
 	Replaces a security group's ingress/egress rules wholesale. Unlike
 	ACLs, this propagates live to every already-running instance whose
 	`NetworkInterface` currently has this security group attached - no
-	restart needed.
+	restart needed. Refuses the same rule listed twice in one direction.
 	"""
 	updateSecurityGroupRules(input: NetworkUpdateSecurityGroupRulesInput!): NetworkSecurityGroup!
 	"""
@@ -2531,9 +2567,9 @@ type NetworkMutationSchema {
 	"""
 	updateDnsPolicy(input: NetworkUpdateDnsPolicyInput!): NetworkDnsPolicy!
 	"""
-	Changes which policy is the project's default. Existing VPCs keep
-	whatever policy they are attached to - only VPCs created afterwards
-	pick up the new default.
+	Changes which policy is the project's default. A VPC attached to a
+	policy keeps it; a VPC attached to none relays through the project's
+	default and follows this change.
 	"""
 	setDefaultDnsPolicy(input: NetworkSetDefaultDnsPolicyInput!): NetworkDnsPolicy!
 	"""
@@ -2657,20 +2693,21 @@ type NetworkQuerySchema {
 	routeTables(input: NetworkListRouteTablesInput!): [NetworkRouteTable!]!
 	routeTable(input: NetworkGetRouteTableInput!): NetworkRouteTable!
 	"""
-	Every ACL in a project. Each VPC has at least the default ACL
-	created with it, plus any added with `createAcl`.
+	Every ACL in a project: those added with `createAcl`, plus the
+	default ACL of a project's default VPC.
 	"""
 	acls(input: NetworkListAclsInput!): [NetworkAcl!]!
 	securityGroup(securityGroupUrn: Urn!): NetworkSecurityGroup
 	"""
-	Every security group in a project. Each VPC has at least the default
-	group created with it, plus any added with `createSecurityGroup`.
+	Every security group in a project: those added with
+	`createSecurityGroup`, plus the default group of a project's default
+	VPC.
 	"""
 	securityGroups(input: NetworkListSecurityGroupsInput!): [NetworkSecurityGroup!]!
 	"""
 	A single DNS relay policy by its URN. Use `dnsPolicies` to list every
-	policy in a project, or a VPC's `dnsPolicyId` for the one it
-	currently relays through.
+	policy in a project, or a VPC's `dnsPolicyId` for the one it is
+	attached to.
 	"""
 	dnsPolicy(dnsPolicyUrn: Urn!): NetworkDnsPolicy
 	"""
@@ -2699,18 +2736,27 @@ input NetworkRemoveResourceTagsInput {
 A VPC's routing decisions, and the resource a subnet is associated with
 to inherit them.
 
-Every VPC has exactly one *main* table, created with it. Additional
-tables let different subnets of one VPC route differently — the pattern
-behind a public subnet (reaching the internet through a gateway) and a
-private one (reaching only the VPC).
+A subnet with no route table has no route out of the VPC: it counts as
+a subnet whose route table has no default route. Internet access is
+decided per VPC and address family: traffic of a family can leave the
+VPC when any route table its subnets use has a default route for it, so
+a subnet without one can still reach and be reached from the internet
+through a floating IP or an IPv6 address while another subnet of the VPC
+routes out. Network ACL and security group egress rules stop a subnet's
+outbound traffic. Tables let different subnets of one VPC route
+differently — a public subnet reaching the internet through a gateway,
+and a private one whose instances without a floating IP get no working
+internet access. A project's default VPC has one *main* table, created
+with it.
 """
 type NetworkRouteTable {
 	id: ID!
 	urn: Urn!
 	vpcId: String!
 	"""
-	The table a subnet uses when it has been associated with no other.
-	Created with the VPC and cannot be deleted.
+	Whether this is the VPC's main table: the one a new subnet in the VPC
+	is associated with. Only a VPC created with defaults, such as a
+	project's default VPC, has one; it cannot be deleted.
 	"""
 	isMain: Boolean!
 	routes: [NetworkRouteTableRoute!]!
@@ -2861,11 +2907,12 @@ type NetworkSubnet {
 	urn: Urn!
 	vpcId: String!
 	"""
-	URN of the Network ACL enforced on this subnet's traffic. AWS-parity
-	association: the ACL is a distinct, VPC-owned resource; each subnet
-	is associated with exactly one.
+	URN of the Network ACL enforced on this subnet's traffic; the ACL is
+	a distinct, VPC-owned resource. `null` when the subnet has none: it
+	isn't filtered at its edge, and its interfaces' security groups are
+	what applies.
 	"""
-	aclUrn: Urn!
+	aclUrn: Urn
 	availabilityZone: String!
 	ipv6Network: NetworkIPv6Subnet!
 	ipv6Router: String!
@@ -2874,11 +2921,14 @@ type NetworkSubnet {
 	ipv4Router: String!
 	ipv4DnsServers: [String!]!
 	"""
-	The URN of the route table this subnet's traffic is routed by. Every
-	subnet has one: the VPC's main table until `associateRouteTable`
-	points it at another.
+	The URN of the route table this subnet's traffic is routed by:
+	`associateRouteTable` points it at one. `null` when the subnet has
+	none: it then has no route out of the VPC, and counts as a subnet
+	whose route table has no default route. Internet access is decided
+	per VPC and address family, from the route tables of all its
+	subnets.
 	"""
-	routeTableUrn: Urn!
+	routeTableUrn: Urn
 	"""
 	Whether instances launched into this subnet automatically get a
 	Floating IP. Applies only to interfaces created after the setting
@@ -2950,8 +3000,9 @@ type NetworkVpc {
 	"""
 	ipv4Network: NetworkIPv4Subnet!
 	"""
-	Which DNS relay policy this VPC currently relays through. `null` only
-	for a VPC created before DNS policies existed.
+	Which DNS relay policy this VPC is attached to. `null` when it is
+	attached to none: it then relays through the project's default
+	policy.
 	"""
 	dnsPolicyId: String
 	"""

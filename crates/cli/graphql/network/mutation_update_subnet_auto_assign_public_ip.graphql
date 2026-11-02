@@ -7,6 +7,7 @@ mutation UpdateSubnetAutoAssignPublicIp(
             urn
             vpcId
             aclUrn
+            routeTableUrn
             availabilityZone
             ipv6Network {
                 networkCidr

@@ -7,8 +7,11 @@ use clap::Subcommand;
 #[derive(Subcommand)]
 #[allow(clippy::large_enum_variant)]
 pub(crate) enum NetworkCommands {
-    /// Create a VPC, with its default security group, network ACL, route
-    /// table and first subnet.
+    /// Create an empty VPC: no subnet, route table, network ACL or security
+    /// group. Create those with `create-subnet`, `create-route-table`,
+    /// `create-acl` and `create-security-group`. Until `attach-dns-policy`
+    /// attaches a DNS policy, the VPC relays through the project's default
+    /// one.
     CreateVpc {
         /// URN of the project.
         #[arg(long)]
@@ -61,7 +64,16 @@ pub(crate) enum NetworkCommands {
         project_urn: Urn,
     },
 
-    /// Create a subnet in a VPC.
+    /// Create a subnet in a VPC. In a VPC with a main route table and a
+    /// default network ACL, such as a project's default VPC, the subnet gets
+    /// both; otherwise it starts with neither, and its `aclUrn` and
+    /// `routeTableUrn` are `null`. Until `associate-route-table` gives it a
+    /// route table, it has no route out of the VPC and counts as a subnet
+    /// whose route table has no default route; internet access is decided
+    /// per VPC, so its instances still reach and are reached from the
+    /// internet through Floating IPs and IPv6 addresses while another subnet
+    /// routes out. Until `update-subnet-acl` gives it a network ACL, it isn't
+    /// filtered at its edge; its interfaces' security groups still apply.
     CreateSubnet {
         /// URN of the VPC.
         #[arg(long)]
@@ -79,7 +91,10 @@ pub(crate) enum NetworkCommands {
         tags: Vec<TagArg>,
     },
 
-    /// List the subnets of a project.
+    /// List the subnets of a project. A subnet's `aclUrn` is `null` when it
+    /// has no network ACL: it isn't filtered at its edge. Its
+    /// `routeTableUrn` is `null` when it has no route table: it has no route
+    /// out of its VPC (internet access is decided per VPC).
     ListSubnets {
         /// URN of the project.
         #[arg(long)]
@@ -133,7 +148,12 @@ pub(crate) enum NetworkCommands {
         vpc_urn: Urn,
     },
 
-    /// Attach an Internet Gateway to a VPC, making its subnets internet-facing.
+    /// Attach an Internet Gateway to a VPC. The VPC's traffic reaches the
+    /// internet through it once a route table its subnets use has a default
+    /// route to it: add one with `update-route-table-routes`. Internet access
+    /// is decided per VPC and address family. Only a VPC with a main
+    /// route table, such as a project's default VPC, gets default routes to
+    /// the gateway added to that table.
     AttachInternetGateway {
         /// URN of the VPC.
         #[arg(long)]
@@ -145,7 +165,9 @@ pub(crate) enum NetworkCommands {
         tags: Vec<TagArg>,
     },
 
-    /// Detach a VPC's Internet Gateway, making its subnets private again.
+    /// Detach a VPC's Internet Gateway. Removes the default routes attaching
+    /// it added to a main route table; refuses while any other route table
+    /// still has a route to it.
     DetachInternetGateway {
         /// URN of the VPC.
         #[arg(long)]
@@ -235,7 +257,12 @@ pub(crate) enum NetworkCommands {
         vpc_urn: Urn,
     },
 
-    /// Get a single Subnet.
+    /// Get a single Subnet. Its `aclUrn` is `null` when it has no network
+    /// ACL: it isn't filtered at its edge, and its interfaces' security
+    /// groups are what applies. Its `routeTableUrn` is `null` when it has no
+    /// route table: it has no route out of its VPC, and counts as a subnet
+    /// whose route table has no default route (internet access is decided
+    /// per VPC).
     GetSubnet {
         /// URN of the subnet.
         #[arg(long)]
@@ -256,9 +283,8 @@ pub(crate) enum NetworkCommands {
         project_urn: Urn,
     },
 
-    /// Create an additional, non-default Security Group in a VPC. Starts
-    /// with no ingress/egress rules - use `update-security-group-rules`
-    /// afterwards to add rules.
+    /// Create a Security Group in a VPC. Starts with no ingress/egress
+    /// rules - use `update-security-group-rules` afterwards to add rules.
     CreateSecurityGroup {
         /// URN of the VPC.
         #[arg(long)]
@@ -355,12 +381,13 @@ pub(crate) enum NetworkCommands {
         route_table_urn: Urn,
     },
 
-    /// Create an additional Route Table in a VPC.
+    /// Create a Route Table in a VPC.
     ///
     /// It starts with the VPC's local routes and no default route, so a
     /// Subnet associated with it reaches its own VPC and nothing else -
     /// the "private subnet" half of the public/private pattern. Add a
-    /// default with `update-route-table-routes`.
+    /// default with `update-route-table-routes`, and associate it with a
+    /// Subnet with `associate-route-table`.
     CreateRouteTable {
         /// URN of the VPC.
         #[arg(long)]
@@ -405,6 +432,7 @@ pub(crate) enum NetworkCommands {
     },
 
     /// Point a Subnet at a Route Table, replacing whichever it used before.
+    /// A Subnet with no Route Table has no route out of its VPC.
     AssociateRouteTable {
         /// URN of the Subnet.
         #[arg(long)]
@@ -415,9 +443,10 @@ pub(crate) enum NetworkCommands {
         route_table_urn: Urn,
     },
 
-    /// Create an additional, non-default Network ACL in a VPC. Starts with
-    /// no rules - use `update-acl-rules` to add rules, and
-    /// `update-subnet-acl` to attach it to a subnet.
+    /// Create a Network ACL in a VPC, for filtering traffic at the edge of
+    /// the subnets it is assigned to. Starts with no rules - use
+    /// `update-acl-rules` to add rules, and `update-subnet-acl` to assign it
+    /// to a subnet.
     CreateAcl {
         /// URN of the VPC.
         #[arg(long)]
@@ -440,8 +469,9 @@ pub(crate) enum NetworkCommands {
         confirmation: Confirmation,
     },
 
-    /// Reassign which Network ACL enforces a subnet's traffic. Refuses if
-    /// the ACL belongs to a different VPC than the subnet.
+    /// Set which Network ACL enforces a subnet's traffic. A subnet with no
+    /// ACL isn't filtered at its edge; its interfaces' security groups still
+    /// apply. Refuses if the ACL belongs to a different VPC than the subnet.
     UpdateSubnetAcl {
         /// URN of the subnet.
         #[arg(long)]
@@ -540,8 +570,9 @@ pub(crate) enum NetworkCommands {
         no_upstream_servers: bool,
     },
 
-    /// Reassign which policy is a project's default DNS relay policy
-    /// - does not touch any VPC's current attachment.
+    /// Reassign which policy is a project's default DNS relay policy. A VPC
+    /// attached to a policy keeps it; a VPC attached to none relays through
+    /// the project's default and follows this change.
     SetDefaultDnsPolicy {
         /// URN of the DNS policy to make default.
         #[arg(long)]
@@ -559,7 +590,9 @@ pub(crate) enum NetworkCommands {
         confirmation: Confirmation,
     },
 
-    /// Change which DNS relay policy a VPC relays through.
+    /// Attach a VPC to a DNS relay policy, replacing the one it was attached
+    /// to. A VPC attached to none relays through the project's default
+    /// policy.
     AttachDnsPolicy {
         /// URN of the VPC.
         #[arg(long)]
@@ -581,8 +614,11 @@ pub(crate) enum NetworkCommands {
         #[arg(long)]
         subnet_urn: Urn,
 
-        /// URN of a Security Group to attach. Repeatable. Omitted defaults
-        /// to the owning VPC's default Security Group.
+        /// URN of a Security Group to attach. Repeatable. Omitted, the
+        /// interface gets the owning VPC's default Security Group when the
+        /// VPC has one, and none otherwise: an interface in no Security
+        /// Group admits and sends nothing but ARP, IPv6 neighbor discovery
+        /// and replies to its own traffic.
         #[arg(long = "security-group-urn")]
         security_group_urns: Vec<Urn>,
 

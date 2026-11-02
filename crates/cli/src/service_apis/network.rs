@@ -1672,3 +1672,143 @@ impl NetworkServiceClient {
         Ok(UpdateSecurityGroupRulesResponse(response_data))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{json, Value};
+
+    const ACL_URN: &str =
+        "urn:origin:cloud:network:eu-central1:0a1b2c3d4e5f:my-project-123:acl/abc123";
+    const ROUTE_TABLE_URN: &str =
+        "urn:origin:cloud:network:eu-central1:0a1b2c3d4e5f:my-project-123:routetable/abc123";
+
+    /// A subnet as the API answers for it, with the given ACL and route
+    /// table.
+    fn subnet(acl_urn: Value, route_table_urn: Value) -> Value {
+        let network = json!({
+            "networkCidr": "10.0.0.0/24",
+            "totalSubnets": 1,
+            "availableSubnets": 1,
+            "subnetPrefixLength": 24,
+        });
+        json!({
+            "id": "abc123",
+            "urn": "urn:origin:cloud:network:eu-central1:0a1b2c3d4e5f:my-project-123:subnet/abc123",
+            "name": null,
+            "tags": [],
+            "vpcId": "def456",
+            "aclUrn": acl_urn,
+            "routeTableUrn": route_table_urn,
+            "availabilityZone": "eu-central1-az1",
+            "ipv6Network": network,
+            "ipv6Router": "fd00::1",
+            "ipv6DnsServers": ["fd00::2"],
+            "ipv4Network": network,
+            "ipv4Router": "10.0.0.1",
+            "ipv4DnsServers": ["10.0.0.2"],
+            "createdAt": "2026-11-02T10:00:00Z",
+            "createdBy": "user:abc123",
+        })
+    }
+
+    fn rendered<T: serde::de::DeserializeOwned, R: SerializableOutput>(
+        response: Value,
+        wrap: impl FnOnce(T) -> R,
+    ) -> Value {
+        let data = serde_json::from_value(response).expect("the response decodes");
+        wrap(data).to_json().expect("the response renders")
+    }
+
+    #[test]
+    fn get_subnet_renders_a_subnet_without_an_acl_or_route_table_as_null() {
+        let out = rendered(
+            json!({"network": {"subnet": subnet(Value::Null, Value::Null)}}),
+            GetSubnetResponse,
+        );
+        let subnet = out["network"]["subnet"].as_object().unwrap();
+        assert_eq!(subnet.get("aclUrn"), Some(&Value::Null));
+        assert_eq!(subnet.get("routeTableUrn"), Some(&Value::Null));
+    }
+
+    #[test]
+    fn get_subnet_renders_its_acl_and_route_table() {
+        let out = rendered(
+            json!({"network": {"subnet": subnet(json!(ACL_URN), json!(ROUTE_TABLE_URN))}}),
+            GetSubnetResponse,
+        );
+        assert_eq!(out["network"]["subnet"]["aclUrn"], ACL_URN);
+        assert_eq!(out["network"]["subnet"]["routeTableUrn"], ROUTE_TABLE_URN);
+    }
+
+    #[test]
+    fn list_subnets_renders_each_subnet_with_or_without_an_acl_and_route_table() {
+        let out = rendered(
+            json!({"network": {"subnets": [
+                subnet(json!(ACL_URN), json!(ROUTE_TABLE_URN)),
+                subnet(Value::Null, json!(ROUTE_TABLE_URN)),
+                subnet(json!(ACL_URN), Value::Null),
+            ]}}),
+            ListSubnetsResponse,
+        );
+        let subnets = out["network"]["subnets"].as_array().unwrap();
+        assert_eq!(subnets[0]["aclUrn"], ACL_URN);
+        assert_eq!(subnets[0]["routeTableUrn"], ROUTE_TABLE_URN);
+        assert_eq!(subnets[1].get("aclUrn"), Some(&Value::Null));
+        assert_eq!(subnets[1]["routeTableUrn"], ROUTE_TABLE_URN);
+        assert_eq!(subnets[2]["aclUrn"], ACL_URN);
+        assert_eq!(subnets[2].get("routeTableUrn"), Some(&Value::Null));
+    }
+
+    #[test]
+    fn create_subnet_renders_a_subnet_created_without_an_acl_or_route_table() {
+        let out = rendered(
+            json!({"network": {"createSubnet": subnet(Value::Null, Value::Null)}}),
+            CreateSubnetResponse,
+        );
+        let subnet = out["network"]["createSubnet"].as_object().unwrap();
+        assert_eq!(subnet.get("aclUrn"), Some(&Value::Null));
+        assert_eq!(subnet.get("routeTableUrn"), Some(&Value::Null));
+    }
+
+    #[test]
+    fn associating_a_route_table_renders_a_subnet_still_without_an_acl() {
+        let out = rendered(
+            json!({"network": {"associateRouteTable": {
+                "id": "abc123",
+                "urn": "urn:origin:cloud:network:eu-central1:0a1b2c3d4e5f:my-project-123:subnet/abc123",
+                "vpcId": "def456",
+                "routeTableUrn": ROUTE_TABLE_URN,
+                "aclUrn": null,
+            }}}),
+            AssociateRouteTableResponse,
+        );
+        let subnet = out["network"]["associateRouteTable"].as_object().unwrap();
+        assert_eq!(subnet["routeTableUrn"], ROUTE_TABLE_URN);
+        assert_eq!(subnet.get("aclUrn"), Some(&Value::Null));
+    }
+
+    #[test]
+    fn updating_a_subnet_renders_one_without_a_route_table() {
+        let mut updated = subnet(json!(ACL_URN), Value::Null);
+        let out = rendered(
+            json!({"network": {"updateSubnetAcl": updated.clone()}}),
+            UpdateSubnetAclResponse,
+        );
+        assert_eq!(out["network"]["updateSubnetAcl"]["aclUrn"], ACL_URN);
+        assert_eq!(
+            out["network"]["updateSubnetAcl"].get("routeTableUrn"),
+            Some(&Value::Null)
+        );
+
+        updated["autoAssignPublicIp"] = json!(true);
+        let out = rendered(
+            json!({"network": {"updateSubnetAutoAssignPublicIp": updated}}),
+            UpdateSubnetAutoAssignPublicIpResponse,
+        );
+        let subnet = out["network"]["updateSubnetAutoAssignPublicIp"]
+            .as_object()
+            .unwrap();
+        assert_eq!(subnet.get("routeTableUrn"), Some(&Value::Null));
+    }
+}

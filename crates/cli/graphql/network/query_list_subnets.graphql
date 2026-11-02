@@ -8,6 +8,8 @@ query ListSubnets($input: NetworkListSubnetsInput!) {
                 value
             }
             vpcId
+            aclUrn
+            routeTableUrn
             availabilityZone
             ipv6DnsServers
             ipv6Network {
