@@ -68,9 +68,12 @@ pub(crate) enum NetworkCommands {
     /// default network ACL, such as a project's default VPC, the subnet gets
     /// both; otherwise it starts with neither, and its `aclUrn` and
     /// `routeTableUrn` are `null`. Until `associate-route-table` gives it a
-    /// route table, it has no route to the internet. Until
-    /// `update-subnet-acl` gives it a network ACL, it isn't filtered at its
-    /// edge; its interfaces' security groups still apply.
+    /// route table, it has no route out of the VPC and counts as a subnet
+    /// whose route table has no default route; internet access is decided
+    /// per VPC, so its instances still reach and are reached from the
+    /// internet through Floating IPs and IPv6 addresses while another subnet
+    /// routes out. Until `update-subnet-acl` gives it a network ACL, it isn't
+    /// filtered at its edge; its interfaces' security groups still apply.
     CreateSubnet {
         /// URN of the VPC.
         #[arg(long)]
@@ -91,7 +94,7 @@ pub(crate) enum NetworkCommands {
     /// List the subnets of a project. A subnet's `aclUrn` is `null` when it
     /// has no network ACL: it isn't filtered at its edge. Its
     /// `routeTableUrn` is `null` when it has no route table: it has no route
-    /// to the internet.
+    /// out of its VPC (internet access is decided per VPC).
     ListSubnets {
         /// URN of the project.
         #[arg(long)]
@@ -145,9 +148,10 @@ pub(crate) enum NetworkCommands {
         vpc_urn: Urn,
     },
 
-    /// Attach an Internet Gateway to a VPC. A subnet reaches the internet
-    /// through it once the subnet's route table has a default route to it:
-    /// add one with `update-route-table-routes`. Only a VPC with a main
+    /// Attach an Internet Gateway to a VPC. The VPC's traffic reaches the
+    /// internet through it once a route table its subnets use has a default
+    /// route to it: add one with `update-route-table-routes`. Internet access
+    /// is decided per VPC and address family. Only a VPC with a main
     /// route table, such as a project's default VPC, gets default routes to
     /// the gateway added to that table.
     AttachInternetGateway {
@@ -256,8 +260,9 @@ pub(crate) enum NetworkCommands {
     /// Get a single Subnet. Its `aclUrn` is `null` when it has no network
     /// ACL: it isn't filtered at its edge, and its interfaces' security
     /// groups are what applies. Its `routeTableUrn` is `null` when it has no
-    /// route table: it has no route out of its VPC, so no route to the
-    /// internet.
+    /// route table: it has no route out of its VPC, and counts as a subnet
+    /// whose route table has no default route (internet access is decided
+    /// per VPC).
     GetSubnet {
         /// URN of the subnet.
         #[arg(long)]

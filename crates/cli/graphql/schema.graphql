@@ -2739,11 +2739,15 @@ to inherit them.
 A subnet with no route table has no route out of the VPC: it counts as
 a subnet whose route table has no default route. Internet access is
 decided per VPC and address family: traffic of a family can leave the
-VPC when any route table its subnets use has a default route for it.
-Tables let different subnets of one VPC route differently — the pattern
-behind a public subnet (reaching the internet through a gateway) and a
-private one (with no route out). A project's default VPC has one *main*
-table, created with it.
+VPC when any route table its subnets use has a default route for it, so
+a subnet without one can still reach and be reached from the internet
+through a floating IP or an IPv6 address while another subnet of the VPC
+routes out. Network ACL and security group egress rules stop a subnet's
+outbound traffic. Tables let different subnets of one VPC route
+differently — a public subnet reaching the internet through a gateway,
+and a private one whose instances without a floating IP get no working
+internet access. A project's default VPC has one *main* table, created
+with it.
 """
 type NetworkRouteTable {
 	id: ID!
