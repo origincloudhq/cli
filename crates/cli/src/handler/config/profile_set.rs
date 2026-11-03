@@ -1,5 +1,5 @@
 use crate::config::{ClientProfile, OutputFormat};
-use crate::identity::{is_region, is_resource_id};
+use crate::identity::{is_region, is_resource_id, RESOURCE_ID_RULE};
 use crate::output::{CommandResult, SerializableOutput};
 use anyhow::{anyhow, bail};
 use std::str::FromStr;
@@ -23,9 +23,7 @@ pub(super) fn perform_profile_set(
         if is_resource_id(&value) {
             Ok(Some(value.clone()))
         } else {
-            Err(anyhow!(
-                "{value:?} isn't a {what}: expected letters, digits, `-` and `_`"
-            ))
+            Err(anyhow!("{value:?} isn't a {what}: {RESOURCE_ID_RULE}"))
         }
     };
     match key {

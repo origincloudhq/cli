@@ -1,7 +1,8 @@
 //! The choices the API definitions don't express, from `commands.toml`
 //! beside the generator: what a command group's help says, methods left
 //! without a command, fields left out of a command, changes that can't be
-//! undone, secrets a response shows once, and the hand-written groups the
+//! undone, secrets a response shows once, reference fields taking the
+//! names of more than one resource type, and the hand-written groups the
 //! generated ones replace.
 
 use std::path::Path;
@@ -43,6 +44,9 @@ pub struct Policy {
     /// response alone.
     #[serde(default)]
     pub shown_once: Vec<ShownOnce>,
+    /// Reference fields that also take the names of another resource type.
+    #[serde(default)]
+    pub also_names: Vec<AlsoNames>,
 }
 
 /// The help of a service's command group, when its definitions don't say
@@ -143,6 +147,24 @@ pub struct ShownOnce {
     /// What standard error says: that it can't be had again, and how to
     /// keep it.
     pub notice: String,
+}
+
+/// A reference field that also takes the names of a resource type other
+/// than the one its `google.api.resource_reference` declares, which can
+/// name one type only: its flag takes a whole name of either, and an id
+/// still completes to the declared type's pattern.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AlsoNames {
+    /// The field, by its full name, wherever it is a flag or a key:
+    /// `origincloud.compute.v1beta1.Instance.image`.
+    pub field: String,
+    /// The other resource type, such as
+    /// `compute.origincloudapis.eu/PublicImage`.
+    pub resource: String,
+    /// Why, for whoever reads the table.
+    #[allow(dead_code)]
+    pub why: String,
 }
 
 impl Policy {
@@ -246,6 +268,11 @@ mod tests {
             method = "CreateKeyPair"
             field = "private_key"
             notice = "z"
+
+            [[also_names]]
+            field = "origincloud.compute.v1beta1.Instance.image"
+            resource = "compute.origincloudapis.eu/PublicImage"
+            why = "w"
             "#,
         )
         .unwrap();
@@ -257,6 +284,10 @@ mod tests {
         assert!(policy.excluded("pvs", "ImportVolume", "volume.source_snapshot"));
         assert!(!policy.excluded("other", "ImportVolume", "volume.source_snapshot"));
         assert_eq!(policy.entries().count(), 2);
+        assert_eq!(
+            policy.also_names[0].resource,
+            "compute.origincloudapis.eu/PublicImage"
+        );
         // Every entry says why.
         assert!(
             toml::from_str::<Policy>("[[no_command]]\nservice = \"pvs\"\nmethod = \"X\"\n")

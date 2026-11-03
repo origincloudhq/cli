@@ -107,17 +107,18 @@ async fn an_empty_catalog_prints_an_empty_array() {
 }
 
 /// A zone or region that could step out of its place in the path is
-/// refused before any request, from the flag or a whole name.
+/// refused before any request, from the flag or a whole name; any other
+/// id is the API's to judge, and goes to it escaped, as the SDK sends it.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_location_name_outside_the_id_alphabet_is_refused() {
+async fn a_location_name_that_could_leave_its_place_is_refused() {
     let server = recording(location).await;
     for args in [
         &["get-zone", "--zone", ".."][..],
         &["get-zone", "--zone", "."],
+        &["get-zone", "--zone", ""],
         &["get-zone", "--zone", "zones/.."],
         &["get-zone", "--zone", "regions/r"],
         &["get-region", "--region", "a/b"],
-        &["get-region", "--region", "r?x"],
     ] {
         let description = failure(&server.run("location", args).await);
         assert!(
@@ -126,6 +127,16 @@ async fn a_location_name_outside_the_id_alphabet_is_refused() {
         );
     }
     assert!(server.requests().is_empty(), "{:?}", server.requests());
+
+    for region in ["r?x", "regions/r?x"] {
+        failure(
+            &server
+                .run("location", &["get-region", "--region", region])
+                .await,
+        );
+    }
+    let paths: Vec<String> = server.requests().iter().map(|r| r.path.clone()).collect();
+    assert_eq!(paths, ["/v1beta1/regions/r%3Fx", "/v1beta1/regions/r%3Fx"]);
 }
 
 const RUNNING: &str = r#"{"name":"projects/p/zones/z/operations/op-1","metadata":{"@type":"type.googleapis.com/origincloud.longrunning.v1beta1.OperationMetadata","target":"projects/p/zones/z/volumes/v","verb":"create"}}"#;
@@ -639,4 +650,114 @@ async fn a_generated_private_key_comes_with_a_notice() {
     assert_eq!(success(&output), json(IMPORTED));
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!stderr.contains("privateKey"), "{stderr}");
+}
+
+/// `create-instance` reaches the server with an instance type, whose ids
+/// hold dots, and an image of either form: the project's own, completed
+/// from its id, or a public one, whose zone fills in `--zone`.
+#[tokio::test(flavor = "multi_thread")]
+async fn create_instance_takes_dotted_types_and_public_images() {
+    const LAUNCHING: &str = r#"{"name":"projects/p/zones/z/operations/op-1"}"#;
+    let server = recording(|_| Response::json(LAUNCHING)).await;
+    let create = |instance_type: &'static str, image: &'static str, zone: Option<&'static str>| {
+        let mut args = vec![
+            "create-instance",
+            "--project",
+            "p",
+            "--instance-type",
+            instance_type,
+            "--image",
+            image,
+            "--key-pair",
+            "k",
+            "--network-interface",
+            "ni-1",
+            "--no-wait",
+        ];
+        if let Some(zone) = zone {
+            args.extend(["--zone", zone]);
+        }
+        args
+    };
+    for (instance_type, image, zone, sent_image) in [
+        (
+            "gp1.core.2",
+            "zones/z/images/img-1",
+            None,
+            "zones/z/images/img-1",
+        ),
+        (
+            "instanceTypes/gp1.core.2",
+            "zones/z/images/img-1",
+            Some("z"),
+            "zones/z/images/img-1",
+        ),
+        (
+            "gp1.core.2",
+            "img-1",
+            Some("z"),
+            "projects/p/zones/z/images/img-1",
+        ),
+        (
+            "gp1.core.2",
+            "projects/p/zones/z/images/img-1",
+            None,
+            "projects/p/zones/z/images/img-1",
+        ),
+    ] {
+        let args = create(instance_type, image, zone);
+        let printed = success(&server.run("compute", &args).await);
+        assert_eq!(printed, json(LAUNCHING), "{args:?}");
+        let requests = server.requests();
+        let sent = requests.last().unwrap();
+        assert_eq!(sent.method, "POST", "{args:?}");
+        assert_eq!(
+            sent.path, "/v1beta1/projects/p/zones/z/instances",
+            "{args:?}"
+        );
+        let body: serde_json::Value = serde_json::from_slice(&sent.body).unwrap();
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "instanceType": "instanceTypes/gp1.core.2",
+                "image": sent_image,
+                "keyPair": "projects/p/keyPairs/k",
+                "networkInterfaces": ["projects/p/zones/z/networkInterfaces/ni-1"],
+            }),
+            "{args:?}"
+        );
+    }
+
+    // A public image in another zone than --zone, and names of neither
+    // form, are refused before any request.
+    let before = server.requests().len();
+    for (image, refusal) in [
+        (
+            "zones/z2/images/img-1",
+            "--zone z differs from the zone of --image",
+        ),
+        ("images/img-1", "isn't a name of the form"),
+        ("zones/z/images/..", "isn't a name of the form"),
+        ("..", "isn't an id"),
+    ] {
+        let description = failure(
+            &server
+                .run("compute", &create("gp1.core.2", image, Some("z")))
+                .await,
+        );
+        assert!(description.contains(refusal), "{image}: {description}");
+    }
+    let description = failure(
+        &server
+            .run(
+                "compute",
+                &create("instanceTypes/gp1.core.2/x", "img-1", Some("z")),
+            )
+            .await,
+    );
+    assert!(
+        description.contains("isn't a name of the form instanceTypes/{instance_type}"),
+        "{description}"
+    );
+    assert_eq!(server.requests().len(), before, "{:?}", server.requests());
 }

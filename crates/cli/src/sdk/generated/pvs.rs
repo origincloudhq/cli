@@ -172,14 +172,15 @@ async fn get_snapshot(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/snapshots/{snapshot}",
+            &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
             "snapshot",
             Some(args.snapshot.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/snapshots/{snapshot}",
-            Some(("snapshot", args.snapshot.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            "snapshot",
+            args.snapshot.as_str(),
         )?;
     let request = ::origincloud_pvs::v1beta1::GetSnapshotRequest {
         name,
@@ -234,7 +235,7 @@ async fn list_snapshots(
     let client = ctx.client()?;
     let paging = args.page_size.is_some() || args.page_token.is_some();
     let parents: Vec<String> = match args.zone.as_deref() {
-        Some(_) => vec![names.name("projects/{project}/zones/{zone}", None) ?],
+        Some(_) => vec![names.name("projects/{project}/zones/{zone}") ?],
         None => {
             if paging {
                 anyhow::bail!(
@@ -248,7 +249,7 @@ async fn list_snapshots(
                     .push(
                         names
                             .with_part("zone", &zone)
-                            .name("projects/{project}/zones/{zone}", None)?,
+                            .name("projects/{project}/zones/{zone}")?,
                     );
             }
             parents
@@ -330,15 +331,16 @@ async fn create_snapshot(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/volumes/{volume}",
+            &["projects/{project}/zones/{zone}/volumes/{volume}"],
             "source-volume",
             Some(args.source_volume.as_str()),
         )?;
-    let parent = names.name("projects/{project}/zones/{zone}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}")?;
     let source_volume = names
-        .name(
-            "projects/{project}/zones/{zone}/volumes/{volume}",
-            Some(("source-volume", args.source_volume.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/volumes/{volume}"],
+            "source-volume",
+            args.source_volume.as_str(),
         )?;
     let snapshot = ::origincloud_pvs::v1beta1::Snapshot {
         source_volume,
@@ -409,14 +411,15 @@ async fn update_snapshot(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/snapshots/{snapshot}",
+            &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
             "snapshot",
             Some(args.snapshot.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/snapshots/{snapshot}",
-            Some(("snapshot", args.snapshot.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            "snapshot",
+            args.snapshot.as_str(),
         )?;
     let mut snapshot = ::origincloud_pvs::v1beta1::Snapshot {
         name: name.clone(),
@@ -480,14 +483,15 @@ async fn delete_snapshot(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/snapshots/{snapshot}",
+            &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
             "snapshot",
             Some(args.snapshot.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/snapshots/{snapshot}",
-            Some(("snapshot", args.snapshot.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            "snapshot",
+            args.snapshot.as_str(),
         )?;
     let request = ::origincloud_pvs::v1beta1::DeleteSnapshotRequest {
         name,
@@ -552,14 +556,15 @@ async fn protect_snapshot(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/snapshots/{snapshot}",
+            &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
             "snapshot",
             Some(args.snapshot.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/snapshots/{snapshot}",
-            Some(("snapshot", args.snapshot.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            "snapshot",
+            args.snapshot.as_str(),
         )?;
     let request = ::origincloud_pvs::v1beta1::ProtectSnapshotRequest {
         name,
@@ -616,14 +621,15 @@ async fn unprotect_snapshot(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/snapshots/{snapshot}",
+            &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
             "snapshot",
             Some(args.snapshot.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/snapshots/{snapshot}",
-            Some(("snapshot", args.snapshot.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            "snapshot",
+            args.snapshot.as_str(),
         )?;
     let request = ::origincloud_pvs::v1beta1::UnprotectSnapshotRequest {
         name,
@@ -665,14 +671,15 @@ async fn get_storage_class(
     let mut names = ctx.names(&[]);
     names
         .learn(
-            "storageClasses/{storage_class}",
+            &["storageClasses/{storage_class}"],
             "storage-class",
             Some(args.storage_class.as_str()),
         )?;
     let name = names
-        .name(
-            "storageClasses/{storage_class}",
-            Some(("storage-class", args.storage_class.as_str())),
+        .reference(
+            &["storageClasses/{storage_class}"],
+            "storage-class",
+            args.storage_class.as_str(),
         )?;
     let request = ::origincloud_pvs::v1beta1::GetStorageClassRequest {
         name,
@@ -739,14 +746,15 @@ async fn get_volume(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/volumes/{volume}",
+            &["projects/{project}/zones/{zone}/volumes/{volume}"],
             "volume",
             Some(args.volume.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/volumes/{volume}",
-            Some(("volume", args.volume.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/volumes/{volume}"],
+            "volume",
+            args.volume.as_str(),
         )?;
     let request = ::origincloud_pvs::v1beta1::GetVolumeRequest {
         name,
@@ -799,7 +807,7 @@ async fn list_volumes(
     let client = ctx.client()?;
     let paging = args.page_size.is_some() || args.page_token.is_some();
     let parents: Vec<String> = match args.zone.as_deref() {
-        Some(_) => vec![names.name("projects/{project}/zones/{zone}", None) ?],
+        Some(_) => vec![names.name("projects/{project}/zones/{zone}") ?],
         None => {
             if paging {
                 anyhow::bail!(
@@ -813,7 +821,7 @@ async fn list_volumes(
                     .push(
                         names
                             .with_part("zone", &zone)
-                            .name("projects/{project}/zones/{zone}", None)?,
+                            .name("projects/{project}/zones/{zone}")?,
                     );
             }
             parents
@@ -907,29 +915,30 @@ async fn create_volume(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "storageClasses/{storage_class}",
+            &["storageClasses/{storage_class}"],
             "storage-class",
             args.storage_class.as_deref(),
         )?;
     names
         .learn(
-            "projects/{project}/zones/{zone}/snapshots/{snapshot}",
+            &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
             "source-snapshot",
             args.source_snapshot.as_deref(),
         )?;
-    let parent = names.name("projects/{project}/zones/{zone}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}")?;
     let storage_class = match args.storage_class.as_deref() {
         Some(v) => {
-            names.name("storageClasses/{storage_class}", Some(("storage-class", v)))?
+            names.reference(&["storageClasses/{storage_class}"], "storage-class", v)?
         }
         None => String::new(),
     };
     let source_snapshot = match args.source_snapshot.as_deref() {
         Some(v) => {
             names
-                .name(
-                    "projects/{project}/zones/{zone}/snapshots/{snapshot}",
-                    Some(("source-snapshot", v)),
+                .reference(
+                    &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+                    "source-snapshot",
+                    v,
                 )?
         }
         None => String::new(),
@@ -1011,14 +1020,14 @@ async fn import_volume(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "storageClasses/{storage_class}",
+            &["storageClasses/{storage_class}"],
             "storage-class",
             args.storage_class.as_deref(),
         )?;
-    let parent = names.name("projects/{project}/zones/{zone}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}")?;
     let storage_class = match args.storage_class.as_deref() {
         Some(v) => {
-            names.name("storageClasses/{storage_class}", Some(("storage-class", v)))?
+            names.reference(&["storageClasses/{storage_class}"], "storage-class", v)?
         }
         None => String::new(),
     };
@@ -1110,14 +1119,15 @@ async fn update_volume(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/volumes/{volume}",
+            &["projects/{project}/zones/{zone}/volumes/{volume}"],
             "volume",
             Some(args.volume.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/volumes/{volume}",
-            Some(("volume", args.volume.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/volumes/{volume}"],
+            "volume",
+            args.volume.as_str(),
         )?;
     let mut volume = ::origincloud_pvs::v1beta1::Volume {
         name: name.clone(),
@@ -1235,14 +1245,15 @@ async fn delete_volume(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/volumes/{volume}",
+            &["projects/{project}/zones/{zone}/volumes/{volume}"],
             "volume",
             Some(args.volume.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/volumes/{volume}",
-            Some(("volume", args.volume.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/volumes/{volume}"],
+            "volume",
+            args.volume.as_str(),
         )?;
     let request = ::origincloud_pvs::v1beta1::DeleteVolumeRequest {
         name,
@@ -1300,14 +1311,15 @@ async fn get_operation(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/operations/{operation}",
+            &["projects/{project}/zones/{zone}/operations/{operation}"],
             "operation",
             Some(args.operation.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/operations/{operation}",
-            Some(("operation", args.operation.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/operations/{operation}"],
+            "operation",
+            args.operation.as_str(),
         )?;
     let request = ::origincloud_core::longrunning::v1beta1::GetOperationRequest {
         name,
@@ -1355,14 +1367,15 @@ async fn wait_operation(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/operations/{operation}",
+            &["projects/{project}/zones/{zone}/operations/{operation}"],
             "operation",
             Some(args.operation.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/operations/{operation}",
-            Some(("operation", args.operation.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/operations/{operation}"],
+            "operation",
+            args.operation.as_str(),
         )?;
     let request = ::origincloud_core::longrunning::v1beta1::WaitOperationRequest {
         name,
