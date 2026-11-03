@@ -104,7 +104,7 @@ origin config profile
 | `output-format` | `ORIGINCLOUD_OUTPUT_FORMAT` | `table`, `wide`, `json` or `name` (see [Output](#output)); `--output` (`-o`) overrides it. |
 | `default-project` | `ORIGINCLOUD_PROJECT` | `--project` of the generated commands, such as `origin pvs`'s, when not given. |
 | `default-zone` | `ORIGINCLOUD_ZONE` | `--zone` of the generated commands, when not given; not of the lists, which list every zone without `--zone`. |
-| `region` | `ORIGINCLOUD_REGION` | The region the generated commands work in: the `--region` of the `network` commands' regional resources, when not given, and the front door the `compute`, `network` and `pvs` commands call, such as `pvs.{region}.origincloudapis.eu`. Without it, the region of the default zone (`eu-central1` for `eu-central1-az1`); without either, `--region` must be given, and the calls go to the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource. The `location` and `resourcemanager` commands always call their regionless host. |
+| `region` | `ORIGINCLOUD_REGION` | The region the generated commands work in: the `--region` of the `network` commands' regional resources, when not given, and the front door the `compute`, `network` and `pvs` commands call, such as `pvs.{region}.origincloudapis.eu`. Without it, the region of the default zone (`eu-central1` for `eu-central1-az1`); without either, `--region` must be given, and the calls go to the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource. The `location`, `resourcemanager` and `iam` commands always call their regionless host. |
 
 As in the AWS CLI, a flag comes first, then the environment variable, then
 the profile's value: an environment variable overrides the profile while a
@@ -146,14 +146,16 @@ A command that fails exits with status 1: in `json`, it prints
 always has; in the other formats, `error: ...` on standard error. A command
 line the CLI can't parse exits with status 2 before sending anything.
 
-Irreversible commands (every delete, `origin iam revoke-service-account`,
-and growing a volume with `origin pvs update-volume --size-gib`) refuse to run without `--yes` and say
+Irreversible commands (every delete, and growing a volume with
+`origin pvs update-volume --size-gib`) refuse to run without `--yes` and say
 what they would have done; the refusal happens before any request.
 
 `origin compute create-key-pair` without `--public-key` prints the private
 key it generates as `privateKey`, which the API returns this once, and says
 so on standard error: save it, readable by you alone, such as with
 `origin compute create-key-pair | (umask 077; jq -r .privateKey > my-key)`.
+`origin iam create-service-account` does the same with the service
+account's client secret, `clientSecret`.
 
 ## The generated commands
 
@@ -167,6 +169,10 @@ A group per service of the API:
 - `origin pvs`: the persistent volume service's volumes, snapshots and
   storage classes.
 - `origin resourcemanager`: organizations and projects, and their quotas.
+- `origin iam`: role bindings, which grant a role to a member
+  (`user:{email}` or `serviceAccount:{id}`) in an organization or one of its
+  projects; service accounts; the roles and permissions on offer, and which
+  permissions you hold; your user; and an organization's audit log.
 - `origin location`: the regions and zones, and which services each zone
   offers.
 

@@ -20,11 +20,11 @@ time on it. CI must pass: the checks below, run on every pull request.
 
 ## How the CLI is built
 
-- `crates/cli` is the `origin` binary. The command groups `iam`, `id`,
-  `config` and `completion` are written by hand (`src/handler/`,
-  `src/service_apis/`); `iam`
-  and `id login` call the GraphQL API with the queries in `graphql/`,
-  checked against `graphql/schema.graphql`, the schema
+- `crates/cli` is the `origin` binary. The command groups `id`, `config`,
+  `mcp` and `completion` are written by hand (`src/handler/`). `id login`
+  reads the signed-in user from the GraphQL API once after a login, which
+  applies their pending invitations (`src/service_apis/`), with the query
+  in `graphql/`, checked against `graphql/schema.graphql`, the schema
   `graph.origincloudapis.eu` serves.
 - A group per service of the API, such as `origin pvs` and
   `origin location`, is generated (`crates/cli/src/sdk/generated/`) from the
@@ -226,7 +226,7 @@ pull request:
 2. If the service's package has several services, give the group's help a
    `[[service]]` entry in `generator/commands.toml`, and regenerate; the
    generator warns, and the coverage test fails, until it has one.
-3. If the service replaces a hand-written group, by name (`iam`)
+3. If the service replaces a hand-written group, by name (as `iam` did)
    or by a `[[replacement]]` entry (`resourcemanager` replaces `admin`),
    generation fails until that group is retired in the same pull request, as
    the next section says.
@@ -242,8 +242,8 @@ a string flag taking the whole name.
 
 ### A service replacing a hand-written group
 
-The hand-written groups that call the GraphQL API (`iam`) are each replaced
-by a service of the API in time.
+A hand-written group that calls the GraphQL API is replaced by a service of
+the API in time, as `admin`, `compute`, `network` and `iam` were.
 When the API gains the service that replaces one, the generated group lands
 and the hand-written one goes in the same change, so that `origin` never has
 both. A service replaces the group of its name; one replacing a group under
@@ -258,10 +258,10 @@ regeneration pull request puts the switch on that pull request. The switch:
    `crates/cli/src/handler/{group}/`.
 2. Delete its GraphQL client, `crates/cli/src/service_apis/{name}.rs`, its
    module line, and its queries, `crates/cli/graphql/{name}/`, unless another
-   group still uses part of it: `origin id login` uses `service_apis::iam`'s
-   current user, so retiring `iam` keeps that part, or moves `id` to the
-   generated group, and deletes the rest (clippy names what nothing uses any
-   more).
+   group still uses part of it, as `origin id login` still reads the
+   current user with `service_apis::iam` after `iam` was retired, since
+   that read applies pending invitations; delete the rest (clippy names
+   what nothing uses any more).
 3. Take the group off `hand_written` in `generator/commands.toml`, and add a
    `[[retired]]` entry, with the reason and what to use instead, for each of
    its commands no command of the same name replaces (such as `admin

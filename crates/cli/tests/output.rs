@@ -235,6 +235,36 @@ v2     ERROR    16         gp1
     );
 }
 
+/// Role bindings, the caller's own among them (`organizations/-`), are
+/// listed by member and role, a role by its id rather than its whole name.
+#[tokio::test(flavor = "multi_thread")]
+async fn role_bindings_are_listed_by_member_and_role() {
+    const BINDINGS: &str = r#"{"roleBindings":[
+        {"name":"organizations/o/roleBindings/rb-1","urn":"urn:origin:cloud:iam::o::roleBinding/rb-1",
+         "member":"user:ada@example.com","role":"roles/owner","creator":"platform"},
+        {"name":"organizations/o/roleBindings/rb-2","member":"serviceAccount:sa-1",
+         "role":"roles/viewer","project":"projects/p1","creator":"user:ada@example.com"}]}"#;
+    let server = recording(|_| Response::json(BINDINGS)).await;
+    let table = server
+        .run(
+            "iam",
+            &["list-role-bindings", "--organization", "-", "-o", "table"],
+        )
+        .await;
+    assert_eq!(
+        text(&table.stdout),
+        "\
+NAME   MEMBER                 ROLE     PROJECT       CREATE TIME
+rb-1   user:ada@example.com   owner
+rb-2   serviceAccount:sa-1    viewer   projects/p1
+"
+    );
+    assert_eq!(
+        server.requests()[0].path,
+        "/v1beta1/organizations/-/roleBindings"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn an_empty_list_says_where_it_looked_and_how_to_make_one() {
     let server = recording(|_| Response::json("{}")).await;

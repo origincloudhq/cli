@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use crate::config::OutputFormat;
 use crate::handler;
-use crate::handler::iam::IamCommands;
 use crate::handler::id::IdentityCommands;
 use crate::handler::mcp::McpCommands;
 use crate::output::ColorWhen;
@@ -20,8 +19,8 @@ pub struct Cli {
     #[arg(short, long, value_name = "FILE")]
     pub(crate) config: Option<PathBuf>,
 
-    /// GraphQL API endpoint the hand-written commands send their requests
-    /// to.
+    /// GraphQL API endpoint `origin id login` reads the signed-in user from,
+    /// which applies their pending invitations.
     #[arg(short, long, value_name = "URL", default_value_t = get_default_api_url())]
     pub(crate) api: String,
 
@@ -63,10 +62,6 @@ pub(crate) enum Commands {
     /// Authenticate with Origin Cloud Identity.
     #[command(subcommand)]
     Id(IdentityCommands),
-
-    /// IAM Service.
-    #[command(subcommand)]
-    Iam(IamCommands),
 
     /// Serve Origin Cloud's API to an AI agent over MCP.
     #[command(subcommand)]

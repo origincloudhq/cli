@@ -1,5 +1,0 @@
-query HasPermission($input: IamHasPermissionInput!) {
-    iam {
-        hasPermission(input: $input)
-    }
-}

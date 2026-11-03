@@ -1,5 +1,0 @@
-mutation RevokeInvite($input: IamRevokeInviteInput!) {
-    iam {
-        revokeInvite(input: $input)
-    }
-}

@@ -1,5 +1,0 @@
-mutation AssignRole($input: IamRoleAssignmentInput!) {
-    iam {
-        assignRole(input: $input)
-    }
-}

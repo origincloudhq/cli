@@ -49,13 +49,13 @@ pub(super) async fn perform_login(
 /// Reads the signed-in user once, right after a user login.
 ///
 /// The platform applies a user's pending organization invites on their first
-/// `currentUser` read, not at login. The console makes that read on every sign-in; without this one, a person
-/// who only uses the CLI would get no invited role until they happened to run
-/// `origin iam current-user`.
+/// `currentUser` read, not at login. The console makes that read on every
+/// sign-in; without this one, a person who only uses the CLI would get no
+/// invited role until they signed in to the console.
 ///
 /// The login has already succeeded and its session is stored, so a failed read
-/// does not fail it. Returns the warning to print instead, which names the
-/// command that applies the invites later. The warning says "may": the server
+/// does not fail it. Returns the warning to print instead, which says how to
+/// apply the invites later. The warning says "may": the server
 /// applies invites before it looks the user up, so a read can fail after they
 /// were applied.
 async fn resolve_first_authentication<F, Fut, T, E>(read_current_user: F) -> Option<String>
@@ -69,7 +69,7 @@ where
         Err(err) => Some(format!(
             "warning: could not read your user after logging in, so pending organization \
              invites for your email address may not be applied yet ({err}). \
-             Run `origin iam current-user` to apply them."
+             Log in again, or sign in to the console, to apply them."
         )),
     }
 }
@@ -93,7 +93,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_failed_read_warns_with_the_cause_and_the_command_that_applies_invites() {
+    async fn a_failed_read_warns_with_the_cause_and_how_to_apply_invites() {
         let warning = resolve_first_authentication(|| async {
             Err::<(), _>("transport: connection refused")
         })
@@ -106,7 +106,7 @@ mod tests {
             "{warning}"
         );
         assert!(
-            warning.contains("Run `origin iam current-user` to apply them."),
+            warning.contains("Log in again, or sign in to the console, to apply them."),
             "{warning}"
         );
     }

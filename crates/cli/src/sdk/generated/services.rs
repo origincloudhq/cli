@@ -16,6 +16,18 @@ pub(crate) static COMPUTE: Group = Group {
     regional: true,
     service: compute::service,
 };
+/// `origin iam`.
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
+pub mod iam {
+    include!("iam.rs");
+}
+/// What the runtime knows of `origin iam`.
+pub(crate) static IAM: Group = Group {
+    name: "iam",
+    endpoint_variable: "ORIGINCLOUD_IAM_ENDPOINT",
+    regional: false,
+    service: iam::service,
+};
 /// `origin location`.
 #[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
 pub mod location {
@@ -83,6 +95,7 @@ pub(crate) static SCRATCH: Group = Group {
 #[allow(dead_code)]
 pub(crate) static GROUPS: &[&Group] = &[
     &COMPUTE,
+    &IAM,
     &LOCATION,
     &NETWORK,
     &PVS,
@@ -93,6 +106,7 @@ pub(crate) static GROUPS: &[&Group] = &[
 #[allow(dead_code)]
 pub(crate) static GROUPS: &[&Group] = &[
     &COMPUTE,
+    &IAM,
     &LOCATION,
     &NETWORK,
     &PVS,
@@ -109,6 +123,12 @@ pub enum ServiceCommands {
         long_about = "Compute service: instances, images, key pairs, volume attachments, and the instance types and image families on offer.\n\nResource names are given as their parts (`--project`, `--zone`, `--instance`), or the resource's flag takes a whole name; `--project` and `--zone` default to the profile's `default-project` and `default-zone`."
     )]
     Compute(ComputeCli),
+    #[command(
+        name = "iam",
+        about = "Identity and access management: role bindings, service accounts, roles, permissions, your user and the audit log",
+        long_about = "Identity and access management: role bindings, service accounts, roles, permissions, your user and the audit log.\n\nRole bindings, service accounts and the audit log are an organization's (`--organization`); roles, permissions and your user are the same in every organization. A role binding's member is `user:{email}` or `serviceAccount:{service_account}`; `origin iam list-role-bindings --organization -` lists the bindings you hold, in every organization."
+    )]
+    Iam(IamCli),
     #[command(
         name = "location",
         about = "The platform's regions and zones, and which services each zone offers",
@@ -155,6 +175,21 @@ pub struct ComputeCli {
     pub endpoint: Option<String>,
     #[command(subcommand)]
     pub command: compute::Commands,
+}
+/// `origin iam`: its options, and the command.
+#[derive(clap::Args, Debug)]
+pub struct IamCli {
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host, `https://iam.origincloudapis.eu`, the same in every region. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`).
+    #[arg(
+        long,
+        value_name = "URL",
+        env = "ORIGINCLOUD_IAM_ENDPOINT",
+        global = true,
+        help_heading = "Global options"
+    )]
+    pub endpoint: Option<String>,
+    #[command(subcommand)]
+    pub command: iam::Commands,
 }
 /// `origin location`: its options, and the command.
 #[derive(clap::Args, Debug)]
@@ -241,6 +276,10 @@ pub async fn run(
         ServiceCommands::Compute(cli) => {
             let ctx = Context::new(profile, &COMPUTE, cli.endpoint.as_deref())?;
             compute::run(&ctx, cli.command).await
+        }
+        ServiceCommands::Iam(cli) => {
+            let ctx = Context::new(profile, &IAM, cli.endpoint.as_deref())?;
+            iam::run(&ctx, cli.command).await
         }
         ServiceCommands::Location(cli) => {
             let ctx = Context::new(profile, &LOCATION, cli.endpoint.as_deref())?;

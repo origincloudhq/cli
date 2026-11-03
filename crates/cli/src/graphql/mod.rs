@@ -1,5 +1,5 @@
-//! The GraphQL client the hand-written commands (`iam`, and `id`'s current
-//! user) send their queries with.
+//! The GraphQL client `origin id login` reads the signed-in user with, and
+//! the access tokens every command is sent with.
 
 mod auth;
 mod client;
