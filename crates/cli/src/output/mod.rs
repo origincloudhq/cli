@@ -74,7 +74,8 @@ pub enum Shape {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Listing {
     /// The field holding the items, beside the next page's token when
-    /// there is one: `instances`.
+    /// there is one: `instances`; a dotted path when the response nests
+    /// it, as GraphQL's do: `iam.orgMembers`.
     pub field: &'static str,
     /// The items' message, in full: `origincloud.compute.v1beta1.Instance`.
     pub item: Option<&'static str>,
@@ -256,14 +257,16 @@ fn what<'a>(shape: &'a Shape, value: &'a Value) -> What<'a> {
                 .get("nextPageToken")
                 .and_then(Value::as_str)
                 .filter(|t| !t.is_empty());
-            let items = value
-                .get(listing.field)
+            let items = listing
+                .field
+                .split('.')
+                .try_fold(value, |value, key| value.get(key))
                 .and_then(Value::as_array)
                 .map(Vec::as_slice)
                 .unwrap_or_default();
             return What::List {
                 items,
-                noun: Some(listing.field),
+                noun: listing.field.rsplit('.').next(),
                 next,
                 listing: Some(listing),
             };

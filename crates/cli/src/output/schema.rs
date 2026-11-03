@@ -56,7 +56,10 @@ impl Field {
         }
     }
 
-    /// The kind of a field without descriptors, from a value it holds.
+    /// The kind of a field without descriptors, from a value it holds: a
+    /// string in RFC 3339 is a timestamp, as a GraphQL `createdAt` is, and
+    /// a URN a reference, shown by what ends it (`viewer` for
+    /// `urn:origin:cloud:iam::acme::role/viewer`) in a table.
     pub fn told_from(value: &Value) -> Self {
         let (value, repeated) = match value {
             Value::Array(items) => (items.first().unwrap_or(&Value::Null), true),
@@ -66,6 +69,8 @@ impl Field {
             Value::Bool(_) => Kind::Bool,
             Value::Number(_) => Kind::Number,
             Value::Object(_) => Kind::Message(None),
+            Value::String(s) if chrono::DateTime::parse_from_rfc3339(s).is_ok() => Kind::Timestamp,
+            Value::String(s) if s.starts_with("urn:") => Kind::Reference,
             _ => Kind::Text,
         };
         Field { kind, repeated }

@@ -3,13 +3,30 @@ use crate::graphql::Error as ClientError;
 use crate::graphql::GenericGraphQLClient;
 #[allow(unused_imports)]
 use crate::identity::*;
-use crate::output::{SerializableOutput, SerializationError};
+use crate::output::{Listing, SerializableOutput, SerializationError, Shape};
 use graphql_client::*;
 use std::str::FromStr;
 use url::Url;
 
 pub type DateTime = chrono::DateTime<chrono::Utc>;
 pub type Result<T> = std::result::Result<T, ClientError>;
+
+/// The list in the GraphQL response's `field` (`iam.orgMembers`), as the
+/// human formats print it: `table` with `columns`, JSON paths from an item,
+/// such as `user.email`; `wide` with every other field that fits in a cell
+/// after them; an empty one suggesting `create`.
+fn listing(
+    field: &'static str,
+    columns: &'static [&'static str],
+    create: Option<&'static str>,
+) -> Shape {
+    Shape::List(Listing {
+        field,
+        columns,
+        create,
+        ..Listing::default()
+    })
+}
 
 /// A permission's stable identifier, e.g. `network.vpc.list`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -130,6 +147,20 @@ impl SerializableOutput for OrgMembersResponse {
     fn to_json(&self) -> std::result::Result<serde_json::Value, SerializationError> {
         serde_json::to_value(self).map_err(|err| SerializationError::Other(err.to_string()))
     }
+
+    fn shape(&self) -> Shape {
+        listing(
+            "iam.orgMembers",
+            &[
+                "user.email",
+                "user.firstName",
+                "user.lastName",
+                "roleUrns",
+                "user.enabled",
+            ],
+            None,
+        )
+    }
 }
 
 #[derive(GraphQLQuery)]
@@ -146,6 +177,14 @@ pub(crate) struct OrgInvitesResponse(org_invites::ResponseData);
 impl SerializableOutput for OrgInvitesResponse {
     fn to_json(&self) -> std::result::Result<serde_json::Value, SerializationError> {
         serde_json::to_value(self).map_err(|err| SerializationError::Other(err.to_string()))
+    }
+
+    fn shape(&self) -> Shape {
+        listing(
+            "iam.orgInvites",
+            &["email", "roleUrn", "invitedBy", "createdAt"],
+            None,
+        )
     }
 }
 
@@ -198,6 +237,14 @@ impl SerializableOutput for ServiceAccountsResponse {
     fn to_json(&self) -> std::result::Result<serde_json::Value, SerializationError> {
         serde_json::to_value(self).map_err(|err| SerializationError::Other(err.to_string()))
     }
+
+    fn shape(&self) -> Shape {
+        listing(
+            "iam.serviceAccounts",
+            &["name", "principal", "createdAt", "revokedAt"],
+            Some("origin iam create-service-account"),
+        )
+    }
 }
 
 #[derive(GraphQLQuery)]
@@ -232,6 +279,14 @@ impl SerializableOutput for CurrentUserGrantsResponse {
     fn to_json(&self) -> std::result::Result<serde_json::Value, SerializationError> {
         serde_json::to_value(self).map_err(|err| SerializationError::Other(err.to_string()))
     }
+
+    fn shape(&self) -> Shape {
+        listing(
+            "iam.currentUserGrants",
+            &["orgId", "projectId", "roles.roleUrn", "createdAt"],
+            None,
+        )
+    }
 }
 
 #[derive(GraphQLQuery)]
@@ -249,6 +304,14 @@ impl SerializableOutput for PrincipalGrantsResponse {
     fn to_json(&self) -> std::result::Result<serde_json::Value, SerializationError> {
         serde_json::to_value(self).map_err(|err| SerializationError::Other(err.to_string()))
     }
+
+    fn shape(&self) -> Shape {
+        listing(
+            "iam.principalGrants",
+            &["principal", "projectId", "roles.roleUrn", "createdAt"],
+            None,
+        )
+    }
 }
 
 #[derive(GraphQLQuery)]
@@ -265,6 +328,10 @@ pub(crate) struct ListRolesResponse(list_roles::ResponseData);
 impl SerializableOutput for ListRolesResponse {
     fn to_json(&self) -> std::result::Result<serde_json::Value, SerializationError> {
         serde_json::to_value(self).map_err(|err| SerializationError::Other(err.to_string()))
+    }
+
+    fn shape(&self) -> Shape {
+        listing("iam.roles", &["name", "description"], None)
     }
 }
 
@@ -299,6 +366,14 @@ pub(crate) struct PermissionsResponse(permissions::ResponseData);
 impl SerializableOutput for PermissionsResponse {
     fn to_json(&self) -> std::result::Result<serde_json::Value, SerializationError> {
         serde_json::to_value(self).map_err(|err| SerializationError::Other(err.to_string()))
+    }
+
+    fn shape(&self) -> Shape {
+        listing(
+            "iam.permissions",
+            &["key", "service", "resourceType", "action"],
+            None,
+        )
     }
 }
 
@@ -526,5 +601,84 @@ impl IamServiceClient {
         };
         let response_data = self.client.call::<HasPermission>(variables).await?;
         Ok(HasPermissionResponse(response_data))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::OutputFormat;
+    use crate::output::{render, Context};
+    use serde_json::json;
+
+    fn table(output: &dyn SerializableOutput) -> (String, String) {
+        let cx = Context {
+            width: None,
+            now: "2026-11-03T12:00:00Z".parse().unwrap(),
+        };
+        let printed = render(OutputFormat::Table, output, &cx).unwrap();
+        let strip = |s: &str| anstream::adapter::strip_str(s).to_string();
+        (strip(&printed.out), strip(&printed.err))
+    }
+
+    #[test]
+    fn members_are_listed_by_their_email() {
+        let data: org_members::ResponseData = serde_json::from_value(json!({"iam": {"orgMembers": [
+            {"principal": "user:u1", "roleUrns": ["urn:origin:cloud:iam::acme::role/owner"],
+             "user": {"userId": "u1", "firstName": "Ada", "lastName": "Lovelace",
+                      "email": "ada@example.com", "enabled": true}},
+            {"principal": "user:u2", "roleUrns": ["urn:origin:cloud:iam::acme::role/viewer", "urn:origin:cloud:iam::acme::role/billing"],
+             "user": {"userId": "u2", "firstName": "Alan", "lastName": "Turing",
+                      "email": "alan@example.com", "enabled": false}},
+        ]}}))
+        .unwrap();
+        assert_eq!(
+            table(&OrgMembersResponse(data)).0,
+            "\
+EMAIL              FIRST NAME   LAST NAME   ROLES             ENABLED
+ada@example.com    Ada          Lovelace    owner             true
+alan@example.com   Alan         Turing      viewer, billing   false
+"
+        );
+    }
+
+    #[test]
+    fn invites_and_service_accounts_say_how_long_ago() {
+        let data: org_invites::ResponseData = serde_json::from_value(json!({"iam": {"orgInvites": [
+            {"id": "i1", "orgId": "o1", "email": "grace@example.com", "roleUrn": "urn:origin:cloud:iam::acme::role/viewer",
+             "invitedBy": "user:u1", "createdAt": "2026-11-01T12:00:00Z"},
+        ]}}))
+        .unwrap();
+        assert_eq!(
+            table(&OrgInvitesResponse(data)).0,
+            "\
+EMAIL               ROLE     INVITED BY   CREATED AT
+grace@example.com   viewer   user:u1      2d ago
+"
+        );
+
+        let none: service_accounts::ResponseData =
+            serde_json::from_value(json!({"iam": {"serviceAccounts": []}})).unwrap();
+        assert_eq!(
+            table(&ServiceAccountsResponse(none)).1,
+            "No service accounts. Create one with `origin iam create-service-account`.\n"
+        );
+    }
+
+    #[test]
+    fn a_grant_shows_its_roles() {
+        let data: principal_grants::ResponseData = serde_json::from_value(json!({"iam": {"principalGrants": [
+            {"id": "g1", "urn": "urn:origin:cloud:iam::acme::grant/g1", "principal": "user:u1", "orgId": "o1", "projectId": "p1",
+             "roles": [{"roleUrn": "urn:origin:cloud:iam::acme::role/viewer"}],
+             "createdAt": "2026-11-03T11:00:00Z", "createdBy": "user:u0"},
+        ]}}))
+        .unwrap();
+        assert_eq!(
+            table(&PrincipalGrantsResponse(data)).0,
+            "\
+PRINCIPAL   PROJECT ID   ROLE     CREATED AT
+user:u1     p1           viewer   60m ago
+"
+        );
     }
 }

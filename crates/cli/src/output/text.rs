@@ -28,9 +28,16 @@ pub(super) fn words(key: &str) -> String {
 }
 
 /// A table column's header for the field `key`: `INSTANCE TYPE` for
-/// `instanceType`.
+/// `instanceType`. A URN is shown by the id ending it, so `roleUrn` is
+/// `ROLE`, and `roleUrns` `ROLES`.
 pub(super) fn header(key: &str) -> String {
-    words(key).to_uppercase()
+    let words = words(key);
+    let words = match (words.strip_suffix(" urn"), words.strip_suffix(" urns")) {
+        (Some(one), _) => one.to_owned(),
+        (_, Some(many)) => format!("{many}s"),
+        _ => words,
+    };
+    words.to_uppercase()
 }
 
 /// Where a field goes among an item's: what tells the items apart and
@@ -191,6 +198,9 @@ mod tests {
         assert_eq!(words("vpc_id"), "vpc id");
         assert_eq!(words("imageFamilies"), "image families");
         assert_eq!(header("createTime"), "CREATE TIME");
+        assert_eq!(header("roleUrn"), "ROLE");
+        assert_eq!(header("roleUrns"), "ROLES");
+        assert_eq!(header("urn"), "URN");
     }
 
     #[test]
