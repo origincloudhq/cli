@@ -77,20 +77,31 @@ impl RegionSource {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Copy, Clone)]
+/// How a command's output is printed. When neither `--output`,
+/// `ORIGINCLOUD_OUTPUT_FORMAT` nor the profile names one, the output follows
+/// standard output: `table` on a terminal, `json` otherwise (see
+/// [`crate::output::format_for_stdout`]).
+///
+/// The profile file holds a variant by its Rust name (`"Json"`), as earlier
+/// versions saved it.
+#[derive(Debug, Serialize, Deserialize, Copy, Clone, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum OutputFormat {
-    #[default]
+    /// A list as a table, a resource as its fields, one per line.
+    Table,
+    /// A list as a table of every field that fits in a cell.
+    Wide,
+    /// The response as the API sends it, in JSON.
     Json,
+    /// The resource names alone, one per line.
+    Name,
 }
 
 impl FromStr for OutputFormat {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "json" => Ok(OutputFormat::Json),
-            _ => Err(String::from("unknown output format")),
-        }
+        <Self as clap::ValueEnum>::from_str(s, false)
+            .map_err(|_| format!("unknown output format {s:?}: expected table, wide, json or name"))
     }
 }
 

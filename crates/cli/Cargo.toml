@@ -47,6 +47,17 @@ tokio.workspace = true
 tracing.workspace = true
 url.workspace = true
 uuid.workspace = true
+# The human output formats: colour that turns itself off where it can't be
+# shown (`NO_COLOR`, a pipe, `--color`), and the width a table is laid out
+# to.
+anstream = "1.0.0"
+anstyle = "1.0.14"
+unicode-width = "0.1.14"
+
+# The terminal's width, which a table is fitted to. Windows has no lookup:
+# `COLUMNS` gives one there, and without it a table isn't cut to fit.
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1.6", features = ["termios"] }
 
 [features]
 # Adds `origin scratch`, the command group of a service that exists only in

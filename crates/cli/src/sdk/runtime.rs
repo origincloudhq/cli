@@ -17,7 +17,7 @@ use crate::config::ClientProfile;
 use crate::confirm::Confirmed;
 use crate::handler::tag_args::TagArg;
 use crate::identity::{is_resource_id, RESOURCE_ID_RULE};
-use crate::output::{CommandResult, SerializableOutput, SerializationError};
+use crate::output::{CommandResult, SerializableOutput, SerializationError, Shape};
 
 /// The variables that hold credentials for the SDK. When any is set, the
 /// generated commands use them, as every SDK does, instead of the login
@@ -535,12 +535,17 @@ pub fn names_any(mask: Option<&origincloud_core::protobuf::FieldMask>, paths: &[
     })
 }
 
-/// A response printed as its JSON mapping.
-struct Json(serde_json::Value);
+/// A response printed as its JSON mapping, and what it is for the human
+/// formats.
+struct Json(serde_json::Value, Shape);
 
 impl SerializableOutput for Json {
     fn to_json(&self) -> Result<serde_json::Value, SerializationError> {
         Ok(self.0.clone())
+    }
+
+    fn shape(&self) -> Shape {
+        self.1.clone()
     }
 }
 
@@ -622,12 +627,16 @@ pub async fn pace(started: std::time::Instant, deadline: Option<std::time::Insta
 
 /// `value` in its proto3 JSON mapping, as the API sends it.
 pub fn json(value: &impl Serialize) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    Ok(Box::new(Json(serde_json::to_value(value)?)))
+    Ok(Box::new(Json(
+        serde_json::to_value(value)?,
+        Shape::Inferred,
+    )))
 }
 
 /// A list response in its JSON mapping, with its list `field` as `[]` when
 /// it is empty, rather than left out as the mapping leaves out every empty
-/// field: `{"volumes": []}`.
+/// field: `{"volumes": []}`. The human formats print its items as a list,
+/// whatever else the response holds.
 pub fn list_json(
     value: &impl Serialize,
     field: &str,
@@ -638,7 +647,7 @@ pub fn list_json(
             .entry(field)
             .or_insert_with(|| serde_json::Value::Array(Vec::new()));
     }
-    Ok(Box::new(Json(value)))
+    Ok(Box::new(Json(value, Shape::List(field.to_owned()))))
 }
 
 /// The result of a command whose method has none, such as a delete.

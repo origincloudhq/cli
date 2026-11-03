@@ -1465,6 +1465,8 @@ checksum = "7e036b411754132fd6b74e94b74e9a13c5cf606fa93d1885c35860d3060820b1"
 name = "origincloud-cli"
 version = "1.10.1"
 dependencies = [
+ "anstream",
+ "anstyle",
  "anyhow",
  "chrono",
  "clap",
@@ -1485,6 +1487,7 @@ dependencies = [
  "prost-reflect",
  "reqwest",
  "rmcp",
+ "rustix",
  "serde",
  "serde_json",
  "tempfile",
@@ -1492,6 +1495,7 @@ dependencies = [
  "tokio",
  "toml",
  "tracing",
+ "unicode-width",
  "url",
  "uuid",
 ]

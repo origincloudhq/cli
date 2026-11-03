@@ -5,6 +5,7 @@ use crate::handler;
 use crate::handler::iam::IamCommands;
 use crate::handler::id::IdentityCommands;
 use crate::handler::mcp::McpCommands;
+use crate::output::ColorWhen;
 use crate::sdk::ServiceCommands;
 use clap::{Parser, Subcommand};
 
@@ -24,14 +25,28 @@ pub struct Cli {
     #[arg(short, long, value_name = "URL", default_value_t = get_default_api_url())]
     pub(crate) api: String,
 
-    /// Output format. Overrides the profile's `output-format`.
+    /// Output format. Overrides ORIGINCLOUD_OUTPUT_FORMAT and the profile's
+    /// `output-format`; without any of them, `table` on a terminal and
+    /// `json` when the output goes to a pipe or a file.
     #[arg(
+        short,
         long,
         value_name = "FORMAT",
         global = true,
         help_heading = "Global options"
     )]
     pub(crate) output: Option<OutputFormat>,
+
+    /// When the `table`, `wide` and `name` formats use colour: `auto` on a
+    /// terminal, unless NO_COLOR is set.
+    #[arg(
+        long,
+        value_name = "WHEN",
+        default_value = "auto",
+        global = true,
+        help_heading = "Global options"
+    )]
+    pub(crate) color: ColorWhen,
 
     #[command(subcommand)]
     pub(crate) command: Option<Commands>,

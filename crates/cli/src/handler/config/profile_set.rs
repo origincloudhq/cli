@@ -29,8 +29,7 @@ pub(super) fn perform_profile_set(
     match key {
         "default-username" => profile.default_username = Some(value),
         "output-format" => {
-            let output_format = OutputFormat::from_str(value.as_str())
-                .map_err(|_| anyhow!("invalid output format"))?;
+            let output_format = OutputFormat::from_str(value.as_str()).map_err(|e| anyhow!(e))?;
             profile.output_format = Some(output_format)
         }
         "default-project" => profile.default_project = id("project id")?,

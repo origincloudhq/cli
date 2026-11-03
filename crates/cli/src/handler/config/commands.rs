@@ -8,7 +8,8 @@ pub(crate) enum ConfigCommands {
     /// Set a value in the local CLI profile.
     ///
     /// Keys: `default-username` (prefilled at `origin id login`),
-    /// `output-format` (`json`), `default-project` and `default-zone` (used
+    /// `output-format` (`table`, `wide`, `json` or `name`; without it, `table`
+    /// on a terminal and `json` otherwise), `default-project` and `default-zone` (used
     /// by the generated commands, such as `origin pvs`, when `--project` or
     /// `--zone` isn't given) and `region` (the region they work in: their
     /// `--region` when not given, and the front door of the services with
