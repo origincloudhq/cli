@@ -474,7 +474,7 @@ pub enum Commands {
     #[command(
         name = "update-subnet",
         about = "Changes a subnet's public address assignment or tags",
-        long_about = "Changes a subnet's public address assignment or tags. `--auto-assign-public-ip` applies to instances launched afterwards. The operation is done once the change is recorded."
+        long_about = "Changes a subnet's public address assignment or tags. `--auto-assign-public-ip` applies to launches afterwards that create their interface. The operation is done once the change is recorded."
     )]
     UpdateSubnet(UpdateSubnetArgs),
     #[command(
@@ -6967,8 +6967,12 @@ pub struct CreateSubnetArgs {
     /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
     #[arg(long = "vpc", value_name = "VPC")]
     pub vpc: String,
-    /// Whether an instance launched into the subnet gets a floating IP of
-    /// its own, released when the instance is terminated.
+    /// Whether a launch that creates its network interface in the subnet,
+    /// as the GraphQL API's `launchInstance` does, gives that interface a
+    /// floating IP of its own, released when the instance is terminated.
+    /// `CreateInstance` takes existing interfaces, so an instance it launches
+    /// gets none: create a floating IP and a floating IP association for its
+    /// interface instead.
     #[arg(
         long = "auto-assign-public-ip",
         value_name = "true|false",
@@ -7066,8 +7070,12 @@ pub struct UpdateSubnetArgs {
     /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: String,
-    /// Whether an instance launched into the subnet gets a floating IP of
-    /// its own, released when the instance is terminated.
+    /// Whether a launch that creates its network interface in the subnet,
+    /// as the GraphQL API's `launchInstance` does, gives that interface a
+    /// floating IP of its own, released when the instance is terminated.
+    /// `CreateInstance` takes existing interfaces, so an instance it launches
+    /// gets none: create a floating IP and a floating IP association for its
+    /// interface instead.
     ///
     /// Left as it is when not given.
     #[arg(
