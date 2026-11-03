@@ -372,7 +372,7 @@ pub enum Commands {
     #[command(
         name = "delete-route-table-association",
         about = "Removes a subnet's route table association",
-        long_about = "Removes a subnet's route table association. The subnet then has no route out of its VPC and counts as a subnet whose route table has no default route. The operation is done once the change is recorded; the network applies it within seconds."
+        long_about = "Removes a subnet's route table association. The subnet then has no route out of its VPC and isn't reachable from the internet. The operation is done once the change is recorded; the network applies it within seconds."
     )]
     DeleteRouteTableAssociation(DeleteRouteTableAssociationArgs),
     #[command(

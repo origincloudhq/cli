@@ -585,7 +585,7 @@ dependencies = [
 [[package]]
 name = "fake-server"
 version = "0.0.0"
-source = "git+https://github.com/origincloudhq/sdk-rust?rev=80d9379831e37272805eaa9b1047931580c9efd8#80d9379831e37272805eaa9b1047931580c9efd8"
+source = "git+https://github.com/origincloudhq/sdk-rust?rev=7a3caae83544a86933ac6bd688e1be315d3a8464#7a3caae83544a86933ac6bd688e1be315d3a8464"
 dependencies = [
  "bytes",
  "http-body-util",
@@ -1535,8 +1535,8 @@ dependencies = [
 
 [[package]]
 name = "origincloud-compute"
-version = "0.6.0"
-source = "git+https://github.com/origincloudhq/sdk-rust?rev=80d9379831e37272805eaa9b1047931580c9efd8#80d9379831e37272805eaa9b1047931580c9efd8"
+version = "0.7.0"
+source = "git+https://github.com/origincloudhq/sdk-rust?rev=7a3caae83544a86933ac6bd688e1be315d3a8464#7a3caae83544a86933ac6bd688e1be315d3a8464"
 dependencies = [
  "origincloud-core",
  "pbjson",
@@ -1546,8 +1546,8 @@ dependencies = [
 
 [[package]]
 name = "origincloud-core"
-version = "0.6.0"
-source = "git+https://github.com/origincloudhq/sdk-rust?rev=80d9379831e37272805eaa9b1047931580c9efd8#80d9379831e37272805eaa9b1047931580c9efd8"
+version = "0.7.0"
+source = "git+https://github.com/origincloudhq/sdk-rust?rev=7a3caae83544a86933ac6bd688e1be315d3a8464#7a3caae83544a86933ac6bd688e1be315d3a8464"
 dependencies = [
  "chrono",
  "fastrand",
@@ -1568,8 +1568,8 @@ dependencies = [
 
 [[package]]
 name = "origincloud-iam"
-version = "0.6.0"
-source = "git+https://github.com/origincloudhq/sdk-rust?rev=80d9379831e37272805eaa9b1047931580c9efd8#80d9379831e37272805eaa9b1047931580c9efd8"
+version = "0.7.0"
+source = "git+https://github.com/origincloudhq/sdk-rust?rev=7a3caae83544a86933ac6bd688e1be315d3a8464#7a3caae83544a86933ac6bd688e1be315d3a8464"
 dependencies = [
  "origincloud-core",
  "pbjson",
@@ -1579,8 +1579,8 @@ dependencies = [
 
 [[package]]
 name = "origincloud-location"
-version = "0.6.0"
-source = "git+https://github.com/origincloudhq/sdk-rust?rev=80d9379831e37272805eaa9b1047931580c9efd8#80d9379831e37272805eaa9b1047931580c9efd8"
+version = "0.7.0"
+source = "git+https://github.com/origincloudhq/sdk-rust?rev=7a3caae83544a86933ac6bd688e1be315d3a8464#7a3caae83544a86933ac6bd688e1be315d3a8464"
 dependencies = [
  "origincloud-core",
  "pbjson",
@@ -1591,7 +1591,7 @@ dependencies = [
 [[package]]
 name = "origincloud-mcp"
 version = "0.1.0"
-source = "git+https://github.com/origincloudhq/mcp?rev=859123c7d7ecbb23770416adc17cdddec57c1620#859123c7d7ecbb23770416adc17cdddec57c1620"
+source = "git+https://github.com/origincloudhq/mcp?rev=917462b9c569dedd88f7f1ed47e94276c628cdc8#917462b9c569dedd88f7f1ed47e94276c628cdc8"
 dependencies = [
  "origincloud-compute",
  "origincloud-core",
@@ -1609,8 +1609,8 @@ dependencies = [
 
 [[package]]
 name = "origincloud-network"
-version = "0.6.0"
-source = "git+https://github.com/origincloudhq/sdk-rust?rev=80d9379831e37272805eaa9b1047931580c9efd8#80d9379831e37272805eaa9b1047931580c9efd8"
+version = "0.7.0"
+source = "git+https://github.com/origincloudhq/sdk-rust?rev=7a3caae83544a86933ac6bd688e1be315d3a8464#7a3caae83544a86933ac6bd688e1be315d3a8464"
 dependencies = [
  "origincloud-core",
  "pbjson",
@@ -1637,8 +1637,8 @@ dependencies = [
 
 [[package]]
 name = "origincloud-pvs"
-version = "0.6.0"
-source = "git+https://github.com/origincloudhq/sdk-rust?rev=80d9379831e37272805eaa9b1047931580c9efd8#80d9379831e37272805eaa9b1047931580c9efd8"
+version = "0.7.0"
+source = "git+https://github.com/origincloudhq/sdk-rust?rev=7a3caae83544a86933ac6bd688e1be315d3a8464#7a3caae83544a86933ac6bd688e1be315d3a8464"
 dependencies = [
  "origincloud-core",
  "pbjson",
@@ -1648,8 +1648,8 @@ dependencies = [
 
 [[package]]
 name = "origincloud-resourcemanager"
-version = "0.6.0"
-source = "git+https://github.com/origincloudhq/sdk-rust?rev=80d9379831e37272805eaa9b1047931580c9efd8#80d9379831e37272805eaa9b1047931580c9efd8"
+version = "0.7.0"
+source = "git+https://github.com/origincloudhq/sdk-rust?rev=7a3caae83544a86933ac6bd688e1be315d3a8464#7a3caae83544a86933ac6bd688e1be315d3a8464"
 dependencies = [
  "origincloud-core",
  "pbjson",
@@ -1798,7 +1798,7 @@ version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03da047801ff44bb6a4d407d4860c05fd70bb81714e6b2f3812603d5b145b042"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "itertools",
  "log",
  "multimap",
@@ -2632,7 +2632,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
