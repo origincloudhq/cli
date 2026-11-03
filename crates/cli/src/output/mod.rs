@@ -20,7 +20,8 @@ use prost_reflect::MessageDescriptor;
 use serde_json::{Map, Value};
 
 use crate::config::OutputFormat;
-pub(crate) use format::{format_for_stdout, width, ColorWhen};
+pub(crate) use format::{format_for_stdout, height, width, ColorWhen};
+pub(crate) use text::singular;
 
 #[derive(thiserror::Error, Debug)]
 pub enum SerializationError {

@@ -95,7 +95,7 @@ fn pairs(name: &str) -> Option<Vec<(&str, &str)>> {
 
 /// A collection's resource, in words: `zone` for `zones`, `dns policy`
 /// for `dnsPolicies`.
-fn singular(collection: &str) -> String {
+pub(crate) fn singular(collection: &str) -> String {
     let one = if let Some(stem) = collection.strip_suffix("ies") {
         format!("{stem}y")
     } else {

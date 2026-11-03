@@ -53,27 +53,38 @@ impl ColorWhen {
 /// number, as for `ls`; else the terminal's width when standard output is
 /// one; else `None`, and a table isn't cut to fit, as on a pipe.
 pub(crate) fn width() -> Option<usize> {
-    let columns = std::env::var("COLUMNS")
-        .ok()
-        .and_then(|c| c.trim().parse::<usize>().ok())
-        .filter(|c| *c > 0);
-    columns.or_else(terminal_width)
+    number("COLUMNS").or_else(|| window().map(|(columns, _)| columns))
 }
 
+/// How many lines the terminal shows, which output longer than that is
+/// paged for: `LINES` when it holds a number, else the terminal's height
+/// when standard output is one; else `None`.
+pub(crate) fn height() -> Option<usize> {
+    number("LINES").or_else(|| window().map(|(_, lines)| lines))
+}
+
+fn number(variable: &str) -> Option<usize> {
+    std::env::var(variable)
+        .ok()
+        .and_then(|c| c.trim().parse::<usize>().ok())
+        .filter(|c| *c > 0)
+}
+
+/// The terminal's columns and lines, when standard output is one.
 #[cfg(unix)]
-fn terminal_width() -> Option<usize> {
+fn window() -> Option<(usize, usize)> {
     let stdout = std::io::stdout();
     if !stdout.is_terminal() {
         return None;
     }
     rustix::termios::tcgetwinsize(&stdout)
         .ok()
-        .map(|size| usize::from(size.ws_col))
-        .filter(|c| *c > 0)
+        .map(|size| (usize::from(size.ws_col), usize::from(size.ws_row)))
+        .filter(|(columns, lines)| *columns > 0 && *lines > 0)
 }
 
 #[cfg(not(unix))]
-fn terminal_width() -> Option<usize> {
+fn window() -> Option<(usize, usize)> {
     None
 }
 

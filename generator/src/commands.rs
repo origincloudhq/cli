@@ -2050,15 +2050,16 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             "let client = ctx.client()?;\n\
              let deadline = args.timeout.map(deadline_after).transpose()?;\n\
              let mut request = request;\n\
-             let mut announced = false;\n\
+             let mut spinner = None;\n\
              let response = loop {{\n\
                  let started = ::std::time::Instant::now();\n\
                  if let Some(deadline) = deadline {{ request.timeout = Some(wait_for(deadline)); }}\n\
                  let response = call_{handler}(&client, request.clone()).await.map_err(api_error)?;\n\
                  if response.done || deadline.is_some_and(passed) {{ break response; }}\n\
-                 if !announced {{ waiting(&response.name); announced = true; }}\n\
+                 if spinner.is_none() {{ spinner = Some(waiting(ctx, &response)); }}\n\
                  pace(started, deadline).await;\n\
-             }};"
+             }};\n\
+             drop(spinner);"
         );
     } else if list.is_none() {
         if unpaged_list.is_some() {
@@ -2088,12 +2089,12 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                 "let mut operation = response;\nif args.no_wait { return json(operation.raw(), OPERATION); }\n",
             );
             if r.full_name() == EMPTY {
-                tail.push_str("wait(&mut operation).await?;\n");
+                tail.push_str("wait(ctx, &mut operation).await?;\n");
                 tail.push_str(&done());
             } else {
                 let _ = writeln!(
                     tail,
-                    "let result = wait(&mut operation).await?;\njson(&result, {:?})",
+                    "let result = wait(ctx, &mut operation).await?;\njson(&result, {:?})",
                     r.full_name()
                 );
             }

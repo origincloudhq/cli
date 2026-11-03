@@ -39,7 +39,9 @@ rmcp = { version = "3", default-features = false, features = ["server"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net", "io-util", "sync"] }
+# `signal`: Ctrl-C while a command waits for an operation stops the wait
+# and says how to resume it.
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net", "io-util", "sync", "signal"] }
 tracing = "0.1"
 url = "2"
 uuid = { version = "1", features = ["v4"] }

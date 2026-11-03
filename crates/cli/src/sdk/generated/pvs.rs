@@ -386,7 +386,7 @@ async fn create_snapshot(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.pvs.v1beta1.Snapshot")
 }
 async fn call_create_snapshot(
@@ -541,7 +541,7 @@ async fn delete_snapshot(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("snapshot", &deleted_name))
 }
 async fn call_delete_snapshot(
@@ -605,7 +605,7 @@ async fn protect_snapshot(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.pvs.v1beta1.Snapshot")
 }
 async fn call_protect_snapshot(
@@ -670,7 +670,7 @@ async fn unprotect_snapshot(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.pvs.v1beta1.Snapshot")
 }
 async fn call_unprotect_snapshot(
@@ -1023,7 +1023,7 @@ async fn create_volume(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.pvs.v1beta1.Volume")
 }
 async fn call_create_volume(
@@ -1111,7 +1111,7 @@ async fn import_volume(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.pvs.v1beta1.Volume")
 }
 async fn call_import_volume(
@@ -1243,7 +1243,7 @@ async fn update_volume(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.pvs.v1beta1.Volume")
 }
 async fn call_update_volume(
@@ -1337,7 +1337,7 @@ async fn delete_volume(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("volume", &deleted_name))
 }
 async fn call_delete_volume(
@@ -1447,7 +1447,7 @@ async fn wait_operation(
     let client = ctx.client()?;
     let deadline = args.timeout.map(deadline_after).transpose()?;
     let mut request = request;
-    let mut announced = false;
+    let mut spinner = None;
     let response = loop {
         let started = ::std::time::Instant::now();
         if let Some(deadline) = deadline {
@@ -1459,12 +1459,12 @@ async fn wait_operation(
         if response.done || deadline.is_some_and(passed) {
             break response;
         }
-        if !announced {
-            waiting(&response.name);
-            announced = true;
+        if spinner.is_none() {
+            spinner = Some(waiting(ctx, &response));
         }
         pace(started, deadline).await;
     };
+    drop(spinner);
     Ok(waited(&response))
 }
 async fn call_wait_operation(

@@ -15,6 +15,8 @@ pub(crate) mod graphql;
 mod handler;
 mod identity;
 mod output;
+mod pager;
+mod progress;
 mod root_command;
 mod run_cli;
 mod sdk;

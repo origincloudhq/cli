@@ -1254,7 +1254,7 @@ async fn create_instance(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.compute.v1beta1.Instance")
 }
 async fn call_create_instance(
@@ -1366,7 +1366,7 @@ async fn update_instance(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.compute.v1beta1.Instance")
 }
 async fn call_update_instance(
@@ -1442,7 +1442,7 @@ async fn delete_instance(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("instance", &deleted_name))
 }
 async fn call_delete_instance(
@@ -1506,7 +1506,7 @@ async fn start_instance(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.compute.v1beta1.Instance")
 }
 async fn call_start_instance(
@@ -1570,7 +1570,7 @@ async fn stop_instance(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.compute.v1beta1.Instance")
 }
 async fn call_stop_instance(
@@ -2340,7 +2340,7 @@ async fn create_volume_attachment(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.compute.v1beta1.VolumeAttachment")
 }
 async fn call_create_volume_attachment(
@@ -2431,7 +2431,7 @@ async fn delete_volume_attachment(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("volume attachment", &deleted_name))
 }
 async fn call_delete_volume_attachment(
@@ -2541,7 +2541,7 @@ async fn wait_operation(
     let client = ctx.client()?;
     let deadline = args.timeout.map(deadline_after).transpose()?;
     let mut request = request;
-    let mut announced = false;
+    let mut spinner = None;
     let response = loop {
         let started = ::std::time::Instant::now();
         if let Some(deadline) = deadline {
@@ -2553,12 +2553,12 @@ async fn wait_operation(
         if response.done || deadline.is_some_and(passed) {
             break response;
         }
-        if !announced {
-            waiting(&response.name);
-            announced = true;
+        if spinner.is_none() {
+            spinner = Some(waiting(ctx, &response));
         }
         pace(started, deadline).await;
     };
+    drop(spinner);
     Ok(waited(&response))
 }
 async fn call_wait_operation(

@@ -49,6 +49,21 @@ names:
 cargo install --locked --path crates/cli
 ```
 
+### Shell completion
+
+`origin completion <shell>` prints the script that completes `origin`'s
+commands, flags and their values, for `bash`, `zsh`, `fish`, `powershell`
+and `elvish`. Install it once, then start a new shell:
+
+```sh
+origin completion bash > ~/.local/share/bash-completion/completions/origin
+origin completion zsh > ~/.zfunc/_origin          # with ~/.zfunc on fpath
+origin completion fish > ~/.config/fish/completions/origin.fish
+```
+
+In PowerShell, add `origin completion powershell | Out-String | Invoke-Expression`
+to `$PROFILE`.
+
 ## Use
 
 ```sh
@@ -111,6 +126,11 @@ what failed, dim for what is stopped or gone.
 
 `table`, `wide` and `name` are in colour on a terminal, unless `NO_COLOR` is
 set; `--color always` or `never` decides instead. `json` is never in colour.
+
+On a terminal, `table` and `wide` output taller than the screen (or `LINES`)
+goes through a pager, colour kept: `ORIGINCLOUD_PAGER`, else `PAGER`, else
+`less`, given `LESS=FRX` unless `LESS` is set. A pager variable set to
+nothing or `cat`, or `--no-pager`, prints it as it is.
 
 A command that fails exits with status 1: in `json`, it prints
 `{"code": "failure", "description": "..."}` on standard output, as it
@@ -235,7 +255,11 @@ every method of the API, with the API's own descriptions as help:
 - **Waiting.** A command whose method answers with a long-running operation
   (most creates, updates and deletes) waits until it is done and prints the
   result; `--no-wait` prints the operation as soon as
-  the API accepts it. Ctrl-C stops the waiting, not the operation.
+  the API accepts it. On a terminal, standard error shows what it waits for
+  and how long it has, such as `⠼ Creating volume v1… 14s`, on a line
+  cleared when the wait is over. Ctrl-C stops the waiting, not the
+  operation: the command says how to wait for it again with
+  `wait-operation`, and exits with status 130.
 - **Operations.** A service whose methods answer with operations has two
   commands for them, which call its own host: `get-operation` prints an
   operation as it is now, and `wait-operation` waits until it is done and
