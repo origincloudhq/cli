@@ -43,11 +43,8 @@ pub async fn run() -> ! {
         Some(Commands::Config(cmd)) => printing.exit_with(
             handler::config::run_config_command(&profile, cli.config.as_deref(), cmd).await,
         ),
-        // The script is the output, in no format.
-        Some(Commands::Completion { shell }) => {
-            handler::completion::write(shell, &mut std::io::stdout());
-            exit(0)
-        }
+        // How to install the script, or the script, in no format.
+        Some(Commands::Completion { shell }) => exit(handler::completion::run(shell)),
         Some(Commands::Version) => printing.exit_with(Ok(Box::new(CliReleaseInfo::default()))),
     }
 }

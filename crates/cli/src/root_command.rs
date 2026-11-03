@@ -81,19 +81,17 @@ pub(crate) enum Commands {
     #[command(subcommand)]
     Config(handler::config::ConfigCommands),
 
-    /// Print the script that completes `origin`'s commands, flags and their
-    /// values in a shell.
+    /// Complete `origin`'s commands, flags and their values in your shell:
+    /// run it on a terminal to see how to install it.
     ///
-    /// Install it once, then start a new shell. bash: `origin completion
-    /// bash > ~/.local/share/bash-completion/completions/origin`. zsh, with
-    /// a directory of yours on `fpath`: `origin completion zsh >
-    /// ~/.zfunc/_origin`. fish: `origin completion fish >
-    /// ~/.config/fish/completions/origin.fish`. PowerShell: add `origin
-    /// completion powershell | Out-String | Invoke-Expression` to `$PROFILE`.
+    /// On a terminal, it says how to install the completion in the shell
+    /// (or SHELL's, when none is named); into a file or a pipe, it prints
+    /// the script itself, for `> file` or `eval "$(origin completion
+    /// bash)"`.
     Completion {
-        /// The shell to complete in.
+        /// The shell to complete in; SHELL's when not given.
         #[arg(value_enum)]
-        shell: clap_complete::Shell,
+        shell: Option<clap_complete::Shell>,
     },
 
     /// Print version and exit.
