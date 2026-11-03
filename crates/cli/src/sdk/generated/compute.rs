@@ -253,14 +253,15 @@ async fn get_instance_type(
     let mut names = ctx.names(&[]);
     names
         .learn(
-            "instanceTypes/{instance_type}",
+            &["instanceTypes/{instance_type}"],
             "instance-type",
             Some(args.instance_type.as_str()),
         )?;
     let name = names
-        .name(
-            "instanceTypes/{instance_type}",
-            Some(("instance-type", args.instance_type.as_str())),
+        .reference(
+            &["instanceTypes/{instance_type}"],
+            "instance-type",
+            args.instance_type.as_str(),
         )?;
     let request = ::origincloud_compute::v1beta1::GetInstanceTypeRequest {
         name,
@@ -330,14 +331,15 @@ async fn get_image_family(
     let mut names = ctx.names(&[]);
     names
         .learn(
-            "imageFamilies/{image_family}",
+            &["imageFamilies/{image_family}"],
             "image-family",
             Some(args.image_family.as_str()),
         )?;
     let name = names
-        .name(
-            "imageFamilies/{image_family}",
-            Some(("image-family", args.image_family.as_str())),
+        .reference(
+            &["imageFamilies/{image_family}"],
+            "image-family",
+            args.image_family.as_str(),
         )?;
     let request = ::origincloud_compute::v1beta1::GetImageFamilyRequest {
         name,
@@ -421,14 +423,15 @@ async fn get_image(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/images/{image}",
+            &["projects/{project}/zones/{zone}/images/{image}"],
             "image",
             Some(args.image.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/images/{image}",
-            Some(("image", args.image.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/images/{image}"],
+            "image",
+            args.image.as_str(),
         )?;
     let request = ::origincloud_compute::v1beta1::GetImageRequest {
         name,
@@ -483,7 +486,7 @@ async fn list_images(
     let client = ctx.client()?;
     let paging = args.page_size.is_some() || args.page_token.is_some();
     let parents: Vec<String> = match args.zone.as_deref() {
-        Some(_) => vec![names.name("projects/{project}/zones/{zone}", None) ?],
+        Some(_) => vec![names.name("projects/{project}/zones/{zone}") ?],
         None => {
             if paging {
                 anyhow::bail!(
@@ -497,7 +500,7 @@ async fn list_images(
                     .push(
                         names
                             .with_part("zone", &zone)
-                            .name("projects/{project}/zones/{zone}", None)?,
+                            .name("projects/{project}/zones/{zone}")?,
                     );
             }
             parents
@@ -625,7 +628,7 @@ async fn create_image(
         let item = &keyed.value;
         names
             .learn(
-                "projects/{project}/zones/{zone}/snapshots/{snapshot}",
+                &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
                 "block-device source_snapshot",
                 Some(item.source_snapshot.as_str()),
             )?;
@@ -634,13 +637,13 @@ async fn create_image(
         for item in &json.0 {
             names
                 .learn(
-                    "projects/{project}/zones/{zone}/snapshots/{snapshot}",
+                    &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
                     "block-device source_snapshot",
                     Some(item.source_snapshot.as_str()),
                 )?;
         }
     }
-    let parent = names.name("projects/{project}/zones/{zone}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}")?;
     let mut block_devices = match args.block_devices_json {
         Some(json) => json.0,
         None => {
@@ -655,9 +658,10 @@ async fn create_image(
     for item in &mut block_devices {
         if !item.source_snapshot.is_empty() {
             item.source_snapshot = names
-                .name(
-                    "projects/{project}/zones/{zone}/snapshots/{snapshot}",
-                    Some(("block-device source_snapshot", item.source_snapshot.as_str())),
+                .reference(
+                    &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+                    "block-device source_snapshot",
+                    item.source_snapshot.as_str(),
                 )?;
         }
     }
@@ -733,14 +737,15 @@ async fn update_image(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/images/{image}",
+            &["projects/{project}/zones/{zone}/images/{image}"],
             "image",
             Some(args.image.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/images/{image}",
-            Some(("image", args.image.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/images/{image}"],
+            "image",
+            args.image.as_str(),
         )?;
     let mut image = ::origincloud_compute::v1beta1::Image {
         name: name.clone(),
@@ -801,14 +806,15 @@ async fn delete_image(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/images/{image}",
+            &["projects/{project}/zones/{zone}/images/{image}"],
             "image",
             Some(args.image.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/images/{image}",
-            Some(("image", args.image.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/images/{image}"],
+            "image",
+            args.image.as_str(),
         )?;
     let request = ::origincloud_compute::v1beta1::DeleteImageRequest {
         name,
@@ -862,14 +868,15 @@ async fn get_instance(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/instances/{instance}",
+            &["projects/{project}/zones/{zone}/instances/{instance}"],
             "instance",
             Some(args.instance.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/instances/{instance}",
-            Some(("instance", args.instance.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/instances/{instance}"],
+            "instance",
+            args.instance.as_str(),
         )?;
     let request = ::origincloud_compute::v1beta1::GetInstanceRequest {
         name,
@@ -924,7 +931,7 @@ async fn list_instances(
     let client = ctx.client()?;
     let paging = args.page_size.is_some() || args.page_token.is_some();
     let parents: Vec<String> = match args.zone.as_deref() {
-        Some(_) => vec![names.name("projects/{project}/zones/{zone}", None) ?],
+        Some(_) => vec![names.name("projects/{project}/zones/{zone}") ?],
         None => {
             if paging {
                 anyhow::bail!(
@@ -938,7 +945,7 @@ async fn list_instances(
                     .push(
                         names
                             .with_part("zone", &zone)
-                            .name("projects/{project}/zones/{zone}", None)?,
+                            .name("projects/{project}/zones/{zone}")?,
                     );
             }
             parents
@@ -1036,7 +1043,7 @@ pub struct CreateInstanceArgs {
     /// `--image` and `--image-family`; launched from a family, this is the public
     /// image the family resolved to.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/images/{image}`.
+    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/images/{image}` or `zones/{zone}/images/{image}`.
     #[arg(long = "image", value_name = "IMAGE")]
     pub image: Option<String>,
     /// The image family to launch the current public image of,
@@ -1113,25 +1120,28 @@ async fn create_instance(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "instanceTypes/{instance_type}",
+            &["instanceTypes/{instance_type}"],
             "instance-type",
             Some(args.instance_type.as_str()),
         )?;
     names
         .learn(
-            "projects/{project}/zones/{zone}/images/{image}",
+            &[
+                "projects/{project}/zones/{zone}/images/{image}",
+                "zones/{zone}/images/{image}",
+            ],
             "image",
             args.image.as_deref(),
         )?;
     names
         .learn(
-            "imageFamilies/{image_family}",
+            &["imageFamilies/{image_family}"],
             "image-family",
             args.image_family.as_deref(),
         )?;
     names
         .learn(
-            "projects/{project}/keyPairs/{key_pair}",
+            &["projects/{project}/keyPairs/{key_pair}"],
             "key-pair",
             Some(args.key_pair.as_str()),
         )?;
@@ -1139,7 +1149,7 @@ async fn create_instance(
         let item = &keyed.value;
         names
             .learn(
-                "storageClasses/{storage_class}",
+                &["storageClasses/{storage_class}"],
                 "boot-volume storage_class",
                 Some(item.storage_class.as_str()),
             )?;
@@ -1148,7 +1158,7 @@ async fn create_instance(
         let item = &json.0;
         names
             .learn(
-                "storageClasses/{storage_class}",
+                &["storageClasses/{storage_class}"],
                 "boot-volume storage_class",
                 Some(item.storage_class.as_str()),
             )?;
@@ -1156,35 +1166,43 @@ async fn create_instance(
     for value in &args.network_interface {
         names
             .learn(
-                "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
+                &[
+                    "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
+                ],
                 "network-interface",
                 Some(value.as_str()),
             )?;
     }
-    let parent = names.name("projects/{project}/zones/{zone}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}")?;
     let instance_type = names
-        .name(
-            "instanceTypes/{instance_type}",
-            Some(("instance-type", args.instance_type.as_str())),
+        .reference(
+            &["instanceTypes/{instance_type}"],
+            "instance-type",
+            args.instance_type.as_str(),
         )?;
     let image = match args.image.as_deref() {
         Some(v) => {
             names
-                .name(
-                    "projects/{project}/zones/{zone}/images/{image}",
-                    Some(("image", v)),
+                .reference(
+                    &[
+                        "projects/{project}/zones/{zone}/images/{image}",
+                        "zones/{zone}/images/{image}",
+                    ],
+                    "image",
+                    v,
                 )?
         }
         None => String::new(),
     };
     let image_family = match args.image_family.as_deref() {
-        Some(v) => names.name("imageFamilies/{image_family}", Some(("image-family", v)))?,
+        Some(v) => names.reference(&["imageFamilies/{image_family}"], "image-family", v)?,
         None => String::new(),
     };
     let key_pair = names
-        .name(
-            "projects/{project}/keyPairs/{key_pair}",
-            Some(("key-pair", args.key_pair.as_str())),
+        .reference(
+            &["projects/{project}/keyPairs/{key_pair}"],
+            "key-pair",
+            args.key_pair.as_str(),
         )?;
     let mut boot_volume = match args.boot_volume_json {
         Some(json) => Some(json.0),
@@ -1193,9 +1211,10 @@ async fn create_instance(
     if let Some(item) = &mut boot_volume {
         if !item.storage_class.is_empty() {
             item.storage_class = names
-                .name(
-                    "storageClasses/{storage_class}",
-                    Some(("boot-volume storage_class", item.storage_class.as_str())),
+                .reference(
+                    &["storageClasses/{storage_class}"],
+                    "boot-volume storage_class",
+                    item.storage_class.as_str(),
                 )?;
         }
     }
@@ -1204,9 +1223,12 @@ async fn create_instance(
         .iter()
         .map(|v| {
             names
-                .name(
-                    "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
-                    Some(("network-interface", v.as_str())),
+                .reference(
+                    &[
+                        "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
+                    ],
+                    "network-interface",
+                    v.as_str(),
                 )
         })
         .collect::<anyhow::Result<Vec<String>>>()?;
@@ -1301,20 +1323,21 @@ async fn update_instance(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/instances/{instance}",
+            &["projects/{project}/zones/{zone}/instances/{instance}"],
             "instance",
             Some(args.instance.as_str()),
         )?;
     names
         .learn(
-            "instanceTypes/{instance_type}",
+            &["instanceTypes/{instance_type}"],
             "instance-type",
             args.instance_type.as_deref(),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/instances/{instance}",
-            Some(("instance", args.instance.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/instances/{instance}"],
+            "instance",
+            args.instance.as_str(),
         )?;
     let mut instance = ::origincloud_compute::v1beta1::Instance {
         name: name.clone(),
@@ -1323,7 +1346,7 @@ async fn update_instance(
     let mut paths: Vec<String> = Vec::new();
     if let Some(value) = args.instance_type.as_deref() {
         instance.instance_type = names
-            .name("instanceTypes/{instance_type}", Some(("instance-type", value)))?;
+            .reference(&["instanceTypes/{instance_type}"], "instance-type", value)?;
         paths.push("instance_type".to_owned());
     }
     if args.no_tags || !args.tag.is_empty() {
@@ -1389,14 +1412,15 @@ async fn delete_instance(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/instances/{instance}",
+            &["projects/{project}/zones/{zone}/instances/{instance}"],
             "instance",
             Some(args.instance.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/instances/{instance}",
-            Some(("instance", args.instance.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/instances/{instance}"],
+            "instance",
+            args.instance.as_str(),
         )?;
     let request = ::origincloud_compute::v1beta1::DeleteInstanceRequest {
         name,
@@ -1462,14 +1486,15 @@ async fn start_instance(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/instances/{instance}",
+            &["projects/{project}/zones/{zone}/instances/{instance}"],
             "instance",
             Some(args.instance.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/instances/{instance}",
-            Some(("instance", args.instance.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/instances/{instance}"],
+            "instance",
+            args.instance.as_str(),
         )?;
     let request = ::origincloud_compute::v1beta1::StartInstanceRequest {
         name,
@@ -1525,14 +1550,15 @@ async fn stop_instance(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/instances/{instance}",
+            &["projects/{project}/zones/{zone}/instances/{instance}"],
             "instance",
             Some(args.instance.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/instances/{instance}",
-            Some(("instance", args.instance.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/instances/{instance}"],
+            "instance",
+            args.instance.as_str(),
         )?;
     let request = ::origincloud_compute::v1beta1::StopInstanceRequest {
         name,
@@ -1577,14 +1603,15 @@ async fn get_key_pair(
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
     names
         .learn(
-            "projects/{project}/keyPairs/{key_pair}",
+            &["projects/{project}/keyPairs/{key_pair}"],
             "key-pair",
             Some(args.key_pair.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/keyPairs/{key_pair}",
-            Some(("key-pair", args.key_pair.as_str())),
+        .reference(
+            &["projects/{project}/keyPairs/{key_pair}"],
+            "key-pair",
+            args.key_pair.as_str(),
         )?;
     let request = ::origincloud_compute::v1beta1::GetKeyPairRequest {
         name,
@@ -1627,7 +1654,7 @@ async fn list_key_pairs(
     args: ListKeyPairsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let names = ctx.names(&[("project", args.project.as_deref())]);
-    let parent = names.name("projects/{project}", None)?;
+    let parent = names.name("projects/{project}")?;
     let request = ::origincloud_compute::v1beta1::ListKeyPairsRequest {
         parent,
         page_size: args.page_size.unwrap_or_default(),
@@ -1711,7 +1738,7 @@ async fn create_key_pair(
     args: CreateKeyPairArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let names = ctx.names(&[("project", args.project.as_deref())]);
-    let parent = names.name("projects/{project}", None)?;
+    let parent = names.name("projects/{project}")?;
     let key_pair = ::origincloud_compute::v1beta1::KeyPair {
         public_key: args.public_key.clone().unwrap_or_default(),
         tags: tags(&args.tag),
@@ -1776,14 +1803,15 @@ async fn update_key_pair(
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
     names
         .learn(
-            "projects/{project}/keyPairs/{key_pair}",
+            &["projects/{project}/keyPairs/{key_pair}"],
             "key-pair",
             Some(args.key_pair.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/keyPairs/{key_pair}",
-            Some(("key-pair", args.key_pair.as_str())),
+        .reference(
+            &["projects/{project}/keyPairs/{key_pair}"],
+            "key-pair",
+            args.key_pair.as_str(),
         )?;
     let mut key_pair = ::origincloud_compute::v1beta1::KeyPair {
         name: name.clone(),
@@ -1836,14 +1864,15 @@ async fn delete_key_pair(
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
     names
         .learn(
-            "projects/{project}/keyPairs/{key_pair}",
+            &["projects/{project}/keyPairs/{key_pair}"],
             "key-pair",
             Some(args.key_pair.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/keyPairs/{key_pair}",
-            Some(("key-pair", args.key_pair.as_str())),
+        .reference(
+            &["projects/{project}/keyPairs/{key_pair}"],
+            "key-pair",
+            args.key_pair.as_str(),
         )?;
     let request = ::origincloud_compute::v1beta1::DeleteKeyPairRequest {
         name,
@@ -1891,9 +1920,9 @@ async fn get_public_image(
     args: GetPublicImageArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("zone", args.zone.as_deref())]);
-    names.learn("zones/{zone}/images/{image}", "image", Some(args.image.as_str()))?;
+    names.learn(&["zones/{zone}/images/{image}"], "image", Some(args.image.as_str()))?;
     let name = names
-        .name("zones/{zone}/images/{image}", Some(("image", args.image.as_str())))?;
+        .reference(&["zones/{zone}/images/{image}"], "image", args.image.as_str())?;
     let request = ::origincloud_compute::v1beta1::GetPublicImageRequest {
         name,
     };
@@ -1943,7 +1972,7 @@ async fn list_public_images(
     let client = ctx.client()?;
     let paging = args.page_size.is_some() || args.page_token.is_some();
     let parents: Vec<String> = match args.zone.as_deref() {
-        Some(_) => vec![names.name("zones/{zone}", None) ?],
+        Some(_) => vec![names.name("zones/{zone}") ?],
         None => {
             if paging {
                 anyhow::bail!(
@@ -1953,7 +1982,7 @@ async fn list_public_images(
             names.check_without("zones/{zone}", "zone")?;
             let mut parents = Vec::new();
             for zone in zones(ctx, "compute").await? {
-                parents.push(names.with_part("zone", &zone).name("zones/{zone}", None)?);
+                parents.push(names.with_part("zone", &zone).name("zones/{zone}")?);
             }
             parents
         }
@@ -2052,14 +2081,19 @@ async fn get_volume_attachment(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}",
+            &[
+                "projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}",
+            ],
             "volume-attachment",
             Some(args.volume_attachment.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}",
-            Some(("volume-attachment", args.volume_attachment.as_str())),
+        .reference(
+            &[
+                "projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}",
+            ],
+            "volume-attachment",
+            args.volume_attachment.as_str(),
         )?;
     let request = ::origincloud_compute::v1beta1::GetVolumeAttachmentRequest {
         name,
@@ -2124,16 +2158,17 @@ async fn list_volume_attachments(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/volumes/{volume}",
+            &["projects/{project}/zones/{zone}/volumes/{volume}"],
             "volume",
             args.volume.as_deref(),
         )?;
     let volume = match args.volume.as_deref() {
         Some(v) => {
             names
-                .name(
-                    "projects/{project}/zones/{zone}/volumes/{volume}",
-                    Some(("volume", v)),
+                .reference(
+                    &["projects/{project}/zones/{zone}/volumes/{volume}"],
+                    "volume",
+                    v,
                 )?
         }
         None => String::new(),
@@ -2148,10 +2183,7 @@ async fn list_volume_attachments(
     let paging = args.page_size.is_some() || args.page_token.is_some();
     let parents: Vec<String> = match args.zone.as_deref() {
         Some(_) => {
-            vec![
-                names.name("projects/{project}/zones/{zone}/instances/{instance}", None)
-                ?
-            ]
+            vec![names.name("projects/{project}/zones/{zone}/instances/{instance}") ?]
         }
         None => {
             if paging {
@@ -2172,7 +2204,6 @@ async fn list_volume_attachments(
                             .with_part("zone", &zone)
                             .name(
                                 "projects/{project}/zones/{zone}/instances/{instance}",
-                                None,
                             )?,
                     );
             }
@@ -2280,16 +2311,16 @@ async fn create_volume_attachment(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/volumes/{volume}",
+            &["projects/{project}/zones/{zone}/volumes/{volume}"],
             "volume",
             Some(args.volume.as_str()),
         )?;
-    let parent = names
-        .name("projects/{project}/zones/{zone}/instances/{instance}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}/instances/{instance}")?;
     let volume = names
-        .name(
-            "projects/{project}/zones/{zone}/volumes/{volume}",
-            Some(("volume", args.volume.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/volumes/{volume}"],
+            "volume",
+            args.volume.as_str(),
         )?;
     let volume_attachment = ::origincloud_compute::v1beta1::VolumeAttachment {
         volume,
@@ -2364,14 +2395,19 @@ async fn delete_volume_attachment(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}",
+            &[
+                "projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}",
+            ],
             "volume-attachment",
             Some(args.volume_attachment.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}",
-            Some(("volume-attachment", args.volume_attachment.as_str())),
+        .reference(
+            &[
+                "projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}",
+            ],
+            "volume-attachment",
+            args.volume_attachment.as_str(),
         )?;
     let request = ::origincloud_compute::v1beta1::DeleteVolumeAttachmentRequest {
         name,
@@ -2432,14 +2468,15 @@ async fn get_operation(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/operations/{operation}",
+            &["projects/{project}/zones/{zone}/operations/{operation}"],
             "operation",
             Some(args.operation.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/operations/{operation}",
-            Some(("operation", args.operation.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/operations/{operation}"],
+            "operation",
+            args.operation.as_str(),
         )?;
     let request = ::origincloud_core::longrunning::v1beta1::GetOperationRequest {
         name,
@@ -2487,14 +2524,15 @@ async fn wait_operation(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/operations/{operation}",
+            &["projects/{project}/zones/{zone}/operations/{operation}"],
             "operation",
             Some(args.operation.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/operations/{operation}",
-            Some(("operation", args.operation.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/operations/{operation}"],
+            "operation",
+            args.operation.as_str(),
         )?;
     let request = ::origincloud_core::longrunning::v1beta1::WaitOperationRequest {
         name,

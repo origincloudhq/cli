@@ -72,8 +72,8 @@ async fn get_region(
     args: GetRegionArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn("regions/{region}", "region", Some(args.region.as_str()))?;
-    let name = names.name("regions/{region}", Some(("region", args.region.as_str())))?;
+    names.learn(&["regions/{region}"], "region", Some(args.region.as_str()))?;
+    let name = names.reference(&["regions/{region}"], "region", args.region.as_str())?;
     let request = ::origincloud_location::v1beta1::GetRegionRequest {
         name,
     };
@@ -140,8 +140,8 @@ async fn get_zone(
     args: GetZoneArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn("zones/{zone}", "zone", Some(args.zone.as_str()))?;
-    let name = names.name("zones/{zone}", Some(("zone", args.zone.as_str())))?;
+    names.learn(&["zones/{zone}"], "zone", Some(args.zone.as_str()))?;
+    let name = names.reference(&["zones/{zone}"], "zone", args.zone.as_str())?;
     let request = ::origincloud_location::v1beta1::GetZoneRequest {
         name,
     };

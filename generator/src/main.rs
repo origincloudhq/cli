@@ -641,7 +641,7 @@ mod tests {
             "pub expire_time: Option<::origincloud_core::protobuf::Timestamp>,",
             "required_keys(&pairs, &[\"protocol\"])?;",
             // The resource name a key gives is completed.
-            "Some((\"rule network\", item.network.as_str()))",
+            "\"rule network\", item.network.as_str()",
             // Repeated scalars and references.
             "pub port: Vec<i32>,",
             "pub network: Vec<String>,",
@@ -974,6 +974,120 @@ mod tests {
         assert!(budget.contains("pubfolder:String,"), "{budget}");
         assert!(budget.contains("pubmax_items:Option<i64>,"), "{budget}");
         assert!(budget.contains("pubno_max_items:bool,"), "{budget}");
+    }
+
+    const SHELF: &str = r#"
+        syntax = "proto3";
+        package origincloud.shelf.v1;
+        import "google/api/annotations.proto";
+        import "google/api/field_behavior.proto";
+        import "google/api/resource.proto";
+        // Shelves.
+        service ShelfService {
+          // Places a book.
+          rpc PlaceBook(PlaceBookRequest) returns (PlaceBookRequest) {
+            option (google.api.http) = {post: "/v1/books" body: "*"};
+          }
+        }
+        message Book {
+          option (google.api.resource) = {
+            type: "shelf.origincloudapis.eu/Book"
+            pattern: "projects/{project}/books/{book}"
+            pattern: "books/{book}"
+          };
+          string name = 1;
+        }
+        message Shelf {
+          option (google.api.resource) = { type: "shelf.origincloudapis.eu/Shelf" pattern: "projects/{project}/shelves/{shelf}" };
+          string name = 1;
+        }
+        message PublicShelf {
+          option (google.api.resource) = { type: "shelf.origincloudapis.eu/PublicShelf" pattern: "shelves/{shelf}" };
+          string name = 1;
+        }
+        message PlaceBookRequest {
+          string book = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "shelf.origincloudapis.eu/Book"];
+          string shelf = 2 [(google.api.resource_reference).type = "shelf.origincloudapis.eu/Shelf"];
+          string note = 3;
+        }
+    "#;
+
+    fn also_names(field: &str, resource: &str) -> policy::Policy {
+        toml::from_str(&format!(
+            "[[also_names]]\nfield = {field:?}\nresource = {resource:?}\nwhy = \"the test\"\n"
+        ))
+        .unwrap()
+    }
+
+    /// A reference whose resource declares several name patterns takes a
+    /// whole name of each, and an id completes to the first; so does a field
+    /// `[[also_names]]` gives another type's patterns, and its help names
+    /// every form.
+    #[test]
+    fn a_reference_takes_a_whole_name_of_every_pattern() {
+        let dir = api("shelf/v1/shelf.proto", SHELF);
+        let flat = |files: &BTreeMap<PathBuf, Vec<u8>>| -> String {
+            file(files, "shelf.rs").split_whitespace().collect()
+        };
+        let wanted = |text: &str| -> String { text.split_whitespace().collect() };
+
+        let code = flat(&generated(&[dir.path()]).unwrap());
+        for expected in [
+            r#"names.learn(&["projects/{project}/books/{book}", "books/{book}"], "book", Some(args.book.as_str())"#,
+            r#"names.reference(&["projects/{project}/books/{book}", "books/{book}"], "book", args.book.as_str()"#,
+            "or its whole name, `projects/{project}/books/{book}` or `books/{book}`.",
+            r#"names.reference(&["projects/{project}/shelves/{shelf}"], "shelf", v"#,
+        ] {
+            assert!(
+                code.contains(&wanted(expected)),
+                "no {expected:?} in:\n{code}"
+            );
+        }
+
+        let policy = also_names(
+            "origincloud.shelf.v1.PlaceBookRequest.shelf",
+            "shelf.origincloudapis.eu/PublicShelf",
+        );
+        let code = flat(&generated_with(&[dir.path()], &policy).unwrap());
+        for expected in [
+            r#"names.reference(&["projects/{project}/shelves/{shelf}", "shelves/{shelf}"], "shelf", v"#,
+            "or its whole name, `projects/{project}/shelves/{shelf}` or `shelves/{shelf}`.",
+        ] {
+            assert!(
+                code.contains(&wanted(expected)),
+                "no {expected:?} in:\n{code}"
+            );
+        }
+    }
+
+    /// An `[[also_names]]` entry that can't apply fails generation, naming
+    /// it, rather than silently stopping to apply.
+    #[test]
+    fn an_also_names_entry_that_cant_apply_fails_generation() {
+        let dir = api("shelf/v1/shelf.proto", SHELF);
+        for (field, resource, why) in [
+            (
+                "origincloud.shelf.v1.PlaceBookRequest.gone",
+                "shelf.origincloudapis.eu/PublicShelf",
+                "the API has no such field",
+            ),
+            (
+                "origincloud.shelf.v1.PlaceBookRequest.note",
+                "shelf.origincloudapis.eu/PublicShelf",
+                "not a reference to a resource type the API declares",
+            ),
+            (
+                "origincloud.shelf.v1.PlaceBookRequest.shelf",
+                "shelf.origincloudapis.eu/Gone",
+                "the API declares no resource type shelf.origincloudapis.eu/Gone",
+            ),
+        ] {
+            let err = generated_with(&[dir.path()], &also_names(field, resource))
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("[[also_names]]"), "{err}");
+            assert!(err.contains(why), "{why}: {err}");
+        }
     }
 
     /// A view's columns reach the lists of its message as JSON paths; a

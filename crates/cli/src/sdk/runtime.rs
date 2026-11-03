@@ -16,7 +16,7 @@ use super::credentials::CliSessionCredentials;
 use crate::config::ClientProfile;
 use crate::confirm::Confirmed;
 use crate::handler::tag_args::TagArg;
-use crate::identity::is_resource_id;
+use crate::identity::{is_resource_id, RESOURCE_ID_RULE};
 pub use crate::output::Listing;
 use crate::output::{CommandResult, SerializableOutput, SerializationError, Shape};
 
@@ -314,7 +314,7 @@ fn checked(source: &str, value: &str) -> anyhow::Result<String> {
     if is_resource_id(value) {
         Ok(value.to_owned())
     } else {
-        bail!("{source}: {value:?} isn't an id: expected letters, digits, `-` and `_`")
+        bail!("{source}: {value:?} isn't an id: {RESOURCE_ID_RULE}")
     }
 }
 
@@ -329,24 +329,24 @@ impl Names {
     /// Checks the parts of `pattern` other than `var` are at hand, before
     /// `var` is known.
     pub fn check_without(&self, pattern: &str, var: &str) -> anyhow::Result<()> {
-        self.with_part(var, "placeholder")
-            .name(pattern, None)
-            .map(drop)
+        self.with_part(var, "placeholder").name(pattern).map(drop)
     }
 
     /// Learns the parts of `value`, given to the flag `--{leaf_flag}`, when
-    /// it is a whole name of `pattern`. A part that disagrees with its flag,
-    /// or with another whole name, is refused.
+    /// it is a whole name of one of `patterns`, the name patterns of the
+    /// resource the flag refers to. A part that disagrees with its flag, or
+    /// with another whole name, is refused.
     pub fn learn(
         &mut self,
-        pattern: &str,
+        patterns: &[&str],
         leaf_flag: &str,
         value: Option<&str>,
     ) -> anyhow::Result<()> {
         let Some(value) = value.filter(|v| v.contains('/')) else {
             return Ok(());
         };
-        let parts = parse(pattern, value).map_err(|e| anyhow!("--{leaf_flag}: {e}"))?;
+        let (pattern, parts) =
+            parse_any(patterns, value).map_err(|e| anyhow!("--{leaf_flag}: {e}"))?;
         for (var, part) in parts.into_iter().take(variables(pattern).len() - 1) {
             if let Some(given) = self.given.get(var.as_str()) {
                 if *given != part {
@@ -367,16 +367,34 @@ impl Names {
         Ok(())
     }
 
-    /// The name of `pattern`, its last part from `leaf` (`(flag, value)`)
-    /// when the pattern names a resource, and the others from their flags.
-    /// A leaf value that is a whole name is taken as it is, once checked.
-    pub fn name(&self, pattern: &str, leaf: Option<(&str, &str)>) -> anyhow::Result<String> {
-        if let Some((leaf_flag, value)) = leaf {
-            if value.contains('/') {
-                parse(pattern, value).map_err(|e| anyhow!("--{leaf_flag}: {e}"))?;
-                return Ok(value.to_owned());
-            }
+    /// The name of `pattern`, every part from its flag.
+    pub fn name(&self, pattern: &str) -> anyhow::Result<String> {
+        self.compose(pattern, None)
+    }
+
+    /// The name `value`, given to `--{leaf_flag}`, names, of a resource with
+    /// `patterns`: a whole name of any of them, taken as it is once checked,
+    /// or the resource's id, completed into the first with the other parts'
+    /// flags.
+    pub fn reference(
+        &self,
+        patterns: &[&str],
+        leaf_flag: &str,
+        value: &str,
+    ) -> anyhow::Result<String> {
+        if value.contains('/') {
+            parse_any(patterns, value).map_err(|e| anyhow!("--{leaf_flag}: {e}"))?;
+            return Ok(value.to_owned());
         }
+        let pattern = patterns
+            .first()
+            .ok_or_else(|| anyhow!("--{leaf_flag}: its resource has no name pattern"))?;
+        self.compose(pattern, Some((leaf_flag, value)))
+    }
+
+    /// The name of `pattern`, its last part the id `leaf` (`(flag, value)`)
+    /// when given, and the others from their flags.
+    fn compose(&self, pattern: &str, leaf: Option<(&str, &str)>) -> anyhow::Result<String> {
         let segments: Vec<&str> = pattern.split('/').collect();
         let last = segments.iter().rposition(|s| variable(s).is_some());
         let mut out = Vec::with_capacity(segments.len());
@@ -423,25 +441,42 @@ fn variables(pattern: &str) -> Vec<&str> {
     pattern.split('/').filter_map(variable).collect()
 }
 
-/// The parts of `name`, a whole name of `pattern`, by variable. Each part
-/// must be an id: no `.`, `..` or empty segment gets through.
-fn parse(pattern: &str, name: &str) -> anyhow::Result<Vec<(String, String)>> {
-    let expected: Vec<&str> = pattern.split('/').collect();
-    let got: Vec<&str> = name.split('/').collect();
-    let refused = || anyhow!("{name:?} isn't a name of the form {pattern}");
-    if expected.len() != got.len() {
-        return Err(refused());
-    }
-    let mut parts = Vec::new();
-    for (e, g) in expected.iter().zip(&got) {
-        match variable(e) {
-            Some(var) if is_resource_id(g) => parts.push((var.to_owned(), (*g).to_owned())),
-            Some(_) => return Err(refused()),
-            None if e == g => {}
-            None => return Err(refused()),
-        }
-    }
-    Ok(parts)
+/// The parts of `name`, a whole name of `pattern`, by variable, or `None`
+/// when it isn't one. The SDK's check of a name against its path template
+/// decides: each literal segment as the pattern has it, and each part one
+/// segment, not empty, `.` or `..`.
+fn parse(pattern: &str, name: &str) -> Option<Vec<(String, String)>> {
+    let template: Vec<&str> = pattern
+        .split('/')
+        .map(|s| if variable(s).is_some() { "*" } else { s })
+        .collect();
+    origincloud_core::path_value("name", name, &template.join("/")).ok()?;
+    Some(
+        pattern
+            .split('/')
+            .zip(name.split('/'))
+            .filter_map(|(p, n)| variable(p).map(|var| (var.to_owned(), n.to_owned())))
+            .collect(),
+    )
+}
+
+/// The pattern of `patterns` that `name` is a whole name of, the first that
+/// fits, and its parts by variable.
+fn parse_any<'p>(
+    patterns: &[&'p str],
+    name: &str,
+) -> anyhow::Result<(&'p str, Vec<(String, String)>)> {
+    patterns
+        .iter()
+        .find_map(|pattern| parse(pattern, name).map(|parts| (*pattern, parts)))
+        .ok_or_else(|| {
+            let forms = match patterns {
+                [] => String::new(),
+                [only] => (*only).to_owned(),
+                [first @ .., last] => format!("{} or {last}", first.join(", ")),
+            };
+            anyhow!("{name:?} isn't a name of the form {forms}")
+        })
 }
 
 /// A duration flag's value: whole numbers of hours, minutes, seconds and
@@ -727,23 +762,17 @@ mod tests {
     fn a_name_is_made_of_its_flags_and_the_profile() {
         let n = names(&[("project", None), ("zone", Some("z1"))]);
         assert_eq!(
-            n.name(VOLUME, Some(("volume", "v1"))).unwrap(),
+            n.reference(&[VOLUME], "volume", "v1").unwrap(),
             "projects/default-project/zones/z1/volumes/v1"
         );
+        assert_eq!(n.name(ZONE).unwrap(), "projects/default-project/zones/z1");
         assert_eq!(
-            n.name(ZONE, None).unwrap(),
-            "projects/default-project/zones/z1"
-        );
-        assert_eq!(
-            n.with_part("zone", "z2").name(ZONE, None).unwrap(),
+            n.with_part("zone", "z2").name(ZONE).unwrap(),
             "projects/default-project/zones/z2"
         );
         assert_eq!(
-            n.name(
-                "storageClasses/{storage_class}",
-                Some(("storage-class", "gp1"))
-            )
-            .unwrap(),
+            n.reference(&["storageClasses/{storage_class}"], "storage-class", "gp1")
+                .unwrap(),
             "storageClasses/gp1"
         );
     }
@@ -751,7 +780,7 @@ mod tests {
     #[test]
     fn a_missing_part_names_its_flag_and_the_profile_key() {
         let n = names(&[("project", Some("p")), ("zone", None)]);
-        let err = n.name(ZONE, None).unwrap_err().to_string();
+        let err = n.name(ZONE).unwrap_err().to_string();
         assert!(err.contains("--zone is required"), "{err}");
         assert!(err.contains("ORIGINCLOUD_ZONE"), "{err}");
         assert!(
@@ -774,7 +803,7 @@ mod tests {
         profile.default_project = Some("p".to_owned());
         let given = [("project", None), ("region", None)];
         let err = names_with(profile.clone(), &given)
-            .name(REGIONAL, None)
+            .name(REGIONAL)
             .unwrap_err()
             .to_string();
         for part in [
@@ -787,25 +816,19 @@ mod tests {
 
         profile.default_zone = Some("eu-central1-az1".to_owned());
         let n = names_with(profile.clone(), &given);
-        assert_eq!(
-            n.name(REGIONAL, None).unwrap(),
-            "projects/p/regions/eu-central1"
-        );
+        assert_eq!(n.name(REGIONAL).unwrap(), "projects/p/regions/eu-central1");
         profile.region = Some("eu-central2".to_owned());
         let n = names_with(profile.clone(), &given);
-        assert_eq!(
-            n.name(REGIONAL, None).unwrap(),
-            "projects/p/regions/eu-central2"
-        );
+        assert_eq!(n.name(REGIONAL).unwrap(), "projects/p/regions/eu-central2");
         let n = names_with(
             profile.clone(),
             &[("project", None), ("region", Some("r9"))],
         );
-        assert_eq!(n.name(REGIONAL, None).unwrap(), "projects/p/regions/r9");
+        assert_eq!(n.name(REGIONAL).unwrap(), "projects/p/regions/r9");
 
         profile.region = Some("a/b".to_owned());
         let err = names_with(profile, &given)
-            .name(REGIONAL, None)
+            .name(REGIONAL)
             .unwrap_err()
             .to_string();
         assert!(
@@ -818,18 +841,15 @@ mod tests {
     fn a_whole_name_fills_in_the_other_parts() {
         let mut n = names(&[("project", None), ("zone", None)]);
         n.learn(
-            VOLUME,
+            &[VOLUME],
             "source-volume",
             Some("projects/p/zones/z/volumes/v"),
         )
         .unwrap();
-        assert_eq!(n.name(ZONE, None).unwrap(), "projects/p/zones/z");
+        assert_eq!(n.name(ZONE).unwrap(), "projects/p/zones/z");
         assert_eq!(
-            n.name(
-                VOLUME,
-                Some(("source-volume", "projects/p/zones/z/volumes/v"))
-            )
-            .unwrap(),
+            n.reference(&[VOLUME], "source-volume", "projects/p/zones/z/volumes/v")
+                .unwrap(),
             "projects/p/zones/z/volumes/v"
         );
     }
@@ -838,7 +858,7 @@ mod tests {
     fn a_whole_name_disagreeing_with_a_flag_is_refused() {
         let mut n = names(&[("project", Some("other")), ("zone", None)]);
         let err = n
-            .learn(VOLUME, "volume", Some("projects/p/zones/z/volumes/v"))
+            .learn(&[VOLUME], "volume", Some("projects/p/zones/z/volumes/v"))
             .unwrap_err()
             .to_string();
         assert!(err.contains("--project other differs"), "{err}");
@@ -856,33 +876,156 @@ mod tests {
             "projects/p/zones/./volumes/v",
             "projects/p/zones/z/volumes/",
         ] {
-            assert!(n.name(VOLUME, Some(("volume", bad))).is_err(), "{bad}");
+            assert!(n.reference(&[VOLUME], "volume", bad).is_err(), "{bad}");
         }
     }
 
-    /// No part can climb out of its place in the path: `.`, `..`, a `/` or
-    /// anything outside the id alphabet is refused, from a flag, a whole
-    /// name or the profile.
+    /// No part can climb out of its place in the path: `.`, `..`, an empty
+    /// part or a `/` is refused, from a flag, a whole name or the profile.
     #[test]
-    fn a_part_outside_the_id_alphabet_is_refused() {
+    fn a_part_that_could_leave_its_place_is_refused() {
         let n = names(&[("zone", Some("z"))]);
-        for bad in ["..", ".", "", "a b", "v?x", "v%2F"] {
+        for bad in ["..", ".", ""] {
             let err = n
-                .name(VOLUME, Some(("volume", bad)))
+                .reference(&[VOLUME], "volume", bad)
                 .unwrap_err()
                 .to_string();
             assert!(err.starts_with("--volume:"), "{bad:?}: {err}");
+            assert!(err.contains("isn't an id"), "{bad:?}: {err}");
         }
         let err = names(&[("project", Some("a/b")), ("zone", Some("z"))])
-            .name(ZONE, None)
+            .name(ZONE)
             .unwrap_err()
             .to_string();
         assert!(err.starts_with("--project:"), "{err}");
         let err = names(&[("project", Some("..")), ("zone", Some("z"))])
-            .name(ZONE, None)
+            .name(ZONE)
             .unwrap_err()
             .to_string();
         assert!(err.contains("isn't an id"), "{err}");
+        let mut profile = ClientProfile::default();
+        profile.default_project = Some(".".to_owned());
+        let err = names_with(profile, &[("project", None), ("zone", Some("z"))])
+            .name(ZONE)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("isn't an id"), "{err}");
+    }
+
+    const INSTANCE_TYPE: &str = "instanceTypes/{instance_type}";
+
+    /// An id is what the SDK sends as one segment, whatever else it holds:
+    /// an instance type's dots, bare or in a whole name, and characters
+    /// the SDK escapes.
+    #[test]
+    fn an_id_may_hold_dots() {
+        let mut n = names(&[("project", None), ("zone", Some("z"))]);
+        for (value, name) in [
+            ("gp1.core.2", "instanceTypes/gp1.core.2"),
+            ("instanceTypes/gp1.core.2", "instanceTypes/gp1.core.2"),
+            ("a..b", "instanceTypes/a..b"),
+        ] {
+            n.learn(&[INSTANCE_TYPE], "instance-type", Some(value))
+                .unwrap();
+            assert_eq!(
+                n.reference(&[INSTANCE_TYPE], "instance-type", value)
+                    .unwrap(),
+                name
+            );
+        }
+        for (value, name) in [
+            ("v.1", "projects/default-project/zones/z/volumes/v.1"),
+            ("v 1", "projects/default-project/zones/z/volumes/v 1"),
+            (
+                "projects/p.1/zones/z.1/volumes/v.1",
+                "projects/p.1/zones/z.1/volumes/v.1",
+            ),
+        ] {
+            assert_eq!(n.reference(&[VOLUME], "volume", value).unwrap(), name);
+        }
+        assert_eq!(
+            names(&[("project", Some("p.1")), ("zone", Some("z.1"))])
+                .name(ZONE)
+                .unwrap(),
+            "projects/p.1/zones/z.1"
+        );
+        for bad in [
+            "instanceTypes/..",
+            "instanceTypes/.",
+            "instanceTypes/",
+            "instanceTypes/gp1.core.2/x",
+            "instancetypes/gp1.core.2",
+        ] {
+            let err = n
+                .reference(&[INSTANCE_TYPE], "instance-type", bad)
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("isn't a name of the form"), "{bad}: {err}");
+        }
+    }
+
+    /// An image: the project's own, or a public one.
+    const IMAGE: [&str; 2] = [
+        "projects/{project}/zones/{zone}/images/{image}",
+        "zones/{zone}/images/{image}",
+    ];
+
+    /// A reference whose resource has several name patterns takes a whole
+    /// name of each, learning its parts; an id completes to the first.
+    #[test]
+    fn a_reference_takes_a_whole_name_of_each_pattern() {
+        let mut n = names(&[("project", None), ("zone", None)]);
+        n.learn(&IMAGE, "image", Some("zones/z/images/img-1"))
+            .unwrap();
+        assert_eq!(n.name(ZONE).unwrap(), "projects/default-project/zones/z");
+        assert_eq!(
+            n.reference(&IMAGE, "image", "zones/z/images/img-1")
+                .unwrap(),
+            "zones/z/images/img-1"
+        );
+
+        let mut n = names(&[("project", None), ("zone", None)]);
+        n.learn(&IMAGE, "image", Some("projects/p/zones/z/images/img-1"))
+            .unwrap();
+        assert_eq!(n.name(ZONE).unwrap(), "projects/p/zones/z");
+        assert_eq!(
+            n.reference(&IMAGE, "image", "projects/p/zones/z/images/img-1")
+                .unwrap(),
+            "projects/p/zones/z/images/img-1"
+        );
+
+        // An id is the project's own image.
+        let n = names(&[("project", None), ("zone", Some("z"))]);
+        assert_eq!(
+            n.reference(&IMAGE, "image", "img-1").unwrap(),
+            "projects/default-project/zones/z/images/img-1"
+        );
+
+        // A public image's zone is checked against --zone too.
+        let mut n = names(&[("project", None), ("zone", Some("other"))]);
+        let err = n
+            .learn(&IMAGE, "image", Some("zones/z/images/img-1"))
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("--zone other differs"), "{err}");
+
+        // A name of neither form names both in its refusal.
+        let n = names(&[("zone", Some("z"))]);
+        for bad in [
+            "images/img-1",
+            "zones/z/images/..",
+            "zones/../images/img-1",
+            "projects/p/zones/z/snapshots/s",
+        ] {
+            let err = n.reference(&IMAGE, "image", bad).unwrap_err().to_string();
+            assert!(
+                err.contains(
+                    "isn't a name of the form projects/{project}/zones/{zone}/images/{image} \
+                     or zones/{zone}/images/{image}"
+                ),
+                "{bad}: {err}"
+            );
+        }
     }
 
     #[test]
