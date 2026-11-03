@@ -1,144 +1,6 @@
-//! The identifiers the hand-written GraphQL commands take and send: URNs,
-//! organisation and project ids, and principals.
-//!
-//! The GraphQL schema declares them as custom scalars, which the generated
-//! query code expects as Rust types of the same names. They travel as
-//! strings; the server validates them in full. The checks here only refuse
-//! what can't be one of them, so that a mistyped argument fails before a
-//! request is sent, with a message saying which argument it was.
-
-use std::fmt;
-use std::str::FromStr;
-
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-/// Implements `Display`, `Serialize` and `Deserialize` through the type's
-/// string form and `FromStr`.
-macro_rules! string_form {
-    ($type:ty) => {
-        impl fmt::Display for $type {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(&self.0)
-            }
-        }
-
-        impl Serialize for $type {
-            fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                serializer.serialize_str(&self.0)
-            }
-        }
-
-        impl<'de> Deserialize<'de> for $type {
-            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                let s = String::deserialize(deserializer)?;
-                s.parse().map_err(serde::de::Error::custom)
-            }
-        }
-    };
-}
-
-/// Whether `s` is a non-empty run of lowercase letters, digits and `-`: the
-/// alphabet organisation and project ids are written in.
-fn is_id(s: &str) -> bool {
-    !s.is_empty()
-        && s.bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-}
-
-/// An organisation's id, such as `0a1b2c3d4e5f`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct OrgId(String);
-
-impl FromStr for OrgId {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if is_id(s) {
-            Ok(Self(s.to_owned()))
-        } else {
-            Err(format!(
-                "{s:?} isn't an organisation id: expected lowercase letters and digits"
-            ))
-        }
-    }
-}
-
-string_form!(OrgId);
-
-/// A project's id, such as `my-project-123`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ProjectId(String);
-
-impl FromStr for ProjectId {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if is_id(s) {
-            Ok(Self(s.to_owned()))
-        } else {
-            Err(format!(
-                "{s:?} isn't a project id: expected lowercase letters, digits and `-`"
-            ))
-        }
-    }
-}
-
-string_form!(ProjectId);
-
-/// Who a role is granted to: `{type}:{id}`, such as `user:<id>`,
-/// `service_account:<id>` or `org:<id>`.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Principal(String);
-
-const PRINCIPAL_TYPES: [&str; 4] = ["user", "service_account", "org", "service"];
-
-impl FromStr for Principal {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.split_once(':') {
-            Some((kind, id)) if PRINCIPAL_TYPES.contains(&kind) && !id.is_empty() => {
-                Ok(Self(s.to_owned()))
-            }
-            _ => Err(format!(
-                "{s:?} isn't a principal: expected {{type}}:{{id}}, with a type of {}",
-                PRINCIPAL_TYPES.join(", ")
-            )),
-        }
-    }
-}
-
-string_form!(Principal);
-
-/// A resource's URN:
-/// `urn:origin:cloud:{service}:{region}:{org}:{project}:{resource}`, where
-/// the region, organisation and project may be empty.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Urn(String);
-
-/// The segments before the resource id, which may itself contain `:`.
-const URN_SEGMENTS: usize = 8;
-
-impl FromStr for Urn {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let segments: Vec<&str> = s.splitn(URN_SEGMENTS, ':').collect();
-        let valid = segments.len() == URN_SEGMENTS
-            && segments[..3] == ["urn", "origin", "cloud"]
-            && !segments[3].is_empty()
-            && !segments[7].is_empty();
-        if valid {
-            Ok(Self(s.to_owned()))
-        } else {
-            Err(format!(
-                "{s:?} isn't a URN: expected urn:origin:cloud:{{service}}:{{region}}:{{org}}:{{project}}:{{resource}}"
-            ))
-        }
-    }
-}
-
-string_form!(Urn);
+//! The ids and regions the CLI checks itself: a segment of a resource name,
+//! as the SDK checks the names it sends, and a region, and the region of a
+//! zone.
 
 /// Whether `s` can be one segment of a resource name, by the SDK's own
 /// check of the names it sends: not empty, `.` or `..`, and without `/`,
@@ -155,7 +17,9 @@ pub(crate) const RESOURCE_ID_RULE: &str = "an id can't be empty, `.` or `..`, or
 /// Whether `s` can be a region, such as `eu-central1`: lowercase letters,
 /// digits and `-`, as the SDK requires of a host label.
 pub(crate) fn is_region(s: &str) -> bool {
-    is_id(s)
+    !s.is_empty()
+        && s.bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
 /// The region of the zone `zone`, which the platform names `{region}-az{n}`:
@@ -206,45 +70,5 @@ mod tests {
         ] {
             assert_eq!(region_of_zone(other), None, "{other}");
         }
-    }
-
-    #[test]
-    fn a_resource_id_may_contain_colons() {
-        let urn: Urn = "urn:origin:cloud:iam::0a1b2c3d4e5f::role/a:b"
-            .parse()
-            .unwrap();
-        assert_eq!(
-            urn.to_string(),
-            "urn:origin:cloud:iam::0a1b2c3d4e5f::role/a:b"
-        );
-    }
-
-    #[test]
-    fn what_isnt_a_urn_is_refused() {
-        for s in [
-            "",
-            "urn:origin:cloud",
-            "urn:other:cloud:compute::o:p:r",
-            "urn:origin:cloud:::o:p:r",
-            "urn:origin:cloud:compute::o:p:",
-        ] {
-            assert!(s.parse::<Urn>().is_err(), "{s:?}");
-        }
-    }
-
-    #[test]
-    fn ids_and_principals_are_checked_and_travel_as_strings() {
-        assert!("my-project-123".parse::<ProjectId>().is_ok());
-        assert!("My-Project".parse::<ProjectId>().is_err());
-        assert!("".parse::<OrgId>().is_err());
-        assert!("user:abc".parse::<Principal>().is_ok());
-        assert!("robot:abc".parse::<Principal>().is_err());
-        assert!("user:".parse::<Principal>().is_err());
-        let project: ProjectId = "p-1".parse().unwrap();
-        assert_eq!(serde_json::to_string(&project).unwrap(), "\"p-1\"");
-        assert_eq!(
-            serde_json::from_str::<ProjectId>("\"p-1\"").unwrap(),
-            project
-        );
     }
 }

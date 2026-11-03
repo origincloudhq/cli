@@ -2,8 +2,9 @@
 //!
 //! - `sdk` holds the command groups generated from the API definitions,
 //!   one per service (`pvs`, `location`, ...), which call the Rust SDK;
-//! - `handler` and `service_apis` hold the hand-written commands, which call
-//!   the GraphQL API with the queries in `graphql/`.
+//! - `handler` holds the hand-written commands (`id`, `config`, `mcp`,
+//!   `completion`); `service_apis` the one GraphQL query left, `id login`'s
+//!   read of the signed-in user, in `graphql/`.
 
 pub use run_cli::run;
 

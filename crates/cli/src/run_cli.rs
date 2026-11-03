@@ -28,9 +28,6 @@ pub async fn run() -> ! {
         Some(Commands::Id(id_cmd)) => {
             printing.exit_with(handler::id::run_identity_command(&profile, &api_url, id_cmd).await)
         }
-        Some(Commands::Iam(cmd)) => {
-            printing.exit_with(handler::iam::run_iam_command(&profile, &api_url, cmd).await)
-        }
         // The MCP session owns standard output: nothing is printed on it.
         Some(Commands::Mcp(cmd)) => match handler::mcp::run_mcp_command(&profile, cmd).await {
             Ok(()) => exit(0),

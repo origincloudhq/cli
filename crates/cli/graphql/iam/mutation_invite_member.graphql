@@ -1,5 +1,0 @@
-mutation InviteMember($input: IamInviteMemberInput!) {
-    iam {
-        inviteMember(input: $input)
-    }
-}

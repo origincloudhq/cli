@@ -652,6 +652,54 @@ async fn a_generated_private_key_comes_with_a_notice() {
     assert!(!stderr.contains("privateKey"), "{stderr}");
 }
 
+/// A new service account's client secret is printed in the JSON as the API
+/// sends it, and standard error says it is shown this once and how to keep
+/// it; a repeat of the request, whose response has no secret, says nothing.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_service_account_s_client_secret_comes_with_a_notice() {
+    const CREATED: &str = r#"{"name":"organizations/o/serviceAccounts/sa-1","displayName":"ci","member":"serviceAccount:sa-1","clientId":"c-1","clientSecret":"s3cr3t-value","state":"ACTIVE"}"#;
+    const REPEATED: &str = r#"{"name":"organizations/o/serviceAccounts/sa-1","displayName":"ci","member":"serviceAccount:sa-1","clientId":"c-1","state":"ACTIVE"}"#;
+    let calls = Arc::new(AtomicUsize::new(0));
+    let seen = calls.clone();
+    let server = recording(move |_: &Received| {
+        if seen.fetch_add(1, Ordering::SeqCst) == 0 {
+            Response::json(CREATED)
+        } else {
+            Response::json(REPEATED)
+        }
+    })
+    .await;
+    let create = [
+        "create-service-account",
+        "--organization",
+        "o",
+        "--display-name",
+        "ci",
+    ];
+
+    let output = server.run("iam", &create).await;
+    assert_eq!(success(&output), json(CREATED));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    for part in [
+        "`clientSecret`",
+        "this once",
+        "umask 077",
+        "jq -r .clientSecret",
+    ] {
+        assert!(stderr.contains(part), "{part}: {stderr}");
+    }
+    assert!(!stderr.contains("s3cr3t-value"), "{stderr}");
+    assert_eq!(
+        server.requests()[0].path,
+        "/v1beta1/organizations/o/serviceAccounts"
+    );
+
+    let output = server.run("iam", &create).await;
+    assert_eq!(success(&output), json(REPEATED));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stderr.contains("clientSecret"), "{stderr}");
+}
+
 /// `create-instance` reaches the server with an instance type, whose ids
 /// hold dots, and an image of either form: the project's own, completed
 /// from its id, or a public one, whose zone fills in `--zone`.

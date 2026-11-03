@@ -8,14 +8,12 @@
 # service, a method or a field the API doesn't have, so that an entry can't
 # silently stop applying.
 
-# The hand-written groups the CLI still has: the ones calling the GraphQL
-# API until the API has the service replacing each (`iam`), and the CLI's
-# own (`completion`, `config`, `id`, `mcp`, `version`). A service of the API
-# named like one (`iam`), or replacing one under another name
-# ([[replacement]] below), fails generation until that group is retired in
-# the same change, as CONTRIBUTING.md says. The coverage test checks this
-# list is the CLI's.
-hand_written = ["completion", "config", "iam", "id", "mcp", "version"]
+# The hand-written groups the CLI still has: the CLI's own (`completion`,
+# `config`, `id`, `mcp`, `version`). A service of the API named like one, or
+# replacing one under another name ([[replacement]] below), fails generation
+# until that group is retired in the same change, as CONTRIBUTING.md says,
+# as `iam` was. The coverage test checks this list is the CLI's.
+hand_written = ["completion", "config", "id", "mcp", "version"]
 
 # A service replacing a hand-written group under another name. It is written
 # before the API has the service, so that generation fails as soon as a
@@ -60,6 +58,16 @@ else to the profile's `default-project`, `default-zone` and `region`; \
 [[service]]
 name = "resourcemanager"
 about = "Resource manager: organizations and projects, and their quotas"
+
+[[service]]
+name = "iam"
+about = "Identity and access management: role bindings, service accounts, roles, permissions, your user and the audit log"
+details = """
+Role bindings, service accounts and the audit log are an organization's \
+(`--organization`); roles, permissions and your user are the same in every \
+organization. A role binding's member is `user:{email}` or \
+`serviceAccount:{service_account}`; `origin iam list-role-bindings \
+--organization -` lists the bindings you hold, in every organization."""
 
 # A reference field that also takes the names of another resource type than
 # the one its definition declares: a `google.api.resource_reference` names
@@ -274,6 +282,71 @@ group = "network"
 command = "remove-resource-tags"
 why = "Set tags with the resource's `origin network update-...` command and `--tag`, such as `origin network update-vpc --tag`, giving every tag to keep, or remove them all with `--no-tags`."
 
+[[retired]]
+group = "iam"
+command = "assign-role"
+why = "Use `origin iam create-role-binding --organization <id> --member user:<email> --role <role>`, or `--member serviceAccount:<id>` for a service account, and `--project projects/<id>` to limit it to one project; `origin iam list-roles` lists the roles."
+
+[[retired]]
+group = "iam"
+command = "revoke-role"
+why = "Use `origin iam delete-role-binding --organization <id> --role-binding <binding> --yes`; `origin iam list-role-bindings --organization <id> --member <member>` finds the binding."
+
+[[retired]]
+group = "iam"
+command = "revoke-service-account"
+why = "Use `origin iam delete-service-account --organization <id> --service-account <id> --yes`."
+
+[[retired]]
+group = "iam"
+command = "current-user"
+why = "Use `origin iam get-user --user me`."
+
+[[retired]]
+group = "iam"
+command = "current-user-grants"
+why = "Use `origin iam list-role-bindings --organization -`: the bindings you hold, in every organization."
+
+[[retired]]
+group = "iam"
+command = "principal-grants"
+why = "Use `origin iam list-role-bindings --organization <id> --member <member>`, the member as `user:<email>` or `serviceAccount:<id>`."
+
+[[retired]]
+group = "iam"
+command = "list-members"
+why = "Use `origin iam list-role-bindings --organization <id>`: each binding names its member, `user:<email>` or `serviceAccount:<id>`, and its role."
+
+[[retired]]
+group = "iam"
+command = "remove-member"
+why = "Delete each of the member's role bindings with `origin iam delete-role-binding --organization <id> --role-binding <binding> --yes`; `origin iam list-role-bindings --organization <id> --member <member>` lists them."
+
+[[retired]]
+group = "iam"
+command = "permissions"
+why = "Use `origin iam list-permissions`."
+
+[[retired]]
+group = "iam"
+command = "has-permission"
+why = "Use `origin iam test-iam-permissions --resource organizations/<id> --permission <key>`, or `--resource projects/<id>`, repeating `--permission` for more; it tests the permissions you hold, not another member's: `origin iam list-role-bindings --organization <id> --member <member>` lists theirs."
+
+[[retired]]
+group = "iam"
+command = "invite-member"
+why = "Invitations aren't in the API: invite people in the console. Someone who already has an account is given a role with `origin iam create-role-binding --member user:<email>`."
+
+[[retired]]
+group = "iam"
+command = "list-invites"
+why = "Invitations aren't in the API: the console lists pending invitations."
+
+[[retired]]
+group = "iam"
+command = "revoke-invite"
+why = "Invitations aren't in the API: revoke a pending invitation in the console."
+
 # Methods left without a command, with the reason. Every other method of the
 # API has one: the coverage test fails for a method that has neither.
 #
@@ -314,6 +387,17 @@ once: the platform keeps only the public key. Save it now to a file only you \
 can read, such as by piping the output through \
 `(umask 077; jq -r .privateKey > my-key)`. A lost key can't be fetched \
 again: delete the key pair and create another."""
+
+[[shown_once]]
+service = "iam"
+method = "CreateServiceAccount"
+field = "client_secret"
+notice = """
+`clientSecret` holds the service account's client secret, which the API \
+returns this once. Save it now where only you can read it, such as by piping \
+the output through `(umask 077; jq -r .clientSecret > client-secret)`. A lost \
+secret can't be fetched again: delete the service account and create \
+another."""
 
 # The columns of the `table` a list of a message is printed as, by the
 # fields' paths from the message, through messages and lists of them:
@@ -411,3 +495,23 @@ columns = ["name", "display_name", "organization", "create_time"]
 service = "resourcemanager"
 message = "Organization"
 columns = ["name", "display_name", "state", "create_time"]
+
+[[view]]
+service = "iam"
+message = "RoleBinding"
+columns = ["name", "member", "role", "project", "create_time"]
+
+[[view]]
+service = "iam"
+message = "ServiceAccount"
+columns = ["name", "display_name", "member", "create_time", "delete_time"]
+
+[[view]]
+service = "iam"
+message = "Role"
+columns = ["name", "description"]
+
+[[view]]
+service = "iam"
+message = "Permission"
+columns = ["name", "service", "resource_type", "action"]

@@ -25,6 +25,7 @@ origincloud-location.workspace = true
 origincloud-compute.workspace = true
 origincloud-network.workspace = true
 origincloud-resourcemanager.workspace = true
+origincloud-iam.workspace = true
 # A message field's JSON flag checks its value against the API's
 # descriptors, which the generator checks in beside the commands.
 prost-reflect = "0.16"
