@@ -708,6 +708,23 @@ async fn a_service_account_s_client_secret_comes_with_a_notice() {
     ] {
         assert!(description.contains(part), "{part}: {description}");
     }
+    // The message names the account already, so the description doesn't
+    // repeat it; the JSON carries it apart, for a script.
+    assert_eq!(
+        description
+            .matches("organizations/o/serviceAccounts/sa-1")
+            .count(),
+        1,
+        "{description}"
+    );
+    let printed = stdout(&output);
+    assert_eq!(printed["reason"], "CONFLICT", "{printed}");
+    assert_eq!(
+        printed["metadata"],
+        json(r#"{"serviceAccount": "organizations/o/serviceAccounts/sa-1"}"#),
+        "{printed}"
+    );
+    assert_eq!(printed["requestId"], "7d3c1a2b9e8f4051", "{printed}");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!stderr.contains("clientSecret"), "{stderr}");
     // A 409 isn't retried: the repeat was sent once, with the same request
@@ -717,6 +734,44 @@ async fn a_service_account_s_client_secret_comes_with_a_notice() {
     for request in &requests {
         assert_eq!(request.query_values("requestId"), ["r-1"], "{request:?}");
     }
+}
+
+/// What a refusal's metadata names that its message doesn't is said under
+/// the message, as a refused field is; a failure the API didn't answer has
+/// none of the refusal's keys.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refusal_s_metadata_the_message_doesn_t_name_is_said() {
+    const REFUSED: &str = r#"{"error":{"code":409,"status":"FAILED_PRECONDITION","message":"the volume is in use","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"CONFLICT","domain":"origincloudapis.eu","metadata":{"instance":"projects/p/zones/z/instances/i-1"}}]}}"#;
+    let server = recording(|_: &Received| Response::json(REFUSED).with_status(409)).await;
+    let delete = [
+        "delete-volume",
+        "--project",
+        "p",
+        "--zone",
+        "z",
+        "--volume",
+        "v1",
+        "--yes",
+    ];
+
+    let output = server
+        .pvs(&[&delete[..], &["--output", "table"]].concat())
+        .await;
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("the volume is in use\n  instance: projects/p/zones/z/instances/i-1"),
+        "{stderr}"
+    );
+
+    let output = server.pvs(&delete).await;
+    let printed = stdout(&output);
+    assert_eq!(
+        printed["metadata"],
+        json(r#"{"instance": "projects/p/zones/z/instances/i-1"}"#),
+        "{printed}"
+    );
+    assert!(printed.get("requestId").is_none(), "{printed}");
 }
 
 /// `create-instance` reaches the server with an instance type, whose ids

@@ -17,7 +17,9 @@ use crate::confirm::Confirmed;
 use crate::handler::tag_args::TagArg;
 use crate::identity::{is_resource_id, RESOURCE_ID_RULE};
 pub use crate::output::Listing;
-use crate::output::{CommandResult, SerializableOutput, SerializationError, Shape};
+use crate::output::{
+    CommandResult, Refusal, Refused, SerializableOutput, SerializationError, Shape,
+};
 use crate::progress::{self, Spinner};
 
 /// The variables that hold credentials for the SDK. When any is set, the
@@ -725,24 +727,40 @@ pub fn shown_once(value: &str, notice: &str) {
 }
 
 /// An SDK error for the user: the API's own message and code, the request
-/// id to quote to support, and each refused field.
+/// id to quote to support, each refused field, and what the error's
+/// metadata names that the message doesn't. A refusal of the API's also
+/// carries its code, metadata and request id apart, for `json`.
 pub fn api_error(err: origincloud_core::Error) -> anyhow::Error {
     let rendered = err.to_string();
     let mut message = rendered
         .strip_prefix("origincloud: ")
         .unwrap_or(&rendered)
         .to_owned();
-    if let Some(api) = err.api() {
-        for violation in &api.field_violations {
-            if !message.contains(&violation.description) {
-                message.push_str(&format!(
-                    "\n  {}: {}",
-                    violation.field, violation.description
-                ));
-            }
+    let Some(api) = err.api() else {
+        return anyhow!(message);
+    };
+    for violation in &api.field_violations {
+        if !message.contains(&violation.description) {
+            message.push_str(&format!(
+                "\n  {}: {}",
+                violation.field, violation.description
+            ));
         }
     }
-    anyhow!(message)
+    let metadata: BTreeMap<String, String> = api.metadata.clone().into_iter().collect();
+    for (key, value) in &metadata {
+        if !message.contains(value.as_str()) {
+            message.push_str(&format!("\n  {key}: {value}"));
+        }
+    }
+    anyhow::Error::new(Refused {
+        description: message,
+        refusal: Refusal {
+            reason: api.reason.clone(),
+            metadata,
+            request_id: api.request_id.clone(),
+        },
+    })
 }
 
 #[cfg(test)]

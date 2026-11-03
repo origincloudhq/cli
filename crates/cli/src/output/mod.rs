@@ -15,6 +15,8 @@ mod table;
 mod text;
 mod value;
 
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, Utc};
 use prost_reflect::MessageDescriptor;
 use serde_json::{Map, Value};
@@ -91,8 +93,6 @@ pub struct Listing {
     pub create: Option<&'static str>,
 }
 
-#[derive(serde::Serialize)]
-#[serde(tag = "code", content = "description", rename_all = "snake_case")]
 pub enum CommandResult {
     Success,
     /// The rendered failure description.
@@ -104,26 +104,76 @@ pub enum CommandResult {
     /// reach the user without changing the envelope's
     /// shape.
     Failure(String),
+    /// A call the API refused: the rendered description, as a
+    /// [`CommandResult::Failure`]'s, and in `json` also what the API said
+    /// of it beyond its message, by key next to `code` and `description`.
+    Refused(String, Refusal),
 }
 
 impl SerializableOutput for CommandResult {
     fn to_json(&self) -> Result<serde_json::Value, SerializationError> {
-        serde_json::to_value(self).map_err(|e| SerializationError::Other(e.to_string()))
+        let (description, refusal) = match self {
+            CommandResult::Success => return Ok(serde_json::json!({"code": "success"})),
+            CommandResult::Failure(description) => (description, None),
+            CommandResult::Refused(description, refusal) => (description, Some(refusal)),
+        };
+        let mut json = Map::new();
+        json.insert("code".to_owned(), "failure".into());
+        json.insert("description".to_owned(), description.as_str().into());
+        if let Some(refusal) = refusal {
+            let Value::Object(fields) = serde_json::to_value(refusal)
+                .map_err(|e| SerializationError::Other(e.to_string()))?
+            else {
+                unreachable!("a Refusal is an object");
+            };
+            json.extend(fields);
+        }
+        Ok(Value::Object(json))
     }
 
     fn exit_code(&self) -> i32 {
         match self {
             CommandResult::Success => 0,
-            CommandResult::Failure(_) => 1,
+            CommandResult::Failure(_) | CommandResult::Refused(..) => 1,
         }
     }
 
     fn shape(&self) -> Shape {
         match self {
             CommandResult::Success => Shape::Done("Done.".to_owned()),
-            CommandResult::Failure(description) => Shape::Failed(description.clone()),
+            CommandResult::Failure(description) | CommandResult::Refused(description, _) => {
+                Shape::Failed(description.clone())
+            }
         }
     }
+}
+
+/// What the API said of a call it refused, beyond its message, which a
+/// script reads instead of parsing the description. Each is left out when
+/// the API sent none.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Refusal {
+    /// The platform's error code, such as `CONFLICT`.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub reason: String,
+    /// More about the reason, by name, such as `serviceAccount`, the
+    /// service account a `CONFLICT` is about; each reason documents its
+    /// keys.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub metadata: BTreeMap<String, String>,
+    /// Identifies the request to Origin Cloud's support.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub request_id: String,
+}
+
+/// An error a call the API refused fails a command with: its rendered
+/// description, and the [`Refusal`] the `json` failure carries.
+#[derive(Debug, thiserror::Error)]
+#[error("{description}")]
+pub struct Refused {
+    pub description: String,
+    pub refusal: Refusal,
 }
 
 /// What the human formats are laid out for.
@@ -434,6 +484,39 @@ mod tests {
             printed(OutputFormat::Json, &done).0,
             "{\n  \"code\": \"success\"\n}\n"
         );
+    }
+
+    #[test]
+    fn a_refusal_adds_what_the_api_said_to_the_json_failure() {
+        let refusal = Refusal {
+            reason: "CONFLICT".to_owned(),
+            metadata: BTreeMap::from([(
+                "serviceAccount".to_owned(),
+                "organizations/o/serviceAccounts/sa-1".to_owned(),
+            )]),
+            request_id: "r-1".to_owned(),
+        };
+        let refused = CommandResult::Refused("refused".to_owned(), refusal);
+        assert_eq!(
+            refused.to_json().unwrap(),
+            json!({
+                "code": "failure",
+                "description": "refused",
+                "reason": "CONFLICT",
+                "metadata": {"serviceAccount": "organizations/o/serviceAccounts/sa-1"},
+                "requestId": "r-1",
+            })
+        );
+        let bare = CommandResult::Refused("refused".to_owned(), Refusal::default());
+        assert_eq!(
+            bare.to_json().unwrap(),
+            json!({"code": "failure", "description": "refused"})
+        );
+        assert_eq!(
+            printed(OutputFormat::Table, &refused),
+            (String::new(), "error: refused\n".to_owned())
+        );
+        assert_eq!(refused.exit_code(), 1);
     }
 
     #[test]
