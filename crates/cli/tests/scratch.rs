@@ -559,6 +559,138 @@ async fn resource_names_in_nested_values_are_completed_or_whole() {
     assert_eq!(server.requests().len(), 1);
 }
 
+/// A reference whose resource has several name patterns, as the scratch
+/// network has, takes a whole name of each wherever it is given: a
+/// repeatable flag, a oneof's member, a key and a JSON value; an id
+/// completes to the first. An id may hold dots, bare or in a whole name.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
+    let server = recording(echo).await;
+    success(
+        &scratch(
+            &server,
+            &[
+                &CREATE[..],
+                &[
+                    "--rule",
+                    "protocol=TCP,network=zones/z/networks/shared.2",
+                    "--rule",
+                    "protocol=UDP,network=n.3",
+                    "--network",
+                    "zones/z/networks/shared-1",
+                    "--network",
+                    "n.1",
+                    "--network",
+                    "projects/p/zones/z/networks/n.2",
+                    "--mirror-network",
+                    "zones/z/networks/m.1",
+                ],
+            ]
+            .concat(),
+        )
+        .await,
+    );
+    let sent = body(&server.requests()[0]);
+    assert_eq!(
+        sent["networks"],
+        json!([
+            "zones/z/networks/shared-1",
+            "projects/p/zones/z/networks/n.1",
+            "projects/p/zones/z/networks/n.2"
+        ])
+    );
+    assert_eq!(
+        sent["rules"],
+        json!([
+            {"protocol": "TCP", "network": "zones/z/networks/shared.2"},
+            {"protocol": "UDP", "network": "projects/p/zones/z/networks/n.3"}
+        ])
+    );
+    assert_eq!(sent["mirrorNetwork"], "zones/z/networks/m.1");
+
+    let rules = r#"[{"protocol": "TCP", "network": "zones/z/networks/s.1"}]"#;
+    success(&scratch(&server, &[&CREATE[..], &["--rules-json", rules]].concat()).await);
+    assert_eq!(
+        body(&server.requests()[1])["rules"],
+        json!([{"protocol": "TCP", "network": "zones/z/networks/s.1"}])
+    );
+
+    // An update, whose firewall's name is learned from a whole name too.
+    success(
+        &scratch(
+            &server,
+            &[
+                "update-firewall",
+                "--firewall",
+                "projects/p/zones/z/firewalls/f.1",
+                "--network",
+                "zones/z/networks/shared-1",
+            ],
+        )
+        .await,
+    );
+    let update = &server.requests()[2];
+    assert_eq!(update.path, "/v1/projects/p/zones/z/firewalls/f.1");
+    assert_eq!(
+        body(update)["networks"],
+        json!(["zones/z/networks/shared-1"])
+    );
+
+    // A whole name of either form must agree with --zone, and one of
+    // neither form, or with a part that could leave its place, is refused.
+    for (args, says) in [
+        (
+            &["--network", "zones/z2/networks/s"][..],
+            "--zone z differs from the zone of --network zones/z2/networks/s",
+        ),
+        (
+            &["--mirror-network", "zones/z2/networks/s"],
+            "--zone z differs from the zone of --mirror-network",
+        ),
+        (
+            &["--rule", "protocol=TCP,network=zones/z2/networks/s"],
+            "--zone z differs from the zone of --rule network",
+        ),
+        (
+            &["--network", "networks/s"],
+            "isn't a name of the form projects/{project}/zones/{zone}/networks/{network} or \
+             zones/{zone}/networks/{network}",
+        ),
+        (
+            &["--network", "zones/z/networks/.."],
+            "isn't a name of the form",
+        ),
+        (&["--network", ".."], "isn't an id"),
+    ] {
+        let rule: &[&str] = if args[0] == "--rule" {
+            &[]
+        } else {
+            &["--rule", "protocol=TCP"]
+        };
+        let description = failure(&scratch(&server, &[&CREATE[..], args, rule].concat()).await);
+        assert!(description.contains(says), "{args:?}: {description}");
+    }
+    assert_eq!(server.requests().len(), 3);
+
+    // The help names both forms.
+    let help = origincloud_cli::command()
+        .find_subcommand("scratch")
+        .and_then(|g| g.find_subcommand("create-firewall"))
+        .unwrap()
+        .get_arguments()
+        .find(|a| a.get_long() == Some("network"))
+        .and_then(|a| a.get_long_help().or(a.get_help()))
+        .map(|h| h.to_string())
+        .unwrap();
+    assert!(
+        help.contains(
+            "`projects/{project}/zones/{zone}/networks/{network}` or \
+             `zones/{zone}/networks/{network}`"
+        ),
+        "{help}"
+    );
+}
+
 /// A key is a field's name with `_` or `-`; a timestamp, as a flag or a
 /// key, is RFC 3339; a list the API keeps unordered has each element once,
 /// in a flag or in JSON.

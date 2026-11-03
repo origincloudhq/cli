@@ -88,14 +88,15 @@ async fn get_firewall(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/firewalls/{firewall}",
+            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
             "firewall",
             Some(args.firewall.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/firewalls/{firewall}",
-            Some(("firewall", args.firewall.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            "firewall",
+            args.firewall.as_str(),
         )?;
     let request = ::origincloud_scratch::v1::GetFirewallRequest {
         name,
@@ -142,7 +143,7 @@ pub struct CreateFirewallArgs {
     pub zone: Option<String>,
     #[arg(
         long = "rule",
-        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}`.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.",
+        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.",
         help = "The rules, in the order they are evaluated; the first that matches decides: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_rule(text, "--rules-json"),
@@ -168,7 +169,7 @@ pub struct CreateFirewallArgs {
     pub port: Vec<i32>,
     /// The networks the firewall guards.
     ///
-    /// Each by its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}`.
+    /// Each by its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`.
     ///
     /// Repeat for more.
     #[arg(long = "network", value_name = "NETWORK")]
@@ -246,7 +247,7 @@ pub struct CreateFirewallArgs {
     ///
     /// One of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}`.
+    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`.
     #[arg(long = "mirror-network", value_name = "NETWORK")]
     pub mirror_network: Option<String>,
     /// An address that receives the copies, such as `10.0.0.9:4789`.
@@ -295,7 +296,10 @@ async fn create_firewall(
         let item = &keyed.value;
         names
             .learn(
-                "projects/{project}/zones/{zone}/networks/{network}",
+                &[
+                    "projects/{project}/zones/{zone}/networks/{network}",
+                    "zones/{zone}/networks/{network}",
+                ],
                 "rule network",
                 Some(item.network.as_str()),
             )?;
@@ -304,7 +308,10 @@ async fn create_firewall(
         for item in &json.0 {
             names
                 .learn(
-                    "projects/{project}/zones/{zone}/networks/{network}",
+                    &[
+                        "projects/{project}/zones/{zone}/networks/{network}",
+                        "zones/{zone}/networks/{network}",
+                    ],
                     "rule network",
                     Some(item.network.as_str()),
                 )?;
@@ -313,18 +320,24 @@ async fn create_firewall(
     for value in &args.network {
         names
             .learn(
-                "projects/{project}/zones/{zone}/networks/{network}",
+                &[
+                    "projects/{project}/zones/{zone}/networks/{network}",
+                    "zones/{zone}/networks/{network}",
+                ],
                 "network",
                 Some(value.as_str()),
             )?;
     }
     names
         .learn(
-            "projects/{project}/zones/{zone}/networks/{network}",
+            &[
+                "projects/{project}/zones/{zone}/networks/{network}",
+                "zones/{zone}/networks/{network}",
+            ],
             "mirror-network",
             args.mirror_network.as_deref(),
         )?;
-    let parent = names.name("projects/{project}/zones/{zone}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}")?;
     let mut rules = match args.rules_json {
         Some(json) => json.0,
         None => {
@@ -335,9 +348,13 @@ async fn create_firewall(
     for item in &mut rules {
         if !item.network.is_empty() {
             item.network = names
-                .name(
-                    "projects/{project}/zones/{zone}/networks/{network}",
-                    Some(("rule network", item.network.as_str())),
+                .reference(
+                    &[
+                        "projects/{project}/zones/{zone}/networks/{network}",
+                        "zones/{zone}/networks/{network}",
+                    ],
+                    "rule network",
+                    item.network.as_str(),
                 )?;
         }
     }
@@ -346,9 +363,13 @@ async fn create_firewall(
         .iter()
         .map(|v| {
             names
-                .name(
-                    "projects/{project}/zones/{zone}/networks/{network}",
-                    Some(("network", v.as_str())),
+                .reference(
+                    &[
+                        "projects/{project}/zones/{zone}/networks/{network}",
+                        "zones/{zone}/networks/{network}",
+                    ],
+                    "network",
+                    v.as_str(),
                 )
         })
         .collect::<anyhow::Result<Vec<String>>>()?;
@@ -371,9 +392,13 @@ async fn create_firewall(
         .as_deref()
         .map(|v| {
             names
-                .name(
-                    "projects/{project}/zones/{zone}/networks/{network}",
-                    Some(("mirror-network", v)),
+                .reference(
+                    &[
+                        "projects/{project}/zones/{zone}/networks/{network}",
+                        "zones/{zone}/networks/{network}",
+                    ],
+                    "mirror-network",
+                    v,
                 )
         })
         .transpose()?
@@ -514,7 +539,7 @@ pub struct UpdateFirewallArgs {
     pub firewall: String,
     #[arg(
         long = "rule",
-        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}`.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
+        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
         help = "The rules, in the order they are evaluated; the first that matches decides: one element per flag, as KEY=VALUE pairs; the list is replaced whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_rule(text, "--rules-json"),
@@ -542,7 +567,7 @@ pub struct UpdateFirewallArgs {
     pub no_ports: bool,
     /// The networks the firewall guards.
     ///
-    /// Each by its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}`.
+    /// Each by its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`.
     ///
     /// Repeat for more. Replaces all of them, so give every one to keep; `--no-networks` removes them all. Left as they are when neither is given.
     #[arg(long = "network", value_name = "NETWORK")]
@@ -649,7 +674,7 @@ pub struct UpdateFirewallArgs {
     ///
     /// One of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set; `--no-mirror` sets none.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}`.
+    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`.
     #[arg(long = "mirror-network", value_name = "NETWORK")]
     pub mirror_network: Option<String>,
     /// An address that receives the copies, such as `10.0.0.9:4789`.
@@ -689,7 +714,7 @@ async fn update_firewall(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/firewalls/{firewall}",
+            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
             "firewall",
             Some(args.firewall.as_str()),
         )?;
@@ -697,7 +722,10 @@ async fn update_firewall(
         let item = &keyed.value;
         names
             .learn(
-                "projects/{project}/zones/{zone}/networks/{network}",
+                &[
+                    "projects/{project}/zones/{zone}/networks/{network}",
+                    "zones/{zone}/networks/{network}",
+                ],
                 "rule network",
                 Some(item.network.as_str()),
             )?;
@@ -706,7 +734,10 @@ async fn update_firewall(
         for item in &json.0 {
             names
                 .learn(
-                    "projects/{project}/zones/{zone}/networks/{network}",
+                    &[
+                        "projects/{project}/zones/{zone}/networks/{network}",
+                        "zones/{zone}/networks/{network}",
+                    ],
                     "rule network",
                     Some(item.network.as_str()),
                 )?;
@@ -715,21 +746,28 @@ async fn update_firewall(
     for value in &args.network {
         names
             .learn(
-                "projects/{project}/zones/{zone}/networks/{network}",
+                &[
+                    "projects/{project}/zones/{zone}/networks/{network}",
+                    "zones/{zone}/networks/{network}",
+                ],
                 "network",
                 Some(value.as_str()),
             )?;
     }
     names
         .learn(
-            "projects/{project}/zones/{zone}/networks/{network}",
+            &[
+                "projects/{project}/zones/{zone}/networks/{network}",
+                "zones/{zone}/networks/{network}",
+            ],
             "mirror-network",
             args.mirror_network.as_deref(),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/firewalls/{firewall}",
-            Some(("firewall", args.firewall.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            "firewall",
+            args.firewall.as_str(),
         )?;
     let mut firewall = ::origincloud_scratch::v1::Firewall {
         name: name.clone(),
@@ -755,9 +793,13 @@ async fn update_firewall(
         for item in &mut value {
             if !item.network.is_empty() {
                 item.network = names
-                    .name(
-                        "projects/{project}/zones/{zone}/networks/{network}",
-                        Some(("rule network", item.network.as_str())),
+                    .reference(
+                        &[
+                            "projects/{project}/zones/{zone}/networks/{network}",
+                            "zones/{zone}/networks/{network}",
+                        ],
+                        "rule network",
+                        item.network.as_str(),
                     )?;
             }
         }
@@ -774,9 +816,13 @@ async fn update_firewall(
             .iter()
             .map(|v| {
                 names
-                    .name(
-                        "projects/{project}/zones/{zone}/networks/{network}",
-                        Some(("network", v.as_str())),
+                    .reference(
+                        &[
+                            "projects/{project}/zones/{zone}/networks/{network}",
+                            "zones/{zone}/networks/{network}",
+                        ],
+                        "network",
+                        v.as_str(),
                     )
             })
             .collect::<anyhow::Result<Vec<String>>>()?;
@@ -878,9 +924,13 @@ async fn update_firewall(
         .as_deref()
         .map(|v| {
             names
-                .name(
-                    "projects/{project}/zones/{zone}/networks/{network}",
-                    Some(("mirror-network", v)),
+                .reference(
+                    &[
+                        "projects/{project}/zones/{zone}/networks/{network}",
+                        "zones/{zone}/networks/{network}",
+                    ],
+                    "mirror-network",
+                    v,
                 )
         })
         .transpose()?
@@ -1028,14 +1078,15 @@ async fn list_networks(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/firewalls/{firewall}",
+            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
             "firewall",
             Some(args.firewall.as_str()),
         )?;
     let firewall = names
-        .name(
-            "projects/{project}/zones/{zone}/firewalls/{firewall}",
-            Some(("firewall", args.firewall.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            "firewall",
+            args.firewall.as_str(),
         )?;
     let request = ::origincloud_scratch::v1::ListNetworksRequest {
         firewall,

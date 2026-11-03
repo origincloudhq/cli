@@ -142,8 +142,9 @@ every method of the API, with the API's own descriptions as help:
 - **Command names.** The service's name, then the method's name in kebab
   case: `CreateVolume` is `origin pvs create-volume`, `ListZones` is
   `origin location list-zones`.
-- **Resource names.** A resource is named by its parts, each an id of
-  letters, digits, `-` and `_`. `--project` and
+- **Resource names.** A resource is named by its parts, each an id, such as
+  `vol-123` or `gp1.core.2`: anything but empty, `.` or `..`, and without
+  `/`. `--project` and
   `--zone` are shared by every name a command builds, and default to the
   profile's `default-project` and `default-zone`; a regional resource of
   `origin network`, such as a VPC, takes `--region` instead of `--zone`,
@@ -155,7 +156,11 @@ every method of the API, with the API's own descriptions as help:
   takes a whole name, such as
   `--volume projects/my-project-123/zones/eu-central1-az1/volumes/vol-123`,
   whose project and zone then fill in the others: the `name` of a listed
-  volume can be passed straight on. A part of a parent's name without a
+  volume can be passed straight on. Where a flag takes more than one form
+  of name, its help names each, and an id is the first: `--image` of
+  `origin compute create-instance` takes one of the project's own images,
+  `projects/{project}/zones/{zone}/images/{image}`, which its id
+  completes to, or a public one, `zones/{zone}/images/{image}`. A part of a parent's name without a
   default, such as `--instance` of `origin compute
   create-volume-attachment`, is required, unless a whole name given to
   another flag has it.
