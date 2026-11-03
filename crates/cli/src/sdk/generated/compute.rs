@@ -126,7 +126,7 @@ pub enum Commands {
     #[command(
         name = "create-key-pair",
         about = "Creates a key pair: imports `--public-key`, or, left empty, generates an `ssh-ed25519` key and returns its private half in `privateKey`, in this response only",
-        long_about = "Creates a key pair: imports `--public-key`, or, left empty, generates an `ssh-ed25519` key and returns its private half in `privateKey`, in this response only. A repeat of a generating request with the same `--request-id` can't return the private key again, and is refused with `FAILED_PRECONDITION`: delete the key pair and create another."
+        long_about = "Creates a key pair: imports `--public-key`, or, left empty, generates an `ssh-ed25519` key and returns its private half in `privateKey`, in this response only. A repeat of a generating request with the same `--request-id` can't return the private key again, and is refused with `CONFLICT`, its `ErrorInfo` metadata naming the key pair under `keyPair`: delete it and create another."
     )]
     CreateKeyPair(CreateKeyPairArgs),
     #[command(
@@ -1728,8 +1728,11 @@ pub struct CreateKeyPairArgs {
     /// As KEY=VALUE; repeat for more.
     #[arg(long = "tag", value_name = "KEY=VALUE")]
     pub tag: Vec<TagArg>,
-    /// A UUID; a repeat with the same id returns the first request's key pair
-    /// instead of creating a second one. One is generated when not given.
+    /// A UUID; a repeat with the same id creates no second key pair. A repeat
+    /// importing a key returns the first request's key pair; a repeat
+    /// generating one is refused with `CONFLICT`, as the private key went to
+    /// the first request only, and the error's `ErrorInfo` metadata names the
+    /// key pair under `keyPair`. One is generated when not given.
     #[arg(long = "request-id")]
     pub request_id: Option<String>,
 }
