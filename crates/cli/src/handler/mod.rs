@@ -1,3 +1,4 @@
+pub(crate) mod completion;
 pub mod config;
 pub mod iam;
 pub mod id;

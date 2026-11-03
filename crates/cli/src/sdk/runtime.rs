@@ -2,7 +2,6 @@
 //! their parts, durations, and the output.
 
 use std::collections::BTreeMap;
-use std::io::IsTerminal;
 use std::net::IpAddr;
 use std::sync::Arc;
 
@@ -19,6 +18,7 @@ use crate::handler::tag_args::TagArg;
 use crate::identity::{is_resource_id, RESOURCE_ID_RULE};
 pub use crate::output::Listing;
 use crate::output::{CommandResult, SerializableOutput, SerializationError, Shape};
+use crate::progress::{self, Spinner};
 
 /// The variables that hold credentials for the SDK. When any is set, the
 /// generated commands use them, as every SDK does, instead of the login
@@ -693,19 +693,26 @@ impl SerializableOutput for Done {
 }
 
 /// Waits for `operation` to finish, and returns its result.
-pub async fn wait<T: DeserializeOwned>(operation: &mut Operation<T>) -> anyhow::Result<T> {
-    if !operation.done() {
-        waiting(operation.name());
-    }
+pub async fn wait<T: DeserializeOwned>(
+    ctx: &Context<'_>,
+    operation: &mut Operation<T>,
+) -> anyhow::Result<T> {
+    let _spinner = (!operation.done()).then(|| waiting(ctx, operation.raw()));
     operation.wait().await.map_err(api_error)
 }
 
-/// Says on standard error, when someone is watching it, that the command
-/// waits for the operation `name`.
-pub fn waiting(name: &str) {
-    if std::io::stderr().is_terminal() {
-        eprintln!("Waiting for {name} (Ctrl-C stops waiting, not the operation)...");
-    }
+/// A spinner on standard error, when someone is watching it, saying what
+/// the command waits for (`Creating volume v1`, from the operation's
+/// metadata) until it is dropped. Ctrl-C while it spins stops waiting, not
+/// the operation, and says how to wait for it again.
+pub fn waiting(ctx: &Context<'_>, operation: &origincloud_core::longrunning::Operation) -> Spinner {
+    let json = serde_json::to_value(operation).unwrap_or_default();
+    let resume = format!(
+        "Stopped waiting; the operation goes on. Wait for it again with `origin {} \
+         wait-operation --operation {}`.",
+        ctx.group.name, operation.name
+    );
+    Spinner::start(progress::label(&json), resume)
 }
 
 /// Says `notice` on standard error when `value`, a field of the response

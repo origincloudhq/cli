@@ -17,6 +17,7 @@ admin list-projects
 admin register-organisation
 admin update-organisation
 admin update-project
+completion
 compute attach-volume
 compute change-instance-type
 compute create-image

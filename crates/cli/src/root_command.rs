@@ -48,6 +48,11 @@ pub struct Cli {
     )]
     pub(crate) color: ColorWhen,
 
+    /// Print `table` and `wide` output taller than the terminal as it is,
+    /// instead of through ORIGINCLOUD_PAGER, PAGER or `less`.
+    #[arg(long, global = true, help_heading = "Global options")]
+    pub(crate) no_pager: bool,
+
     #[command(subcommand)]
     pub(crate) command: Option<Commands>,
 }
@@ -75,6 +80,21 @@ pub(crate) enum Commands {
     /// Cli configuration.
     #[command(subcommand)]
     Config(handler::config::ConfigCommands),
+
+    /// Print the script that completes `origin`'s commands, flags and their
+    /// values in a shell.
+    ///
+    /// Install it once, then start a new shell. bash: `origin completion
+    /// bash > ~/.local/share/bash-completion/completions/origin`. zsh, with
+    /// a directory of yours on `fpath`: `origin completion zsh >
+    /// ~/.zfunc/_origin`. fish: `origin completion fish >
+    /// ~/.config/fish/completions/origin.fish`. PowerShell: add `origin
+    /// completion powershell | Out-String | Invoke-Expression` to `$PROFILE`.
+    Completion {
+        /// The shell to complete in.
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
 
     /// Print version and exit.
     Version,

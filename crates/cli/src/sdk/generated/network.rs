@@ -887,7 +887,7 @@ async fn create_acl(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.Acl")
 }
 async fn call_create_acl(
@@ -981,7 +981,7 @@ async fn update_acl(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.Acl")
 }
 async fn call_update_acl(
@@ -1059,7 +1059,7 @@ async fn delete_acl(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("acl", &deleted_name))
 }
 async fn call_delete_acl(
@@ -1334,7 +1334,7 @@ async fn create_acl_association(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.AclAssociation")
 }
 async fn call_create_acl_association(
@@ -1425,7 +1425,7 @@ async fn delete_acl_association(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("acl association", &deleted_name))
 }
 async fn call_delete_acl_association(
@@ -1704,7 +1704,7 @@ async fn create_acl_rule(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.AclRule")
 }
 async fn call_create_acl_rule(
@@ -1789,7 +1789,7 @@ async fn delete_acl_rule(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("acl rule", &deleted_name))
 }
 async fn call_delete_acl_rule(
@@ -2006,7 +2006,7 @@ async fn create_dns_policy(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.DnsPolicy")
 }
 async fn call_create_dns_policy(
@@ -2137,7 +2137,7 @@ async fn update_dns_policy(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.DnsPolicy")
 }
 async fn call_update_dns_policy(
@@ -2215,7 +2215,7 @@ async fn delete_dns_policy(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("dns policy", &deleted_name))
 }
 async fn call_delete_dns_policy(
@@ -2283,7 +2283,7 @@ async fn set_default_dns_policy(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.DnsPolicy")
 }
 async fn call_set_default_dns_policy(
@@ -2526,7 +2526,7 @@ async fn create_dns_policy_association(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.DnsPolicyAssociation")
 }
 async fn call_create_dns_policy_association(
@@ -2617,7 +2617,7 @@ async fn delete_dns_policy_association(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("dns policy association", &deleted_name))
 }
 async fn call_delete_dns_policy_association(
@@ -2850,7 +2850,7 @@ async fn create_floating_ip(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.FloatingIp")
 }
 async fn call_create_floating_ip(
@@ -2942,7 +2942,7 @@ async fn update_floating_ip(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.FloatingIp")
 }
 async fn call_update_floating_ip(
@@ -3018,7 +3018,7 @@ async fn delete_floating_ip(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("floating ip", &deleted_name))
 }
 async fn call_delete_floating_ip(
@@ -3299,7 +3299,7 @@ async fn create_floating_ip_association(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.FloatingIpAssociation")
 }
 async fn call_create_floating_ip_association(
@@ -3390,7 +3390,7 @@ async fn delete_floating_ip_association(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("floating ip association", &deleted_name))
 }
 async fn call_delete_floating_ip_association(
@@ -3636,7 +3636,7 @@ async fn create_internet_gateway(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.InternetGateway")
 }
 async fn call_create_internet_gateway(
@@ -3732,7 +3732,7 @@ async fn update_internet_gateway(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.InternetGateway")
 }
 async fn call_update_internet_gateway(
@@ -3812,7 +3812,7 @@ async fn delete_internet_gateway(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("internet gateway", &deleted_name))
 }
 async fn call_delete_internet_gateway(
@@ -4070,7 +4070,7 @@ async fn create_nat_gateway(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.NatGateway")
 }
 async fn call_create_nat_gateway(
@@ -4162,7 +4162,7 @@ async fn update_nat_gateway(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.NatGateway")
 }
 async fn call_update_nat_gateway(
@@ -4238,7 +4238,7 @@ async fn delete_nat_gateway(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("nat gateway", &deleted_name))
 }
 async fn call_delete_nat_gateway(
@@ -4534,7 +4534,7 @@ async fn create_network_interface(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.NetworkInterface")
 }
 async fn call_create_network_interface(
@@ -4651,7 +4651,7 @@ async fn update_network_interface(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.NetworkInterface")
 }
 async fn call_update_network_interface(
@@ -4729,7 +4729,7 @@ async fn delete_network_interface(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("network interface", &deleted_name))
 }
 async fn call_delete_network_interface(
@@ -5009,7 +5009,7 @@ async fn create_route(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.Route")
 }
 async fn call_create_route(
@@ -5098,7 +5098,7 @@ async fn delete_route(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("route", &deleted_name))
 }
 async fn call_delete_route(
@@ -5340,7 +5340,7 @@ async fn create_route_table(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.RouteTable")
 }
 async fn call_create_route_table(
@@ -5434,7 +5434,7 @@ async fn update_route_table(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.RouteTable")
 }
 async fn call_update_route_table(
@@ -5512,7 +5512,7 @@ async fn delete_route_table(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("route table", &deleted_name))
 }
 async fn call_delete_route_table(
@@ -5789,7 +5789,7 @@ async fn create_route_table_association(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.RouteTableAssociation")
 }
 async fn call_create_route_table_association(
@@ -5880,7 +5880,7 @@ async fn delete_route_table_association(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("route table association", &deleted_name))
 }
 async fn call_delete_route_table_association(
@@ -6124,7 +6124,7 @@ async fn create_security_group(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.SecurityGroup")
 }
 async fn call_create_security_group(
@@ -6220,7 +6220,7 @@ async fn update_security_group(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.SecurityGroup")
 }
 async fn call_update_security_group(
@@ -6300,7 +6300,7 @@ async fn delete_security_group(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("security group", &deleted_name))
 }
 async fn call_delete_security_group(
@@ -6589,7 +6589,7 @@ async fn create_security_group_association(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.SecurityGroupAssociation")
 }
 async fn call_create_security_group_association(
@@ -6685,7 +6685,7 @@ async fn delete_security_group_association(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("security group association", &deleted_name))
 }
 async fn call_delete_security_group_association(
@@ -6997,7 +6997,7 @@ async fn create_security_group_rule(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.SecurityGroupRule")
 }
 async fn call_create_security_group_rule(
@@ -7088,7 +7088,7 @@ async fn delete_security_group_rule(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("security group rule", &deleted_name))
 }
 async fn call_delete_security_group_rule(
@@ -7397,7 +7397,7 @@ async fn create_subnet(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.Subnet")
 }
 async fn call_create_subnet(
@@ -7507,7 +7507,7 @@ async fn update_subnet(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.Subnet")
 }
 async fn call_update_subnet(
@@ -7583,7 +7583,7 @@ async fn delete_subnet(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("subnet", &deleted_name))
 }
 async fn call_delete_subnet(
@@ -7796,7 +7796,7 @@ async fn create_vpc(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.Vpc")
 }
 async fn call_create_vpc(
@@ -7890,7 +7890,7 @@ async fn update_vpc(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    let result = wait(&mut operation).await?;
+    let result = wait(ctx, &mut operation).await?;
     json(&result, "origincloud.network.v1beta1.Vpc")
 }
 async fn call_update_vpc(
@@ -7968,7 +7968,7 @@ async fn delete_vpc(
     if args.no_wait {
         return json(operation.raw(), OPERATION);
     }
-    wait(&mut operation).await?;
+    wait(ctx, &mut operation).await?;
     Ok(deleted("vpc", &deleted_name))
 }
 async fn call_delete_vpc(
@@ -8078,7 +8078,7 @@ async fn wait_operation(
     let client = ctx.client()?;
     let deadline = args.timeout.map(deadline_after).transpose()?;
     let mut request = request;
-    let mut announced = false;
+    let mut spinner = None;
     let response = loop {
         let started = ::std::time::Instant::now();
         if let Some(deadline) = deadline {
@@ -8090,12 +8090,12 @@ async fn wait_operation(
         if response.done || deadline.is_some_and(passed) {
             break response;
         }
-        if !announced {
-            waiting(&response.name);
-            announced = true;
+        if spinner.is_none() {
+            spinner = Some(waiting(ctx, &response));
         }
         pace(started, deadline).await;
     };
+    drop(spinner);
     Ok(waited(&response))
 }
 async fn call_wait_operation(

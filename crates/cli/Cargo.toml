@@ -34,6 +34,8 @@ origincloud-scratch = { path = "../../testing/scratch/sdk", optional = true }
 anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
+# `origin completion` writes the shell completion scripts.
+clap_complete = "4"
 expanduser = "1"
 graphql_client.workspace = true
 # `origin mcp serve` serves the MCP tools on standard input and output.
