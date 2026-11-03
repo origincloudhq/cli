@@ -880,9 +880,11 @@ pub struct CreateServiceAccountArgs {
     #[arg(long = "display-name")]
     pub display_name: String,
     /// A UUID. A repeat of the request with the same `--request-id` within a
-    /// day returns the service account the first request created, as it is
-    /// now, instead of creating a second one. The repeat's response has no
-    /// `clientSecret`: the secret is shown once. One is generated when not given.
+    /// day creates nothing and is refused with `CONFLICT`: the secret went to
+    /// the first request only. The error's `ErrorInfo` metadata names the
+    /// service account under `serviceAccount`; delete it and create a new one
+    /// to get a working secret. The same `--request-id` with a different
+    /// request is refused with `CONFLICT` without that metadata. One is generated when not given.
     #[arg(long = "request-id")]
     pub request_id: Option<String>,
 }
