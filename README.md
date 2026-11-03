@@ -51,18 +51,27 @@ cargo install --locked --path crates/cli
 
 ### Shell completion
 
-`origin completion <shell>` prints the script that completes `origin`'s
-commands, flags and their values, for `bash`, `zsh`, `fish`, `powershell`
-and `elvish`. Install it once, then start a new shell:
+`origin` completes its commands, flags and their values in bash, zsh, fish,
+PowerShell and elvish. Run `origin completion` on a terminal: it says how to
+install the completion in your shell (`SHELL`'s, or the one you name, as in
+`origin completion zsh`). Into a file or a pipe, it prints the script
+itself. For bash with the bash-completion package:
 
 ```sh
+mkdir -p ~/.local/share/bash-completion/completions
 origin completion bash > ~/.local/share/bash-completion/completions/origin
-origin completion zsh > ~/.zfunc/_origin          # with ~/.zfunc on fpath
+```
+
+without it, add `eval "$(origin completion bash)"` to `~/.bashrc`; for zsh,
+add `eval "$(origin completion zsh)"` to `~/.zshrc`, after `compinit`; for
+fish:
+
+```sh
+mkdir -p ~/.config/fish/completions
 origin completion fish > ~/.config/fish/completions/origin.fish
 ```
 
-In PowerShell, add `origin completion powershell | Out-String | Invoke-Expression`
-to `$PROFILE`.
+Then open a new shell.
 
 ## Use
 
