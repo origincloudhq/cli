@@ -3,9 +3,9 @@
 
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
-    api_error, deadline_after, duration, json, list_json, names_any, pace, passed,
-    shown_once, success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient,
-    Context, ReadClient,
+    api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
+    passed, shown_once, success, tags, wait, wait_for, waited, waiting, zones,
+    ConfirmedClient, Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -187,7 +187,7 @@ async fn get_snapshot(
     };
     let client = ctx.client()?;
     let response = call_get_snapshot(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.pvs.v1beta1.Snapshot")
 }
 async fn call_get_snapshot(
     client: &ReadClient,
@@ -258,13 +258,29 @@ async fn list_snapshots(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_snapshots(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "snapshots");
+        return list_json(
+            &page,
+            Listing {
+                field: "snapshots",
+                item: Some("origincloud.pvs.v1beta1.Snapshot"),
+                columns: &[
+                    "name",
+                    "state",
+                    "sourceVolume",
+                    "sourceSizeGib",
+                    "protectionState",
+                ],
+                parents: listed,
+                create: Some("origin pvs create-snapshot"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_snapshots(&client, request.clone())
                 .await
@@ -281,7 +297,19 @@ async fn list_snapshots(
             snapshots: items,
             ..::core::default::Default::default()
         },
-        "snapshots",
+        Listing {
+            field: "snapshots",
+            item: Some("origincloud.pvs.v1beta1.Snapshot"),
+            columns: &[
+                "name",
+                "state",
+                "sourceVolume",
+                "sourceSizeGib",
+                "protectionState",
+            ],
+            parents,
+            create: Some("origin pvs create-snapshot"),
+        },
     )
 }
 async fn call_list_snapshots(
@@ -356,10 +384,10 @@ async fn create_snapshot(
     let response = call_create_snapshot(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.pvs.v1beta1.Snapshot")
 }
 async fn call_create_snapshot(
     client: &ReadClient,
@@ -438,7 +466,7 @@ async fn update_snapshot(
     };
     let client = ctx.client()?;
     let response = call_update_snapshot(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.pvs.v1beta1.Snapshot")
 }
 async fn call_update_snapshot(
     client: &ReadClient,
@@ -506,14 +534,15 @@ async fn delete_snapshot(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_snapshot(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("snapshot", &deleted_name))
 }
 async fn call_delete_snapshot(
     client: &ConfirmedClient,
@@ -574,10 +603,10 @@ async fn protect_snapshot(
     let response = call_protect_snapshot(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.pvs.v1beta1.Snapshot")
 }
 async fn call_protect_snapshot(
     client: &ReadClient,
@@ -639,10 +668,10 @@ async fn unprotect_snapshot(
     let response = call_unprotect_snapshot(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.pvs.v1beta1.Snapshot")
 }
 async fn call_unprotect_snapshot(
     client: &ReadClient,
@@ -686,7 +715,7 @@ async fn get_storage_class(
     };
     let client = ctx.client()?;
     let response = call_get_storage_class(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.pvs.v1beta1.StorageClass")
 }
 async fn call_get_storage_class(
     client: &ReadClient,
@@ -708,9 +737,26 @@ async fn list_storage_classes(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let request = ::origincloud_pvs::v1beta1::ListStorageClassesRequest {
     };
+    let listed: Vec<String> = Vec::new();
     let client = ctx.client()?;
     let response = call_list_storage_classes(&client, request).await.map_err(api_error)?;
-    list_json(&response, "storageClasses")
+    list_json(
+        &response,
+        Listing {
+            field: "storageClasses",
+            item: Some("origincloud.pvs.v1beta1.StorageClass"),
+            columns: &[
+                "name",
+                "media",
+                "baselineIops",
+                "baselineThroughputMibps",
+                "defaultClass",
+                "available",
+            ],
+            parents: listed,
+            create: None,
+        },
+    )
 }
 async fn call_list_storage_classes(
     client: &ReadClient,
@@ -761,7 +807,7 @@ async fn get_volume(
     };
     let client = ctx.client()?;
     let response = call_get_volume(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.pvs.v1beta1.Volume")
 }
 async fn call_get_volume(
     client: &ReadClient,
@@ -830,13 +876,23 @@ async fn list_volumes(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_volumes(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "volumes");
+        return list_json(
+            &page,
+            Listing {
+                field: "volumes",
+                item: Some("origincloud.pvs.v1beta1.Volume"),
+                columns: &["name", "state", "sizeGib", "storageClass", "resizeState"],
+                parents: listed,
+                create: Some("origin pvs create-volume"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_volumes(&client, request.clone())
                 .await
@@ -853,7 +909,13 @@ async fn list_volumes(
             volumes: items,
             ..::core::default::Default::default()
         },
-        "volumes",
+        Listing {
+            field: "volumes",
+            item: Some("origincloud.pvs.v1beta1.Volume"),
+            columns: &["name", "state", "sizeGib", "storageClass", "resizeState"],
+            parents,
+            create: Some("origin pvs create-volume"),
+        },
     )
 }
 async fn call_list_volumes(
@@ -959,10 +1021,10 @@ async fn create_volume(
     let response = call_create_volume(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.pvs.v1beta1.Volume")
 }
 async fn call_create_volume(
     client: &ReadClient,
@@ -1047,10 +1109,10 @@ async fn import_volume(
     let response = call_import_volume(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.pvs.v1beta1.Volume")
 }
 async fn call_import_volume(
     client: &ReadClient,
@@ -1179,10 +1241,10 @@ async fn update_volume(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.pvs.v1beta1.Volume")
 }
 async fn call_update_volume(
     client: &ReadClient,
@@ -1268,14 +1330,15 @@ async fn delete_volume(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_volume(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("volume", &deleted_name))
 }
 async fn call_delete_volume(
     client: &ConfirmedClient,
@@ -1326,7 +1389,7 @@ async fn get_operation(
     };
     let client = ctx.client()?;
     let response = call_get_operation(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "google.longrunning.Operation")
 }
 async fn call_get_operation(
     client: &ReadClient,

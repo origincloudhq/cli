@@ -1,6 +1,6 @@
 //! The output formats, run as a person or a script runs `origin`: which
 //! one is in effect, and what `table` and `name` print for a list, a
-//! resource, an empty list and a failure. The tests run `origin` on a pipe,
+//! resource, an empty list, a delete and a failure. The tests run `origin` on a pipe,
 //! where `json` is the default, as every other test file relies on.
 
 mod common;
@@ -94,9 +94,9 @@ async fn table_prints_a_list_as_a_table_and_a_resource_as_its_fields() {
     assert_eq!(
         text(&list.stdout),
         "\
-NAME   DISPLAY NAME   REGION      SERVICES
-z-a    Zone A         regions/r   pvs
-z-b                   regions/r
+NAME   DISPLAY NAME   REGION   SERVICES
+z-a    Zone A         r        pvs
+z-b                   r
 "
     );
     assert_eq!(err(&list), "");
@@ -192,4 +192,88 @@ async fn colour_is_only_where_it_is_asked_for_off_a_terminal() {
         .run("location", &["list-zones", "--color", "always"])
         .await;
     assert!(!text(&json.stdout).contains('\u{1b}'));
+}
+
+const VOLUMES: &str = r#"{"volumes":[
+    {"name":"projects/p/zones/z/volumes/v1","sizeGib":8,"state":"IN_USE",
+     "storageClass":"storageClasses/gp1","urn":"urn:v1","tags":{"env":"prod"}},
+    {"name":"projects/p/zones/z/volumes/v2","sizeGib":16,"state":"ERROR",
+     "storageClass":"storageClasses/gp1","stateReason":"no capacity"}]}"#;
+
+/// A delete's operation, done.
+const DELETED: &str = r#"{"name":"projects/p/zones/z/operations/op-1","done":true,
+    "response":{"@type":"type.googleapis.com/google.protobuf.Empty"}}"#;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_list_shows_its_view_s_columns_and_wide_the_rest() {
+    let server = recording(|_| Response::json(VOLUMES)).await;
+    let args = ["list-volumes", "--project", "p", "--zone", "z"];
+    let table = server.pvs(&[&args[..], &["-o", "table"]].concat()).await;
+    assert_eq!(
+        text(&table.stdout),
+        "\
+NAME   STATE    SIZE GIB   STORAGE CLASS   RESIZE STATE
+v1     IN_USE   8          gp1
+v2     ERROR    16         gp1
+"
+    );
+
+    let wide = server.pvs(&[&args[..], &["-o", "wide"]].concat()).await;
+    let wide = text(&wide.stdout);
+    let header = wide.lines().next().unwrap();
+    assert!(
+        header.starts_with("NAME   STATE    SIZE GIB   STORAGE CLASS   RESIZE STATE   URN"),
+        "{header}"
+    );
+    assert!(
+        header.contains("STATE REASON") && header.contains("TAGS"),
+        "{header}"
+    );
+    assert!(
+        wide.contains("no capacity") && wide.contains("env=prod"),
+        "{wide}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_empty_list_says_where_it_looked_and_how_to_make_one() {
+    let server = recording(|_| Response::json("{}")).await;
+    let empty = server
+        .pvs(&[
+            "list-volumes",
+            "--project",
+            "p",
+            "--zone",
+            "z",
+            "-o",
+            "table",
+        ])
+        .await;
+    assert_eq!(empty.status.code(), Some(0));
+    assert_eq!(text(&empty.stdout), "");
+    assert_eq!(
+        err(&empty),
+        "No volumes in project p, zone z. Create one with `origin pvs create-volume`.\n"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_delete_says_what_it_deleted_and_json_says_success() {
+    let server = recording(|_| Response::json(DELETED)).await;
+    let args = [
+        "delete-volume",
+        "--project",
+        "p",
+        "--zone",
+        "z",
+        "--volume",
+        "v1",
+        "--yes",
+    ];
+    let table = server.pvs(&[&args[..], &["-o", "table"]].concat()).await;
+    assert_eq!(table.status.code(), Some(0), "{table:?}");
+    assert_eq!(text(&table.stdout), "✓ Deleted volume v1.\n");
+
+    let json = server.pvs(&args).await;
+    assert_eq!(stdout(&json), serde_json::json!({"code": "success"}));
 }

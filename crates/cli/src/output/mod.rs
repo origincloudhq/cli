@@ -3,15 +3,20 @@
 //! Every command's output is JSON first ([`SerializableOutput::to_json`]);
 //! the human formats, `table`, `wide` and `name`, are made from that JSON,
 //! so that they can't say something `json` doesn't, and so that the
-//! hand-written commands have them as the generated ones do.
-//! [`format_for_stdout`] picks the format.
+//! hand-written commands have them as the generated ones do. What the
+//! API's descriptors say of a response's fields (see [`schema`]) decides
+//! how each shows. [`format_for_stdout`] picks the format.
 
 mod detail;
 mod format;
+mod schema;
 mod style;
 mod table;
 mod text;
+mod value;
 
+use chrono::{DateTime, Utc};
+use prost_reflect::MessageDescriptor;
 use serde_json::{Map, Value};
 
 use crate::config::OutputFormat;
@@ -52,13 +57,36 @@ pub enum Shape {
     /// theirs (`{"iam": {"roles": [...]}}` is the list of roles); any other
     /// object is a resource, printed as its fields.
     Inferred,
-    /// A list response, whose items are the list in this field
-    /// (`instances`), beside the next page's token when there is one.
-    List(String),
-    /// A command that has no result, done.
-    Done,
+    /// A message of the API, by its full name
+    /// (`origincloud.pvs.v1beta1.Volume`), printed as its fields.
+    Message(&'static str),
+    /// A list response.
+    List(Listing),
+    /// A command that has no result, done, and what it did:
+    /// `Deleted volume v1.`
+    Done(String),
     /// A command that failed, with what went wrong.
     Failed(String),
+}
+
+/// A list response, for the human formats.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Listing {
+    /// The field holding the items, beside the next page's token when
+    /// there is one: `instances`.
+    pub field: &'static str,
+    /// The items' message, in full: `origincloud.compute.v1beta1.Instance`.
+    pub item: Option<&'static str>,
+    /// The columns of `table`, JSON paths from an item, from
+    /// `commands.toml`'s view of the message; empty for its default
+    /// columns.
+    pub columns: &'static [&'static str],
+    /// The parents listed, `projects/acme/zones/eu-central1-az1`, which
+    /// say where nothing was found.
+    pub parents: Vec<String>,
+    /// The command creating an item, which an empty list suggests:
+    /// `origin compute create-instance`.
+    pub create: Option<&'static str>,
 }
 
 #[derive(serde::Serialize)]
@@ -90,8 +118,27 @@ impl SerializableOutput for CommandResult {
 
     fn shape(&self) -> Shape {
         match self {
-            CommandResult::Success => Shape::Done,
+            CommandResult::Success => Shape::Done("Done.".to_owned()),
             CommandResult::Failure(description) => Shape::Failed(description.clone()),
+        }
+    }
+}
+
+/// What the human formats are laid out for.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Context {
+    /// The columns a table is fitted to, when known.
+    pub width: Option<usize>,
+    /// The time a timestamp says how long ago it is from.
+    pub now: DateTime<Utc>,
+}
+
+impl Context {
+    /// This terminal's, now.
+    pub(crate) fn current() -> Self {
+        Context {
+            width: width(),
+            now: Utc::now(),
         }
     }
 }
@@ -104,7 +151,7 @@ pub(crate) struct Printed {
     pub err: String,
 }
 
-/// `output` in `format`, laid out for `width` columns when it is known.
+/// `output` in `format`, laid out for `cx`.
 ///
 /// `json` is what the CLI has always printed, a failure included: its
 /// envelope on standard output. The human formats print a failure on
@@ -115,7 +162,7 @@ pub(crate) struct Printed {
 pub(crate) fn render(
     format: OutputFormat,
     output: &dyn SerializableOutput,
-    width: Option<usize>,
+    cx: &Context,
 ) -> anyhow::Result<Printed> {
     if let Some(raw) = output.to_raw() {
         return Ok(Printed {
@@ -134,9 +181,10 @@ pub(crate) fn render(
     let mut printed = Printed::default();
     let shape = output.shape();
     match &shape {
-        Shape::Done => {
+        Shape::Done(what) => {
             if format != OutputFormat::Name {
-                printed.out.push_str("Done.\n");
+                let style = style::DONE;
+                printed.out = format!("{style}✓{style:#} {}\n", text::one_line(what));
             }
             return Ok(printed);
         }
@@ -145,21 +193,28 @@ pub(crate) fn render(
             printed.err = format!("{style}error:{style:#} {}\n", text::lines(description));
             return Ok(printed);
         }
-        Shape::Inferred | Shape::List(_) => {}
+        Shape::Inferred | Shape::Message(_) | Shape::List(_) => {}
     }
     let value = output.to_json()?;
 
     match what(&shape, &value) {
-        What::List { items, noun, next } => {
+        What::List {
+            items,
+            noun,
+            next,
+            listing,
+        } => {
+            let item = listing
+                .and_then(|l| l.item)
+                .and_then(crate::descriptors::message);
             if format == OutputFormat::Name {
                 printed.out = names(items.iter())?;
             } else if items.is_empty() {
-                printed.err = match noun {
-                    Some(noun) => format!("No {}.\n", text::one_line(&text::words(noun))),
-                    None => "Nothing to list.\n".to_owned(),
-                };
+                printed.err = nothing(noun, listing);
             } else {
-                printed.out = list(items, format == OutputFormat::Wide, width);
+                let columns = listing.map_or(&[][..], |l| l.columns);
+                let wide = format == OutputFormat::Wide;
+                printed.out = list(items, item.as_ref(), columns, wide, cx);
             }
             if let Some(token) = next {
                 printed.err.push_str(&format!(
@@ -168,11 +223,11 @@ pub(crate) fn render(
                 ));
             }
         }
-        What::One(value) => {
+        What::One(value, message) => {
             printed.out = if format == OutputFormat::Name {
                 names(std::iter::once(value))?
             } else {
-                detail::detail(value)
+                detail::detail(value, message.as_ref(), cx.now)
             };
         }
     }
@@ -188,26 +243,32 @@ enum What<'a> {
         noun: Option<&'a str>,
         /// The token of the page after this one.
         next: Option<&'a str>,
+        listing: Option<&'a Listing>,
     },
-    One(&'a Value),
+    One(&'a Value, Option<MessageDescriptor>),
 }
 
 fn what<'a>(shape: &'a Shape, value: &'a Value) -> What<'a> {
-    if let Shape::List(field) = shape {
-        let next = value
-            .get("nextPageToken")
-            .and_then(Value::as_str)
-            .filter(|t| !t.is_empty());
-        let items = value
-            .get(field)
-            .and_then(Value::as_array)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-        return What::List {
-            items,
-            noun: Some(field),
-            next,
-        };
+    match shape {
+        Shape::List(listing) => {
+            let next = value
+                .get("nextPageToken")
+                .and_then(Value::as_str)
+                .filter(|t| !t.is_empty());
+            let items = value
+                .get(listing.field)
+                .and_then(Value::as_array)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            return What::List {
+                items,
+                noun: Some(listing.field),
+                next,
+                listing: Some(listing),
+            };
+        }
+        Shape::Message(name) => return What::One(value, crate::descriptors::message(name)),
+        _ => {}
     }
 
     // Inferred: unwrapped while it is an object of one field holding an
@@ -221,26 +282,57 @@ fn what<'a>(shape: &'a Shape, value: &'a Value) -> What<'a> {
                     items,
                     noun,
                     next: None,
+                    listing: None,
                 }
             }
             Value::Object(fields) if fields.len() == 1 => {
                 let (key, inner) = fields.iter().next().expect("one field");
                 if !(inner.is_object() || inner.is_array()) {
-                    return What::One(value);
+                    return What::One(value, None);
                 }
                 noun = Some(key.as_str());
                 value = inner;
             }
-            _ => return What::One(value),
+            _ => return What::One(value, None),
         }
     }
 }
 
+/// What an empty list says: what there is none of, where, and the command
+/// making one. `No instances in project acme, zone eu-central1-az1. Create
+/// one with `origin compute create-instance`.`
+fn nothing(noun: Option<&str>, listing: Option<&Listing>) -> String {
+    let what = match noun {
+        Some(noun) => text::one_line(&text::words(noun)),
+        None => return "Nothing to list.\n".to_owned(),
+    };
+    let mut said = format!("No {what}");
+    if let Some(scope) = listing.and_then(|l| text::scope(&l.parents)) {
+        said.push(' ');
+        said.push_str(&text::one_line(&scope));
+    }
+    said.push('.');
+    if let Some(create) = listing.and_then(|l| l.create) {
+        said.push_str(&format!(" Create one with `{create}`."));
+    }
+    said.push('\n');
+    said
+}
+
 /// Items as a table when they are objects, else one per line.
-fn list(items: &[Value], wide: bool, width: Option<usize>) -> String {
+fn list(
+    items: &[Value],
+    item: Option<&MessageDescriptor>,
+    columns: &[&str],
+    wide: bool,
+    cx: &Context,
+) -> String {
     let objects: Option<Vec<&Map<String, Value>>> = items.iter().map(Value::as_object).collect();
     match objects {
-        Some(objects) => table::table(&objects, wide, width),
+        Some(objects) => {
+            let specs = table::columns(&objects, item, columns, wide);
+            table::table(&objects, &specs, wide, cx.width, cx.now)
+        }
         None => items
             .iter()
             .map(|item| {
@@ -289,16 +381,29 @@ mod tests {
         }
     }
 
+    fn cx() -> Context {
+        Context {
+            width: None,
+            now: "2026-11-03T12:00:00Z".parse().unwrap(),
+        }
+    }
+
     fn printed(format: OutputFormat, output: &dyn SerializableOutput) -> (String, String) {
-        let printed = render(format, output, None).unwrap();
+        let printed = render(format, output, &cx()).unwrap();
         (
             anstream::adapter::strip_str(&printed.out).to_string(),
             anstream::adapter::strip_str(&printed.err).to_string(),
         )
     }
 
-    fn list(value: Value, field: &str) -> Fixed {
-        Fixed(value, Shape::List(field.to_owned()))
+    fn list(value: Value, field: &'static str) -> Fixed {
+        Fixed(
+            value,
+            Shape::List(Listing {
+                field,
+                ..Listing::default()
+            }),
+        )
     }
 
     #[test]
@@ -317,6 +422,14 @@ mod tests {
             printed(OutputFormat::Json, &volumes).0,
             "{\n  \"volumes\": [\n    {\n      \"name\": \"v\"\n    }\n  ]\n}\n"
         );
+        let done = Fixed(
+            json!({"code": "success"}),
+            Shape::Done("Deleted.".to_owned()),
+        );
+        assert_eq!(
+            printed(OutputFormat::Json, &done).0,
+            "{\n  \"code\": \"success\"\n}\n"
+        );
     }
 
     #[test]
@@ -331,15 +444,23 @@ mod tests {
                 )
             );
         }
-        let styled = render(OutputFormat::Table, &failure, None).unwrap().err;
+        let styled = render(OutputFormat::Table, &failure, &cx()).unwrap().err;
         assert_ne!(styled, anstream::adapter::strip_str(&styled).to_string());
     }
 
     #[test]
-    fn a_command_without_a_result_says_it_is_done() {
+    fn a_command_without_a_result_says_what_it_did() {
         assert_eq!(
             printed(OutputFormat::Table, &CommandResult::Success),
-            ("Done.\n".to_owned(), String::new())
+            ("✓ Done.\n".to_owned(), String::new())
+        );
+        let deleted = Fixed(
+            json!({"code": "success"}),
+            Shape::Done("Deleted volume v1.".to_owned()),
+        );
+        assert_eq!(
+            printed(OutputFormat::Table, &deleted),
+            ("✓ Deleted volume v1.\n".to_owned(), String::new())
         );
         assert_eq!(
             printed(OutputFormat::Name, &CommandResult::Success),
@@ -364,7 +485,25 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_list_is_said_on_standard_error_by_its_items_name() {
+    fn a_list_s_view_and_descriptors_decide_its_columns() {
+        let page = Fixed(
+            json!({"volumes": [{"name": "projects/p/zones/z/volumes/v1", "sizeGib": 10,
+                                "state": "IN_USE", "storageClass": "storageClasses/gp1"}]}),
+            Shape::List(Listing {
+                field: "volumes",
+                item: Some("origincloud.pvs.v1beta1.Volume"),
+                columns: &["name", "state", "sizeGib", "storageClass", "attachment"],
+                ..Listing::default()
+            }),
+        );
+        assert_eq!(
+            printed(OutputFormat::Table, &page).0,
+            "NAME   STATE    SIZE GIB   STORAGE CLASS   ATTACHMENT\nv1     IN_USE   10         gp1\n"
+        );
+    }
+
+    #[test]
+    fn an_empty_list_says_where_nothing_was_found_and_how_to_make_one() {
         let empty = list(json!({"instanceTypes": []}), "instanceTypes");
         assert_eq!(
             printed(OutputFormat::Table, &empty),
@@ -373,6 +512,44 @@ mod tests {
         assert_eq!(
             printed(OutputFormat::Name, &empty),
             (String::new(), String::new())
+        );
+
+        let listing = |parents: &[&str]| {
+            Fixed(
+                json!({"instances": []}),
+                Shape::List(Listing {
+                    field: "instances",
+                    parents: parents.iter().map(|p| (*p).to_owned()).collect(),
+                    create: Some("origin compute create-instance"),
+                    ..Listing::default()
+                }),
+            )
+        };
+        assert_eq!(
+            printed(OutputFormat::Table, &listing(&["projects/acme/zones/z1"])).1,
+            "No instances in project acme, zone z1. Create one with \
+             `origin compute create-instance`.\n"
+        );
+        assert_eq!(
+            printed(
+                OutputFormat::Table,
+                &listing(&["projects/acme/zones/z1", "projects/acme/zones/z2"])
+            )
+            .1,
+            "No instances in any zone of project acme. Create one with \
+             `origin compute create-instance`.\n"
+        );
+    }
+
+    #[test]
+    fn a_message_is_its_fields_by_its_descriptor() {
+        let volume = Fixed(
+            json!({"sizeGib": 10, "name": "projects/p/zones/z/volumes/v1", "state": "AVAILABLE"}),
+            Shape::Message("origincloud.pvs.v1beta1.Volume"),
+        );
+        assert_eq!(
+            printed(OutputFormat::Table, &volume).0,
+            "name     projects/p/zones/z/volumes/v1\nstate    AVAILABLE\nsizeGib  10\n"
         );
     }
 
@@ -394,7 +571,7 @@ mod tests {
     #[test]
     fn name_refuses_an_output_without_names() {
         let version = Fixed(json!({"version": "1.10.0"}), Shape::Inferred);
-        let err = render(OutputFormat::Name, &version, None).unwrap_err();
+        let err = render(OutputFormat::Name, &version, &cx()).unwrap_err();
         assert!(err.to_string().contains("no resource names"), "{err}");
     }
 
@@ -426,7 +603,7 @@ mod tests {
     }
 
     #[test]
-    fn a_resource_is_its_fields() {
+    fn a_resource_without_descriptors_is_its_fields() {
         let version = Fixed(json!({"version": "1.10.0"}), Shape::Inferred);
         assert_eq!(
             printed(OutputFormat::Table, &version).0,

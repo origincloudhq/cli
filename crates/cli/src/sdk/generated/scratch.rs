@@ -3,9 +3,9 @@
 
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
-    api_error, deadline_after, duration, json, list_json, names_any, pace, passed,
-    shown_once, success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient,
-    Context, ReadClient,
+    api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
+    passed, shown_once, success, tags, wait, wait_for, waited, waiting, zones,
+    ConfirmedClient, Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -103,7 +103,7 @@ async fn get_firewall(
     };
     let client = ctx.client()?;
     let response = call_get_firewall(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.scratch.v1.Firewall")
 }
 async fn call_get_firewall(
     client: &ReadClient,
@@ -454,7 +454,7 @@ async fn create_firewall(
     };
     let client = ctx.client()?;
     let response = call_create_firewall(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.scratch.v1.Firewall")
 }
 async fn call_create_firewall(
     client: &ReadClient,
@@ -969,7 +969,7 @@ async fn update_firewall(
     };
     let client = ctx.client()?;
     let response = call_update_firewall(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.scratch.v1.Firewall")
 }
 async fn call_update_firewall(
     client: &ReadClient,
@@ -1005,11 +1005,21 @@ async fn list_firewall_policies(
         page_token: args.page_token.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = Vec::new();
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_firewall_policies(&client, request)
             .await
             .map_err(api_error)?;
-        return list_json(&page, "firewallPolicies");
+        return list_json(
+            &page,
+            Listing {
+                field: "firewallPolicies",
+                item: Some("origincloud.scratch.v1.FirewallPolicy"),
+                columns: &[],
+                parents: listed,
+                create: None,
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -1028,7 +1038,13 @@ async fn list_firewall_policies(
             firewall_policies: items,
             ..::core::default::Default::default()
         },
-        "firewallPolicies",
+        Listing {
+            field: "firewallPolicies",
+            item: Some("origincloud.scratch.v1.FirewallPolicy"),
+            columns: &[],
+            parents: listed,
+            create: None,
+        },
     )
 }
 async fn call_list_firewall_policies(
@@ -1095,9 +1111,19 @@ async fn list_networks(
         page_token: args.page_token.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = Vec::new();
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_networks(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "networks");
+        return list_json(
+            &page,
+            Listing {
+                field: "networks",
+                item: Some("origincloud.scratch.v1.Network"),
+                columns: &[],
+                parents: listed,
+                create: None,
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -1116,7 +1142,13 @@ async fn list_networks(
             networks: items,
             ..::core::default::Default::default()
         },
-        "networks",
+        Listing {
+            field: "networks",
+            item: Some("origincloud.scratch.v1.Network"),
+            columns: &[],
+            parents: listed,
+            create: None,
+        },
     )
 }
 async fn call_list_networks(

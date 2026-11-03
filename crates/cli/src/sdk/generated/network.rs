@@ -3,9 +3,9 @@
 
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
-    api_error, deadline_after, duration, json, list_json, names_any, pace, passed,
-    shown_once, success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient,
-    Context, ReadClient,
+    api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
+    passed, shown_once, success, tags, wait, wait_for, waited, waiting, zones,
+    ConfirmedClient, Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -705,7 +705,7 @@ async fn get_acl(
     };
     let client = ctx.client()?;
     let response = call_get_acl(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.Acl")
 }
 async fn call_get_acl(
     client: &ReadClient,
@@ -775,9 +775,19 @@ async fn list_acls(
         vpc,
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_acls(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "acls");
+        return list_json(
+            &page,
+            Listing {
+                field: "acls",
+                item: Some("origincloud.network.v1beta1.Acl"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-acl"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -794,7 +804,13 @@ async fn list_acls(
             acls: items,
             ..::core::default::Default::default()
         },
-        "acls",
+        Listing {
+            field: "acls",
+            item: Some("origincloud.network.v1beta1.Acl"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin network create-acl"),
+        },
     )
 }
 async fn call_list_acls(
@@ -869,10 +885,10 @@ async fn create_acl(
     let response = call_create_acl(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.Acl")
 }
 async fn call_create_acl(
     client: &ReadClient,
@@ -963,10 +979,10 @@ async fn update_acl(
     let response = call_update_acl(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.Acl")
 }
 async fn call_update_acl(
     client: &ReadClient,
@@ -1036,14 +1052,15 @@ async fn delete_acl(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_acl(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("acl", &deleted_name))
 }
 async fn call_delete_acl(
     client: &ConfirmedClient,
@@ -1107,7 +1124,7 @@ async fn get_acl_association(
     };
     let client = ctx.client()?;
     let response = call_get_acl_association(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.AclAssociation")
 }
 async fn call_get_acl_association(
     client: &ReadClient,
@@ -1191,15 +1208,25 @@ async fn list_acl_associations(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_acl_associations(&client, request)
             .await
             .map_err(api_error)?;
-        return list_json(&page, "aclAssociations");
+        return list_json(
+            &page,
+            Listing {
+                field: "aclAssociations",
+                item: Some("origincloud.network.v1beta1.AclAssociation"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-acl-association"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_acl_associations(&client, request.clone())
                 .await
@@ -1216,7 +1243,13 @@ async fn list_acl_associations(
             acl_associations: items,
             ..::core::default::Default::default()
         },
-        "aclAssociations",
+        Listing {
+            field: "aclAssociations",
+            item: Some("origincloud.network.v1beta1.AclAssociation"),
+            columns: &[],
+            parents,
+            create: Some("origin network create-acl-association"),
+        },
     )
 }
 async fn call_list_acl_associations(
@@ -1299,10 +1332,10 @@ async fn create_acl_association(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.AclAssociation")
 }
 async fn call_create_acl_association(
     client: &ReadClient,
@@ -1383,16 +1416,17 @@ async fn delete_acl_association(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_acl_association(&client, request)
         .await
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("acl association", &deleted_name))
 }
 async fn call_delete_acl_association(
     client: &ConfirmedClient,
@@ -1452,7 +1486,7 @@ async fn get_acl_rule(
     };
     let client = ctx.client()?;
     let response = call_get_acl_rule(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.AclRule")
 }
 async fn call_get_acl_rule(
     client: &ReadClient,
@@ -1508,9 +1542,28 @@ async fn list_acl_rules(
         page_token: args.page_token.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_acl_rules(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "aclRules");
+        return list_json(
+            &page,
+            Listing {
+                field: "aclRules",
+                item: Some("origincloud.network.v1beta1.AclRule"),
+                columns: &[
+                    "name",
+                    "priority",
+                    "direction",
+                    "protocol",
+                    "firstPort",
+                    "lastPort",
+                    "cidrBlock",
+                    "action",
+                ],
+                parents: listed,
+                create: Some("origin network create-acl-rule"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -1529,7 +1582,22 @@ async fn list_acl_rules(
             acl_rules: items,
             ..::core::default::Default::default()
         },
-        "aclRules",
+        Listing {
+            field: "aclRules",
+            item: Some("origincloud.network.v1beta1.AclRule"),
+            columns: &[
+                "name",
+                "priority",
+                "direction",
+                "protocol",
+                "firstPort",
+                "lastPort",
+                "cidrBlock",
+                "action",
+            ],
+            parents: listed,
+            create: Some("origin network create-acl-rule"),
+        },
     )
 }
 async fn call_list_acl_rules(
@@ -1634,10 +1702,10 @@ async fn create_acl_rule(
     let response = call_create_acl_rule(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.AclRule")
 }
 async fn call_create_acl_rule(
     client: &ReadClient,
@@ -1714,14 +1782,15 @@ async fn delete_acl_rule(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_acl_rule(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("acl rule", &deleted_name))
 }
 async fn call_delete_acl_rule(
     client: &ConfirmedClient,
@@ -1774,7 +1843,7 @@ async fn get_dns_policy(
     };
     let client = ctx.client()?;
     let response = call_get_dns_policy(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.DnsPolicy")
 }
 async fn call_get_dns_policy(
     client: &ReadClient,
@@ -1823,9 +1892,19 @@ async fn list_dns_policies(
         page_token: args.page_token.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_dns_policies(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "dnsPolicies");
+        return list_json(
+            &page,
+            Listing {
+                field: "dnsPolicies",
+                item: Some("origincloud.network.v1beta1.DnsPolicy"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-dns-policy"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -1844,7 +1923,13 @@ async fn list_dns_policies(
             dns_policies: items,
             ..::core::default::Default::default()
         },
-        "dnsPolicies",
+        Listing {
+            field: "dnsPolicies",
+            item: Some("origincloud.network.v1beta1.DnsPolicy"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin network create-dns-policy"),
+        },
     )
 }
 async fn call_list_dns_policies(
@@ -1919,10 +2004,10 @@ async fn create_dns_policy(
     let response = call_create_dns_policy(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.DnsPolicy")
 }
 async fn call_create_dns_policy(
     client: &ReadClient,
@@ -2050,10 +2135,10 @@ async fn update_dns_policy(
     let response = call_update_dns_policy(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.DnsPolicy")
 }
 async fn call_update_dns_policy(
     client: &ReadClient,
@@ -2123,14 +2208,15 @@ async fn delete_dns_policy(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_dns_policy(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("dns policy", &deleted_name))
 }
 async fn call_delete_dns_policy(
     client: &ConfirmedClient,
@@ -2195,10 +2281,10 @@ async fn set_default_dns_policy(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.DnsPolicy")
 }
 async fn call_set_default_dns_policy(
     client: &ReadClient,
@@ -2264,7 +2350,7 @@ async fn get_dns_policy_association(
     let response = call_get_dns_policy_association(&client, request)
         .await
         .map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.DnsPolicyAssociation")
 }
 async fn call_get_dns_policy_association(
     client: &ReadClient,
@@ -2320,11 +2406,21 @@ async fn list_dns_policy_associations(
         page_token: args.page_token.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_dns_policy_associations(&client, request)
             .await
             .map_err(api_error)?;
-        return list_json(&page, "dnsPolicyAssociations");
+        return list_json(
+            &page,
+            Listing {
+                field: "dnsPolicyAssociations",
+                item: Some("origincloud.network.v1beta1.DnsPolicyAssociation"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-dns-policy-association"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -2343,7 +2439,13 @@ async fn list_dns_policy_associations(
             dns_policy_associations: items,
             ..::core::default::Default::default()
         },
-        "dnsPolicyAssociations",
+        Listing {
+            field: "dnsPolicyAssociations",
+            item: Some("origincloud.network.v1beta1.DnsPolicyAssociation"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin network create-dns-policy-association"),
+        },
     )
 }
 async fn call_list_dns_policy_associations(
@@ -2422,10 +2524,10 @@ async fn create_dns_policy_association(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.DnsPolicyAssociation")
 }
 async fn call_create_dns_policy_association(
     client: &ReadClient,
@@ -2506,16 +2608,17 @@ async fn delete_dns_policy_association(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_dns_policy_association(&client, request)
         .await
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("dns policy association", &deleted_name))
 }
 async fn call_delete_dns_policy_association(
     client: &ConfirmedClient,
@@ -2566,7 +2669,7 @@ async fn get_floating_ip(
     };
     let client = ctx.client()?;
     let response = call_get_floating_ip(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.FloatingIp")
 }
 async fn call_get_floating_ip(
     client: &ReadClient,
@@ -2637,13 +2740,29 @@ async fn list_floating_ips(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_floating_ips(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "floatingIps");
+        return list_json(
+            &page,
+            Listing {
+                field: "floatingIps",
+                item: Some("origincloud.network.v1beta1.FloatingIp"),
+                columns: &[
+                    "name",
+                    "address",
+                    "networkInterface",
+                    "privateAddress",
+                    "createTime",
+                ],
+                parents: listed,
+                create: Some("origin network create-floating-ip"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_floating_ips(&client, request.clone())
                 .await
@@ -2660,7 +2779,19 @@ async fn list_floating_ips(
             floating_ips: items,
             ..::core::default::Default::default()
         },
-        "floatingIps",
+        Listing {
+            field: "floatingIps",
+            item: Some("origincloud.network.v1beta1.FloatingIp"),
+            columns: &[
+                "name",
+                "address",
+                "networkInterface",
+                "privateAddress",
+                "createTime",
+            ],
+            parents,
+            create: Some("origin network create-floating-ip"),
+        },
     )
 }
 async fn call_list_floating_ips(
@@ -2717,10 +2848,10 @@ async fn create_floating_ip(
     let response = call_create_floating_ip(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.FloatingIp")
 }
 async fn call_create_floating_ip(
     client: &ReadClient,
@@ -2809,10 +2940,10 @@ async fn update_floating_ip(
     let response = call_update_floating_ip(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.FloatingIp")
 }
 async fn call_update_floating_ip(
     client: &ReadClient,
@@ -2880,14 +3011,15 @@ async fn delete_floating_ip(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_floating_ip(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("floating ip", &deleted_name))
 }
 async fn call_delete_floating_ip(
     client: &ConfirmedClient,
@@ -2953,7 +3085,7 @@ async fn get_floating_ip_association(
     let response = call_get_floating_ip_association(&client, request)
         .await
         .map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.FloatingIpAssociation")
 }
 async fn call_get_floating_ip_association(
     client: &ReadClient,
@@ -3043,15 +3175,25 @@ async fn list_floating_ip_associations(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_floating_ip_associations(&client, request)
             .await
             .map_err(api_error)?;
-        return list_json(&page, "floatingIpAssociations");
+        return list_json(
+            &page,
+            Listing {
+                field: "floatingIpAssociations",
+                item: Some("origincloud.network.v1beta1.FloatingIpAssociation"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-floating-ip-association"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_floating_ip_associations(&client, request.clone())
                 .await
@@ -3068,7 +3210,13 @@ async fn list_floating_ip_associations(
             floating_ip_associations: items,
             ..::core::default::Default::default()
         },
-        "floatingIpAssociations",
+        Listing {
+            field: "floatingIpAssociations",
+            item: Some("origincloud.network.v1beta1.FloatingIpAssociation"),
+            columns: &[],
+            parents,
+            create: Some("origin network create-floating-ip-association"),
+        },
     )
 }
 async fn call_list_floating_ip_associations(
@@ -3149,10 +3297,10 @@ async fn create_floating_ip_association(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.FloatingIpAssociation")
 }
 async fn call_create_floating_ip_association(
     client: &ReadClient,
@@ -3233,16 +3381,17 @@ async fn delete_floating_ip_association(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_floating_ip_association(&client, request)
         .await
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("floating ip association", &deleted_name))
 }
 async fn call_delete_floating_ip_association(
     client: &ConfirmedClient,
@@ -3295,7 +3444,7 @@ async fn get_internet_gateway(
     };
     let client = ctx.client()?;
     let response = call_get_internet_gateway(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.InternetGateway")
 }
 async fn call_get_internet_gateway(
     client: &ReadClient,
@@ -3367,11 +3516,21 @@ async fn list_internet_gateways(
         vpc,
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_internet_gateways(&client, request)
             .await
             .map_err(api_error)?;
-        return list_json(&page, "internetGateways");
+        return list_json(
+            &page,
+            Listing {
+                field: "internetGateways",
+                item: Some("origincloud.network.v1beta1.InternetGateway"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-internet-gateway"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -3390,7 +3549,13 @@ async fn list_internet_gateways(
             internet_gateways: items,
             ..::core::default::Default::default()
         },
-        "internetGateways",
+        Listing {
+            field: "internetGateways",
+            item: Some("origincloud.network.v1beta1.InternetGateway"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin network create-internet-gateway"),
+        },
     )
 }
 async fn call_list_internet_gateways(
@@ -3469,10 +3634,10 @@ async fn create_internet_gateway(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.InternetGateway")
 }
 async fn call_create_internet_gateway(
     client: &ReadClient,
@@ -3565,10 +3730,10 @@ async fn update_internet_gateway(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.InternetGateway")
 }
 async fn call_update_internet_gateway(
     client: &ReadClient,
@@ -3638,16 +3803,17 @@ async fn delete_internet_gateway(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_internet_gateway(&client, request)
         .await
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("internet gateway", &deleted_name))
 }
 async fn call_delete_internet_gateway(
     client: &ConfirmedClient,
@@ -3698,7 +3864,7 @@ async fn get_nat_gateway(
     };
     let client = ctx.client()?;
     let response = call_get_nat_gateway(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.NatGateway")
 }
 async fn call_get_nat_gateway(
     client: &ReadClient,
@@ -3769,13 +3935,23 @@ async fn list_nat_gateways(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_nat_gateways(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "natGateways");
+        return list_json(
+            &page,
+            Listing {
+                field: "natGateways",
+                item: Some("origincloud.network.v1beta1.NatGateway"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-nat-gateway"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_nat_gateways(&client, request.clone())
                 .await
@@ -3792,7 +3968,13 @@ async fn list_nat_gateways(
             nat_gateways: items,
             ..::core::default::Default::default()
         },
-        "natGateways",
+        Listing {
+            field: "natGateways",
+            item: Some("origincloud.network.v1beta1.NatGateway"),
+            columns: &[],
+            parents,
+            create: Some("origin network create-nat-gateway"),
+        },
     )
 }
 async fn call_list_nat_gateways(
@@ -3886,10 +4068,10 @@ async fn create_nat_gateway(
     let response = call_create_nat_gateway(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.NatGateway")
 }
 async fn call_create_nat_gateway(
     client: &ReadClient,
@@ -3978,10 +4160,10 @@ async fn update_nat_gateway(
     let response = call_update_nat_gateway(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.NatGateway")
 }
 async fn call_update_nat_gateway(
     client: &ReadClient,
@@ -4049,14 +4231,15 @@ async fn delete_nat_gateway(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_nat_gateway(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("nat gateway", &deleted_name))
 }
 async fn call_delete_nat_gateway(
     client: &ConfirmedClient,
@@ -4109,7 +4292,7 @@ async fn get_network_interface(
     let response = call_get_network_interface(&client, request)
         .await
         .map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.NetworkInterface")
 }
 async fn call_get_network_interface(
     client: &ReadClient,
@@ -4203,15 +4386,32 @@ async fn list_network_interfaces(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_network_interfaces(&client, request)
             .await
             .map_err(api_error)?;
-        return list_json(&page, "networkInterfaces");
+        return list_json(
+            &page,
+            Listing {
+                field: "networkInterfaces",
+                item: Some("origincloud.network.v1beta1.NetworkInterface"),
+                columns: &[
+                    "name",
+                    "state",
+                    "subnet",
+                    "ipv4Address",
+                    "instance",
+                    "createTime",
+                ],
+                parents: listed,
+                create: Some("origin network create-network-interface"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_network_interfaces(&client, request.clone())
                 .await
@@ -4228,7 +4428,20 @@ async fn list_network_interfaces(
             network_interfaces: items,
             ..::core::default::Default::default()
         },
-        "networkInterfaces",
+        Listing {
+            field: "networkInterfaces",
+            item: Some("origincloud.network.v1beta1.NetworkInterface"),
+            columns: &[
+                "name",
+                "state",
+                "subnet",
+                "ipv4Address",
+                "instance",
+                "createTime",
+            ],
+            parents,
+            create: Some("origin network create-network-interface"),
+        },
     )
 }
 async fn call_list_network_interfaces(
@@ -4319,10 +4532,10 @@ async fn create_network_interface(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.NetworkInterface")
 }
 async fn call_create_network_interface(
     client: &ReadClient,
@@ -4436,10 +4649,10 @@ async fn update_network_interface(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.NetworkInterface")
 }
 async fn call_update_network_interface(
     client: &ReadClient,
@@ -4507,16 +4720,17 @@ async fn delete_network_interface(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_network_interface(&client, request)
         .await
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("network interface", &deleted_name))
 }
 async fn call_delete_network_interface(
     client: &ConfirmedClient,
@@ -4580,7 +4794,7 @@ async fn get_route(
     };
     let client = ctx.client()?;
     let response = call_get_route(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.Route")
 }
 async fn call_get_route(
     client: &ReadClient,
@@ -4637,9 +4851,19 @@ async fn list_routes(
         page_token: args.page_token.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_routes(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "routes");
+        return list_json(
+            &page,
+            Listing {
+                field: "routes",
+                item: Some("origincloud.network.v1beta1.Route"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-route"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -4656,7 +4880,13 @@ async fn list_routes(
             routes: items,
             ..::core::default::Default::default()
         },
-        "routes",
+        Listing {
+            field: "routes",
+            item: Some("origincloud.network.v1beta1.Route"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin network create-route"),
+        },
     )
 }
 async fn call_list_routes(
@@ -4777,10 +5007,10 @@ async fn create_route(
     let response = call_create_route(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.Route")
 }
 async fn call_create_route(
     client: &ReadClient,
@@ -4861,14 +5091,15 @@ async fn delete_route(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_route(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("route", &deleted_name))
 }
 async fn call_delete_route(
     client: &ConfirmedClient,
@@ -4921,7 +5152,7 @@ async fn get_route_table(
     };
     let client = ctx.client()?;
     let response = call_get_route_table(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.RouteTable")
 }
 async fn call_get_route_table(
     client: &ReadClient,
@@ -4993,9 +5224,19 @@ async fn list_route_tables(
         vpc,
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_route_tables(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "routeTables");
+        return list_json(
+            &page,
+            Listing {
+                field: "routeTables",
+                item: Some("origincloud.network.v1beta1.RouteTable"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-route-table"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -5014,7 +5255,13 @@ async fn list_route_tables(
             route_tables: items,
             ..::core::default::Default::default()
         },
-        "routeTables",
+        Listing {
+            field: "routeTables",
+            item: Some("origincloud.network.v1beta1.RouteTable"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin network create-route-table"),
+        },
     )
 }
 async fn call_list_route_tables(
@@ -5091,10 +5338,10 @@ async fn create_route_table(
     let response = call_create_route_table(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.RouteTable")
 }
 async fn call_create_route_table(
     client: &ReadClient,
@@ -5185,10 +5432,10 @@ async fn update_route_table(
     let response = call_update_route_table(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.RouteTable")
 }
 async fn call_update_route_table(
     client: &ReadClient,
@@ -5258,14 +5505,15 @@ async fn delete_route_table(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_route_table(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("route table", &deleted_name))
 }
 async fn call_delete_route_table(
     client: &ConfirmedClient,
@@ -5331,7 +5579,7 @@ async fn get_route_table_association(
     let response = call_get_route_table_association(&client, request)
         .await
         .map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.RouteTableAssociation")
 }
 async fn call_get_route_table_association(
     client: &ReadClient,
@@ -5415,15 +5663,25 @@ async fn list_route_table_associations(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_route_table_associations(&client, request)
             .await
             .map_err(api_error)?;
-        return list_json(&page, "routeTableAssociations");
+        return list_json(
+            &page,
+            Listing {
+                field: "routeTableAssociations",
+                item: Some("origincloud.network.v1beta1.RouteTableAssociation"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-route-table-association"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_route_table_associations(&client, request.clone())
                 .await
@@ -5440,7 +5698,13 @@ async fn list_route_table_associations(
             route_table_associations: items,
             ..::core::default::Default::default()
         },
-        "routeTableAssociations",
+        Listing {
+            field: "routeTableAssociations",
+            item: Some("origincloud.network.v1beta1.RouteTableAssociation"),
+            columns: &[],
+            parents,
+            create: Some("origin network create-route-table-association"),
+        },
     )
 }
 async fn call_list_route_table_associations(
@@ -5523,10 +5787,10 @@ async fn create_route_table_association(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.RouteTableAssociation")
 }
 async fn call_create_route_table_association(
     client: &ReadClient,
@@ -5607,16 +5871,17 @@ async fn delete_route_table_association(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_route_table_association(&client, request)
         .await
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("route table association", &deleted_name))
 }
 async fn call_delete_route_table_association(
     client: &ConfirmedClient,
@@ -5669,7 +5934,7 @@ async fn get_security_group(
     };
     let client = ctx.client()?;
     let response = call_get_security_group(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.SecurityGroup")
 }
 async fn call_get_security_group(
     client: &ReadClient,
@@ -5741,9 +6006,19 @@ async fn list_security_groups(
         vpc,
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_security_groups(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "securityGroups");
+        return list_json(
+            &page,
+            Listing {
+                field: "securityGroups",
+                item: Some("origincloud.network.v1beta1.SecurityGroup"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-security-group"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -5762,7 +6037,13 @@ async fn list_security_groups(
             security_groups: items,
             ..::core::default::Default::default()
         },
-        "securityGroups",
+        Listing {
+            field: "securityGroups",
+            item: Some("origincloud.network.v1beta1.SecurityGroup"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin network create-security-group"),
+        },
     )
 }
 async fn call_list_security_groups(
@@ -5841,10 +6122,10 @@ async fn create_security_group(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.SecurityGroup")
 }
 async fn call_create_security_group(
     client: &ReadClient,
@@ -5937,10 +6218,10 @@ async fn update_security_group(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.SecurityGroup")
 }
 async fn call_update_security_group(
     client: &ReadClient,
@@ -6010,16 +6291,17 @@ async fn delete_security_group(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_security_group(&client, request)
         .await
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("security group", &deleted_name))
 }
 async fn call_delete_security_group(
     client: &ConfirmedClient,
@@ -6088,7 +6370,7 @@ async fn get_security_group_association(
     let response = call_get_security_group_association(&client, request)
         .await
         .map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.SecurityGroupAssociation")
 }
 async fn call_get_security_group_association(
     client: &ReadClient,
@@ -6180,15 +6462,25 @@ async fn list_security_group_associations(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_security_group_associations(&client, request)
             .await
             .map_err(api_error)?;
-        return list_json(&page, "securityGroupAssociations");
+        return list_json(
+            &page,
+            Listing {
+                field: "securityGroupAssociations",
+                item: Some("origincloud.network.v1beta1.SecurityGroupAssociation"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-security-group-association"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_security_group_associations(&client, request.clone())
                 .await
@@ -6205,7 +6497,13 @@ async fn list_security_group_associations(
             security_group_associations: items,
             ..::core::default::Default::default()
         },
-        "securityGroupAssociations",
+        Listing {
+            field: "securityGroupAssociations",
+            item: Some("origincloud.network.v1beta1.SecurityGroupAssociation"),
+            columns: &[],
+            parents,
+            create: Some("origin network create-security-group-association"),
+        },
     )
 }
 async fn call_list_security_group_associations(
@@ -6289,10 +6587,10 @@ async fn create_security_group_association(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.SecurityGroupAssociation")
 }
 async fn call_create_security_group_association(
     client: &ReadClient,
@@ -6378,16 +6676,17 @@ async fn delete_security_group_association(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_security_group_association(&client, request)
         .await
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("security group association", &deleted_name))
 }
 async fn call_delete_security_group_association(
     client: &ConfirmedClient,
@@ -6453,7 +6752,7 @@ async fn get_security_group_rule(
     let response = call_get_security_group_rule(&client, request)
         .await
         .map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.SecurityGroupRule")
 }
 async fn call_get_security_group_rule(
     client: &ReadClient,
@@ -6510,11 +6809,29 @@ async fn list_security_group_rules(
         page_token: args.page_token.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_security_group_rules(&client, request)
             .await
             .map_err(api_error)?;
-        return list_json(&page, "securityGroupRules");
+        return list_json(
+            &page,
+            Listing {
+                field: "securityGroupRules",
+                item: Some("origincloud.network.v1beta1.SecurityGroupRule"),
+                columns: &[
+                    "name",
+                    "direction",
+                    "protocol",
+                    "firstPort",
+                    "lastPort",
+                    "cidrBlock",
+                    "peerSecurityGroup",
+                ],
+                parents: listed,
+                create: Some("origin network create-security-group-rule"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -6533,7 +6850,21 @@ async fn list_security_group_rules(
             security_group_rules: items,
             ..::core::default::Default::default()
         },
-        "securityGroupRules",
+        Listing {
+            field: "securityGroupRules",
+            item: Some("origincloud.network.v1beta1.SecurityGroupRule"),
+            columns: &[
+                "name",
+                "direction",
+                "protocol",
+                "firstPort",
+                "lastPort",
+                "cidrBlock",
+                "peerSecurityGroup",
+            ],
+            parents: listed,
+            create: Some("origin network create-security-group-rule"),
+        },
     )
 }
 async fn call_list_security_group_rules(
@@ -6664,10 +6995,10 @@ async fn create_security_group_rule(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.SecurityGroupRule")
 }
 async fn call_create_security_group_rule(
     client: &ReadClient,
@@ -6748,16 +7079,17 @@ async fn delete_security_group_rule(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_security_group_rule(&client, request)
         .await
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("security group rule", &deleted_name))
 }
 async fn call_delete_security_group_rule(
     client: &ConfirmedClient,
@@ -6808,7 +7140,7 @@ async fn get_subnet(
     };
     let client = ctx.client()?;
     let response = call_get_subnet(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.Subnet")
 }
 async fn call_get_subnet(
     client: &ReadClient,
@@ -6911,13 +7243,30 @@ async fn list_subnets(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_subnets(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "subnets");
+        return list_json(
+            &page,
+            Listing {
+                field: "subnets",
+                item: Some("origincloud.network.v1beta1.Subnet"),
+                columns: &[
+                    "name",
+                    "vpc",
+                    "ipv4CidrBlock",
+                    "availableIpv4AddressCount",
+                    "autoAssignPublicIp",
+                    "createTime",
+                ],
+                parents: listed,
+                create: Some("origin network create-subnet"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_subnets(&client, request.clone())
                 .await
@@ -6934,7 +7283,20 @@ async fn list_subnets(
             subnets: items,
             ..::core::default::Default::default()
         },
-        "subnets",
+        Listing {
+            field: "subnets",
+            item: Some("origincloud.network.v1beta1.Subnet"),
+            columns: &[
+                "name",
+                "vpc",
+                "ipv4CidrBlock",
+                "availableIpv4AddressCount",
+                "autoAssignPublicIp",
+                "createTime",
+            ],
+            parents,
+            create: Some("origin network create-subnet"),
+        },
     )
 }
 async fn call_list_subnets(
@@ -7033,10 +7395,10 @@ async fn create_subnet(
     let response = call_create_subnet(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.Subnet")
 }
 async fn call_create_subnet(
     client: &ReadClient,
@@ -7143,10 +7505,10 @@ async fn update_subnet(
     let response = call_update_subnet(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.Subnet")
 }
 async fn call_update_subnet(
     client: &ReadClient,
@@ -7214,14 +7576,15 @@ async fn delete_subnet(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_subnet(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("subnet", &deleted_name))
 }
 async fn call_delete_subnet(
     client: &ConfirmedClient,
@@ -7274,7 +7637,7 @@ async fn get_vpc(
     };
     let client = ctx.client()?;
     let response = call_get_vpc(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.network.v1beta1.Vpc")
 }
 async fn call_get_vpc(
     client: &ReadClient,
@@ -7321,9 +7684,25 @@ async fn list_vpcs(
         page_token: args.page_token.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_vpcs(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "vpcs");
+        return list_json(
+            &page,
+            Listing {
+                field: "vpcs",
+                item: Some("origincloud.network.v1beta1.Vpc"),
+                columns: &[
+                    "name",
+                    "ipv4CidrBlock",
+                    "ipv6CidrBlock",
+                    "projectDefault",
+                    "createTime",
+                ],
+                parents: listed,
+                create: Some("origin network create-vpc"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -7340,7 +7719,19 @@ async fn list_vpcs(
             vpcs: items,
             ..::core::default::Default::default()
         },
-        "vpcs",
+        Listing {
+            field: "vpcs",
+            item: Some("origincloud.network.v1beta1.Vpc"),
+            columns: &[
+                "name",
+                "ipv4CidrBlock",
+                "ipv6CidrBlock",
+                "projectDefault",
+                "createTime",
+            ],
+            parents: listed,
+            create: Some("origin network create-vpc"),
+        },
     )
 }
 async fn call_list_vpcs(
@@ -7403,10 +7794,10 @@ async fn create_vpc(
     let response = call_create_vpc(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.Vpc")
 }
 async fn call_create_vpc(
     client: &ReadClient,
@@ -7497,10 +7888,10 @@ async fn update_vpc(
     let response = call_update_vpc(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.network.v1beta1.Vpc")
 }
 async fn call_update_vpc(
     client: &ReadClient,
@@ -7570,14 +7961,15 @@ async fn delete_vpc(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_vpc(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("vpc", &deleted_name))
 }
 async fn call_delete_vpc(
     client: &ConfirmedClient,
@@ -7628,7 +8020,7 @@ async fn get_operation(
     };
     let client = ctx.client()?;
     let response = call_get_operation(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "google.longrunning.Operation")
 }
 async fn call_get_operation(
     client: &ReadClient,

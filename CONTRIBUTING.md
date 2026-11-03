@@ -155,7 +155,7 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
 - `[[shown_once]]` names a field of a method's response holding a secret
   the API returns in that response alone, such as `CreateKeyPair`'s
   `private_key`: the command prints the response as any other, and its
-  `notice` on standard error when the field isn't empty.
+  `notice` on standard error when the field isn't empty;
 - `[[also_names]]` names a reference field, by its full name
   (`origincloud.compute.v1beta1.Instance.image`), that takes the names of
   another resource type too (`compute.origincloudapis.eu/PublicImage`),
@@ -163,7 +163,22 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   its flag, key or JSON value takes a whole name of either, and an id still
   completes to the declared type's pattern. Generation fails when the
   field isn't a reference to a type the API declares, or the other type
-  isn't one.
+  isn't one;
+- `[[view]]` names the columns of the `table` a list of a message is
+  printed as (`compute`, `Instance`, `interface_addresses.ipv4_address`),
+  as paths from the message through messages and lists of them; without
+  one, the table has every field the message defines that fits in a cell,
+  but its `urn`, its `creator` and its maps, and `wide` adds those after a
+  view's. Generation and the coverage test fail for a view of a message or
+  a field the API doesn't have.
+
+The human output formats (`crates/cli/src/output/`) are made from the
+JSON a command prints, with what the API's descriptors, `api.binpb`, say
+of each field: a timestamp, a reference, an enum, a map. A generated
+command passes the full name of the message it prints (`json`), or of the
+items of the list (`list_json`, with the view's columns, the parents
+listed and the command creating one), and a delete the kind and name of
+what it deleted (`deleted`).
 
 The coverage test fails when an entry names a service, a method or a field
 the API doesn't have, so an entry can't silently stop applying; regenerate

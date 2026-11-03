@@ -10,6 +10,7 @@ pub use run_cli::run;
 pub(crate) mod client_auth;
 mod config;
 mod confirm;
+mod descriptors;
 pub(crate) mod graphql;
 mod handler;
 mod identity;
