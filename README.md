@@ -97,10 +97,17 @@ the API sends whether or not it asks for it.
 
 | Format | Prints |
 |---|---|
-| `table` | A list as a table, its resources by the last segment of their name, fitted to the terminal's width (or `COLUMNS`); a resource as its fields, one per line, under their JSON names; `Done.` for a command without a result, such as a delete. An empty list, and the `--page-token` of the next page, are said on standard error. |
-| `wide` | As `table`, a list with every field that fits in a cell, none cut. |
+| `table` | A list as a table of the columns that tell its resources apart, fitted to the terminal's width (or `COLUMNS`); a resource as its fields, one per line, under their JSON names; what a delete did, such as `✓ Deleted volume v1.` An empty list says on standard error where it looked and the command creating one; the `--page-token` of the next page is said there too. |
+| `wide` | As `table`, a list with every other field that fits in a cell after those, none cut. |
 | `json` | The response as the API sends it, pretty-printed. |
 | `name` | Each resource's whole name, one per line, the form every resource flag takes: `origin pvs list-volumes -o name \| xargs -n1 origin pvs get-volume --volume`. |
+
+In `table` and `wide`, a reference to another resource is shown by its id
+(`gp1` for `storageClasses/gp1`) and a time by how long ago it was (`3d
+ago`); a resource's own lines show both whole, the time beside how long ago.
+A state is in colour: green for what is up and in use (`RUNNING`,
+`AVAILABLE`), yellow for what is changing (`STARTING`, `PENDING`), red for
+what failed, dim for what is stopped or gone.
 
 `table`, `wide` and `name` are in colour on a terminal, unless `NO_COLOR` is
 set; `--color always` or `never` decides instead. `json` is never in colour.

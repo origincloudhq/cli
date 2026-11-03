@@ -1,8 +1,8 @@
 //! The choices the API definitions don't express, from `commands.toml`
 //! beside the generator: what a command group's help says, methods left
 //! without a command, fields left out of a command, changes that can't be
-//! undone, secrets a response shows once, and the hand-written groups the
-//! generated ones replace.
+//! undone, secrets a response shows once, the columns a list's table shows,
+//! and the hand-written groups the generated ones replace.
 
 use std::path::Path;
 
@@ -43,6 +43,9 @@ pub struct Policy {
     /// response alone.
     #[serde(default)]
     pub shown_once: Vec<ShownOnce>,
+    /// The columns of the table a list of a message is printed as.
+    #[serde(default)]
+    pub view: Vec<View>,
 }
 
 /// The help of a service's command group, when its definitions don't say
@@ -143,6 +146,21 @@ pub struct ShownOnce {
     /// What standard error says: that it can't be had again, and how to
     /// keep it.
     pub notice: String,
+}
+
+/// The columns of the `table` a list of a message is printed as, which
+/// would otherwise be every field the message defines that fits in a cell.
+/// `wide` shows those after these.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct View {
+    /// The service, as its packages name it: `compute`.
+    pub service: String,
+    /// The message, as the package names it: `Instance`.
+    pub message: String,
+    /// The fields, as paths from the message through messages and lists of
+    /// them, such as `interface_addresses.ipv4_address`, in order.
+    pub columns: Vec<String>,
 }
 
 impl Policy {
@@ -246,11 +264,17 @@ mod tests {
             method = "CreateKeyPair"
             field = "private_key"
             notice = "z"
+
+            [[view]]
+            service = "compute"
+            message = "Instance"
+            columns = ["name", "state"]
             "#,
         )
         .unwrap();
         assert_eq!(policy.shown_once("compute", "CreateKeyPair")[0].notice, "z");
         assert!(policy.shown_once("compute", "GetKeyPair").is_empty());
+        assert_eq!(policy.view[0].columns, ["name", "state"]);
         assert_eq!(policy.group("pvs").unwrap().about, "Volumes");
         assert!(policy.no_command("longrunning", "WaitOperation"));
         assert!(!policy.no_command("pvs", "WaitOperation"));

@@ -44,8 +44,8 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
-use anyhow::Result;
-use heck::{ToKebabCase, ToLowerCamelCase, ToSnakeCase, ToUpperCamelCase};
+use anyhow::{Context as _, Result};
+use heck::{ToKebabCase, ToSnakeCase, ToUpperCamelCase};
 use prost_reflect::{
     DescriptorPool, DynamicMessage, FieldDescriptor, Kind, MessageDescriptor, MethodDescriptor,
     Value,
@@ -117,6 +117,12 @@ struct Cx<'a> {
     resources: BTreeMap<String, Resource>,
     /// Every field name of the package, for the help text.
     fields: BTreeSet<String>,
+    /// The command creating each message of the package that one creates,
+    /// by the message's full name: `origin compute create-instance`.
+    creates: BTreeMap<String, String>,
+    /// The columns of the table of each message `commands.toml` has a view
+    /// of, as JSON paths, by the message's full name.
+    views: BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Clone)]
@@ -197,6 +203,18 @@ pub fn generate(
             .collect()
     };
     let helpers = RefCell::new(BTreeMap::new());
+    let services = services_of(pool, package);
+    let mut creates = BTreeMap::new();
+    for method in services.iter().flat_map(|s| s.methods()) {
+        if method.name().starts_with("Create") && !policy.no_command(service, method.name()) {
+            let made = operation_result(pool, &method).unwrap_or_else(|| method.output());
+            creates.insert(
+                made.full_name().to_owned(),
+                format!("origin {service} {}", method.name().to_kebab_case()),
+            );
+        }
+    }
+    let views = views(pool, policy, package)?;
     let cx = Cx {
         pool,
         comments,
@@ -209,11 +227,12 @@ pub fn generate(
         helpers: &helpers,
         resources: resources(pool),
         fields: fields(package),
+        creates,
+        views,
     };
 
     let mut commands: Vec<Command> = Vec::new();
     let mut skipped = Vec::new();
-    let services = services_of(pool, package);
     for s in &services {
         for method in s.methods() {
             if policy.no_command(service, method.name()) {
@@ -270,9 +289,9 @@ pub fn generate(
     code.push_str(
         "#[allow(unused_imports)]\n\
          use crate::sdk::runtime::{\n\
-             api_error, deadline_after, duration, json, list_json, names_any, pace, passed, shown_once,\n\
-             success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient, Context,\n\
-             ReadClient,\n\
+             api_error, deadline_after, deleted, duration, json, list_json, names_any, pace, passed,\n\
+             shown_once, success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient,\n\
+             Context, Listing, ReadClient, OPERATION,\n\
          };\n\
          #[allow(unused_imports)]\n\
          use crate::confirm;\n\
@@ -661,6 +680,75 @@ pub fn services(groups: &[Group]) -> Result<String> {
 }
 
 /// Every resource the pool declares, by type.
+/// The views `commands.toml` has of `package`'s messages: the columns of
+/// each, as JSON paths, by the message's full name. A view of a message
+/// the package doesn't have, or naming a field the message doesn't have,
+/// fails generation.
+fn views(
+    pool: &DescriptorPool,
+    policy: &Policy,
+    package: &str,
+) -> Result<BTreeMap<String, Vec<String>>> {
+    let service = service_of(package);
+    let mut views = BTreeMap::new();
+    for view in policy.view.iter().filter(|v| v.service == service) {
+        let name = format!("{package}.{}", view.message);
+        let message = pool.get_message_by_name(&name).with_context(|| {
+            format!(
+                "commands.toml has a view of {service} {}, which {package} doesn't have",
+                view.message
+            )
+        })?;
+        let columns = view
+            .columns
+            .iter()
+            .map(|path| {
+                json_path(&message, path).with_context(|| {
+                    format!(
+                        "commands.toml's view of {service} {} names {path}, which isn't a field \
+                         of it that fits in a cell",
+                        view.message
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        anyhow::ensure!(
+            !columns.is_empty(),
+            "commands.toml's view of {service} {} has no columns",
+            view.message
+        );
+        views.insert(name, columns);
+    }
+    Ok(views)
+}
+
+/// The JSON path of the proto `path` from `message`, through messages and
+/// lists of them, to a field that isn't a message, unless one with a JSON
+/// form of a single value (a timestamp, a duration): `interfaceAddresses.
+/// ipv4Address` for `interface_addresses.ipv4_address`.
+fn json_path(message: &MessageDescriptor, path: &str) -> Option<String> {
+    let mut message = message.clone();
+    let mut json = Vec::new();
+    let mut steps = path.split('.').peekable();
+    while let Some(step) = steps.next() {
+        let field = message.get_field_by_name(step)?;
+        json.push(field.json_name().to_owned());
+        match field.kind() {
+            Kind::Message(next) if steps.peek().is_some() && !field.is_map() => message = next,
+            Kind::Message(m)
+                if steps.peek().is_none()
+                    && !field.is_map()
+                    && ![TIMESTAMP, DURATION].contains(&m.full_name()) =>
+            {
+                return None
+            }
+            _ if steps.peek().is_some() => return None,
+            _ => {}
+        }
+    }
+    Some(json.join("."))
+}
+
 fn resources(pool: &DescriptorPool) -> BTreeMap<String, Resource> {
     let mut out = BTreeMap::new();
     for message in pool.all_messages() {
@@ -1742,6 +1830,50 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         Some(r) => format!("::origincloud_core::Operation<{}>", type_of(cx, r)),
         None => type_of(cx, &response),
     };
+    // What a list prints its items as: their message, the view's columns,
+    // the parents listed and the command creating one.
+    let unpaged_list =
+        items_field(&response).filter(|_| list.is_none() && m.name().starts_with("List"));
+    let listed_parent = match request.get_field_by_name("parent") {
+        Some(f) if f.kind() == Kind::String && !f.is_list() => "vec![request.parent.clone()]",
+        _ => "Vec::new()",
+    };
+    let listing = |items: &str, parents: &str| -> Result<String, String> {
+        let field = response
+            .get_field_by_name(items.trim_start_matches("r#"))
+            .ok_or_else(|| format!("its response has no field {items}"))?;
+        let Kind::Message(item) = field.kind() else {
+            return Err(format!("{items} of its response isn't a list of messages"));
+        };
+        let columns: Vec<String> = cx
+            .views
+            .get(item.full_name())
+            .map(|v| v.iter().map(|c| format!("{c:?}")).collect())
+            .unwrap_or_default();
+        let create = match cx.creates.get(item.full_name()) {
+            Some(command) => format!("Some({command:?})"),
+            None => "None".to_owned(),
+        };
+        let parents = if parents == "parents" {
+            parents.to_owned()
+        } else {
+            format!("parents: {parents}")
+        };
+        Ok(format!(
+            "Listing {{ field: {:?}, item: Some({:?}), columns: &[{}], {parents}, create: {create} }}",
+            field.json_name(),
+            item.full_name(),
+            columns.join(", ")
+        ))
+    };
+    let deleted = |what_deleted: &str| format!("Ok(deleted({what_deleted:?}, &deleted_name))\n");
+    let done = || -> String {
+        match &target {
+            Some((singular, _)) if destructive => deleted(&what(singular)),
+            _ => "Ok(success())\n".to_owned(),
+        }
+    };
+
     let mut call = String::new();
     if destructive {
         let (singular, target_expr) = target
@@ -1750,6 +1882,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         let _ = writeln!(
             call,
             "let confirmed = confirm::require(args.confirmation, confirm::Destructive {{ verb: \"delete\", what: {:?}, target: &{target_expr}, consequence: \"It can't be restored.\" }})?;\n\
+             let deleted_name = {target_expr}.clone();\n\
              let client = ctx.confirmed_client(confirmed)?;\n\
              let response = call_{handler}(&client, request).await.map_err(api_error)?;",
             what(&singular)
@@ -1805,6 +1938,9 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
              }};"
         );
     } else if list.is_none() {
+        if unpaged_list.is_some() {
+            call.push_str(&format!("let listed: Vec<String> = {listed_parent};\n"));
+        }
         let _ = writeln!(
             call,
             "let client = ctx.client()?;\nlet response = call_{handler}(&client, request).await.map_err(api_error)?;"
@@ -1826,22 +1962,28 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                 attrs: Vec::new(),
             });
             tail.push_str(
-                "let mut operation = response;\nif args.no_wait { return json(operation.raw()); }\n",
+                "let mut operation = response;\nif args.no_wait { return json(operation.raw(), OPERATION); }\n",
             );
             if r.full_name() == EMPTY {
-                tail.push_str("wait(&mut operation).await?;\nOk(success())\n");
+                tail.push_str("wait(&mut operation).await?;\n");
+                tail.push_str(&done());
             } else {
-                tail.push_str("let result = wait(&mut operation).await?;\njson(&result)\n");
+                let _ = writeln!(
+                    tail,
+                    "let result = wait(&mut operation).await?;\njson(&result, {:?})",
+                    r.full_name()
+                );
             }
         }
         (None, Some(items)) => {
             let response_ty = format!("{}::{}", cx.sdk, response.name());
-            let field = items.trim_start_matches("r#").to_lower_camel_case();
+            let listed = listing(items, "listed")?;
+            let all = listing(items, "parents")?;
             let pages = format!(
                 "let mut items = Vec::new();\n\
-                 for parent in parents {{\n\
+                 for parent in &parents {{\n\
                      let mut request = request.clone();\n\
-                     request.parent = parent;\n\
+                     request.parent = parent.clone();\n\
                      loop {{\n\
                          let page = call_{handler}(&client, request.clone()).await.map_err(api_error)?;\n\
                          items.extend(page.{items});\n\
@@ -1849,7 +1991,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                          request.page_token = page.next_page_token;\n\
                      }}\n\
                  }}\n\
-                 list_json(&{response_ty} {{ {items}: items, ..::core::default::Default::default() }}, {field:?})"
+                 list_json(&{response_ty} {{ {items}: items, ..::core::default::Default::default() }}, {all})"
             );
             // A list in every zone sets the parent of each; any other pages
             // through the request as its flags made it, with a parent, other
@@ -1875,8 +2017,9 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                          if paging {{\n\
                              let mut request = request;\n\
                              request.parent = parents.into_iter().next().unwrap_or_default();\n\
+                             let listed = vec![request.parent.clone()];\n\
                              let page = call_{handler}(&client, request).await.map_err(api_error)?;\n\
-                             return list_json(&page, {field:?});\n\
+                             return list_json(&page, {listed});\n\
                          }}\n\
                          {pages}",
                         service = cx.service
@@ -1886,9 +2029,10 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                     let _ = writeln!(
                         tail,
                         "let client = ctx.client()?;\n\
+                         let listed: Vec<String> = {listed_parent};\n\
                          if args.page_size.is_some() || args.page_token.is_some() {{\n\
                              let page = call_{handler}(&client, request).await.map_err(api_error)?;\n\
-                             return list_json(&page, {field:?});\n\
+                             return list_json(&page, {listed});\n\
                          }}\n\
                          let mut request = request;\n\
                          let mut items = Vec::new();\n\
@@ -1898,21 +2042,18 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                              if page.next_page_token.is_empty() {{ break; }}\n\
                              request.page_token = page.next_page_token;\n\
                          }}\n\
-                         list_json(&{response_ty} {{ {items}: items, ..::core::default::Default::default() }}, {field:?})"
+                         list_json(&{response_ty} {{ {items}: items, ..::core::default::Default::default() }}, {listed})"
                     );
                 }
             }
         }
         (None, None) if response.full_name() == EMPTY => {
-            tail.push_str("let _ = response;\nOk(success())\n");
+            tail.push_str("let _ = response;\n");
+            tail.push_str(&done());
         }
-        (None, None) => match items_field(&response).filter(|_| m.name().starts_with("List")) {
+        (None, None) => match &unpaged_list {
             Some(items) => {
-                let _ = writeln!(
-                    tail,
-                    "list_json(&response, {:?})",
-                    items.trim_start_matches("r#").to_lower_camel_case()
-                );
+                let _ = writeln!(tail, "list_json(&response, {})", listing(items, "listed")?);
             }
             None => {
                 // A secret shown this once is said so, beside the response.
@@ -1934,7 +2075,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                         entry.notice
                     );
                 }
-                tail.push_str("json(&response)\n");
+                let _ = writeln!(tail, "json(&response, {:?})", response.full_name());
             }
         },
     }

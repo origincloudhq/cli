@@ -9,9 +9,8 @@
 #![allow(dead_code)]
 
 use std::collections::HashSet;
-use std::sync::LazyLock;
 
-use prost_reflect::{DescriptorPool, FieldDescriptor, Kind, MessageDescriptor, Value};
+use prost_reflect::{FieldDescriptor, Kind, MessageDescriptor, Value};
 use serde::de::{DeserializeOwned, DeserializeSeed, Error as _, MapAccess, SeqAccess, Visitor};
 
 use super::runtime::duration;
@@ -56,8 +55,8 @@ pub fn json_arg<T: DeserializeOwned>(value: &str, message: &str) -> Result<JsonA
         })?;
     let json: serde_json::Value =
         serde_json::from_str(&text).map_err(|e| format!("not JSON: {e}"))?;
-    let descriptor =
-        message_descriptor(message).ok_or_else(|| format!("no definition of {message}"))?;
+    let descriptor = crate::descriptors::message(message)
+        .ok_or_else(|| format!("no definition of {message}"))?;
     let mut given = Vec::new();
     // A well-known type has a JSON form of its own: a struct is any object.
     let own_form = descriptor.package_name() == "google.protobuf";
@@ -92,27 +91,6 @@ pub fn json_arg<T: DeserializeOwned>(value: &str, message: &str) -> Result<JsonA
     serde_json::from_value(json)
         .map(|value| JsonArg(value, given))
         .map_err(|e| format!("not its JSON: {e}"))
-}
-
-/// The descriptors of the API's messages, which the generator checked in.
-static DESCRIPTORS: LazyLock<Vec<DescriptorPool>> = LazyLock::new(|| {
-    #[allow(unused_mut)]
-    let mut pools = vec![
-        DescriptorPool::decode(include_bytes!("generated/api.binpb").as_slice())
-            .expect("the checked-in descriptors decode"),
-    ];
-    #[cfg(feature = "test-services")]
-    pools.push(
-        DescriptorPool::decode(include_bytes!("generated/test-api.binpb").as_slice())
-            .expect("the checked-in descriptors decode"),
-    );
-    pools
-});
-
-fn message_descriptor(name: &str) -> Option<MessageDescriptor> {
-    DESCRIPTORS
-        .iter()
-        .find_map(|pool| pool.get_message_by_name(name))
 }
 
 /// The field `key` names: by its name in the definitions, or its JSON name,

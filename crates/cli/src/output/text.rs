@@ -34,8 +34,7 @@ pub(super) fn header(key: &str) -> String {
 }
 
 /// Where a field goes among an item's: what tells the items apart and
-/// what state each is in first, when it was made last, the others between
-/// by name.
+/// what state each is in first, when it was made last, the others between.
 pub(super) fn rank(key: &str) -> u8 {
     match key {
         "name" => 0,
@@ -43,6 +42,8 @@ pub(super) fn rank(key: &str) -> u8 {
         "state" => 2,
         "status" => 3,
         "createTime" => 5,
+        // What message an `Any` holds, after what it holds.
+        "@type" => 6,
         _ => 4,
     }
 }
@@ -52,6 +53,58 @@ pub(super) fn rank(key: &str) -> u8 {
 /// `projects/acme/zones/eu-central1-az1/instances/web-1`.
 pub(super) fn short_name(name: &str) -> &str {
     name.rsplit('/').next().unwrap_or(name)
+}
+
+/// Where a list looked, from the parents it listed, in words: `in project
+/// acme, zone z1` for `projects/acme/zones/z1`; `in any zone of project
+/// acme` for several zones of one project. `None` for a list without a
+/// parent, or a parent that isn't a resource name.
+pub(super) fn scope(parents: &[String]) -> Option<String> {
+    let named: Vec<Vec<(&str, &str)>> = parents
+        .iter()
+        .map(|parent| pairs(parent))
+        .collect::<Option<_>>()?;
+    let first = named.first()?;
+    let mut same = Vec::new();
+    let mut any = Vec::new();
+    for (i, (collection, id)) in first.iter().enumerate() {
+        let collection = singular(collection);
+        if named.iter().all(|n| n.get(i) == first.get(i)) {
+            same.push(format!("{collection} {id}"));
+        } else {
+            any.push(collection);
+        }
+    }
+    Some(match (any.is_empty(), same.is_empty()) {
+        (true, _) => format!("in {}", same.join(", ")),
+        (false, true) => format!("in any {}", any.join(" and ")),
+        (false, false) => format!("in any {} of {}", any.join(" and "), same.join(", ")),
+    })
+}
+
+/// A resource name's collections and ids: `[("projects", "acme"),
+/// ("zones", "z1")]`.
+fn pairs(name: &str) -> Option<Vec<(&str, &str)>> {
+    let segments: Vec<&str> = name.split('/').collect();
+    if name.is_empty() || !segments.len().is_multiple_of(2) || segments.iter().any(|s| s.is_empty())
+    {
+        return None;
+    }
+    Some(segments.chunks(2).map(|pair| (pair[0], pair[1])).collect())
+}
+
+/// A collection's resource, in words: `zone` for `zones`, `dns policy`
+/// for `dnsPolicies`.
+fn singular(collection: &str) -> String {
+    let one = if let Some(stem) = collection.strip_suffix("ies") {
+        format!("{stem}y")
+    } else {
+        collection
+            .strip_suffix('s')
+            .unwrap_or(collection)
+            .to_owned()
+    };
+    words(&one)
 }
 
 /// `value` as text: a string as it is, a number or a boolean as JSON
@@ -138,6 +191,27 @@ mod tests {
         assert_eq!(words("vpc_id"), "vpc id");
         assert_eq!(words("imageFamilies"), "image families");
         assert_eq!(header("createTime"), "CREATE TIME");
+    }
+
+    #[test]
+    fn where_a_list_looked_reads_as_words() {
+        let scope =
+            |parents: &[&str]| scope(&parents.iter().map(|p| (*p).to_owned()).collect::<Vec<_>>());
+        assert_eq!(
+            scope(&["projects/acme/zones/z1"]).as_deref(),
+            Some("in project acme, zone z1")
+        );
+        assert_eq!(
+            scope(&["projects/acme/zones/z1", "projects/acme/zones/z2"]).as_deref(),
+            Some("in any zone of project acme")
+        );
+        assert_eq!(
+            scope(&["projects/p/regions/r/dnsPolicies/d"]).as_deref(),
+            Some("in project p, region r, dns policy d")
+        );
+        assert_eq!(scope(&[]), None);
+        assert_eq!(scope(&[""]), None);
+        assert_eq!(scope(&["projects"]), None);
     }
 
     #[test]

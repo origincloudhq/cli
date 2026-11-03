@@ -3,9 +3,9 @@
 
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
-    api_error, deadline_after, duration, json, list_json, names_any, pace, passed,
-    shown_once, success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient,
-    Context, ReadClient,
+    api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
+    passed, shown_once, success, tags, wait, wait_for, waited, waiting, zones,
+    ConfirmedClient, Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -79,7 +79,7 @@ async fn get_region(
     };
     let client = ctx.client()?;
     let response = call_get_region(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.location.v1beta1.Region")
 }
 async fn call_get_region(
     client: &ReadClient,
@@ -101,9 +101,19 @@ async fn list_regions(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let request = ::origincloud_location::v1beta1::ListRegionsRequest {
     };
+    let listed: Vec<String> = Vec::new();
     let client = ctx.client()?;
     let response = call_list_regions(&client, request).await.map_err(api_error)?;
-    list_json(&response, "regions")
+    list_json(
+        &response,
+        Listing {
+            field: "regions",
+            item: Some("origincloud.location.v1beta1.Region"),
+            columns: &[],
+            parents: listed,
+            create: None,
+        },
+    )
 }
 async fn call_list_regions(
     client: &ReadClient,
@@ -137,7 +147,7 @@ async fn get_zone(
     };
     let client = ctx.client()?;
     let response = call_get_zone(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.location.v1beta1.Zone")
 }
 async fn call_get_zone(
     client: &ReadClient,
@@ -159,9 +169,19 @@ async fn list_zones(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let request = ::origincloud_location::v1beta1::ListZonesRequest {
     };
+    let listed: Vec<String> = Vec::new();
     let client = ctx.client()?;
     let response = call_list_zones(&client, request).await.map_err(api_error)?;
-    list_json(&response, "zones")
+    list_json(
+        &response,
+        Listing {
+            field: "zones",
+            item: Some("origincloud.location.v1beta1.Zone"),
+            columns: &[],
+            parents: listed,
+            create: None,
+        },
+    )
 }
 async fn call_list_zones(
     client: &ReadClient,

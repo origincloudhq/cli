@@ -301,3 +301,100 @@ once: the platform keeps only the public key. Save it now to a file only you \
 can read, such as by piping the output through \
 `(umask 077; jq -r .privateKey > my-key)`. A lost key can't be fetched \
 again: delete the key pair and create another."""
+
+# The columns of the `table` a list of a message is printed as, by the
+# fields' paths from the message, through messages and lists of them:
+# what tells one item from another, and what someone listing them looks
+# for first. Without a view, a table shows every field the message defines
+# that fits in a cell, but its urn, its creator and its maps; `wide` shows
+# all of those after a view's. Generation fails for a view naming a field
+# the message doesn't have, or one that doesn't fit in a cell.
+[[view]]
+service = "compute"
+message = "Instance"
+columns = ["name", "state", "instance_type", "image_family", "interface_addresses.ipv4_address", "create_time"]
+
+[[view]]
+service = "compute"
+message = "InstanceType"
+columns = ["name", "vcpu", "memory_mib", "kind", "available"]
+
+[[view]]
+service = "compute"
+message = "ImageFamily"
+columns = ["name", "os", "os_version", "vendor", "available", "support_end_time"]
+
+[[view]]
+service = "compute"
+message = "Image"
+columns = ["name", "state", "architecture", "description"]
+
+[[view]]
+service = "compute"
+message = "PublicImage"
+columns = ["name", "image_family", "architecture", "state", "family_current"]
+
+[[view]]
+service = "compute"
+message = "KeyPair"
+columns = ["name", "creator"]
+
+[[view]]
+service = "compute"
+message = "VolumeAttachment"
+columns = ["name", "state", "volume", "device", "boot"]
+
+[[view]]
+service = "pvs"
+message = "Volume"
+columns = ["name", "state", "size_gib", "storage_class", "resize_state"]
+
+[[view]]
+service = "pvs"
+message = "Snapshot"
+columns = ["name", "state", "source_volume", "source_size_gib", "protection_state"]
+
+[[view]]
+service = "pvs"
+message = "StorageClass"
+columns = ["name", "media", "baseline_iops", "baseline_throughput_mibps", "default_class", "available"]
+
+[[view]]
+service = "network"
+message = "Vpc"
+columns = ["name", "ipv4_cidr_block", "ipv6_cidr_block", "project_default", "create_time"]
+
+[[view]]
+service = "network"
+message = "Subnet"
+columns = ["name", "vpc", "ipv4_cidr_block", "available_ipv4_address_count", "auto_assign_public_ip", "create_time"]
+
+[[view]]
+service = "network"
+message = "NetworkInterface"
+columns = ["name", "state", "subnet", "ipv4_address", "instance", "create_time"]
+
+[[view]]
+service = "network"
+message = "FloatingIp"
+columns = ["name", "address", "network_interface", "private_address", "create_time"]
+
+[[view]]
+service = "network"
+message = "SecurityGroupRule"
+columns = ["name", "direction", "protocol", "first_port", "last_port", "cidr_block", "peer_security_group"]
+
+[[view]]
+service = "network"
+message = "AclRule"
+columns = ["name", "priority", "direction", "protocol", "first_port", "last_port", "cidr_block", "action"]
+
+[[view]]
+service = "resourcemanager"
+message = "Project"
+columns = ["name", "display_name", "organization", "create_time"]
+
+[[view]]
+service = "resourcemanager"
+message = "Organization"
+columns = ["name", "display_name", "state", "create_time"]

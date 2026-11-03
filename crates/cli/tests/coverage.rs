@@ -38,6 +38,15 @@ struct Table {
     one_way: Vec<Entry>,
     #[serde(default)]
     shown_once: Vec<Entry>,
+    #[serde(default)]
+    view: Vec<View>,
+}
+
+#[derive(Deserialize)]
+struct View {
+    service: String,
+    message: String,
+    columns: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -240,8 +249,9 @@ fn every_service_has_a_group() {
 }
 
 /// Every entry of the table names a service and a method of the API, and a
-/// field of its request, so that none silently stops applying; and every
-/// method left without a command says why.
+/// field of its request, so that none silently stops applying; every view
+/// names a message of its service and fields of it; and every method left
+/// without a command says why.
 #[test]
 fn every_table_entry_names_a_method_and_a_field() {
     let pool = pool();
@@ -308,6 +318,48 @@ fn every_table_entry_names_a_method_and_a_field() {
             entry.method,
             entry.field
         );
+    }
+    // A view's columns are fields of a message of its service, reached
+    // through messages.
+    for view in &table.view {
+        let message = pool
+            .all_messages()
+            .find(|m| {
+                common::service_of(m.package_name()) == view.service && m.name() == view.message
+            })
+            .unwrap_or_else(|| {
+                panic!(
+                    "commands.toml has a view of {} {}, which the API doesn't have",
+                    view.service, view.message
+                )
+            });
+        assert!(
+            !view.columns.is_empty(),
+            "{} {} has no columns",
+            view.service,
+            view.message
+        );
+        for column in &view.columns {
+            let mut current = message.clone();
+            let mut parts = column.split('.').peekable();
+            while let Some(part) = parts.next() {
+                let f = current.get_field_by_name(part).unwrap_or_else(|| {
+                    panic!(
+                        "commands.toml's view of {} {} names {column}, which it doesn't have",
+                        view.service, view.message
+                    )
+                });
+                if parts.peek().is_some() {
+                    let Kind::Message(next) = f.kind() else {
+                        panic!(
+                            "{} {} {column}: {part} isn't a message",
+                            view.service, view.message
+                        );
+                    };
+                    current = next;
+                }
+            }
+        }
     }
     for n in &table.no_command {
         assert!(

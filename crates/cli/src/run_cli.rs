@@ -95,7 +95,7 @@ fn print_output(
     output: Box<dyn SerializableOutput>,
 ) -> anyhow::Result<i32> {
     let format = output::format_for_stdout(profile.output_format);
-    let printed = output::render(format, output.as_ref(), output::width())?;
+    let printed = output::render(format, output.as_ref(), &output::Context::current())?;
     if format == OutputFormat::Json || output.to_raw().is_some() {
         // Byte for byte as it was: nothing in it for `anstream` to strip.
         print!("{}", printed.out);

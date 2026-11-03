@@ -1,9 +1,13 @@
 //! A list as a table: a column per field, a row per item.
 
+use chrono::{DateTime, Utc};
+use prost_reflect::MessageDescriptor;
 use serde_json::{Map, Value};
 
+use super::schema::{self, Field, Kind};
 use super::style::HEADER;
 use super::text;
+use super::value::{self, Place, Shown};
 
 /// The space between two columns.
 const GAP: &str = "   ";
@@ -12,81 +16,109 @@ const GAP: &str = "   ";
 /// terminal; `wide` never cuts one.
 const MOST_PER_CELL: usize = 40;
 
-/// The fields the `table` format leaves out, which `wide` shows: what
-/// tells one resource from another, or what it is, is elsewhere.
-const LEFT_OUT: [&str; 3] = ["etag", "uid", "updateTime"];
+/// The fields `table` leaves out unless a view names them, which `wide`
+/// shows: what tells one resource from another, and what it is, is
+/// elsewhere.
+const LEFT_OUT: [&str; 5] = ["urn", "creator", "etag", "uid", "updateTime"];
 
-/// What a field of the items holds, which decides what a cell shows for an
-/// item that leaves the field out. The API's JSON leaves out a field at its
-/// default, so that an item without `available` is one that isn't: its
-/// cell says `false`, not nothing.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Kind {
-    Bool,
-    Number,
-    Text,
+/// A column: the field it shows, by its JSON path from the item.
+#[derive(Debug, Clone)]
+pub(super) struct Spec {
+    path: Vec<String>,
+    field: Field,
 }
 
-impl Kind {
-    fn of(value: &Value) -> Self {
-        match value {
-            Value::Bool(_) => Kind::Bool,
-            Value::Number(_) => Kind::Number,
-            _ => Kind::Text,
+impl Spec {
+    fn new(path: &str, field: Field) -> Self {
+        // An item's own name is shown by its id, as references are.
+        let field = if path == "name" {
+            Field {
+                kind: Kind::Reference,
+                ..field
+            }
+        } else {
+            field
+        };
+        Spec {
+            path: path.split('.').map(str::to_owned).collect(),
+            field,
         }
     }
 
-    /// What a cell shows for an item without the field.
-    fn left_out(self) -> &'static str {
-        match self {
-            Kind::Bool => "false",
-            Kind::Number => "0",
-            Kind::Text => "",
-        }
+    fn key(&self) -> String {
+        self.path.join(".")
     }
 }
 
-struct Column {
-    header: String,
-    cells: Vec<String>,
-    /// The widest of its header and its cells.
-    width: usize,
-}
-
-/// `items`, objects all, as a table: in `wide`, every field that fits in a
-/// cell (a scalar, or a list of them); otherwise those but [`LEFT_OUT`],
-/// fitted to `width` columns when it is known, a cell cut at
-/// [`MOST_PER_CELL`] and the columns that don't fit dropped, the first
-/// always kept. A field holding an object is never a column: the detail
-/// of a resource, or `json`, shows it.
-pub(super) fn table(items: &[&Map<String, Value>], wide: bool, width: Option<usize>) -> String {
-    let mut columns = columns(items, wide);
-    if !wide {
-        if let Some(width) = width {
-            fit(&mut columns, width);
-        }
-    }
-
-    let mut out = String::new();
-    let header: Vec<(&str, usize)> = columns
+/// The columns of a table of `items`:
+///
+/// - a view's `columns`, the JSON paths `commands.toml` names, first;
+/// - in `wide`, or without a view, every other field of `item`, the
+///   items' message, that fits in a cell, in the order the API defines
+///   them, `name`, `displayName`, `state` and `status` first and
+///   `createTime` last; `table` leaves out [`LEFT_OUT`] and maps;
+/// - without `item`, the fields the items hold, by name, kinds told from
+///   their values, objects left out.
+pub(super) fn columns(
+    items: &[&Map<String, Value>],
+    item: Option<&MessageDescriptor>,
+    view: &[&str],
+    wide: bool,
+) -> Vec<Spec> {
+    let mut specs: Vec<Spec> = view
         .iter()
-        .map(|c| (c.header.as_str(), c.width))
+        .map(|path| {
+            let steps: Vec<&str> = path.split('.').collect();
+            let field = item
+                .and_then(|m| schema::path(m, &steps))
+                .or_else(|| told(items, &steps))
+                .unwrap_or(Field {
+                    kind: Kind::Text,
+                    repeated: false,
+                });
+            Spec::new(path, field)
+        })
         .collect();
-    push_row(&mut out, &header, Some(HEADER));
-    for row in 0..items.len() {
-        let cells: Vec<(&str, usize)> = columns
-            .iter()
-            .map(|c| (c.cells[row].as_str(), c.width))
-            .collect();
-        push_row(&mut out, &cells, None);
+    if !view.is_empty() && !wide {
+        return specs;
     }
-    out
+
+    let mut rest: Vec<Spec> = match item {
+        Some(message) => message
+            .fields()
+            .map(|f| (f.json_name().to_owned(), Field::of(&f)))
+            .filter(|(key, field)| {
+                field.fits_in_a_cell()
+                    && (wide || (field.kind != Kind::Map && !LEFT_OUT.contains(&key.as_str())))
+            })
+            .map(|(key, field)| Spec::new(&key, field))
+            .collect(),
+        None => inferred(items, wide),
+    };
+    // Stable: the same rank keeps the definitions' order.
+    rest.sort_by_key(|s| text::rank(&s.key()));
+    for spec in rest {
+        if !specs.iter().any(|s| s.key() == spec.key()) {
+            specs.push(spec);
+        }
+    }
+    specs
 }
 
-/// The table's columns, in order: `name`, `state`, `status`, the other
-/// fields by name, and `createTime` last.
-fn columns(items: &[&Map<String, Value>], wide: bool) -> Vec<Column> {
-    let mut kinds: Vec<(String, Kind)> = Vec::new();
+/// The kind of what `path` reaches in the first item that has it.
+fn told(items: &[&Map<String, Value>], path: &[&str]) -> Option<Field> {
+    let path: Vec<String> = path.iter().map(|s| (*s).to_owned()).collect();
+    items.iter().find_map(|item| {
+        at_item(item, &path)
+            .filter(|v| !v.is_null())
+            .map(|v| Field::told_from(&v))
+    })
+}
+
+/// The columns of items without descriptors: every field that holds a
+/// scalar, or a list of them, in every item that has it, by name.
+fn inferred(items: &[&Map<String, Value>], wide: bool) -> Vec<Spec> {
+    let mut kinds: Vec<(String, Field)> = Vec::new();
     let mut nested: Vec<&str> = Vec::new();
     for item in items {
         for (key, value) in *item {
@@ -100,29 +132,99 @@ fn columns(items: &[&Map<String, Value>], wide: bool) -> Vec<Column> {
                 continue;
             }
             if !kinds.iter().any(|(k, _)| k == key) {
-                kinds.push((key.clone(), Kind::of(value)));
+                kinds.push((key.clone(), Field::told_from(value)));
             }
         }
     }
     // A field that holds an object in any item isn't a column in any.
     kinds.retain(|(key, _)| !nested.contains(&key.as_str()));
-    kinds.sort_by(|(a, _), (b, _)| text::rank(a).cmp(&text::rank(b)).then_with(|| a.cmp(b)));
-
+    kinds.sort_by(|(a, _), (b, _)| a.cmp(b));
     kinds
         .into_iter()
-        .map(|(key, kind)| {
-            let cells: Vec<String> = items
+        .map(|(key, field)| Spec::new(&key, field))
+        .collect()
+}
+
+/// What `path` reaches in `item`.
+fn at_item(item: &Map<String, Value>, path: &[String]) -> Option<Value> {
+    let (first, rest) = path.split_first()?;
+    at(item.get(first)?, rest)
+}
+
+/// What `path` reaches in `value`: through a list, the list of what it
+/// reaches in each item, flattened.
+fn at(value: &Value, path: &[String]) -> Option<Value> {
+    let Some((first, rest)) = path.split_first() else {
+        return Some(value.clone());
+    };
+    match value {
+        Value::Object(fields) => at(fields.get(first)?, rest),
+        Value::Array(items) => {
+            let leaves = items
                 .iter()
-                .map(|item| match item.get(&key).and_then(text::scalar) {
-                    Some(value) if key == "name" => text::one_line(text::short_name(&value)),
-                    Some(value) => text::one_line(&value),
-                    None => kind.left_out().to_owned(),
+                .filter_map(|item| at(item, path))
+                .flat_map(|leaf| match leaf {
+                    Value::Array(leaves) => leaves,
+                    leaf => vec![leaf],
                 })
                 .collect();
-            let header = text::one_line(&text::header(&key));
+            Some(Value::Array(leaves))
+        }
+        _ => None,
+    }
+}
+
+struct Column {
+    header: String,
+    cells: Vec<Shown>,
+    /// The widest of its header and its cells.
+    width: usize,
+}
+
+/// A cell: what `spec` reaches in `item`, shown at `place`, or the
+/// field's default when the item leaves it out.
+fn cell(item: &Map<String, Value>, spec: &Spec, place: Place, now: DateTime<Utc>) -> Shown {
+    match at_item(item, &spec.path).filter(|v| !v.is_null()) {
+        Some(found) => {
+            let shown = value::show(&found, &spec.field, place, now);
+            Shown {
+                text: shown
+                    .as_ref()
+                    .map(|s| text::one_line(&s.text))
+                    .unwrap_or_default(),
+                style: shown.and_then(|s| s.style),
+            }
+        }
+        None => Shown {
+            text: spec.field.left_out().to_owned(),
+            style: None,
+        },
+    }
+}
+
+/// `items`, objects all, as a table of `specs`, fitted to `width` columns
+/// when it is known and `wide` isn't: a cell cut at [`MOST_PER_CELL`], and
+/// the columns that don't fit dropped, the first always kept.
+pub(super) fn table(
+    items: &[&Map<String, Value>],
+    specs: &[Spec],
+    wide: bool,
+    width: Option<usize>,
+    now: DateTime<Utc>,
+) -> String {
+    let place = if wide { Place::Wide } else { Place::Table };
+    let mut columns: Vec<Column> = specs
+        .iter()
+        .map(|spec| {
+            let cells: Vec<Shown> = items
+                .iter()
+                .map(|item| cell(item, spec, place, now))
+                .collect();
+            let leaf = spec.path.last().map_or("", String::as_str);
+            let header = text::one_line(&text::header(leaf));
             let width = cells
                 .iter()
-                .map(|c| text::width(c))
+                .map(|c| text::width(&c.text))
                 .chain([text::width(&header)])
                 .max()
                 .unwrap_or(0);
@@ -132,7 +234,33 @@ fn columns(items: &[&Map<String, Value>], wide: bool) -> Vec<Column> {
                 width,
             }
         })
-        .collect()
+        .collect();
+    if !wide {
+        if let Some(width) = width {
+            fit(&mut columns, width);
+        }
+    }
+
+    let mut out = String::new();
+    let header: Vec<(Shown, usize)> = columns
+        .iter()
+        .map(|c| {
+            let shown = Shown {
+                text: c.header.clone(),
+                style: Some(HEADER),
+            };
+            (shown, c.width)
+        })
+        .collect();
+    push_row(&mut out, &header);
+    for row in 0..items.len() {
+        let cells: Vec<(Shown, usize)> = columns
+            .iter()
+            .map(|c| (c.cells[row].clone(), c.width))
+            .collect();
+        push_row(&mut out, &cells);
+    }
+    out
 }
 
 /// Fits `columns` to `width`: every cell cut at [`MOST_PER_CELL`], the
@@ -170,33 +298,33 @@ fn fit(columns: &mut Vec<Column>, width: usize) {
 
 fn cut(column: &mut Column, width: usize) {
     for cell in column.cells.iter_mut() {
-        *cell = text::truncate(cell, width);
+        cell.text = text::truncate(&cell.text, width);
     }
     column.header = text::truncate(&column.header, width);
     column.width = width;
 }
 
-/// A row: each cell padded to its column's width but the last, which
-/// would only add spaces at the end of the line.
-fn push_row(out: &mut String, cells: &[(&str, usize)], style: Option<anstyle::Style>) {
-    let mut line = String::new();
-    for (i, (cell, width)) in cells.iter().enumerate() {
+/// A row: each cell in its style, padded to its column's width but the
+/// last that isn't empty, which would only add spaces at the end of the
+/// line.
+fn push_row(out: &mut String, cells: &[(Shown, usize)]) {
+    let last = cells
+        .iter()
+        .rposition(|(cell, _)| !cell.text.is_empty())
+        .unwrap_or(0);
+    for (i, (cell, width)) in cells.iter().enumerate().take(last + 1) {
         if i > 0 {
-            line.push_str(GAP);
+            out.push_str(GAP);
         }
-        line.push_str(cell);
-        if i + 1 < cells.len() {
-            line.extend(std::iter::repeat_n(' ', width - text::width(cell)));
+        match cell.style {
+            Some(style) => out.push_str(&format!("{style}{}{style:#}", cell.text)),
+            None => out.push_str(&cell.text),
         }
-    }
-    let line = line.trim_end();
-    match style {
-        Some(style) => out.push_str(&format!("{style}{line}{style:#}\n")),
-        None => {
-            out.push_str(line);
-            out.push('\n');
+        if i < last {
+            out.extend(std::iter::repeat_n(' ', width - text::width(&cell.text)));
         }
     }
+    out.push('\n');
 }
 
 #[cfg(test)]
@@ -204,74 +332,141 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn render(items: Value, wide: bool, width: Option<usize>) -> String {
+    fn now() -> DateTime<Utc> {
+        "2026-11-03T12:00:00Z".parse().unwrap()
+    }
+
+    fn message(name: &str) -> MessageDescriptor {
+        crate::descriptors::message(name).unwrap()
+    }
+
+    fn render(
+        items: Value,
+        item: Option<&str>,
+        view: &[&str],
+        wide: bool,
+        width: Option<usize>,
+    ) -> String {
         let items: Vec<Map<String, Value>> = serde_json::from_value(items).unwrap();
         let items: Vec<&Map<String, Value>> = items.iter().collect();
-        anstream::adapter::strip_str(&table(&items, wide, width)).to_string()
+        let item = item.map(message);
+        let specs = columns(&items, item.as_ref(), view, wide);
+        anstream::adapter::strip_str(&table(&items, &specs, wide, width, now())).to_string()
+    }
+
+    const INSTANCE: &str = "origincloud.compute.v1beta1.Instance";
+
+    fn instances() -> Value {
+        json!([
+            {"name": "projects/acme/zones/z1/instances/web-1", "state": "RUNNING",
+             "instanceType": "instanceTypes/s1.small", "createTime": "2026-10-31T09:12:00Z",
+             "interfaceAddresses": [{"networkInterface": "n", "ipv4Address": "10.0.1.4"}],
+             "urn": "urn:oc:i:1", "tags": {"env": "prod"}},
+            {"name": "projects/acme/zones/z1/instances/batch-7", "state": "STARTING",
+             "instanceType": "instanceTypes/c1.xlarge", "createTime": "2026-11-03T11:59:30Z"},
+        ])
     }
 
     #[test]
-    fn a_list_is_a_column_per_field_its_name_first_and_short() {
+    fn a_view_names_the_columns_of_table() {
         let printed = render(
-            json!([
-                {"name": "projects/acme/zones/z1/instances/web-1", "state": "RUNNING",
-                 "instanceType": "s1.small", "createTime": "2026-10-31T09:12:00Z"},
-                {"name": "projects/acme/zones/z1/instances/batch-7", "state": "STARTING",
-                 "instanceType": "c1.xlarge", "createTime": "2026-11-03T10:00:00Z"},
-            ]),
+            instances(),
+            Some(INSTANCE),
+            &[
+                "name",
+                "state",
+                "instanceType",
+                "interfaceAddresses.ipv4Address",
+                "createTime",
+            ],
             false,
             None,
         );
         assert_eq!(
             printed,
             "\
-NAME      STATE      INSTANCE TYPE   CREATE TIME
-web-1     RUNNING    s1.small        2026-10-31T09:12:00Z
-batch-7   STARTING   c1.xlarge       2026-11-03T10:00:00Z
+NAME      STATE      INSTANCE TYPE   IPV4 ADDRESS   CREATE TIME
+web-1     RUNNING    s1.small        10.0.1.4       3d ago
+batch-7   STARTING   c1.xlarge                      30s ago
 "
         );
     }
 
     #[test]
-    fn a_field_left_out_of_an_item_shows_its_default() {
+    fn without_a_view_the_columns_are_the_definitions_fields_that_fit() {
+        let printed = render(instances(), Some(INSTANCE), &[], false, None);
+        // The definitions' order, `state` moved up and `createTime` last;
+        // the urn, the creator and the tags left out.
+        assert_eq!(
+            printed.lines().next().unwrap(),
+            "NAME      STATE      INSTANCE TYPE   IMAGE   IMAGE FAMILY   KEY PAIR   LOGIN USER   \
+             NETWORK INTERFACES   STATE REASON   CREATE TIME"
+        );
+    }
+
+    #[test]
+    fn wide_adds_every_other_field_that_fits_after_the_view() {
+        let printed = render(
+            instances(),
+            Some(INSTANCE),
+            &["name", "state"],
+            true,
+            Some(20),
+        );
+        let header = printed.lines().next().unwrap();
+        assert!(header.starts_with("NAME      STATE      URN"), "{header}");
+        assert!(header.contains("TAGS"), "{header}");
+        assert!(printed.contains("env=prod"), "{printed}");
+    }
+
+    #[test]
+    fn a_left_out_field_shows_its_default_by_its_kind() {
         let printed = render(
             json!([
-                {"name": "a", "available": true, "cores": 2, "family": "x"},
+                {"name": "instanceTypes/a", "vcpu": 2, "available": true},
+                {"name": "instanceTypes/b"},
+            ]),
+            Some("origincloud.compute.v1beta1.InstanceType"),
+            &["name", "vcpu", "available", "kind"],
+            false,
+            None,
+        );
+        assert_eq!(
+            printed,
+            "NAME   VCPU   AVAILABLE   KIND\na      2      true\nb      0      false\n"
+        );
+    }
+
+    #[test]
+    fn without_descriptors_the_columns_are_told_from_the_items() {
+        let printed = render(
+            json!([
+                {"name": "a", "available": true, "cores": 2, "tags": {"env": "prod"}},
                 {"name": "b"},
             ]),
+            None,
+            &[],
             false,
             None,
         );
         assert_eq!(
             printed,
-            "\
-NAME   AVAILABLE   CORES   FAMILY
-a      true        2       x
-b      false       0
-"
+            "NAME   AVAILABLE   CORES\na      true        2\nb      false       0\n"
         );
     }
 
     #[test]
-    fn objects_are_not_columns_and_lists_of_scalars_are() {
+    fn a_view_reaches_into_a_nested_object_without_descriptors() {
         let printed = render(
-            json!([
-                {"name": "a", "tags": {"env": "prod"}, "zones": ["z1", "z2"]},
-                {"name": "b", "zones": ["z1"]},
-            ]),
+            json!([{"principal": "p1", "user": {"email": "a@b"}, "roleUrns": ["r1", "r2"]}]),
+            None,
+            &["principal", "user.email", "roleUrns"],
             false,
             None,
         );
-        assert_eq!(printed, "NAME   ZONES\na      z1, z2\nb      z1\n");
-    }
-
-    #[test]
-    fn table_leaves_out_what_wide_shows() {
-        let items = json!([{"name": "a", "etag": "e1", "uid": "u1", "updateTime": "t"}]);
-        assert_eq!(render(items.clone(), false, None), "NAME\na\n");
         assert_eq!(
-            render(items, true, Some(10)),
-            "NAME   ETAG   UID   UPDATE TIME\na      e1     u1    t\n"
+            printed,
+            "PRINCIPAL   EMAIL   ROLE URNS\np1          a@b     r1, r2\n"
         );
     }
 
@@ -280,10 +475,10 @@ b      false       0
         let long = "k".repeat(60);
         let items = json!([{"name": "web-1", "publicKey": long, "zone": "z1"}]);
 
-        let printed = render(items.clone(), false, Some(30));
+        let printed = render(items.clone(), None, &[], false, Some(30));
         assert_eq!(printed, "NAME    ZONE\nweb-1   z1\n");
 
-        let printed = render(items.clone(), false, Some(60));
+        let printed = render(items.clone(), None, &[], false, Some(60));
         let cut = format!("{}…", "k".repeat(39));
         assert_eq!(
             printed,
@@ -294,13 +489,19 @@ b      false       0
         );
 
         // Not fitted when the width isn't known, as on a pipe.
-        let printed = render(items, false, None);
+        let printed = render(items, None, &[], false, None);
         assert!(printed.contains(&"k".repeat(60)), "{printed}");
     }
 
     #[test]
     fn the_first_column_is_kept_and_cut_when_nothing_else_fits() {
-        let printed = render(json!([{"name": "a-very-long-name"}]), false, Some(8));
+        let printed = render(
+            json!([{"name": "a-very-long-name"}]),
+            None,
+            &[],
+            false,
+            Some(8),
+        );
         assert_eq!(printed, "NAME\na-very-…\n");
     }
 
@@ -308,9 +509,29 @@ b      false       0
     fn a_cell_can_t_carry_terminal_controls() {
         let printed = render(
             json!([{"name": "a", "note": "x\u{1b}[2Jy\nz"}]),
+            None,
+            &[],
             false,
             None,
         );
         assert_eq!(printed, "NAME   NOTE\na      x\\u{1b}[2Jy z\n");
+    }
+
+    #[test]
+    fn a_state_is_coloured_and_still_aligned() {
+        let items: Vec<Map<String, Value>> = serde_json::from_value(instances()).unwrap();
+        let items: Vec<&Map<String, Value>> = items.iter().collect();
+        let item = message(INSTANCE);
+        let specs = columns(&items, Some(&item), &["state", "name"], false);
+        let printed = table(&items, &specs, false, None, now());
+        assert!(
+            printed.contains("\u{1b}[32mRUNNING\u{1b}[0m"),
+            "{printed:?}"
+        );
+        let plain = anstream::adapter::strip_str(&printed).to_string();
+        assert_eq!(
+            plain,
+            "STATE      NAME\nRUNNING    web-1\nSTARTING   batch-7\n"
+        );
     }
 }

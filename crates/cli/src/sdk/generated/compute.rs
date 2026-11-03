@@ -3,9 +3,9 @@
 
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
-    api_error, deadline_after, duration, json, list_json, names_any, pace, passed,
-    shown_once, success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient,
-    Context, ReadClient,
+    api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
+    passed, shown_once, success, tags, wait, wait_for, waited, waiting, zones,
+    ConfirmedClient, Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -267,7 +267,7 @@ async fn get_instance_type(
     };
     let client = ctx.client()?;
     let response = call_get_instance_type(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.compute.v1beta1.InstanceType")
 }
 async fn call_get_instance_type(
     client: &ReadClient,
@@ -289,9 +289,19 @@ async fn list_instance_types(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let request = ::origincloud_compute::v1beta1::ListInstanceTypesRequest {
     };
+    let listed: Vec<String> = Vec::new();
     let client = ctx.client()?;
     let response = call_list_instance_types(&client, request).await.map_err(api_error)?;
-    list_json(&response, "instanceTypes")
+    list_json(
+        &response,
+        Listing {
+            field: "instanceTypes",
+            item: Some("origincloud.compute.v1beta1.InstanceType"),
+            columns: &["name", "vcpu", "memoryMib", "kind", "available"],
+            parents: listed,
+            create: None,
+        },
+    )
 }
 async fn call_list_instance_types(
     client: &ReadClient,
@@ -334,7 +344,7 @@ async fn get_image_family(
     };
     let client = ctx.client()?;
     let response = call_get_image_family(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.compute.v1beta1.ImageFamily")
 }
 async fn call_get_image_family(
     client: &ReadClient,
@@ -356,9 +366,26 @@ async fn list_image_families(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let request = ::origincloud_compute::v1beta1::ListImageFamiliesRequest {
     };
+    let listed: Vec<String> = Vec::new();
     let client = ctx.client()?;
     let response = call_list_image_families(&client, request).await.map_err(api_error)?;
-    list_json(&response, "imageFamilies")
+    list_json(
+        &response,
+        Listing {
+            field: "imageFamilies",
+            item: Some("origincloud.compute.v1beta1.ImageFamily"),
+            columns: &[
+                "name",
+                "os",
+                "osVersion",
+                "vendor",
+                "available",
+                "supportEndTime",
+            ],
+            parents: listed,
+            create: None,
+        },
+    )
 }
 async fn call_list_image_families(
     client: &ReadClient,
@@ -408,7 +435,7 @@ async fn get_image(
     };
     let client = ctx.client()?;
     let response = call_get_image(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.compute.v1beta1.Image")
 }
 async fn call_get_image(
     client: &ReadClient,
@@ -479,13 +506,23 @@ async fn list_images(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_images(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "images");
+        return list_json(
+            &page,
+            Listing {
+                field: "images",
+                item: Some("origincloud.compute.v1beta1.Image"),
+                columns: &["name", "state", "architecture", "description"],
+                parents: listed,
+                create: Some("origin compute create-image"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_images(&client, request.clone())
                 .await
@@ -502,7 +539,13 @@ async fn list_images(
             images: items,
             ..::core::default::Default::default()
         },
-        "images",
+        Listing {
+            field: "images",
+            item: Some("origincloud.compute.v1beta1.Image"),
+            columns: &["name", "state", "architecture", "description"],
+            parents,
+            create: Some("origin compute create-image"),
+        },
     )
 }
 async fn call_list_images(
@@ -633,7 +676,7 @@ async fn create_image(
     };
     let client = ctx.client()?;
     let response = call_create_image(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.compute.v1beta1.Image")
 }
 async fn call_create_image(
     client: &ReadClient,
@@ -720,7 +763,7 @@ async fn update_image(
     };
     let client = ctx.client()?;
     let response = call_update_image(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.compute.v1beta1.Image")
 }
 async fn call_update_image(
     client: &ReadClient,
@@ -779,10 +822,11 @@ async fn delete_image(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_image(&client, request).await.map_err(api_error)?;
     let _ = response;
-    Ok(success())
+    Ok(deleted("image", &deleted_name))
 }
 async fn call_delete_image(
     client: &ConfirmedClient,
@@ -832,7 +876,7 @@ async fn get_instance(
     };
     let client = ctx.client()?;
     let response = call_get_instance(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.compute.v1beta1.Instance")
 }
 async fn call_get_instance(
     client: &ReadClient,
@@ -903,13 +947,30 @@ async fn list_instances(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_instances(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "instances");
+        return list_json(
+            &page,
+            Listing {
+                field: "instances",
+                item: Some("origincloud.compute.v1beta1.Instance"),
+                columns: &[
+                    "name",
+                    "state",
+                    "instanceType",
+                    "imageFamily",
+                    "interfaceAddresses.ipv4Address",
+                    "createTime",
+                ],
+                parents: listed,
+                create: Some("origin compute create-instance"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_instances(&client, request.clone())
                 .await
@@ -926,7 +987,20 @@ async fn list_instances(
             instances: items,
             ..::core::default::Default::default()
         },
-        "instances",
+        Listing {
+            field: "instances",
+            item: Some("origincloud.compute.v1beta1.Instance"),
+            columns: &[
+                "name",
+                "state",
+                "instanceType",
+                "imageFamily",
+                "interfaceAddresses.ipv4Address",
+                "createTime",
+            ],
+            parents,
+            create: Some("origin compute create-instance"),
+        },
     )
 }
 async fn call_list_instances(
@@ -1156,10 +1230,10 @@ async fn create_instance(
     let response = call_create_instance(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.compute.v1beta1.Instance")
 }
 async fn call_create_instance(
     client: &ReadClient,
@@ -1267,10 +1341,10 @@ async fn update_instance(
     let response = call_update_instance(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.compute.v1beta1.Instance")
 }
 async fn call_update_instance(
     client: &ReadClient,
@@ -1337,14 +1411,15 @@ async fn delete_instance(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_instance(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("instance", &deleted_name))
 }
 async fn call_delete_instance(
     client: &ConfirmedClient,
@@ -1404,10 +1479,10 @@ async fn start_instance(
     let response = call_start_instance(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.compute.v1beta1.Instance")
 }
 async fn call_start_instance(
     client: &ReadClient,
@@ -1467,10 +1542,10 @@ async fn stop_instance(
     let response = call_stop_instance(&client, request).await.map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.compute.v1beta1.Instance")
 }
 async fn call_stop_instance(
     client: &ReadClient,
@@ -1516,7 +1591,7 @@ async fn get_key_pair(
     };
     let client = ctx.client()?;
     let response = call_get_key_pair(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.compute.v1beta1.KeyPair")
 }
 async fn call_get_key_pair(
     client: &ReadClient,
@@ -1559,9 +1634,19 @@ async fn list_key_pairs(
         page_token: args.page_token.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_key_pairs(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "keyPairs");
+        return list_json(
+            &page,
+            Listing {
+                field: "keyPairs",
+                item: Some("origincloud.compute.v1beta1.KeyPair"),
+                columns: &["name", "creator"],
+                parents: listed,
+                create: Some("origin compute create-key-pair"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -1580,7 +1665,13 @@ async fn list_key_pairs(
             key_pairs: items,
             ..::core::default::Default::default()
         },
-        "keyPairs",
+        Listing {
+            field: "keyPairs",
+            item: Some("origincloud.compute.v1beta1.KeyPair"),
+            columns: &["name", "creator"],
+            parents: listed,
+            create: Some("origin compute create-key-pair"),
+        },
     )
 }
 async fn call_list_key_pairs(
@@ -1637,7 +1728,7 @@ async fn create_key_pair(
         &response.private_key,
         "`privateKey` holds the generated private key, which the API returns this once: the platform keeps only the public key. Save it now to a file only you can read, such as by piping the output through `(umask 077; jq -r .privateKey > my-key)`. A lost key can't be fetched again: delete the key pair and create another.",
     );
-    json(&response)
+    json(&response, "origincloud.compute.v1beta1.KeyPair")
 }
 async fn call_create_key_pair(
     client: &ReadClient,
@@ -1711,7 +1802,7 @@ async fn update_key_pair(
     };
     let client = ctx.client()?;
     let response = call_update_key_pair(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.compute.v1beta1.KeyPair")
 }
 async fn call_update_key_pair(
     client: &ReadClient,
@@ -1766,10 +1857,11 @@ async fn delete_key_pair(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_key_pair(&client, request).await.map_err(api_error)?;
     let _ = response;
-    Ok(success())
+    Ok(deleted("key pair", &deleted_name))
 }
 async fn call_delete_key_pair(
     client: &ConfirmedClient,
@@ -1807,7 +1899,7 @@ async fn get_public_image(
     };
     let client = ctx.client()?;
     let response = call_get_public_image(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.compute.v1beta1.PublicImage")
 }
 async fn call_get_public_image(
     client: &ReadClient,
@@ -1869,13 +1961,29 @@ async fn list_public_images(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_public_images(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "publicImages");
+        return list_json(
+            &page,
+            Listing {
+                field: "publicImages",
+                item: Some("origincloud.compute.v1beta1.PublicImage"),
+                columns: &[
+                    "name",
+                    "imageFamily",
+                    "architecture",
+                    "state",
+                    "familyCurrent",
+                ],
+                parents: listed,
+                create: None,
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_public_images(&client, request.clone())
                 .await
@@ -1892,7 +2000,13 @@ async fn list_public_images(
             public_images: items,
             ..::core::default::Default::default()
         },
-        "publicImages",
+        Listing {
+            field: "publicImages",
+            item: Some("origincloud.compute.v1beta1.PublicImage"),
+            columns: &["name", "imageFamily", "architecture", "state", "familyCurrent"],
+            parents,
+            create: None,
+        },
     )
 }
 async fn call_list_public_images(
@@ -1954,7 +2068,7 @@ async fn get_volume_attachment(
     let response = call_get_volume_attachment(&client, request)
         .await
         .map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.compute.v1beta1.VolumeAttachment")
 }
 async fn call_get_volume_attachment(
     client: &ReadClient,
@@ -2068,15 +2182,25 @@ async fn list_volume_attachments(
     if paging {
         let mut request = request;
         request.parent = parents.into_iter().next().unwrap_or_default();
+        let listed = vec![request.parent.clone()];
         let page = call_list_volume_attachments(&client, request)
             .await
             .map_err(api_error)?;
-        return list_json(&page, "volumeAttachments");
+        return list_json(
+            &page,
+            Listing {
+                field: "volumeAttachments",
+                item: Some("origincloud.compute.v1beta1.VolumeAttachment"),
+                columns: &["name", "state", "volume", "device", "boot"],
+                parents: listed,
+                create: Some("origin compute create-volume-attachment"),
+            },
+        );
     }
     let mut items = Vec::new();
-    for parent in parents {
+    for parent in &parents {
         let mut request = request.clone();
-        request.parent = parent;
+        request.parent = parent.clone();
         loop {
             let page = call_list_volume_attachments(&client, request.clone())
                 .await
@@ -2093,7 +2217,13 @@ async fn list_volume_attachments(
             volume_attachments: items,
             ..::core::default::Default::default()
         },
-        "volumeAttachments",
+        Listing {
+            field: "volumeAttachments",
+            item: Some("origincloud.compute.v1beta1.VolumeAttachment"),
+            columns: &["name", "state", "volume", "device", "boot"],
+            parents,
+            create: Some("origin compute create-volume-attachment"),
+        },
     )
 }
 async fn call_list_volume_attachments(
@@ -2177,10 +2307,10 @@ async fn create_volume_attachment(
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     let result = wait(&mut operation).await?;
-    json(&result)
+    json(&result, "origincloud.compute.v1beta1.VolumeAttachment")
 }
 async fn call_create_volume_attachment(
     client: &ReadClient,
@@ -2256,16 +2386,17 @@ async fn delete_volume_attachment(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_volume_attachment(&client, request)
         .await
         .map_err(api_error)?;
     let mut operation = response;
     if args.no_wait {
-        return json(operation.raw());
+        return json(operation.raw(), OPERATION);
     }
     wait(&mut operation).await?;
-    Ok(success())
+    Ok(deleted("volume attachment", &deleted_name))
 }
 async fn call_delete_volume_attachment(
     client: &ConfirmedClient,
@@ -2315,7 +2446,7 @@ async fn get_operation(
     };
     let client = ctx.client()?;
     let response = call_get_operation(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "google.longrunning.Operation")
 }
 async fn call_get_operation(
     client: &ReadClient,

@@ -17,6 +17,7 @@ use crate::config::ClientProfile;
 use crate::confirm::Confirmed;
 use crate::handler::tag_args::TagArg;
 use crate::identity::is_resource_id;
+pub use crate::output::Listing;
 use crate::output::{CommandResult, SerializableOutput, SerializationError, Shape};
 
 /// The variables that hold credentials for the SDK. When any is set, the
@@ -526,6 +527,10 @@ impl SerializableOutput for Waited {
         Ok(self.json.clone())
     }
 
+    fn shape(&self) -> Shape {
+        Shape::Message(OPERATION)
+    }
+
     fn exit_code(&self) -> i32 {
         if self.succeeded {
             0
@@ -590,34 +595,66 @@ pub async fn pace(started: std::time::Instant, deadline: Option<std::time::Insta
     tokio::time::sleep_until(until.into()).await;
 }
 
-/// `value` in its proto3 JSON mapping, as the API sends it.
-pub fn json(value: &impl Serialize) -> anyhow::Result<Box<dyn SerializableOutput>> {
+/// The message an operation is, whose JSON holds the message of its result
+/// or its metadata by `@type`.
+pub const OPERATION: &str = "google.longrunning.Operation";
+
+/// `value`, the API's message `message` (in full:
+/// `origincloud.pvs.v1beta1.Volume`), in its proto3 JSON mapping, as the
+/// API sends it; the human formats print its fields by their kinds.
+pub fn json(
+    value: &impl Serialize,
+    message: &'static str,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
     Ok(Box::new(Json(
         serde_json::to_value(value)?,
-        Shape::Inferred,
+        Shape::Message(message),
     )))
 }
 
-/// A list response in its JSON mapping, with its list `field` as `[]` when
-/// it is empty, rather than left out as the mapping leaves out every empty
-/// field: `{"volumes": []}`. The human formats print its items as a list,
-/// whatever else the response holds.
+/// A list response in its JSON mapping, with its list, `listing`'s
+/// `field`, as `[]` when it is empty, rather than left out as the mapping
+/// leaves out every empty field: `{"volumes": []}`. The human formats
+/// print its items as `listing` says, whatever else the response holds.
 pub fn list_json(
     value: &impl Serialize,
-    field: &str,
+    listing: Listing,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut value = serde_json::to_value(value)?;
     if let Some(object) = value.as_object_mut() {
         object
-            .entry(field)
+            .entry(listing.field)
             .or_insert_with(|| serde_json::Value::Array(Vec::new()));
     }
-    Ok(Box::new(Json(value, Shape::List(field.to_owned()))))
+    Ok(Box::new(Json(value, Shape::List(listing))))
 }
 
-/// The result of a command whose method has none, such as a delete.
+/// The result of a command whose method has none and isn't a delete, of
+/// which the API has none today: the generator writes it for one it gains.
+#[allow(dead_code)]
 pub fn success() -> Box<dyn SerializableOutput> {
     Box::new(CommandResult::Success)
+}
+
+/// The result of a delete of the `what` (`volume`) named `name`: in
+/// `json`, the success envelope every command without a result prints; in
+/// the human formats, `Deleted volume v1.`
+pub fn deleted(what: &str, name: &str) -> Box<dyn SerializableOutput> {
+    let id = name.rsplit('/').next().unwrap_or(name);
+    Box::new(Done(format!("Deleted {what} {id}.")))
+}
+
+/// A command without a result, done, and what it did.
+struct Done(String);
+
+impl SerializableOutput for Done {
+    fn to_json(&self) -> Result<serde_json::Value, SerializationError> {
+        CommandResult::Success.to_json()
+    }
+
+    fn shape(&self) -> Shape {
+        Shape::Done(self.0.clone())
+    }
 }
 
 /// Waits for `operation` to finish, and returns its result.
@@ -871,7 +908,11 @@ mod tests {
     #[test]
     fn an_empty_list_prints_as_an_empty_array() {
         let empty = origincloud_pvs::v1beta1::ListVolumesResponse::default();
-        let printed = list_json(&empty, "volumes").unwrap().to_json().unwrap();
+        let listing = Listing {
+            field: "volumes",
+            ..Listing::default()
+        };
+        let printed = list_json(&empty, listing).unwrap().to_json().unwrap();
         assert_eq!(printed, serde_json::json!({ "volumes": [] }));
     }
 

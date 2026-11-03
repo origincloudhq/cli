@@ -124,6 +124,14 @@ fn generate(
             );
         }
     }
+    for view in &policy.view {
+        if !services.contains_key(&view.service) {
+            eprintln!(
+                "warning: commands.toml has a view of {} {}, whose service the API doesn't have",
+                view.service, view.message
+            );
+        }
+    }
     for group in &policy.service {
         if !services.contains_key(&group.name) {
             eprintln!(
@@ -966,6 +974,46 @@ mod tests {
         assert!(budget.contains("pubfolder:String,"), "{budget}");
         assert!(budget.contains("pubmax_items:Option<i64>,"), "{budget}");
         assert!(budget.contains("pubno_max_items:bool,"), "{budget}");
+    }
+
+    /// A view's columns reach the lists of its message as JSON paths; a
+    /// view of a message the package doesn't have, or naming a field the
+    /// message doesn't have or that doesn't fit in a cell, fails generation.
+    #[test]
+    fn a_view_names_a_list_s_columns_and_fails_on_what_isn_t_there() {
+        let view = |message: &str, columns: &str| -> policy::Policy {
+            toml::from_str(&format!(
+                "[[view]]\nservice = \"scratch\"\nmessage = \"{message}\"\ncolumns = {columns}"
+            ))
+            .unwrap()
+        };
+        let files = generated_with(&[&scratch()], &view("Network", r#"["name"]"#)).unwrap();
+        let code = file(&files, "scratch.rs").replace(char::is_whitespace, "");
+        assert!(
+            code.contains(r#"Listing{field:"networks",item:Some("origincloud.scratch.v1.Network"),columns:&["name"],"#),
+            "{code}"
+        );
+        // Without a view, the default columns.
+        assert!(
+            code.contains(r#"item:Some("origincloud.scratch.v1.FirewallPolicy"),columns:&[],"#),
+            "{code}"
+        );
+
+        for (message, columns, says) in [
+            (
+                "Nothing",
+                r#"["name"]"#,
+                "which origincloud.scratch.v1 doesn't have",
+            ),
+            ("Network", r#"["owner"]"#, "names owner"),
+            ("Firewall", r#"["rules"]"#, "names rules"),
+            ("Network", "[]", "has no columns"),
+        ] {
+            let err = generated_with(&[&scratch()], &view(message, columns))
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains(says), "{message} {columns}: {err}");
+        }
     }
 
     /// A service named like a hand-written group, or replacing one, fails

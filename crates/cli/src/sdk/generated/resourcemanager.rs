@@ -3,9 +3,9 @@
 
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
-    api_error, deadline_after, duration, json, list_json, names_any, pace, passed,
-    shown_once, success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient,
-    Context, ReadClient,
+    api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
+    passed, shown_once, success, tags, wait, wait_for, waited, waiting, zones,
+    ConfirmedClient, Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -153,7 +153,7 @@ async fn get_organization(
     };
     let client = ctx.client()?;
     let response = call_get_organization(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.resourcemanager.v1beta1.Organization")
 }
 async fn call_get_organization(
     client: &ReadClient,
@@ -190,9 +190,19 @@ async fn list_organizations(
         page_token: args.page_token.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = Vec::new();
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_organizations(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "organizations");
+        return list_json(
+            &page,
+            Listing {
+                field: "organizations",
+                item: Some("origincloud.resourcemanager.v1beta1.Organization"),
+                columns: &["name", "displayName", "state", "createTime"],
+                parents: listed,
+                create: Some("origin resourcemanager create-organization"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -211,7 +221,13 @@ async fn list_organizations(
             organizations: items,
             ..::core::default::Default::default()
         },
-        "organizations",
+        Listing {
+            field: "organizations",
+            item: Some("origincloud.resourcemanager.v1beta1.Organization"),
+            columns: &["name", "displayName", "state", "createTime"],
+            parents: listed,
+            create: Some("origin resourcemanager create-organization"),
+        },
     )
 }
 async fn call_list_organizations(
@@ -250,7 +266,7 @@ async fn create_organization(
     };
     let client = ctx.client()?;
     let response = call_create_organization(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.resourcemanager.v1beta1.Organization")
 }
 async fn call_create_organization(
     client: &ReadClient,
@@ -317,7 +333,7 @@ async fn update_organization(
     };
     let client = ctx.client()?;
     let response = call_update_organization(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.resourcemanager.v1beta1.Organization")
 }
 async fn call_update_organization(
     client: &ReadClient,
@@ -369,10 +385,11 @@ async fn delete_organization(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_organization(&client, request).await.map_err(api_error)?;
     let _ = response;
-    Ok(success())
+    Ok(deleted("organization", &deleted_name))
 }
 async fn call_delete_organization(
     client: &ConfirmedClient,
@@ -417,7 +434,7 @@ async fn get_organization_quota(
     let response = call_get_organization_quota(&client, request)
         .await
         .map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.resourcemanager.v1beta1.OrganizationQuota")
 }
 async fn call_get_organization_quota(
     client: &ReadClient,
@@ -452,7 +469,7 @@ async fn get_project(
     };
     let client = ctx.client()?;
     let response = call_get_project(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.resourcemanager.v1beta1.Project")
 }
 async fn call_get_project(
     client: &ReadClient,
@@ -507,9 +524,19 @@ async fn list_projects(
         page_token: args.page_token.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
+    let listed: Vec<String> = Vec::new();
     if args.page_size.is_some() || args.page_token.is_some() {
         let page = call_list_projects(&client, request).await.map_err(api_error)?;
-        return list_json(&page, "projects");
+        return list_json(
+            &page,
+            Listing {
+                field: "projects",
+                item: Some("origincloud.resourcemanager.v1beta1.Project"),
+                columns: &["name", "displayName", "organization", "createTime"],
+                parents: listed,
+                create: Some("origin resourcemanager create-project"),
+            },
+        );
     }
     let mut request = request;
     let mut items = Vec::new();
@@ -528,7 +555,13 @@ async fn list_projects(
             projects: items,
             ..::core::default::Default::default()
         },
-        "projects",
+        Listing {
+            field: "projects",
+            item: Some("origincloud.resourcemanager.v1beta1.Project"),
+            columns: &["name", "displayName", "organization", "createTime"],
+            parents: listed,
+            create: Some("origin resourcemanager create-project"),
+        },
     )
 }
 async fn call_list_projects(
@@ -591,7 +624,7 @@ async fn create_project(
     };
     let client = ctx.client()?;
     let response = call_create_project(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.resourcemanager.v1beta1.Project")
 }
 async fn call_create_project(
     client: &ReadClient,
@@ -650,7 +683,7 @@ async fn update_project(
     };
     let client = ctx.client()?;
     let response = call_update_project(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.resourcemanager.v1beta1.Project")
 }
 async fn call_update_project(
     client: &ReadClient,
@@ -694,10 +727,11 @@ async fn delete_project(
             consequence: "It can't be restored.",
         },
     )?;
+    let deleted_name = request.name.clone();
     let client = ctx.confirmed_client(confirmed)?;
     let response = call_delete_project(&client, request).await.map_err(api_error)?;
     let _ = response;
-    Ok(success())
+    Ok(deleted("project", &deleted_name))
 }
 async fn call_delete_project(
     client: &ConfirmedClient,
@@ -732,7 +766,7 @@ async fn get_project_quota(
     };
     let client = ctx.client()?;
     let response = call_get_project_quota(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.resourcemanager.v1beta1.ProjectQuota")
 }
 async fn call_get_project_quota(
     client: &ReadClient,
@@ -860,7 +894,7 @@ async fn update_project_quota(
     };
     let client = ctx.client()?;
     let response = call_update_project_quota(&client, request).await.map_err(api_error)?;
-    json(&response)
+    json(&response, "origincloud.resourcemanager.v1beta1.ProjectQuota")
 }
 async fn call_update_project_quota(
     client: &ReadClient,
