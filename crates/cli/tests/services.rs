@@ -654,18 +654,20 @@ async fn a_generated_private_key_comes_with_a_notice() {
 
 /// A new service account's client secret is printed in the JSON as the API
 /// sends it, and standard error says it is shown this once and how to keep
-/// it; a repeat of the request, whose response has no secret, says nothing.
+/// it. A repeat of the request, with the same request id, can't show the
+/// secret again: the API refuses it with `CONFLICT`, and the failure names
+/// the account to delete, without a notice.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_service_account_s_client_secret_comes_with_a_notice() {
     const CREATED: &str = r#"{"name":"organizations/o/serviceAccounts/sa-1","displayName":"ci","member":"serviceAccount:sa-1","clientId":"c-1","clientSecret":"s3cr3t-value","state":"ACTIVE"}"#;
-    const REPEATED: &str = r#"{"name":"organizations/o/serviceAccounts/sa-1","displayName":"ci","member":"serviceAccount:sa-1","clientId":"c-1","state":"ACTIVE"}"#;
+    const REPEATED: &str = r#"{"error":{"code":409,"status":"FAILED_PRECONDITION","message":"the service account organizations/o/serviceAccounts/sa-1 was created by an earlier request with this request_id; its client secret was returned only to that request. To get a working secret, delete that account and create a new one","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"CONFLICT","domain":"origincloudapis.eu","metadata":{"serviceAccount":"organizations/o/serviceAccounts/sa-1"}},{"@type":"type.googleapis.com/google.rpc.RequestInfo","requestId":"7d3c1a2b9e8f4051"}]}}"#;
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
     let server = recording(move |_: &Received| {
         if seen.fetch_add(1, Ordering::SeqCst) == 0 {
             Response::json(CREATED)
         } else {
-            Response::json(REPEATED)
+            Response::json(REPEATED).with_status(409)
         }
     })
     .await;
@@ -675,6 +677,8 @@ async fn a_service_account_s_client_secret_comes_with_a_notice() {
         "o",
         "--display-name",
         "ci",
+        "--request-id",
+        "r-1",
     ];
 
     let output = server.run("iam", &create).await;
@@ -695,9 +699,24 @@ async fn a_service_account_s_client_secret_comes_with_a_notice() {
     );
 
     let output = server.run("iam", &create).await;
-    assert_eq!(success(&output), json(REPEATED));
+    let description = failure(&output);
+    for part in [
+        "CONFLICT",
+        "organizations/o/serviceAccounts/sa-1",
+        "delete that account and create a new one",
+        "7d3c1a2b9e8f4051",
+    ] {
+        assert!(description.contains(part), "{part}: {description}");
+    }
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(!stderr.contains("clientSecret"), "{stderr}");
+    // A 409 isn't retried: the repeat was sent once, with the same request
+    // id as the create.
+    let requests = server.requests();
+    assert_eq!(requests.len(), 2, "{requests:?}");
+    for request in &requests {
+        assert_eq!(request.query_values("requestId"), ["r-1"], "{request:?}");
+    }
 }
 
 /// `create-instance` reaches the server with an instance type, whose ids
