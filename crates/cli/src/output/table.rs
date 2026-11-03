@@ -466,7 +466,7 @@ batch-7   STARTING   c1.xlarge                      30s ago
         );
         assert_eq!(
             printed,
-            "PRINCIPAL   EMAIL   ROLE URNS\np1          a@b     r1, r2\n"
+            "PRINCIPAL   EMAIL   ROLES\np1          a@b     r1, r2\n"
         );
     }
 
