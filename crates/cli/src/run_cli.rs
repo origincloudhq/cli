@@ -79,8 +79,12 @@ impl Printing<'_> {
             // `err.to_string()` is a curated rendering, not a Rust `Debug`
             // dump: the GraphQL client's errors carry the server's message,
             // stable code and correlation id, and the SDK's its message, code
-            // and request id.
-            Err(err) => Box::new(CommandResult::Failure(err.to_string())),
+            // and request id. A refusal of the API's adds what it said of
+            // it, for `json`.
+            Err(err) => Box::new(match err.downcast_ref::<output::Refused>() {
+                Some(refused) => CommandResult::Refused(err.to_string(), refused.refusal.clone()),
+                None => CommandResult::Failure(err.to_string()),
+            }),
         };
 
         match self.print(output) {

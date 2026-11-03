@@ -143,8 +143,13 @@ nothing or `cat`, or `--no-pager`, prints it as it is.
 
 A command that fails exits with status 1: in `json`, it prints
 `{"code": "failure", "description": "..."}` on standard output, as it
-always has; in the other formats, `error: ...` on standard error. A command
-line the CLI can't parse exits with status 2 before sending anything.
+always has; in the other formats, `error: ...` on standard error. A call the
+API refused adds what it said of it, each left out when it sent none:
+`reason`, its error code such as `CONFLICT`; `metadata`, what the reason
+names, such as the service account under `serviceAccount`; and `requestId`,
+to quote to support. A script reads these instead of parsing the
+description. A command line the CLI can't parse exits with status 2 before
+sending anything.
 
 Irreversible commands (every delete, and growing a volume with
 `origin pvs update-volume --size-gib`) refuse to run without `--yes` and say
