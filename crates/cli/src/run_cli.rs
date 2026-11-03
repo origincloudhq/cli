@@ -2,7 +2,7 @@ use std::process::exit;
 
 use crate::config::{ClientProfile, OutputFormat};
 use crate::handler;
-use crate::output::{CommandResult, SerializableOutput, SerializationError};
+use crate::output::{self, CommandResult, SerializableOutput, SerializationError};
 use crate::root_command::{Cli, Commands};
 use clap::Parser;
 use serde::Serialize;
@@ -11,6 +11,7 @@ use url::Url;
 
 pub async fn run() -> ! {
     let cli = Cli::parse();
+    cli.color.apply();
     let mut profile = ClientProfile::load(cli.config.as_deref());
     if let Some(output) = cli.output {
         profile.output_format = Some(output);
@@ -93,16 +94,15 @@ fn print_output(
     profile: &ClientProfile,
     output: Box<dyn SerializableOutput>,
 ) -> anyhow::Result<i32> {
-    if let Some(raw) = output.to_raw() {
-        println!("{raw}");
-        return Ok(output.exit_code());
+    let format = output::format_for_stdout(profile.output_format);
+    let printed = output::render(format, output.as_ref(), output::width())?;
+    if format == OutputFormat::Json || output.to_raw().is_some() {
+        // Byte for byte as it was: nothing in it for `anstream` to strip.
+        print!("{}", printed.out);
+        eprint!("{}", printed.err);
+    } else {
+        anstream::print!("{}", printed.out);
+        anstream::eprint!("{}", printed.err);
     }
-
-    match profile.output_format.unwrap_or_default() {
-        OutputFormat::Json => {
-            let value = output.to_json()?;
-            println!("{}", serde_json::to_string_pretty(&value)?);
-            Ok(output.exit_code())
-        }
-    }
+    Ok(output.exit_code())
 }

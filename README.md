@@ -77,7 +77,7 @@ origin config profile
 | Profile key | Environment | Used for |
 |---|---|---|
 | `default-username` | `ORIGINCLOUD_USERNAME` | Prefilled on the login page. |
-| `output-format` | `ORIGINCLOUD_OUTPUT_FORMAT` | `json`, the only format; `--output` overrides it. |
+| `output-format` | `ORIGINCLOUD_OUTPUT_FORMAT` | `table`, `wide`, `json` or `name` (see [Output](#output)); `--output` (`-o`) overrides it. |
 | `default-project` | `ORIGINCLOUD_PROJECT` | `--project` of the generated commands, such as `origin pvs`'s, when not given. |
 | `default-zone` | `ORIGINCLOUD_ZONE` | `--zone` of the generated commands, when not given; not of the lists, which list every zone without `--zone`. |
 | `region` | `ORIGINCLOUD_REGION` | The region the generated commands work in: the `--region` of the `network` commands' regional resources, when not given, and the front door the `compute`, `network` and `pvs` commands call, such as `pvs.{region}.origincloudapis.eu`. Without it, the region of the default zone (`eu-central1` for `eu-central1-az1`); without either, `--region` must be given, and the calls go to the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource. The `location` and `resourcemanager` commands always call their regionless host. |
@@ -85,10 +85,30 @@ origin config profile
 As in the AWS CLI, a flag comes first, then the environment variable, then
 the profile's value: an environment variable overrides the profile while a
 command runs, and `origin config profile-set` changes the file alone, and
-checks the value first. A command that fails
-prints `{"code": "failure", "description": "..."}` and exits with status 1;
-a command line the CLI can't parse exits with status 2 before sending
-anything.
+checks the value first.
+
+### Output
+
+Unless `--output` (`-o`), `ORIGINCLOUD_OUTPUT_FORMAT` or the profile's
+`output-format` says otherwise, `origin` prints for whoever reads it:
+`table` on a terminal, and `json` when its output goes to a pipe or a file,
+so that a script, such as `origin pvs list-volumes | jq .`, gets the JSON
+the API sends whether or not it asks for it.
+
+| Format | Prints |
+|---|---|
+| `table` | A list as a table, its resources by the last segment of their name, fitted to the terminal's width (or `COLUMNS`); a resource as its fields, one per line, under their JSON names; `Done.` for a command without a result, such as a delete. An empty list, and the `--page-token` of the next page, are said on standard error. |
+| `wide` | As `table`, a list with every field that fits in a cell, none cut. |
+| `json` | The response as the API sends it, pretty-printed. |
+| `name` | Each resource's whole name, one per line, the form every resource flag takes: `origin pvs list-volumes -o name \| xargs -n1 origin pvs get-volume --volume`. |
+
+`table`, `wide` and `name` are in colour on a terminal, unless `NO_COLOR` is
+set; `--color always` or `never` decides instead. `json` is never in colour.
+
+A command that fails exits with status 1: in `json`, it prints
+`{"code": "failure", "description": "..."}` on standard output, as it
+always has; in the other formats, `error: ...` on standard error. A command
+line the CLI can't parse exits with status 2 before sending anything.
 
 Irreversible commands (every delete, `origin iam revoke-service-account`,
 and growing a volume with `origin pvs update-volume --size-gib`) refuse to run without `--yes` and say

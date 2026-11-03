@@ -1,0 +1,195 @@
+//! The output formats, run as a person or a script runs `origin`: which
+//! one is in effect, and what `table` and `name` print for a list, a
+//! resource, an empty list and a failure. The tests run `origin` on a pipe,
+//! where `json` is the default, as every other test file relies on.
+
+mod common;
+
+use common::{origin, recording, stdout};
+use fake_server::{Received, Response};
+
+const ZONES: &str = r#"{"zones":[
+    {"name":"zones/z-a","displayName":"Zone A","region":"regions/r","services":["pvs"]},
+    {"name":"zones/z-b","region":"regions/r"}]}"#;
+const ZONE: &str = r#"{"name":"zones/z-a","displayName":"Zone A","region":"regions/r","services":["pvs","compute"]}"#;
+
+fn location(request: &Received) -> Response {
+    match request.path.as_str() {
+        "/v1beta1/zones" => Response::json(ZONES),
+        "/v1beta1/zones/z-a" => Response::json(ZONE),
+        _ => Response::json(
+            r#"{"error":{"code":404,"status":"NOT_FOUND","message":"no such zone"}}"#,
+        )
+        .with_status(404),
+    }
+}
+
+fn text(bytes: &[u8]) -> String {
+    String::from_utf8(bytes.to_vec()).unwrap()
+}
+
+/// What `origin` printed on standard error but the notice of `--endpoint`,
+/// which every command run against the server prints first.
+fn err(output: &std::process::Output) -> String {
+    text(&output.stderr)
+        .lines()
+        .filter(|line| !line.starts_with("Sending the `origin "))
+        .map(|line| format!("{line}\n"))
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_pipe_gets_json_unless_a_format_is_chosen() {
+    let server = recording(location).await;
+    let printed = stdout(&server.run("location", &["list-zones"]).await);
+    assert_eq!(printed["zones"][0]["name"], "zones/z-a");
+
+    let table = server.run("location", &["list-zones", "-o", "table"]).await;
+    assert!(text(&table.stdout).starts_with("NAME"), "{table:?}");
+
+    // The variable, then `--output` over it.
+    let env = [("ORIGINCLOUD_OUTPUT_FORMAT", "table")];
+    let table = server.run_with("location", &["list-zones"], &env).await;
+    assert!(text(&table.stdout).starts_with("NAME"), "{table:?}");
+    let json = server
+        .run_with("location", &["list-zones", "--output", "json"], &env)
+        .await;
+    assert_eq!(stdout(&json)["zones"][1]["name"], "zones/z-b");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_profile_s_format_holds_on_a_pipe_too() {
+    let server = recording(location).await;
+    let home = server.home.path();
+    let set = origin(
+        home,
+        &["config", "profile-set", "output-format", "name"],
+        &[],
+    )
+    .await;
+    assert_eq!(set.status.code(), Some(0), "{set:?}");
+
+    let names = server.run("location", &["list-zones"]).await;
+    assert_eq!(text(&names.stdout), "zones/z-a\nzones/z-b\n");
+
+    let refused = origin(
+        home,
+        &["config", "profile-set", "output-format", "yaml"],
+        &[],
+    )
+    .await;
+    // Refused in the profile's format too: as an error.
+    assert_eq!(refused.status.code(), Some(1));
+    assert_eq!(
+        err(&refused),
+        "error: unknown output format \"yaml\": expected table, wide, json or name\n"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn table_prints_a_list_as_a_table_and_a_resource_as_its_fields() {
+    let server = recording(location).await;
+    let list = server.run("location", &["list-zones", "-o", "table"]).await;
+    assert_eq!(list.status.code(), Some(0));
+    assert_eq!(
+        text(&list.stdout),
+        "\
+NAME   DISPLAY NAME   REGION      SERVICES
+z-a    Zone A         regions/r   pvs
+z-b                   regions/r
+"
+    );
+    assert_eq!(err(&list), "");
+
+    let one = server
+        .run("location", &["get-zone", "--zone", "z-a", "-o", "table"])
+        .await;
+    assert_eq!(
+        text(&one.stdout),
+        "\
+name         zones/z-a
+displayName  Zone A
+region       regions/r
+services     pvs, compute
+"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_table_fits_columns() {
+    let server = recording(location).await;
+    let narrow = server
+        .run_with(
+            "location",
+            &["list-zones", "-o", "table"],
+            &[("COLUMNS", "24")],
+        )
+        .await;
+    assert_eq!(
+        text(&narrow.stdout),
+        "\
+NAME   DISPLAY NAME
+z-a    Zone A
+z-b
+"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn name_prints_the_whole_names_for_the_resource_flags() {
+    let server = recording(location).await;
+    let names = server.run("location", &["list-zones", "-o", "name"]).await;
+    assert_eq!(text(&names.stdout), "zones/z-a\nzones/z-b\n");
+    let name = server
+        .run("location", &["get-zone", "--zone", "z-a", "-o", "name"])
+        .await;
+    assert_eq!(text(&name.stdout), "zones/z-a\n");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_empty_list_is_said_on_standard_error() {
+    let server = recording(|_| Response::json("{}")).await;
+    let empty = server.run("location", &["list-zones", "-o", "table"]).await;
+    assert_eq!(empty.status.code(), Some(0));
+    assert_eq!(text(&empty.stdout), "");
+    assert_eq!(err(&empty), "No zones.\n");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failure_is_an_error_on_standard_error_in_table_and_json_on_a_pipe() {
+    let server = recording(location).await;
+    let failed = server
+        .run("location", &["get-zone", "--zone", "z-x", "-o", "table"])
+        .await;
+    assert_eq!(failed.status.code(), Some(1));
+    assert_eq!(text(&failed.stdout), "");
+    assert_eq!(err(&failed), "error: NOT_FOUND: no such zone\n");
+
+    let failed = server.run("location", &["get-zone", "--zone", "z-x"]).await;
+    let description = common::failure(&failed);
+    assert!(description.contains("no such zone"), "{description}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn colour_is_only_where_it_is_asked_for_off_a_terminal() {
+    let server = recording(location).await;
+    let plain = server.run("location", &["list-zones", "-o", "table"]).await;
+    assert!(!text(&plain.stdout).contains('\u{1b}'));
+
+    let coloured = server
+        .run(
+            "location",
+            &["list-zones", "-o", "table", "--color", "always"],
+        )
+        .await;
+    assert!(
+        text(&coloured.stdout).starts_with("\u{1b}[1mNAME"),
+        "{coloured:?}"
+    );
+
+    // `json` is never coloured.
+    let json = server
+        .run("location", &["list-zones", "--color", "always"])
+        .await;
+    assert!(!text(&json.stdout).contains('\u{1b}'));
+}
