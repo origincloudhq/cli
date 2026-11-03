@@ -139,14 +139,15 @@ async fn get_organization(
     let mut names = ctx.names(&[]);
     names
         .learn(
-            "organizations/{organization}",
+            &["organizations/{organization}"],
             "organization",
             Some(args.organization.as_str()),
         )?;
     let name = names
-        .name(
-            "organizations/{organization}",
-            Some(("organization", args.organization.as_str())),
+        .reference(
+            &["organizations/{organization}"],
+            "organization",
+            args.organization.as_str(),
         )?;
     let request = ::origincloud_resourcemanager::v1beta1::GetOrganizationRequest {
         name,
@@ -291,14 +292,15 @@ async fn update_organization(
     let mut names = ctx.names(&[]);
     names
         .learn(
-            "organizations/{organization}",
+            &["organizations/{organization}"],
             "organization",
             Some(args.organization.as_str()),
         )?;
     let name = names
-        .name(
-            "organizations/{organization}",
-            Some(("organization", args.organization.as_str())),
+        .reference(
+            &["organizations/{organization}"],
+            "organization",
+            args.organization.as_str(),
         )?;
     let mut organization = ::origincloud_resourcemanager::v1beta1::Organization {
         name: name.clone(),
@@ -348,14 +350,15 @@ async fn delete_organization(
     let mut names = ctx.names(&[]);
     names
         .learn(
-            "organizations/{organization}",
+            &["organizations/{organization}"],
             "organization",
             Some(args.organization.as_str()),
         )?;
     let name = names
-        .name(
-            "organizations/{organization}",
-            Some(("organization", args.organization.as_str())),
+        .reference(
+            &["organizations/{organization}"],
+            "organization",
+            args.organization.as_str(),
         )?;
     let request = ::origincloud_resourcemanager::v1beta1::DeleteOrganizationRequest {
         name,
@@ -401,14 +404,15 @@ async fn get_organization_quota(
     let mut names = ctx.names(&[]);
     names
         .learn(
-            "organizations/{organization}/quota",
+            &["organizations/{organization}/quota"],
             "organization",
             Some(args.organization.as_str()),
         )?;
     let name = names
-        .name(
-            "organizations/{organization}/quota",
-            Some(("organization", args.organization.as_str())),
+        .reference(
+            &["organizations/{organization}/quota"],
+            "organization",
+            args.organization.as_str(),
         )?;
     let request = ::origincloud_resourcemanager::v1beta1::GetOrganizationQuotaRequest {
         name,
@@ -444,9 +448,9 @@ async fn get_project(
     args: GetProjectArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn("projects/{project}", "project", Some(args.project.as_str()))?;
+    names.learn(&["projects/{project}"], "project", Some(args.project.as_str()))?;
     let name = names
-        .name("projects/{project}", Some(("project", args.project.as_str())))?;
+        .reference(&["projects/{project}"], "project", args.project.as_str())?;
     let request = ::origincloud_resourcemanager::v1beta1::GetProjectRequest {
         name,
     };
@@ -492,14 +496,15 @@ async fn list_projects(
     let mut names = ctx.names(&[]);
     names
         .learn(
-            "organizations/{organization}",
+            &["organizations/{organization}"],
             "organization",
             Some(args.organization.as_str()),
         )?;
     let organization = names
-        .name(
-            "organizations/{organization}",
-            Some(("organization", args.organization.as_str())),
+        .reference(
+            &["organizations/{organization}"],
+            "organization",
+            args.organization.as_str(),
         )?;
     let request = ::origincloud_resourcemanager::v1beta1::ListProjectsRequest {
         organization,
@@ -570,14 +575,15 @@ async fn create_project(
     let mut names = ctx.names(&[]);
     names
         .learn(
-            "organizations/{organization}",
+            &["organizations/{organization}"],
             "organization",
             Some(args.organization.as_str()),
         )?;
     let organization = names
-        .name(
-            "organizations/{organization}",
-            Some(("organization", args.organization.as_str())),
+        .reference(
+            &["organizations/{organization}"],
+            "organization",
+            args.organization.as_str(),
         )?;
     let project = ::origincloud_resourcemanager::v1beta1::Project {
         organization,
@@ -630,9 +636,9 @@ async fn update_project(
     args: UpdateProjectArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn("projects/{project}", "project", Some(args.project.as_str()))?;
+    names.learn(&["projects/{project}"], "project", Some(args.project.as_str()))?;
     let name = names
-        .name("projects/{project}", Some(("project", args.project.as_str())))?;
+        .reference(&["projects/{project}"], "project", args.project.as_str())?;
     let mut project = ::origincloud_resourcemanager::v1beta1::Project {
         name: name.clone(),
         ..::core::default::Default::default()
@@ -679,9 +685,9 @@ async fn delete_project(
     args: DeleteProjectArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn("projects/{project}", "project", Some(args.project.as_str()))?;
+    names.learn(&["projects/{project}"], "project", Some(args.project.as_str()))?;
     let name = names
-        .name("projects/{project}", Some(("project", args.project.as_str())))?;
+        .reference(&["projects/{project}"], "project", args.project.as_str())?;
     let request = ::origincloud_resourcemanager::v1beta1::DeleteProjectRequest {
         name,
     };
@@ -724,9 +730,9 @@ async fn get_project_quota(
     args: GetProjectQuotaArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn("projects/{project}/quota", "project", Some(args.project.as_str()))?;
+    names.learn(&["projects/{project}/quota"], "project", Some(args.project.as_str()))?;
     let name = names
-        .name("projects/{project}/quota", Some(("project", args.project.as_str())))?;
+        .reference(&["projects/{project}/quota"], "project", args.project.as_str())?;
     let request = ::origincloud_resourcemanager::v1beta1::GetProjectQuotaRequest {
         name,
     };
@@ -824,9 +830,9 @@ async fn update_project_quota(
     args: UpdateProjectQuotaArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn("projects/{project}/quota", "project", Some(args.project.as_str()))?;
+    names.learn(&["projects/{project}/quota"], "project", Some(args.project.as_str()))?;
     let name = names
-        .name("projects/{project}/quota", Some(("project", args.project.as_str())))?;
+        .reference(&["projects/{project}/quota"], "project", args.project.as_str())?;
     let mut project_quota = ::origincloud_resourcemanager::v1beta1::ProjectQuota {
         name: name.clone(),
         ..::core::default::Default::default()

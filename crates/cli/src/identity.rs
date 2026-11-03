@@ -140,16 +140,17 @@ impl FromStr for Urn {
 
 string_form!(Urn);
 
-/// Whether `s` can be one segment of a resource name: a non-empty run of
-/// letters, digits, `-` and `_`, the alphabet of the API's resource ids
-/// (`vol-6r4pYoPrWD2`, `my-project-123`, `eu-central1-az1`, `gp1`). It
-/// leaves out `/`, which would add a segment, and `.`, so that no segment
-/// can be `.` or `..`.
+/// Whether `s` can be one segment of a resource name, by the SDK's own
+/// check of the names it sends: not empty, `.` or `..`, and without `/`,
+/// so that no segment can add one or climb out of its place in the path.
+/// Every other character is the API's to accept, as in `gp1.core.2`; the
+/// SDK escapes what a path can't hold.
 pub(crate) fn is_resource_id(s: &str) -> bool {
-    !s.is_empty()
-        && s.bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    origincloud_core::path_value("id", s, "*").is_ok()
 }
+
+/// What [`is_resource_id`] refuses, for its errors.
+pub(crate) const RESOURCE_ID_RULE: &str = "an id can't be empty, `.` or `..`, or hold a `/`";
 
 /// Whether `s` can be a region, such as `eu-central1`: lowercase letters,
 /// digits and `-`, as the SDK requires of a host label.
@@ -177,10 +178,14 @@ mod tests {
             "eu-central1-az1",
             "gp1",
             "a_b",
+            "gp1.core.2",
+            "24.04",
+            "...",
+            "a b",
         ] {
             assert!(is_resource_id(ok), "{ok}");
         }
-        for bad in ["", ".", "..", "a/b", "a.b", "a b", "ä"] {
+        for bad in ["", ".", "..", "a/b", "/", "a/"] {
             assert!(!is_resource_id(bad), "{bad:?}");
         }
         assert!(is_region("eu-central1"));

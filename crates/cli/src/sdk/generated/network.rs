@@ -690,14 +690,15 @@ async fn get_acl(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/acls/{acl}",
+            &["projects/{project}/regions/{region}/acls/{acl}"],
             "acl",
             Some(args.acl.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/acls/{acl}",
-            Some(("acl", args.acl.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/acls/{acl}"],
+            "acl",
+            args.acl.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetAclRequest {
         name,
@@ -751,17 +752,18 @@ async fn list_acls(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             args.vpc.as_deref(),
         )?;
-    let parent = names.name("projects/{project}/regions/{region}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
             names
-                .name(
-                    "projects/{project}/regions/{region}/vpcs/{vpc}",
-                    Some(("vpc", v)),
+                .reference(
+                    &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+                    "vpc",
+                    v,
                 )?
         }
         None => String::new(),
@@ -842,15 +844,16 @@ async fn create_acl(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             Some(args.vpc.as_str()),
         )?;
-    let parent = names.name("projects/{project}/regions/{region}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = names
-        .name(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
-            Some(("vpc", args.vpc.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            "vpc",
+            args.vpc.as_str(),
         )?;
     let acl = ::origincloud_network::v1beta1::Acl {
         vpc,
@@ -930,14 +933,15 @@ async fn update_acl(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/acls/{acl}",
+            &["projects/{project}/regions/{region}/acls/{acl}"],
             "acl",
             Some(args.acl.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/acls/{acl}",
-            Some(("acl", args.acl.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/acls/{acl}"],
+            "acl",
+            args.acl.as_str(),
         )?;
     let mut acl = ::origincloud_network::v1beta1::Acl {
         name: name.clone(),
@@ -1009,14 +1013,15 @@ async fn delete_acl(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/acls/{acl}",
+            &["projects/{project}/regions/{region}/acls/{acl}"],
             "acl",
             Some(args.acl.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/acls/{acl}",
-            Some(("acl", args.acl.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/acls/{acl}"],
+            "acl",
+            args.acl.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteAclRequest {
         name,
@@ -1083,14 +1088,19 @@ async fn get_acl_association(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}",
+            &[
+                "projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}",
+            ],
             "acl-association",
             Some(args.acl_association.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}",
-            Some(("acl-association", args.acl_association.as_str())),
+        .reference(
+            &[
+                "projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}",
+            ],
+            "acl-association",
+            args.acl_association.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetAclAssociationRequest {
         name,
@@ -1154,9 +1164,7 @@ async fn list_acl_associations(
     let client = ctx.client()?;
     let paging = args.page_size.is_some() || args.page_token.is_some();
     let parents: Vec<String> = match args.zone.as_deref() {
-        Some(_) => {
-            vec![names.name("projects/{project}/zones/{zone}/subnets/{subnet}", None) ?]
-        }
+        Some(_) => vec![names.name("projects/{project}/zones/{zone}/subnets/{subnet}") ?],
         None => {
             if paging {
                 anyhow::bail!(
@@ -1174,10 +1182,7 @@ async fn list_acl_associations(
                     .push(
                         names
                             .with_part("zone", &zone)
-                            .name(
-                                "projects/{project}/zones/{zone}/subnets/{subnet}",
-                                None,
-                            )?,
+                            .name("projects/{project}/zones/{zone}/subnets/{subnet}")?,
                     );
             }
             parents
@@ -1268,15 +1273,16 @@ async fn create_acl_association(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/acls/{acl}",
+            &["projects/{project}/regions/{region}/acls/{acl}"],
             "acl",
             Some(args.acl.as_str()),
         )?;
-    let parent = names.name("projects/{project}/zones/{zone}/subnets/{subnet}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}/subnets/{subnet}")?;
     let acl = names
-        .name(
-            "projects/{project}/regions/{region}/acls/{acl}",
-            Some(("acl", args.acl.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/acls/{acl}"],
+            "acl",
+            args.acl.as_str(),
         )?;
     let acl_association = ::origincloud_network::v1beta1::AclAssociation {
         acl,
@@ -1350,14 +1356,19 @@ async fn delete_acl_association(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}",
+            &[
+                "projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}",
+            ],
             "acl-association",
             Some(args.acl_association.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}",
-            Some(("acl-association", args.acl_association.as_str())),
+        .reference(
+            &[
+                "projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}",
+            ],
+            "acl-association",
+            args.acl_association.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteAclAssociationRequest {
         name,
@@ -1426,14 +1437,15 @@ async fn get_acl_rule(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/acls/{acl}/rules/{rule}",
+            &["projects/{project}/regions/{region}/acls/{acl}/rules/{rule}"],
             "rule",
             Some(args.rule.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/acls/{acl}/rules/{rule}",
-            Some(("rule", args.rule.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/acls/{acl}/rules/{rule}"],
+            "rule",
+            args.rule.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetAclRuleRequest {
         name,
@@ -1489,7 +1501,7 @@ async fn list_acl_rules(
                 ("acl", args.acl.as_deref()),
             ],
         );
-    let parent = names.name("projects/{project}/regions/{region}/acls/{acl}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}/acls/{acl}")?;
     let request = ::origincloud_network::v1beta1::ListAclRulesRequest {
         parent,
         page_size: args.page_size.unwrap_or_default(),
@@ -1593,7 +1605,7 @@ async fn create_acl_rule(
                 ("acl", args.acl.as_deref()),
             ],
         );
-    let parent = names.name("projects/{project}/regions/{region}/acls/{acl}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}/acls/{acl}")?;
     let acl_rule = ::origincloud_network::v1beta1::AclRule {
         direction: ::origincloud_network::v1beta1::acl_rule::Direction::from_str_name(
                 &args.direction,
@@ -1679,14 +1691,15 @@ async fn delete_acl_rule(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/acls/{acl}/rules/{rule}",
+            &["projects/{project}/regions/{region}/acls/{acl}/rules/{rule}"],
             "rule",
             Some(args.rule.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/acls/{acl}/rules/{rule}",
-            Some(("rule", args.rule.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/acls/{acl}/rules/{rule}"],
+            "rule",
+            args.rule.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteAclRuleRequest {
         name,
@@ -1746,14 +1759,15 @@ async fn get_dns_policy(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/dnsPolicies/{dns_policy}",
+            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
             "dns-policy",
             Some(args.dns_policy.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/dnsPolicies/{dns_policy}",
-            Some(("dns-policy", args.dns_policy.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            "dns-policy",
+            args.dns_policy.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetDnsPolicyRequest {
         name,
@@ -1802,7 +1816,7 @@ async fn list_dns_policies(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
-    let parent = names.name("projects/{project}/regions/{region}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}")?;
     let request = ::origincloud_network::v1beta1::ListDnsPoliciesRequest {
         parent,
         page_size: args.page_size.unwrap_or_default(),
@@ -1889,7 +1903,7 @@ async fn create_dns_policy(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
-    let parent = names.name("projects/{project}/regions/{region}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}")?;
     let dns_policy = ::origincloud_network::v1beta1::DnsPolicy {
         relay_enabled: args.relay_enabled.unwrap_or_default(),
         upstream_servers: args.upstream_server.clone(),
@@ -1998,14 +2012,15 @@ async fn update_dns_policy(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/dnsPolicies/{dns_policy}",
+            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
             "dns-policy",
             Some(args.dns_policy.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/dnsPolicies/{dns_policy}",
-            Some(("dns-policy", args.dns_policy.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            "dns-policy",
+            args.dns_policy.as_str(),
         )?;
     let mut dns_policy = ::origincloud_network::v1beta1::DnsPolicy {
         name: name.clone(),
@@ -2085,14 +2100,15 @@ async fn delete_dns_policy(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/dnsPolicies/{dns_policy}",
+            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
             "dns-policy",
             Some(args.dns_policy.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/dnsPolicies/{dns_policy}",
-            Some(("dns-policy", args.dns_policy.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            "dns-policy",
+            args.dns_policy.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteDnsPolicyRequest {
         name,
@@ -2159,14 +2175,15 @@ async fn set_default_dns_policy(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/dnsPolicies/{dns_policy}",
+            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
             "dns-policy",
             Some(args.dns_policy.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/dnsPolicies/{dns_policy}",
-            Some(("dns-policy", args.dns_policy.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            "dns-policy",
+            args.dns_policy.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::SetDefaultDnsPolicyRequest {
         name,
@@ -2226,14 +2243,19 @@ async fn get_dns_policy_association(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
+            &[
+                "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
+            ],
             "dns-policy-association",
             Some(args.dns_policy_association.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
-            Some(("dns-policy-association", args.dns_policy_association.as_str())),
+        .reference(
+            &[
+                "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
+            ],
+            "dns-policy-association",
+            args.dns_policy_association.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetDnsPolicyAssociationRequest {
         name,
@@ -2291,7 +2313,7 @@ async fn list_dns_policy_associations(
                 ("vpc", args.vpc.as_deref()),
             ],
         );
-    let parent = names.name("projects/{project}/regions/{region}/vpcs/{vpc}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}/vpcs/{vpc}")?;
     let request = ::origincloud_network::v1beta1::ListDnsPolicyAssociationsRequest {
         parent,
         page_size: args.page_size.unwrap_or_default(),
@@ -2374,15 +2396,16 @@ async fn create_dns_policy_association(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/dnsPolicies/{dns_policy}",
+            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
             "dns-policy",
             Some(args.dns_policy.as_str()),
         )?;
-    let parent = names.name("projects/{project}/regions/{region}/vpcs/{vpc}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}/vpcs/{vpc}")?;
     let dns_policy = names
-        .name(
-            "projects/{project}/regions/{region}/dnsPolicies/{dns_policy}",
-            Some(("dns-policy", args.dns_policy.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            "dns-policy",
+            args.dns_policy.as_str(),
         )?;
     let dns_policy_association = ::origincloud_network::v1beta1::DnsPolicyAssociation {
         dns_policy,
@@ -2456,14 +2479,19 @@ async fn delete_dns_policy_association(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
+            &[
+                "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
+            ],
             "dns-policy-association",
             Some(args.dns_policy_association.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
-            Some(("dns-policy-association", args.dns_policy_association.as_str())),
+        .reference(
+            &[
+                "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
+            ],
+            "dns-policy-association",
+            args.dns_policy_association.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteDnsPolicyAssociationRequest {
         name,
@@ -2523,14 +2551,15 @@ async fn get_floating_ip(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
+            &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
             "floating-ip",
             Some(args.floating_ip.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
-            Some(("floating-ip", args.floating_ip.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+            "floating-ip",
+            args.floating_ip.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetFloatingIpRequest {
         name,
@@ -2585,7 +2614,7 @@ async fn list_floating_ips(
     let client = ctx.client()?;
     let paging = args.page_size.is_some() || args.page_token.is_some();
     let parents: Vec<String> = match args.zone.as_deref() {
-        Some(_) => vec![names.name("projects/{project}/zones/{zone}", None) ?],
+        Some(_) => vec![names.name("projects/{project}/zones/{zone}") ?],
         None => {
             if paging {
                 anyhow::bail!(
@@ -2599,7 +2628,7 @@ async fn list_floating_ips(
                     .push(
                         names
                             .with_part("zone", &zone)
-                            .name("projects/{project}/zones/{zone}", None)?,
+                            .name("projects/{project}/zones/{zone}")?,
                     );
             }
             parents
@@ -2674,7 +2703,7 @@ async fn create_floating_ip(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
-    let parent = names.name("projects/{project}/zones/{zone}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}")?;
     let floating_ip = ::origincloud_network::v1beta1::FloatingIp {
         tags: tags(&args.tag),
         ..::core::default::Default::default()
@@ -2750,14 +2779,15 @@ async fn update_floating_ip(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
+            &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
             "floating-ip",
             Some(args.floating_ip.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
-            Some(("floating-ip", args.floating_ip.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+            "floating-ip",
+            args.floating_ip.as_str(),
         )?;
     let mut floating_ip = ::origincloud_network::v1beta1::FloatingIp {
         name: name.clone(),
@@ -2827,14 +2857,15 @@ async fn delete_floating_ip(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
+            &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
             "floating-ip",
             Some(args.floating_ip.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
-            Some(("floating-ip", args.floating_ip.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+            "floating-ip",
+            args.floating_ip.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteFloatingIpRequest {
         name,
@@ -2901,14 +2932,19 @@ async fn get_floating_ip_association(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}",
+            &[
+                "projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}",
+            ],
             "association",
             Some(args.association.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}",
-            Some(("association", args.association.as_str())),
+        .reference(
+            &[
+                "projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}",
+            ],
+            "association",
+            args.association.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetFloatingIpAssociationRequest {
         name,
@@ -2976,8 +3012,7 @@ async fn list_floating_ip_associations(
     let parents: Vec<String> = match args.zone.as_deref() {
         Some(_) => {
             vec![
-                names.name("projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
-                None) ?
+                names.name("projects/{project}/zones/{zone}/floatingIps/{floating_ip}") ?
             ]
         }
         None => {
@@ -2999,7 +3034,6 @@ async fn list_floating_ip_associations(
                             .with_part("zone", &zone)
                             .name(
                                 "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
-                                None,
                             )?,
                     );
             }
@@ -3088,16 +3122,17 @@ async fn create_floating_ip_association(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
+            &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
             "network-interface",
             Some(args.network_interface.as_str()),
         )?;
     let parent = names
-        .name("projects/{project}/zones/{zone}/floatingIps/{floating_ip}", None)?;
+        .name("projects/{project}/zones/{zone}/floatingIps/{floating_ip}")?;
     let network_interface = names
-        .name(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
-            Some(("network-interface", args.network_interface.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
+            "network-interface",
+            args.network_interface.as_str(),
         )?;
     let floating_ip_association = ::origincloud_network::v1beta1::FloatingIpAssociation {
         network_interface,
@@ -3171,14 +3206,19 @@ async fn delete_floating_ip_association(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}",
+            &[
+                "projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}",
+            ],
             "association",
             Some(args.association.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}",
-            Some(("association", args.association.as_str())),
+        .reference(
+            &[
+                "projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}",
+            ],
+            "association",
+            args.association.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteFloatingIpAssociationRequest {
         name,
@@ -3240,14 +3280,15 @@ async fn get_internet_gateway(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/internetGateways/{internet_gateway}",
+            &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
             "internet-gateway",
             Some(args.internet_gateway.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/internetGateways/{internet_gateway}",
-            Some(("internet-gateway", args.internet_gateway.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
+            "internet-gateway",
+            args.internet_gateway.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetInternetGatewayRequest {
         name,
@@ -3303,17 +3344,18 @@ async fn list_internet_gateways(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             args.vpc.as_deref(),
         )?;
-    let parent = names.name("projects/{project}/regions/{region}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
             names
-                .name(
-                    "projects/{project}/regions/{region}/vpcs/{vpc}",
-                    Some(("vpc", v)),
+                .reference(
+                    &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+                    "vpc",
+                    v,
                 )?
         }
         None => String::new(),
@@ -3400,15 +3442,16 @@ async fn create_internet_gateway(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             Some(args.vpc.as_str()),
         )?;
-    let parent = names.name("projects/{project}/regions/{region}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = names
-        .name(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
-            Some(("vpc", args.vpc.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            "vpc",
+            args.vpc.as_str(),
         )?;
     let internet_gateway = ::origincloud_network::v1beta1::InternetGateway {
         vpc,
@@ -3490,14 +3533,15 @@ async fn update_internet_gateway(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/internetGateways/{internet_gateway}",
+            &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
             "internet-gateway",
             Some(args.internet_gateway.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/internetGateways/{internet_gateway}",
-            Some(("internet-gateway", args.internet_gateway.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
+            "internet-gateway",
+            args.internet_gateway.as_str(),
         )?;
     let mut internet_gateway = ::origincloud_network::v1beta1::InternetGateway {
         name: name.clone(),
@@ -3571,14 +3615,15 @@ async fn delete_internet_gateway(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/internetGateways/{internet_gateway}",
+            &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
             "internet-gateway",
             Some(args.internet_gateway.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/internetGateways/{internet_gateway}",
-            Some(("internet-gateway", args.internet_gateway.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
+            "internet-gateway",
+            args.internet_gateway.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteInternetGatewayRequest {
         name,
@@ -3638,14 +3683,15 @@ async fn get_nat_gateway(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/natGateways/{nat_gateway}",
+            &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
             "nat-gateway",
             Some(args.nat_gateway.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/natGateways/{nat_gateway}",
-            Some(("nat-gateway", args.nat_gateway.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
+            "nat-gateway",
+            args.nat_gateway.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetNatGatewayRequest {
         name,
@@ -3700,7 +3746,7 @@ async fn list_nat_gateways(
     let client = ctx.client()?;
     let paging = args.page_size.is_some() || args.page_token.is_some();
     let parents: Vec<String> = match args.zone.as_deref() {
-        Some(_) => vec![names.name("projects/{project}/zones/{zone}", None) ?],
+        Some(_) => vec![names.name("projects/{project}/zones/{zone}") ?],
         None => {
             if paging {
                 anyhow::bail!(
@@ -3714,7 +3760,7 @@ async fn list_nat_gateways(
                     .push(
                         names
                             .with_part("zone", &zone)
-                            .name("projects/{project}/zones/{zone}", None)?,
+                            .name("projects/{project}/zones/{zone}")?,
                     );
             }
             parents
@@ -3802,26 +3848,28 @@ async fn create_nat_gateway(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
             "subnet",
             Some(args.subnet.as_str()),
         )?;
     names
         .learn(
-            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
+            &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
             "floating-ip",
             Some(args.floating_ip.as_str()),
         )?;
-    let parent = names.name("projects/{project}/zones/{zone}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}")?;
     let subnet = names
-        .name(
-            "projects/{project}/zones/{zone}/subnets/{subnet}",
-            Some(("subnet", args.subnet.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+            "subnet",
+            args.subnet.as_str(),
         )?;
     let floating_ip = names
-        .name(
-            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
-            Some(("floating-ip", args.floating_ip.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+            "floating-ip",
+            args.floating_ip.as_str(),
         )?;
     let nat_gateway = ::origincloud_network::v1beta1::NatGateway {
         subnet,
@@ -3900,14 +3948,15 @@ async fn update_nat_gateway(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/natGateways/{nat_gateway}",
+            &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
             "nat-gateway",
             Some(args.nat_gateway.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/natGateways/{nat_gateway}",
-            Some(("nat-gateway", args.nat_gateway.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
+            "nat-gateway",
+            args.nat_gateway.as_str(),
         )?;
     let mut nat_gateway = ::origincloud_network::v1beta1::NatGateway {
         name: name.clone(),
@@ -3977,14 +4026,15 @@ async fn delete_nat_gateway(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/natGateways/{nat_gateway}",
+            &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
             "nat-gateway",
             Some(args.nat_gateway.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/natGateways/{nat_gateway}",
-            Some(("nat-gateway", args.nat_gateway.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
+            "nat-gateway",
+            args.nat_gateway.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteNatGatewayRequest {
         name,
@@ -4042,14 +4092,15 @@ async fn get_network_interface(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
+            &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
             "network-interface",
             Some(args.network_interface.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
-            Some(("network-interface", args.network_interface.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
+            "network-interface",
+            args.network_interface.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetNetworkInterfaceRequest {
         name,
@@ -4105,16 +4156,17 @@ async fn list_network_interfaces(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
             "subnet",
             args.subnet.as_deref(),
         )?;
     let subnet = match args.subnet.as_deref() {
         Some(v) => {
             names
-                .name(
-                    "projects/{project}/zones/{zone}/subnets/{subnet}",
-                    Some(("subnet", v)),
+                .reference(
+                    &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+                    "subnet",
+                    v,
                 )?
         }
         None => String::new(),
@@ -4128,7 +4180,7 @@ async fn list_network_interfaces(
     let client = ctx.client()?;
     let paging = args.page_size.is_some() || args.page_token.is_some();
     let parents: Vec<String> = match args.zone.as_deref() {
-        Some(_) => vec![names.name("projects/{project}/zones/{zone}", None) ?],
+        Some(_) => vec![names.name("projects/{project}/zones/{zone}") ?],
         None => {
             if paging {
                 anyhow::bail!(
@@ -4142,7 +4194,7 @@ async fn list_network_interfaces(
                     .push(
                         names
                             .with_part("zone", &zone)
-                            .name("projects/{project}/zones/{zone}", None)?,
+                            .name("projects/{project}/zones/{zone}")?,
                     );
             }
             parents
@@ -4239,15 +4291,16 @@ async fn create_network_interface(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
             "subnet",
             Some(args.subnet.as_str()),
         )?;
-    let parent = names.name("projects/{project}/zones/{zone}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}")?;
     let subnet = names
-        .name(
-            "projects/{project}/zones/{zone}/subnets/{subnet}",
-            Some(("subnet", args.subnet.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+            "subnet",
+            args.subnet.as_str(),
         )?;
     let network_interface = ::origincloud_network::v1beta1::NetworkInterface {
         subnet,
@@ -4347,14 +4400,15 @@ async fn update_network_interface(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
+            &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
             "network-interface",
             Some(args.network_interface.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
-            Some(("network-interface", args.network_interface.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
+            "network-interface",
+            args.network_interface.as_str(),
         )?;
     let mut network_interface = ::origincloud_network::v1beta1::NetworkInterface {
         name: name.clone(),
@@ -4430,14 +4484,15 @@ async fn delete_network_interface(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
+            &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
             "network-interface",
             Some(args.network_interface.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
-            Some(("network-interface", args.network_interface.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
+            "network-interface",
+            args.network_interface.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteNetworkInterfaceRequest {
         name,
@@ -4506,14 +4561,19 @@ async fn get_route(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}",
+            &[
+                "projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}",
+            ],
             "route",
             Some(args.route.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}",
-            Some(("route", args.route.as_str())),
+        .reference(
+            &[
+                "projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}",
+            ],
+            "route",
+            args.route.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetRouteRequest {
         name,
@@ -4570,7 +4630,7 @@ async fn list_routes(
             ],
         );
     let parent = names
-        .name("projects/{project}/regions/{region}/routeTables/{route_table}", None)?;
+        .name("projects/{project}/regions/{region}/routeTables/{route_table}")?;
     let request = ::origincloud_network::v1beta1::ListRoutesRequest {
         parent,
         page_size: args.page_size.unwrap_or_default(),
@@ -4666,24 +4726,27 @@ async fn create_route(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/internetGateways/{internet_gateway}",
+            &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
             "internet-gateway",
             args.internet_gateway.as_deref(),
         )?;
     names
         .learn(
-            "projects/{project}/zones/{zone}/natGateways/{nat_gateway}",
+            &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
             "nat-gateway",
             args.nat_gateway.as_deref(),
         )?;
     let parent = names
-        .name("projects/{project}/regions/{region}/routeTables/{route_table}", None)?;
+        .name("projects/{project}/regions/{region}/routeTables/{route_table}")?;
     let internet_gateway = match args.internet_gateway.as_deref() {
         Some(v) => {
             names
-                .name(
-                    "projects/{project}/regions/{region}/internetGateways/{internet_gateway}",
-                    Some(("internet-gateway", v)),
+                .reference(
+                    &[
+                        "projects/{project}/regions/{region}/internetGateways/{internet_gateway}",
+                    ],
+                    "internet-gateway",
+                    v,
                 )?
         }
         None => String::new(),
@@ -4691,9 +4754,10 @@ async fn create_route(
     let nat_gateway = match args.nat_gateway.as_deref() {
         Some(v) => {
             names
-                .name(
-                    "projects/{project}/zones/{zone}/natGateways/{nat_gateway}",
-                    Some(("nat-gateway", v)),
+                .reference(
+                    &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
+                    "nat-gateway",
+                    v,
                 )?
         }
         None => String::new(),
@@ -4770,14 +4834,19 @@ async fn delete_route(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}",
+            &[
+                "projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}",
+            ],
             "route",
             Some(args.route.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}",
-            Some(("route", args.route.as_str())),
+        .reference(
+            &[
+                "projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}",
+            ],
+            "route",
+            args.route.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteRouteRequest {
         name,
@@ -4837,14 +4906,15 @@ async fn get_route_table(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/routeTables/{route_table}",
+            &["projects/{project}/regions/{region}/routeTables/{route_table}"],
             "route-table",
             Some(args.route_table.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/routeTables/{route_table}",
-            Some(("route-table", args.route_table.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/routeTables/{route_table}"],
+            "route-table",
+            args.route_table.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetRouteTableRequest {
         name,
@@ -4900,17 +4970,18 @@ async fn list_route_tables(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             args.vpc.as_deref(),
         )?;
-    let parent = names.name("projects/{project}/regions/{region}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
             names
-                .name(
-                    "projects/{project}/regions/{region}/vpcs/{vpc}",
-                    Some(("vpc", v)),
+                .reference(
+                    &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+                    "vpc",
+                    v,
                 )?
         }
         None => String::new(),
@@ -4995,15 +5066,16 @@ async fn create_route_table(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             Some(args.vpc.as_str()),
         )?;
-    let parent = names.name("projects/{project}/regions/{region}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = names
-        .name(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
-            Some(("vpc", args.vpc.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            "vpc",
+            args.vpc.as_str(),
         )?;
     let route_table = ::origincloud_network::v1beta1::RouteTable {
         vpc,
@@ -5083,14 +5155,15 @@ async fn update_route_table(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/routeTables/{route_table}",
+            &["projects/{project}/regions/{region}/routeTables/{route_table}"],
             "route-table",
             Some(args.route_table.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/routeTables/{route_table}",
-            Some(("route-table", args.route_table.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/routeTables/{route_table}"],
+            "route-table",
+            args.route_table.as_str(),
         )?;
     let mut route_table = ::origincloud_network::v1beta1::RouteTable {
         name: name.clone(),
@@ -5162,14 +5235,15 @@ async fn delete_route_table(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/routeTables/{route_table}",
+            &["projects/{project}/regions/{region}/routeTables/{route_table}"],
             "route-table",
             Some(args.route_table.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/routeTables/{route_table}",
-            Some(("route-table", args.route_table.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/routeTables/{route_table}"],
+            "route-table",
+            args.route_table.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteRouteTableRequest {
         name,
@@ -5236,14 +5310,19 @@ async fn get_route_table_association(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}",
+            &[
+                "projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}",
+            ],
             "route-table-association",
             Some(args.route_table_association.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}",
-            Some(("route-table-association", args.route_table_association.as_str())),
+        .reference(
+            &[
+                "projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}",
+            ],
+            "route-table-association",
+            args.route_table_association.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetRouteTableAssociationRequest {
         name,
@@ -5309,9 +5388,7 @@ async fn list_route_table_associations(
     let client = ctx.client()?;
     let paging = args.page_size.is_some() || args.page_token.is_some();
     let parents: Vec<String> = match args.zone.as_deref() {
-        Some(_) => {
-            vec![names.name("projects/{project}/zones/{zone}/subnets/{subnet}", None) ?]
-        }
+        Some(_) => vec![names.name("projects/{project}/zones/{zone}/subnets/{subnet}") ?],
         None => {
             if paging {
                 anyhow::bail!(
@@ -5329,10 +5406,7 @@ async fn list_route_table_associations(
                     .push(
                         names
                             .with_part("zone", &zone)
-                            .name(
-                                "projects/{project}/zones/{zone}/subnets/{subnet}",
-                                None,
-                            )?,
+                            .name("projects/{project}/zones/{zone}/subnets/{subnet}")?,
                     );
             }
             parents
@@ -5423,15 +5497,16 @@ async fn create_route_table_association(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/routeTables/{route_table}",
+            &["projects/{project}/regions/{region}/routeTables/{route_table}"],
             "route-table",
             Some(args.route_table.as_str()),
         )?;
-    let parent = names.name("projects/{project}/zones/{zone}/subnets/{subnet}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}/subnets/{subnet}")?;
     let route_table = names
-        .name(
-            "projects/{project}/regions/{region}/routeTables/{route_table}",
-            Some(("route-table", args.route_table.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/routeTables/{route_table}"],
+            "route-table",
+            args.route_table.as_str(),
         )?;
     let route_table_association = ::origincloud_network::v1beta1::RouteTableAssociation {
         route_table,
@@ -5505,14 +5580,19 @@ async fn delete_route_table_association(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}",
+            &[
+                "projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}",
+            ],
             "route-table-association",
             Some(args.route_table_association.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}",
-            Some(("route-table-association", args.route_table_association.as_str())),
+        .reference(
+            &[
+                "projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}",
+            ],
+            "route-table-association",
+            args.route_table_association.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteRouteTableAssociationRequest {
         name,
@@ -5574,14 +5654,15 @@ async fn get_security_group(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}",
+            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
             "security-group",
             Some(args.security_group.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}",
-            Some(("security-group", args.security_group.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+            "security-group",
+            args.security_group.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetSecurityGroupRequest {
         name,
@@ -5637,17 +5718,18 @@ async fn list_security_groups(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             args.vpc.as_deref(),
         )?;
-    let parent = names.name("projects/{project}/regions/{region}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
             names
-                .name(
-                    "projects/{project}/regions/{region}/vpcs/{vpc}",
-                    Some(("vpc", v)),
+                .reference(
+                    &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+                    "vpc",
+                    v,
                 )?
         }
         None => String::new(),
@@ -5732,15 +5814,16 @@ async fn create_security_group(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             Some(args.vpc.as_str()),
         )?;
-    let parent = names.name("projects/{project}/regions/{region}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = names
-        .name(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
-            Some(("vpc", args.vpc.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            "vpc",
+            args.vpc.as_str(),
         )?;
     let security_group = ::origincloud_network::v1beta1::SecurityGroup {
         vpc,
@@ -5822,14 +5905,15 @@ async fn update_security_group(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}",
+            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
             "security-group",
             Some(args.security_group.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}",
-            Some(("security-group", args.security_group.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+            "security-group",
+            args.security_group.as_str(),
         )?;
     let mut security_group = ::origincloud_network::v1beta1::SecurityGroup {
         name: name.clone(),
@@ -5903,14 +5987,15 @@ async fn delete_security_group(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}",
+            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
             "security-group",
             Some(args.security_group.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}",
-            Some(("security-group", args.security_group.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+            "security-group",
+            args.security_group.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteSecurityGroupRequest {
         name,
@@ -5982,17 +6067,19 @@ async fn get_security_group_association(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}",
+            &[
+                "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}",
+            ],
             "security-group-association",
             Some(args.security_group_association.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}",
-            Some((
-                "security-group-association",
-                args.security_group_association.as_str(),
-            )),
+        .reference(
+            &[
+                "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}",
+            ],
+            "security-group-association",
+            args.security_group_association.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetSecurityGroupAssociationRequest {
         name,
@@ -6061,8 +6148,8 @@ async fn list_security_group_associations(
         Some(_) => {
             vec![
                 names
-                .name("projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
-                None) ?
+                .name("projects/{project}/zones/{zone}/networkInterfaces/{network_interface}")
+                ?
             ]
         }
         None => {
@@ -6084,7 +6171,6 @@ async fn list_security_group_associations(
                             .with_part("zone", &zone)
                             .name(
                                 "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
-                                None,
                             )?,
                     );
             }
@@ -6176,19 +6262,17 @@ async fn create_security_group_association(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}",
+            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
             "security-group",
             Some(args.security_group.as_str()),
         )?;
     let parent = names
-        .name(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
-            None,
-        )?;
+        .name("projects/{project}/zones/{zone}/networkInterfaces/{network_interface}")?;
     let security_group = names
-        .name(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}",
-            Some(("security-group", args.security_group.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+            "security-group",
+            args.security_group.as_str(),
         )?;
     let security_group_association = ::origincloud_network::v1beta1::SecurityGroupAssociation {
         security_group,
@@ -6267,17 +6351,19 @@ async fn delete_security_group_association(
         );
     names
         .learn(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}",
+            &[
+                "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}",
+            ],
             "security-group-association",
             Some(args.security_group_association.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}",
-            Some((
-                "security-group-association",
-                args.security_group_association.as_str(),
-            )),
+        .reference(
+            &[
+                "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}",
+            ],
+            "security-group-association",
+            args.security_group_association.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteSecurityGroupAssociationRequest {
         name,
@@ -6346,14 +6432,19 @@ async fn get_security_group_rule(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}",
+            &[
+                "projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}",
+            ],
             "rule",
             Some(args.rule.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}",
-            Some(("rule", args.rule.as_str())),
+        .reference(
+            &[
+                "projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}",
+            ],
+            "rule",
+            args.rule.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetSecurityGroupRuleRequest {
         name,
@@ -6412,10 +6503,7 @@ async fn list_security_group_rules(
             ],
         );
     let parent = names
-        .name(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}",
-            None,
-        )?;
+        .name("projects/{project}/regions/{region}/securityGroups/{security_group}")?;
     let request = ::origincloud_network::v1beta1::ListSecurityGroupRulesRequest {
         parent,
         page_size: args.page_size.unwrap_or_default(),
@@ -6529,21 +6617,21 @@ async fn create_security_group_rule(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}",
+            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
             "peer-security-group",
             args.peer_security_group.as_deref(),
         )?;
     let parent = names
-        .name(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}",
-            None,
-        )?;
+        .name("projects/{project}/regions/{region}/securityGroups/{security_group}")?;
     let peer_security_group = match args.peer_security_group.as_deref() {
         Some(v) => {
             names
-                .name(
-                    "projects/{project}/regions/{region}/securityGroups/{security_group}",
-                    Some(("peer-security-group", v)),
+                .reference(
+                    &[
+                        "projects/{project}/regions/{region}/securityGroups/{security_group}",
+                    ],
+                    "peer-security-group",
+                    v,
                 )?
         }
         None => String::new(),
@@ -6633,14 +6721,19 @@ async fn delete_security_group_rule(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}",
+            &[
+                "projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}",
+            ],
             "rule",
             Some(args.rule.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}",
-            Some(("rule", args.rule.as_str())),
+        .reference(
+            &[
+                "projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}",
+            ],
+            "rule",
+            args.rule.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteSecurityGroupRuleRequest {
         name,
@@ -6700,14 +6793,15 @@ async fn get_subnet(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
             "subnet",
             Some(args.subnet.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/subnets/{subnet}",
-            Some(("subnet", args.subnet.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+            "subnet",
+            args.subnet.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetSubnetRequest {
         name,
@@ -6770,16 +6864,17 @@ async fn list_subnets(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             args.vpc.as_deref(),
         )?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
             names
-                .name(
-                    "projects/{project}/regions/{region}/vpcs/{vpc}",
-                    Some(("vpc", v)),
+                .reference(
+                    &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+                    "vpc",
+                    v,
                 )?
         }
         None => String::new(),
@@ -6793,7 +6888,7 @@ async fn list_subnets(
     let client = ctx.client()?;
     let paging = args.page_size.is_some() || args.page_token.is_some();
     let parents: Vec<String> = match args.zone.as_deref() {
-        Some(_) => vec![names.name("projects/{project}/zones/{zone}", None) ?],
+        Some(_) => vec![names.name("projects/{project}/zones/{zone}") ?],
         None => {
             if paging {
                 anyhow::bail!(
@@ -6807,7 +6902,7 @@ async fn list_subnets(
                     .push(
                         names
                             .with_part("zone", &zone)
-                            .name("projects/{project}/zones/{zone}", None)?,
+                            .name("projects/{project}/zones/{zone}")?,
                     );
             }
             parents
@@ -6908,15 +7003,16 @@ async fn create_subnet(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             Some(args.vpc.as_str()),
         )?;
-    let parent = names.name("projects/{project}/zones/{zone}", None)?;
+    let parent = names.name("projects/{project}/zones/{zone}")?;
     let vpc = names
-        .name(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
-            Some(("vpc", args.vpc.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            "vpc",
+            args.vpc.as_str(),
         )?;
     let subnet = ::origincloud_network::v1beta1::Subnet {
         vpc,
@@ -7005,14 +7101,15 @@ async fn update_subnet(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
             "subnet",
             Some(args.subnet.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/subnets/{subnet}",
-            Some(("subnet", args.subnet.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+            "subnet",
+            args.subnet.as_str(),
         )?;
     let mut subnet = ::origincloud_network::v1beta1::Subnet {
         name: name.clone(),
@@ -7086,14 +7183,15 @@ async fn delete_subnet(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
             "subnet",
             Some(args.subnet.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/subnets/{subnet}",
-            Some(("subnet", args.subnet.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+            "subnet",
+            args.subnet.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteSubnetRequest {
         name,
@@ -7153,14 +7251,15 @@ async fn get_vpc(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             Some(args.vpc.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
-            Some(("vpc", args.vpc.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            "vpc",
+            args.vpc.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::GetVpcRequest {
         name,
@@ -7207,7 +7306,7 @@ async fn list_vpcs(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
-    let parent = names.name("projects/{project}/regions/{region}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}")?;
     let request = ::origincloud_network::v1beta1::ListVpcsRequest {
         parent,
         page_size: args.page_size.unwrap_or_default(),
@@ -7281,7 +7380,7 @@ async fn create_vpc(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
-    let parent = names.name("projects/{project}/regions/{region}", None)?;
+    let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = ::origincloud_network::v1beta1::Vpc {
         ipv4_cidr_block: args.ipv4_cidr_block.clone().unwrap_or_default(),
         tags: tags(&args.tag),
@@ -7360,14 +7459,15 @@ async fn update_vpc(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             Some(args.vpc.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
-            Some(("vpc", args.vpc.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            "vpc",
+            args.vpc.as_str(),
         )?;
     let mut vpc = ::origincloud_network::v1beta1::Vpc {
         name: name.clone(),
@@ -7439,14 +7539,15 @@ async fn delete_vpc(
         );
     names
         .learn(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
             "vpc",
             Some(args.vpc.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
-            Some(("vpc", args.vpc.as_str())),
+        .reference(
+            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            "vpc",
+            args.vpc.as_str(),
         )?;
     let request = ::origincloud_network::v1beta1::DeleteVpcRequest {
         name,
@@ -7504,14 +7605,15 @@ async fn get_operation(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/operations/{operation}",
+            &["projects/{project}/zones/{zone}/operations/{operation}"],
             "operation",
             Some(args.operation.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/operations/{operation}",
-            Some(("operation", args.operation.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/operations/{operation}"],
+            "operation",
+            args.operation.as_str(),
         )?;
     let request = ::origincloud_core::longrunning::v1beta1::GetOperationRequest {
         name,
@@ -7559,14 +7661,15 @@ async fn wait_operation(
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
-            "projects/{project}/zones/{zone}/operations/{operation}",
+            &["projects/{project}/zones/{zone}/operations/{operation}"],
             "operation",
             Some(args.operation.as_str()),
         )?;
     let name = names
-        .name(
-            "projects/{project}/zones/{zone}/operations/{operation}",
-            Some(("operation", args.operation.as_str())),
+        .reference(
+            &["projects/{project}/zones/{zone}/operations/{operation}"],
+            "operation",
+            args.operation.as_str(),
         )?;
     let request = ::origincloud_core::longrunning::v1beta1::WaitOperationRequest {
         name,

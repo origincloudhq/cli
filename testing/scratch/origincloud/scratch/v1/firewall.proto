@@ -125,11 +125,13 @@ message Firewall {
   }
 }
 
-// A network a firewall can guard.
+// A network a firewall can guard: one of the project's own, or one the
+// zone shares with every project.
 message Network {
   option (google.api.resource) = {
     type: "scratch.origincloudapis.eu/Network"
     pattern: "projects/{project}/zones/{zone}/networks/{network}"
+    pattern: "zones/{zone}/networks/{network}"
     plural: "networks"
     singular: "network"
   };

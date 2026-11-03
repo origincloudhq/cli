@@ -15,7 +15,9 @@ mod common;
 
 use std::collections::BTreeSet;
 
-use common::{groups, methods, operation_groups, pool, OPERATIONS, TABLE};
+use common::{
+    extension, groups, methods, operation_groups, pattern_of_type, pool, OPERATIONS, TABLE,
+};
 use heck::{ToKebabCase, ToSnakeCase};
 use prost_reflect::Kind;
 use serde::Deserialize;
@@ -38,6 +40,15 @@ struct Table {
     one_way: Vec<Entry>,
     #[serde(default)]
     shown_once: Vec<Entry>,
+    #[serde(default)]
+    also_names: Vec<AlsoNames>,
+}
+
+#[derive(Deserialize)]
+struct AlsoNames {
+    field: String,
+    resource: String,
+    why: String,
 }
 
 #[derive(Deserialize)]
@@ -316,6 +327,27 @@ fn every_table_entry_names_a_method_and_a_field() {
             n.service,
             n.method
         );
+    }
+    // A field taking another type's names too is a reference to a type the
+    // API declares, and the other type is one.
+    for entry in &table.also_names {
+        let (message, name) = entry.field.rsplit_once('.').unwrap();
+        let field = pool
+            .get_message_by_name(message)
+            .and_then(|m| m.get_field_by_name(name))
+            .unwrap_or_else(|| {
+                panic!(
+                    "commands.toml names the field {}, which the API doesn't have",
+                    entry.field
+                )
+            });
+        let referenced = extension(&pool, &field.options(), "google.api.resource_reference")
+            .and_then(|r| r.get_field_by_name("type")?.as_str().map(str::to_owned))
+            .filter(|t| !t.is_empty())
+            .unwrap_or_else(|| panic!("{} is no reference to a resource type", entry.field));
+        pattern_of_type(&pool, &referenced);
+        pattern_of_type(&pool, &entry.resource);
+        assert!(!entry.why.trim().is_empty(), "{} says no why", entry.field);
     }
 }
 

@@ -71,7 +71,8 @@ pub mod firewall {
         MirrorLog(super::Logging),
     }
 }
-/// A network a firewall can guard.
+/// A network a firewall can guard: one of the project's own, or one the
+/// zone shares with every project.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Network {
     /// The network's resource name.

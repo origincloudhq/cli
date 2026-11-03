@@ -60,6 +60,18 @@ else to the profile's `default-project`, `default-zone` and `region`; \
 name = "resourcemanager"
 about = "Resource manager: organizations and projects, and their quotas"
 
+# A reference field that also takes the names of another resource type than
+# the one its definition declares: a `google.api.resource_reference` names
+# one type only. Its flag (or key) then takes a whole name of either type; an
+# id still completes to the declared type's pattern, which its help says. The
+# entry names the field by its full name, wherever it appears, and the other
+# type; generation fails, and so does the coverage test, when the field isn't
+# a reference to a type the API declares, or the type isn't one.
+[[also_names]]
+field = "origincloud.compute.v1beta1.Instance.image"
+resource = "compute.origincloudapis.eu/PublicImage"
+why = "An instance boots from one of the project's own images or a public one, `zones/{zone}/images/{image}`, as the field's comment says; its reference declares the project's own alone."
+
 # A hand-written command the CLI no longer has, which no command of the same
 # name replaces (a generated `origin compute get-instance` replaces the
 # hand-written one), with the reason and what to use instead. Every command

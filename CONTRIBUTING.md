@@ -63,6 +63,14 @@ and every one-way change is refused without `--yes` before any request. The
 README describes the scheme for users; `generator/src/commands.rs` implements
 it.
 
+A resource name is checked as the SDK checks the names it sends
+(`origincloud_core::path_value`), never against an alphabet of the CLI's:
+each id is one segment, not empty, `.` or `..`, and without `/`, and
+anything else, such as the dots of `gp1.core.2`, is the API's to judge. A
+reference whose resource declares several patterns (`google.api.resource`'s
+`pattern` list) takes a whole name of each, its help naming them all; an id
+completes to the first.
+
 A duration or a timestamp is a flag of its own form (`30s`, RFC 3339). Any
 other field holding a message is a flag taking comma-separated `KEY=VALUE`
 pairs, one per field of the message that a flag could set on its own (a
@@ -111,7 +119,7 @@ nested message, with repeated scalars and references, a list whose order the
 API doesn't keep, a nested message, timestamps, a struct, optional fields,
 oneofs of the request, of the resource and of a nested message, and a
 message nested two levels deep, with enums, maps, lists and references of
-its own.
+its own; the networks it references have two name patterns.
 `scripts/generate.sh` generates its SDK crate's code with the Rust SDK's own
 generator, at the commit `Cargo.lock` pins, into
 `testing/scratch/sdk/src/generated/`, the crate's manifest from the one that
@@ -148,6 +156,14 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   the API returns in that response alone, such as `CreateKeyPair`'s
   `private_key`: the command prints the response as any other, and its
   `notice` on standard error when the field isn't empty.
+- `[[also_names]]` names a reference field, by its full name
+  (`origincloud.compute.v1beta1.Instance.image`), that takes the names of
+  another resource type too (`compute.origincloudapis.eu/PublicImage`),
+  which its `google.api.resource_reference`, naming one type, can't say:
+  its flag, key or JSON value takes a whole name of either, and an id still
+  completes to the declared type's pattern. Generation fails when the
+  field isn't a reference to a type the API declares, or the other type
+  isn't one.
 
 The coverage test fails when an entry names a service, a method or a field
 the API doesn't have, so an entry can't silently stop applying; regenerate

@@ -2,6 +2,8 @@
 //! MCP client's handshake and lists the tools its flags select, and prints
 //! nothing else there.
 
+mod common;
+
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -157,4 +159,59 @@ fn the_context_region_is_the_commands() {
         context_region(&[("ORIGINCLOUD_REGION", "eu-central3")], both),
         "eu-central3"
     );
+}
+
+/// The tools take whole names as the API does, an instance type's dots and
+/// a public image included: they reach the server as given.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_tools_take_dotted_ids_and_public_images() {
+    const LAUNCHING: &str = r#"{"name":"projects/p/zones/z/operations/op-1","done":true,"response":{"@type":"type.googleapis.com/origincloud.compute.v1beta1.Instance","name":"projects/p/zones/z/instances/i"}}"#;
+    let server = common::recording(|_| fake_server::Response::json(LAUNCHING)).await;
+    let url = server.server.url();
+    let home = server.home.path().to_owned();
+    let call = |name: &'static str, arguments: Value| {
+        let (url, home) = (url.clone(), home.clone());
+        tokio::task::spawn_blocking(move || {
+            exchange(
+                &["--toolsets", "compute"],
+                &home,
+                &[("ORIGINCLOUD_COMPUTE_ENDPOINT", &url)],
+                json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+                    "name": name, "arguments": arguments,
+                }}),
+            )
+        })
+    };
+
+    let answers = call(
+        "compute_get_instance_type",
+        json!({ "name": "instanceTypes/gp1.core.2" }),
+    )
+    .await
+    .unwrap();
+    let called = answers.iter().find(|a| a["id"] == 2).unwrap();
+    assert_ne!(called["result"]["isError"], true, "{called}");
+    let answers = call(
+        "compute_create_instance",
+        json!({
+            "parent": "projects/p/zones/z",
+            "instance": {
+                "instanceType": "instanceTypes/gp1.core.2",
+                "image": "zones/z/images/img-1",
+                "keyPair": "projects/p/keyPairs/k",
+                "networkInterfaces": ["projects/p/zones/z/networkInterfaces/ni-1"],
+            },
+        }),
+    )
+    .await
+    .unwrap();
+    let called = answers.iter().find(|a| a["id"] == 2).unwrap();
+    assert_ne!(called["result"]["isError"], true, "{called}");
+
+    let requests = server.requests();
+    assert_eq!(requests[0].path, "/v1beta1/instanceTypes/gp1.core.2");
+    assert_eq!(requests[1].path, "/v1beta1/projects/p/zones/z/instances");
+    let body: Value = serde_json::from_slice(&requests[1].body).unwrap();
+    assert_eq!(body["instanceType"], "instanceTypes/gp1.core.2");
+    assert_eq!(body["image"], "zones/z/images/img-1");
 }
