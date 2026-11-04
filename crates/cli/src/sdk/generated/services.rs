@@ -4,6 +4,18 @@
 use crate::config::ClientProfile;
 use crate::output::SerializableOutput;
 use crate::sdk::runtime::{Context, Group};
+/// `origin billing`.
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
+pub mod billing {
+    include!("billing.rs");
+}
+/// What the runtime knows of `origin billing`.
+pub(crate) static BILLING: Group = Group {
+    name: "billing",
+    endpoint_variable: "ORIGINCLOUD_BILLING_ENDPOINT",
+    regional: false,
+    service: billing::service,
+};
 /// `origin compute`.
 #[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
 pub mod compute {
@@ -52,6 +64,18 @@ pub(crate) static NETWORK: Group = Group {
     regional: true,
     service: network::service,
 };
+/// `origin observability`.
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
+pub mod observability {
+    include!("observability.rs");
+}
+/// What the runtime knows of `origin observability`.
+pub(crate) static OBSERVABILITY: Group = Group {
+    name: "observability",
+    endpoint_variable: "ORIGINCLOUD_OBSERVABILITY_ENDPOINT",
+    regional: true,
+    service: observability::service,
+};
 /// `origin pvs`.
 #[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
 pub mod pvs {
@@ -90,33 +114,57 @@ pub(crate) static SCRATCH: Group = Group {
     regional: true,
     service: scratch::service,
 };
+/// `origin support`.
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
+pub mod support {
+    include!("support.rs");
+}
+/// What the runtime knows of `origin support`.
+pub(crate) static SUPPORT: Group = Group {
+    name: "support",
+    endpoint_variable: "ORIGINCLOUD_SUPPORT_ENDPOINT",
+    regional: false,
+    service: support::service,
+};
 /// Every generated group.
 #[cfg(not(feature = "test-services"))]
 #[allow(dead_code)]
 pub(crate) static GROUPS: &[&Group] = &[
+    &BILLING,
     &COMPUTE,
     &IAM,
     &LOCATION,
     &NETWORK,
+    &OBSERVABILITY,
     &PVS,
     &RESOURCEMANAGER,
+    &SUPPORT,
 ];
 /// Every generated group.
 #[cfg(feature = "test-services")]
 #[allow(dead_code)]
 pub(crate) static GROUPS: &[&Group] = &[
+    &BILLING,
     &COMPUTE,
     &IAM,
     &LOCATION,
     &NETWORK,
+    &OBSERVABILITY,
     &PVS,
     &RESOURCEMANAGER,
     &SCRATCH,
+    &SUPPORT,
 ];
 /// The command groups generated from the API definitions, one per service.
 #[derive(clap::Subcommand, Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum ServiceCommands {
+    #[command(
+        name = "billing",
+        about = "The billing service",
+        long_about = "The billing service."
+    )]
+    Billing(BillingCli),
     #[command(
         name = "compute",
         about = "Compute service: instances, images, key pairs, volume attachments, and the instance types and image families on offer",
@@ -142,6 +190,12 @@ pub enum ServiceCommands {
     )]
     Network(NetworkCli),
     #[command(
+        name = "observability",
+        about = "The metrics the platform collects for a project's compute instances, volumes and network interfaces: CPU time, network traffic, and volume reads and writes",
+        long_about = "The metrics the platform collects for a project's compute instances, volumes and network interfaces: CPU time, network traffic, and volume reads and writes.\n\nEvery metric is a counter, a running total that grows while the instance runs. A query never returns the raw total: for each period of the window it asks for, it returns the counter's average per-second increase over the period (`RATE`) or its total increase (`INCREASE`). The platform collects a value for each counter every 30 seconds while the instance runs, and keeps the values for 90 days. A volume or a network interface is measured through the instance it is attached to, so it has values only while attached to a running instance."
+    )]
+    Observability(ObservabilityCli),
+    #[command(
         name = "pvs",
         about = "Persistent volume service: volumes, snapshots and storage classes",
         long_about = "Persistent volume service: volumes, snapshots and storage classes.\n\nResource names are given as their parts (`--project`, `--zone`, `--volume`), or the resource's flag takes a whole name; `--project` and `--zone` default to the profile's `default-project` and `default-zone`."
@@ -160,6 +214,27 @@ pub enum ServiceCommands {
         long_about = "Firewalls: rules that guard the networks of a zone."
     )]
     Scratch(ScratchCli),
+    #[command(
+        name = "support",
+        about = "The support service",
+        long_about = "The support service."
+    )]
+    Support(SupportCli),
+}
+/// `origin billing`: its options, and the command.
+#[derive(clap::Args, Debug)]
+pub struct BillingCli {
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host, `https://billing.origincloudapis.eu`, the same in every region. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`).
+    #[arg(
+        long,
+        value_name = "URL",
+        env = "ORIGINCLOUD_BILLING_ENDPOINT",
+        global = true,
+        help_heading = "Global options"
+    )]
+    pub endpoint: Option<String>,
+    #[command(subcommand)]
+    pub command: billing::Commands,
 }
 /// `origin compute`: its options, and the command.
 #[derive(clap::Args, Debug)]
@@ -221,6 +296,21 @@ pub struct NetworkCli {
     #[command(subcommand)]
     pub command: network::Commands,
 }
+/// `origin observability`: its options, and the command.
+#[derive(clap::Args, Debug)]
+pub struct ObservabilityCli {
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host: `https://observability.origincloudapis.eu`, or `https://observability.{region}.origincloudapis.eu` when the profile names a `region`. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`).
+    #[arg(
+        long,
+        value_name = "URL",
+        env = "ORIGINCLOUD_OBSERVABILITY_ENDPOINT",
+        global = true,
+        help_heading = "Global options"
+    )]
+    pub endpoint: Option<String>,
+    #[command(subcommand)]
+    pub command: observability::Commands,
+}
 /// `origin pvs`: its options, and the command.
 #[derive(clap::Args, Debug)]
 pub struct PvsCli {
@@ -267,12 +357,31 @@ pub struct ScratchCli {
     #[command(subcommand)]
     pub command: scratch::Commands,
 }
+/// `origin support`: its options, and the command.
+#[derive(clap::Args, Debug)]
+pub struct SupportCli {
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host, `https://support.origincloudapis.eu`, the same in every region. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`).
+    #[arg(
+        long,
+        value_name = "URL",
+        env = "ORIGINCLOUD_SUPPORT_ENDPOINT",
+        global = true,
+        help_heading = "Global options"
+    )]
+    pub endpoint: Option<String>,
+    #[command(subcommand)]
+    pub command: support::Commands,
+}
 /// Runs `command`.
 pub async fn run(
     profile: &ClientProfile,
     command: ServiceCommands,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     match command {
+        ServiceCommands::Billing(cli) => {
+            let ctx = Context::new(profile, &BILLING, cli.endpoint.as_deref())?;
+            billing::run(&ctx, cli.command).await
+        }
         ServiceCommands::Compute(cli) => {
             let ctx = Context::new(profile, &COMPUTE, cli.endpoint.as_deref())?;
             compute::run(&ctx, cli.command).await
@@ -289,6 +398,10 @@ pub async fn run(
             let ctx = Context::new(profile, &NETWORK, cli.endpoint.as_deref())?;
             network::run(&ctx, cli.command).await
         }
+        ServiceCommands::Observability(cli) => {
+            let ctx = Context::new(profile, &OBSERVABILITY, cli.endpoint.as_deref())?;
+            observability::run(&ctx, cli.command).await
+        }
         ServiceCommands::Pvs(cli) => {
             let ctx = Context::new(profile, &PVS, cli.endpoint.as_deref())?;
             pvs::run(&ctx, cli.command).await
@@ -301,6 +414,10 @@ pub async fn run(
         ServiceCommands::Scratch(cli) => {
             let ctx = Context::new(profile, &SCRATCH, cli.endpoint.as_deref())?;
             scratch::run(&ctx, cli.command).await
+        }
+        ServiceCommands::Support(cli) => {
+            let ctx = Context::new(profile, &SUPPORT, cli.endpoint.as_deref())?;
+            support::run(&ctx, cli.command).await
         }
     }
 }
