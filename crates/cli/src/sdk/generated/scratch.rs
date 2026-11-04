@@ -192,7 +192,7 @@ pub struct CreateFirewallArgs {
     pub logging: Option<Keyed<::origincloud_scratch::v1::Logging>>,
     #[arg(
         long = "logging-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--logging`.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. Instead of `--logging`.",
         help = "Logging as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_scratch::v1::Logging>(
@@ -266,7 +266,7 @@ pub struct CreateFirewallArgs {
     pub mirror_log: Option<Keyed<::origincloud_scratch::v1::Logging>>,
     #[arg(
         long = "mirror-log-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--mirror-log`.\n\nOne of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. Instead of `--mirror-log`.\n\nOne of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one.",
         help = "Mirror log as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_scratch::v1::Logging>(
@@ -596,7 +596,7 @@ pub struct UpdateFirewallArgs {
     pub logging: Option<Keyed<::origincloud_scratch::v1::Logging>>,
     #[arg(
         long = "logging-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--logging`.\n\nIt is replaced whole: a key not given is reset. `--no-logging` removes it. Left as it is when none of these is given.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. Instead of `--logging`.\n\nIt is replaced whole: a key not given is reset. `--no-logging` removes it. Left as it is when none of these is given.",
         help = "Logging as JSON; replaced whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_scratch::v1::Logging>(
@@ -693,7 +693,7 @@ pub struct UpdateFirewallArgs {
     pub mirror_log: Option<Keyed<::origincloud_scratch::v1::Logging>>,
     #[arg(
         long = "mirror-log-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--mirror-log`.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set; `--no-mirror` sets none.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. Instead of `--mirror-log`.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set; `--no-mirror` sets none.",
         help = "Mirror log as JSON; replaced whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_scratch::v1::Logging>(

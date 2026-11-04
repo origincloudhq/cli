@@ -3683,10 +3683,19 @@ fn json_doc(comment: &str, n: &Nested, keyed_long: &str, repeated: bool) -> Stri
     doc.push_str(&format!(
         "{what} whose fields are named in camel case, as the command prints them, or as the API \
          definitions name them; `@FILE` reads it from a file. Each field and value is checked \
-         before anything is sent, at any depth. A resource name in a field of the message itself \
-         is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper \
-         must be whole."
+         before anything is sent, at any depth."
     ));
+    // Only a message naming a resource has a name to complete.
+    let names = n.keys.iter().any(|k| {
+        matches!(&k.kind, Kind2::Reference(_))
+            || matches!(&k.kind, Kind2::Optional(kind) if matches!(**kind, Kind2::Reference(_)))
+    });
+    if names {
+        doc.push_str(
+            " A resource name in a field of the message itself is completed with `--project` and \
+             `--zone`, as in its KEY=VALUE form; one nested deeper must be whole.",
+        );
+    }
     if n.parser.is_some() {
         doc.push_str(&format!(" Instead of `--{keyed_long}`."));
     }
