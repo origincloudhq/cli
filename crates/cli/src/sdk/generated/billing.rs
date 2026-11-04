@@ -327,7 +327,7 @@ pub struct CreateBillingAccountArgs {
     pub billing_address: Option<Keyed<::origincloud_billing::v1beta1::BillingAddress>>,
     #[arg(
         long = "billing-address-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--billing-address`.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. Instead of `--billing-address`.",
         help = "Billing address as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_billing::v1beta1::BillingAddress>(
@@ -443,7 +443,7 @@ pub struct UpdateBillingAccountArgs {
     pub billing_address: Option<Keyed<::origincloud_billing::v1beta1::BillingAddress>>,
     #[arg(
         long = "billing-address-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--billing-address`.\n\nIt is replaced whole: a key not given is reset. `--no-billing-address` removes it. Left as it is when none of these is given.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. Instead of `--billing-address`.\n\nIt is replaced whole: a key not given is reset. `--no-billing-address` removes it. Left as it is when none of these is given.",
         help = "Billing address as JSON; replaced whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_billing::v1beta1::BillingAddress>(

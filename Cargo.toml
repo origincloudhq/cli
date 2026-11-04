@@ -20,6 +20,9 @@ origincloud-compute = { git = "https://github.com/origincloudhq/sdk-rust", rev =
 origincloud-network = { git = "https://github.com/origincloudhq/sdk-rust", rev = "78cba5830196b1e10b9f5443dd4170d64142f5f2" }
 origincloud-resourcemanager = { git = "https://github.com/origincloudhq/sdk-rust", rev = "78cba5830196b1e10b9f5443dd4170d64142f5f2" }
 origincloud-iam = { git = "https://github.com/origincloudhq/sdk-rust", rev = "78cba5830196b1e10b9f5443dd4170d64142f5f2" }
+origincloud-billing = { git = "https://github.com/origincloudhq/sdk-rust", rev = "78cba5830196b1e10b9f5443dd4170d64142f5f2" }
+origincloud-support = { git = "https://github.com/origincloudhq/sdk-rust", rev = "78cba5830196b1e10b9f5443dd4170d64142f5f2" }
+origincloud-observability = { git = "https://github.com/origincloudhq/sdk-rust", rev = "78cba5830196b1e10b9f5443dd4170d64142f5f2" }
 fake-server = { git = "https://github.com/origincloudhq/sdk-rust", rev = "78cba5830196b1e10b9f5443dd4170d64142f5f2" }
 # The MCP tools `origin mcp serve` serves, at a commit built on the same SDK
 # commit as the lines above: the CLI hands them the SDK's `Client`, so both

@@ -161,8 +161,8 @@ pub(crate) static GROUPS: &[&Group] = &[
 pub enum ServiceCommands {
     #[command(
         name = "billing",
-        about = "The billing service",
-        long_about = "The billing service."
+        about = "Billing: billing accounts and the projects they pay for, payment methods, cost and usage, spend limits and the price list",
+        long_about = "Billing: billing accounts and the projects they pay for, payment methods, cost and usage, spend limits and the price list.\n\nBilling accounts and their spend limits are an organization's (`--organization`); a project's billing info names the account it is charged to. Access to billing is granted apart from access to projects: an organization's owner doesn't hold it by default."
     )]
     Billing(BillingCli),
     #[command(
@@ -216,8 +216,8 @@ pub enum ServiceCommands {
     Scratch(ScratchCli),
     #[command(
         name = "support",
-        about = "The support service",
-        long_about = "The support service."
+        about = "Support: cases, each a conversation with Origin Cloud support about a question or a problem, and their messages",
+        long_about = "Support: cases, each a conversation with Origin Cloud support about a question or a problem, and their messages.\n\nCases are an organization's (`--organization`) and may name one of its projects. Every notification about a case goes to the contact email given when it was opened."
     )]
     Support(SupportCli),
 }
