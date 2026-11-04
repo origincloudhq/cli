@@ -104,7 +104,7 @@ origin config profile
 | `output-format` | `ORIGINCLOUD_OUTPUT_FORMAT` | `table`, `wide`, `json` or `name` (see [Output](#output)); `--output` (`-o`) overrides it. |
 | `default-project` | `ORIGINCLOUD_PROJECT` | `--project` of the generated commands, such as `origin pvs`'s, when not given. |
 | `default-zone` | `ORIGINCLOUD_ZONE` | `--zone` of the generated commands, when not given; not of the lists, which list every zone without `--zone`. |
-| `region` | `ORIGINCLOUD_REGION` | The region the generated commands work in: the `--region` of the `network` commands' regional resources, when not given, and the front door the `compute`, `network` and `pvs` commands call, such as `pvs.{region}.origincloudapis.eu`. Without it, the region of the default zone (`eu-central1` for `eu-central1-az1`); without either, `--region` must be given, and the calls go to the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource. The `location`, `resourcemanager` and `iam` commands always call their regionless host. |
+| `region` | `ORIGINCLOUD_REGION` | The region the generated commands work in: the `--region` of the `network` commands' regional resources, when not given, and the front door the `compute`, `network`, `pvs` and `observability` commands call, such as `pvs.{region}.origincloudapis.eu`. Without it, the region of the default zone (`eu-central1` for `eu-central1-az1`); without either, `--region` must be given, and the calls go to the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource. The `location`, `resourcemanager`, `iam`, `billing` and `support` commands always call their regionless host. |
 
 As in the AWS CLI, a flag comes first, then the environment variable, then
 the profile's value: an environment variable overrides the profile while a
@@ -180,6 +180,11 @@ A group per service of the API:
   permissions you hold; your user; and an organization's audit log.
 - `origin location`: the regions and zones, and which services each zone
   offers.
+- `origin billing`: billing accounts and the projects they pay for, payment
+  methods, cost and usage, spend limits and the price list.
+- `origin support`: support cases and their messages.
+- `origin observability`: the metrics of a project's compute instances,
+  volumes and network interfaces.
 
 Their commands are generated from the API definitions in
 [origincloudhq/api](https://github.com/origincloudhq/api) and call the

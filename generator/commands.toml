@@ -69,6 +69,23 @@ organization. A role binding's member is `user:{email}` or \
 `serviceAccount:{service_account}`; `origin iam list-role-bindings \
 --organization -` lists the bindings you hold, in every organization."""
 
+[[service]]
+name = "billing"
+about = "Billing: billing accounts and the projects they pay for, payment methods, cost and usage, spend limits and the price list"
+details = """
+Billing accounts and their spend limits are an organization's \
+(`--organization`); a project's billing info names the account it is \
+charged to. Access to billing is granted apart from access to projects: \
+an organization's owner doesn't hold it by default."""
+
+[[service]]
+name = "support"
+about = "Support: cases, each a conversation with Origin Cloud support about a question or a problem, and their messages"
+details = """
+Cases are an organization's (`--organization`) and may name one of its \
+projects. Every notification about a case goes to the contact email given \
+when it was opened."""
+
 # A reference field that also takes the names of another resource type than
 # the one its definition declares: a `google.api.resource_reference` names
 # one type only. Its flag (or key) then takes a whole name of either type; an
