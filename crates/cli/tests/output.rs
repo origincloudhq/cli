@@ -265,6 +265,39 @@ rb-2   serviceAccount:sa-1    viewer   projects/p1
     );
 }
 
+/// Service accounts are listed with the member a role binding names them
+/// by, their state and the client id they log in with; a deleted one
+/// (`--show-deleted`) says so in its state.
+#[tokio::test(flavor = "multi_thread")]
+async fn service_accounts_are_listed_by_member_state_and_client_id() {
+    const ACCOUNTS: &str = r#"{"serviceAccounts":[
+        {"name":"organizations/o/serviceAccounts/sa-1","displayName":"CI deploy",
+         "member":"serviceAccount:sa-1","clientId":"c-7f3a","state":"ACTIVE",
+         "creator":"user:ada@example.com"},
+        {"name":"organizations/o/serviceAccounts/sa-2","displayName":"Old backup",
+         "member":"serviceAccount:sa-2","clientId":"c-91be","state":"DELETED",
+         "creator":"user:ada@example.com","deleteTime":"2026-01-02T00:00:00Z"}]}"#;
+    let server = recording(|_| Response::json(ACCOUNTS)).await;
+    let args = ["list-service-accounts", "--organization", "o"];
+    let table = server
+        .run("iam", &[&args[..], &["-o", "table"]].concat())
+        .await;
+    assert_eq!(
+        text(&table.stdout),
+        "\
+NAME   DISPLAY NAME   STATE     MEMBER                CLIENT ID   CREATE TIME
+sa-1   CI deploy      ACTIVE    serviceAccount:sa-1   c-7f3a
+sa-2   Old backup     DELETED   serviceAccount:sa-2   c-91be
+"
+    );
+
+    let wide = server
+        .run("iam", &[&args[..], &["-o", "wide"]].concat())
+        .await;
+    let header = text(&wide.stdout).lines().next().unwrap().to_owned();
+    assert!(header.contains("DELETE TIME"), "{header}");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn an_empty_list_says_where_it_looked_and_how_to_make_one() {
     let server = recording(|_| Response::json("{}")).await;

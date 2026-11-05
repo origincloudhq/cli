@@ -827,7 +827,14 @@ async fn list_service_accounts(
             Listing {
                 field: "serviceAccounts",
                 item: Some("origincloud.iam.v1beta1.ServiceAccount"),
-                columns: &["name", "displayName", "member", "createTime", "deleteTime"],
+                columns: &[
+                    "name",
+                    "displayName",
+                    "state",
+                    "member",
+                    "clientId",
+                    "createTime",
+                ],
                 parents: listed,
                 create: Some("origin iam create-service-account"),
             },
@@ -853,7 +860,14 @@ async fn list_service_accounts(
         Listing {
             field: "serviceAccounts",
             item: Some("origincloud.iam.v1beta1.ServiceAccount"),
-            columns: &["name", "displayName", "member", "createTime", "deleteTime"],
+            columns: &[
+                "name",
+                "displayName",
+                "state",
+                "member",
+                "clientId",
+                "createTime",
+            ],
             parents: listed,
             create: Some("origin iam create-service-account"),
         },
