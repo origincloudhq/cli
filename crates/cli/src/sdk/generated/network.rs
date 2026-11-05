@@ -204,7 +204,7 @@ pub enum Commands {
     #[command(
         name = "delete-floating-ip-association",
         about = "Removes a floating IP's association: the address reaches nothing, and stays allocated",
-        long_about = "Removes a floating IP's association: the address reaches nothing, and stays allocated. The operation is done once the change is recorded; the network applies it within seconds."
+        long_about = "Removes a floating IP's association: the address reaches nothing, and stays allocated. Refused for an address the platform assigned at launch (`autoAssigned`), which is released with its network interface. The operation is done once the change is recorded; the network applies it within seconds."
     )]
     DeleteFloatingIpAssociation(DeleteFloatingIpAssociationArgs),
     #[command(
@@ -7331,8 +7331,10 @@ pub struct CreateSubnetArgs {
     pub vpc: String,
     /// Whether a launch that creates its network interface in the subnet,
     /// as the GraphQL API's `launchInstance` does, gives that interface a
-    /// floating IP of its own, released when the instance is terminated.
-    /// `CreateInstance` takes existing interfaces, so an instance it launches
+    /// floating IP of its own, released when the instance is terminated. The
+    /// interface is created with its address or not at all: with none free in
+    /// the zone, or the public IP quota used up, the instance is `FAILED`
+    /// with the reason. `CreateInstance` takes existing interfaces, so an instance it launches
     /// gets none: create a floating IP and a floating IP association for its
     /// interface instead.
     #[arg(
@@ -7434,8 +7436,10 @@ pub struct UpdateSubnetArgs {
     pub subnet: String,
     /// Whether a launch that creates its network interface in the subnet,
     /// as the GraphQL API's `launchInstance` does, gives that interface a
-    /// floating IP of its own, released when the instance is terminated.
-    /// `CreateInstance` takes existing interfaces, so an instance it launches
+    /// floating IP of its own, released when the instance is terminated. The
+    /// interface is created with its address or not at all: with none free in
+    /// the zone, or the public IP quota used up, the instance is `FAILED`
+    /// with the reason. `CreateInstance` takes existing interfaces, so an instance it launches
     /// gets none: create a floating IP and a floating IP association for its
     /// interface instead.
     ///
