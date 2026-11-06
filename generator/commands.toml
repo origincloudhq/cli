@@ -521,7 +521,7 @@ columns = ["name", "member", "role", "project", "create_time"]
 [[view]]
 service = "iam"
 message = "ServiceAccount"
-columns = ["name", "display_name", "member", "create_time", "delete_time"]
+columns = ["name", "display_name", "state", "member", "client_id", "create_time"]
 
 [[view]]
 service = "iam"
