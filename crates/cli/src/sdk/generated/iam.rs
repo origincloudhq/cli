@@ -95,8 +95,8 @@ pub enum Commands {
     ListServiceAccounts(ListServiceAccountsArgs),
     #[command(
         name = "create-service-account",
-        about = "Creates a service account and its client secret",
-        long_about = "Creates a service account and its client secret. The response is the only place the secret is ever shown: store it now. Needs `iam.service_account.create` on the organization."
+        about = "Creates a service account and, for an `EXTERNAL` one, its client secret",
+        long_about = "Creates a service account and, for an `EXTERNAL` one, its client secret. The response is the only place the secret is ever shown: store it now. Needs `iam.service_account.create` on the organization."
     )]
     CreateServiceAccount(CreateServiceAccountArgs),
     #[command(
@@ -893,6 +893,10 @@ pub struct CreateServiceAccountArgs {
     /// A name of your own, shown in the console; at most 100 characters.
     #[arg(long = "display-name")]
     pub display_name: String,
+    /// How the service account authenticates; `EXTERNAL` when the create
+    /// leaves it unset.
+    #[arg(long = "type", value_parser = ["EXTERNAL", "WORKLOAD"])]
+    pub r#type: Option<String>,
     /// A UUID. A repeat of the request with the same `--request-id` within a
     /// day creates nothing and is refused with `CONFLICT`: the secret went to
     /// the first request only. The error's `ErrorInfo` metadata names the
@@ -910,6 +914,11 @@ async fn create_service_account(
     let parent = names.name("organizations/{organization}")?;
     let service_account = ::origincloud_iam::v1beta1::ServiceAccount {
         display_name: args.display_name.clone(),
+        r#type: args
+            .r#type
+            .as_deref()
+            .and_then(::origincloud_iam::v1beta1::service_account::Type::from_str_name)
+            .map_or(0, |v| v as i32),
         ..::core::default::Default::default()
     };
     let request = ::origincloud_iam::v1beta1::CreateServiceAccountRequest {

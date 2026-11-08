@@ -89,8 +89,8 @@ pub enum Commands {
     CreateInstance(CreateInstanceArgs),
     #[command(
         name = "update-instance",
-        about = "Changes an instance's type or tags",
-        long_about = "Changes an instance's type or tags. A new `--instance-type` needs the instance `STOPPED`, and is refused with `FAILED_PRECONDITION` otherwise; it takes effect at the next start. A larger type is checked against the same vCPU quota a launch is. The operation is done once the instance shows the change."
+        about = "Changes an instance's type, tags or service account",
+        long_about = "Changes an instance's type, tags or service account. A new `--instance-type` needs the instance `STOPPED`, and is refused with `FAILED_PRECONDITION` otherwise; it takes effect at the next start. A larger type is checked against the same vCPU quota a launch is. The operation is done once the instance shows the change."
     )]
     UpdateInstance(UpdateInstanceArgs),
     #[command(
@@ -1030,6 +1030,9 @@ pub struct CreateInstanceArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    pub organization: Option<String>,
     /// The instance type, `instanceTypes/{instance_type}`, such as
     /// `instanceTypes/gp1.core.2`: one whose `available` is true. Changing it
     /// needs the instance `STOPPED`.
@@ -1104,6 +1107,17 @@ pub struct CreateInstanceArgs {
     /// As KEY=VALUE; repeat for more.
     #[arg(long = "tag", value_name = "KEY=VALUE")]
     pub tag: Vec<TagArg>,
+    /// The service account the instance runs as,
+    /// `organizations/{organization}/serviceAccounts/{service_account}`: a
+    /// `WORKLOAD` service account of the instance's organization that isn't
+    /// deleted. Launching with one, or updating the instance to one, needs
+    /// `iam.service_account.act_as` on the organization as well; an update
+    /// that leaves it empty removes it, and a terminated instance's can't
+    /// change. Empty for an instance that runs as none.
+    ///
+    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/serviceAccounts/{service_account}`.
+    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
+    pub service_account: Option<String>,
     /// A UUID; a repeat with the same id returns the first request's
     /// operation instead of launching a second instance. One is generated when not given.
     #[arg(long = "request-id")]
@@ -1117,7 +1131,13 @@ async fn create_instance(
     args: CreateInstanceArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
-        .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+        .names(
+            &[
+                ("project", args.project.as_deref()),
+                ("zone", args.zone.as_deref()),
+                ("organization", args.organization.as_deref()),
+            ],
+        );
     names
         .learn(
             &["instanceTypes/{instance_type}"],
@@ -1173,6 +1193,12 @@ async fn create_instance(
                 Some(value.as_str()),
             )?;
     }
+    names
+        .learn(
+            &["organizations/{organization}/serviceAccounts/{service_account}"],
+            "service-account",
+            args.service_account.as_deref(),
+        )?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let instance_type = names
         .reference(
@@ -1232,6 +1258,17 @@ async fn create_instance(
                 )
         })
         .collect::<anyhow::Result<Vec<String>>>()?;
+    let service_account = match args.service_account.as_deref() {
+        Some(v) => {
+            names
+                .reference(
+                    &["organizations/{organization}/serviceAccounts/{service_account}"],
+                    "service-account",
+                    v,
+                )?
+        }
+        None => String::new(),
+    };
     let instance = ::origincloud_compute::v1beta1::Instance {
         instance_type,
         image,
@@ -1241,6 +1278,7 @@ async fn create_instance(
         boot_volume,
         network_interfaces,
         tags: tags(&args.tag),
+        service_account,
         ..::core::default::Default::default()
     };
     let request = ::origincloud_compute::v1beta1::CreateInstanceRequest {
@@ -1274,7 +1312,9 @@ async fn call_create_instance(
     group(
         clap::ArgGroup::new(
             "changes"
-        ).required(true).multiple(true).args(["instance_type", "tag", "no_tags"])
+        ).required(
+            true
+        ).multiple(true).args(["instance_type", "tag", "no_tags", "service_account"])
     )
 )]
 pub struct UpdateInstanceArgs {
@@ -1284,6 +1324,9 @@ pub struct UpdateInstanceArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    pub organization: Option<String>,
     /// The instance to change.
     ///
     /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/instances/{instance}`.
@@ -1307,6 +1350,19 @@ pub struct UpdateInstanceArgs {
     /// Remove all of its tags.
     #[arg(long = "no-tags", conflicts_with = "tag")]
     pub no_tags: bool,
+    /// The service account the instance runs as,
+    /// `organizations/{organization}/serviceAccounts/{service_account}`: a
+    /// `WORKLOAD` service account of the instance's organization that isn't
+    /// deleted. Launching with one, or updating the instance to one, needs
+    /// `iam.service_account.act_as` on the organization as well; an update
+    /// that leaves it empty removes it, and a terminated instance's can't
+    /// change. Empty for an instance that runs as none.
+    ///
+    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/serviceAccounts/{service_account}`.
+    ///
+    /// Left as it is when not given.
+    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
+    pub service_account: Option<String>,
     /// A UUID; a repeat with the same id returns the first request's
     /// operation instead of changing the instance again. One is generated when not given.
     #[arg(long = "request-id")]
@@ -1320,7 +1376,13 @@ async fn update_instance(
     args: UpdateInstanceArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
-        .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+        .names(
+            &[
+                ("project", args.project.as_deref()),
+                ("zone", args.zone.as_deref()),
+                ("organization", args.organization.as_deref()),
+            ],
+        );
     names
         .learn(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
@@ -1332,6 +1394,12 @@ async fn update_instance(
             &["instanceTypes/{instance_type}"],
             "instance-type",
             args.instance_type.as_deref(),
+        )?;
+    names
+        .learn(
+            &["organizations/{organization}/serviceAccounts/{service_account}"],
+            "service-account",
+            args.service_account.as_deref(),
         )?;
     let name = names
         .reference(
@@ -1352,6 +1420,15 @@ async fn update_instance(
     if args.no_tags || !args.tag.is_empty() {
         instance.tags = tags(&args.tag);
         paths.push("tags".to_owned());
+    }
+    if let Some(value) = args.service_account.as_deref() {
+        instance.service_account = names
+            .reference(
+                &["organizations/{organization}/serviceAccounts/{service_account}"],
+                "service-account",
+                value,
+            )?;
+        paths.push("service_account".to_owned());
     }
     let request = ::origincloud_compute::v1beta1::UpdateInstanceRequest {
         instance: Some(instance),
