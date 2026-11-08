@@ -71,8 +71,8 @@ pub enum Commands {
     CreateRecordSet(CreateRecordSetArgs),
     #[command(
         name = "update-record-set",
-        about = "Replaces a record set's TTL or what it answers with: `--ttl`, `--basic` or `--alias`, or `*`",
-        long_about = "Replaces a record set's TTL or what it answers with: `--ttl`, `--basic` or `--alias`, or `*`. Naming one kind in `updateMask` replaces the kind the record set had. With `*`, a TTL left out keeps the record set's; naming `--ttl` without one sets the default, 300 seconds. Its name and type stay; another type is a new record set."
+        about = "Replaces a record set's TTL or what it answers with: `--ttl`, `--basic-json` or `--alias`, or `*`",
+        long_about = "Replaces a record set's TTL or what it answers with: `--ttl`, `--basic-json` or `--alias`, or `*`. Naming one kind in `updateMask` replaces the kind the record set had. With `*`, a TTL left out keeps the record set's; naming `--ttl` without one sets the default, 300 seconds. Its name and type stay; another type is a new record set."
     )]
     UpdateRecordSet(UpdateRecordSetArgs),
     #[command(
@@ -84,7 +84,7 @@ pub enum Commands {
     #[command(
         name = "batch-change-record-sets",
         about = "Deletes, replaces and creates record sets of one zone together, all or none",
-        long_about = "Deletes, replaces and creates record sets of one zone together, all or none. The zone is checked as the changes leave it, not after each change, so a CNAME may take the place of the A record set it replaces in one call. A batch makes 1 to 1000 changes, and names a record set once at most across `--deletion` and `--update`. Each change is refused as its own method would refuse it, naming the change; then none is made."
+        long_about = "Deletes, replaces and creates record sets of one zone together, all or none. The zone is checked as the changes leave it, not after each change, so a CNAME may take the place of the A record set it replaces in one call. A batch makes 1 to 1000 changes, and names a record set once at most across `--deletion` and `--updates-json`. Each change is refused as its own method would refuse it, naming the change; then none is made."
     )]
     BatchChangeRecordSets(BatchChangeRecordSetsArgs),
     #[command(
@@ -759,7 +759,7 @@ pub struct CreateRecordSetArgs {
     pub ttl: Option<::origincloud_core::protobuf::Duration>,
     #[arg(
         long = "basic-json",
-        long_help = "Values of its own.\n\nAs the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth.\n\nOne of `--basic`, `--alias`: give exactly one.",
+        long_help = "Values of its own.\n\nAs the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
         help = "Basic as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_dns::v1beta1::BasicRecordData>(
@@ -770,7 +770,7 @@ pub struct CreateRecordSetArgs {
     pub basic_json: Option<JsonArg<::origincloud_dns::v1beta1::BasicRecordData>>,
     #[arg(
         long = "alias",
-        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.\n\nA value with a comma in it goes through `--alias-json` too.\n\nOne of `--basic`, `--alias`: give exactly one.",
+        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.\n\nA value with a comma in it goes through `--alias-json` too.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
         help = "The address of a platform resource, followed as it changes, as KEY=VALUE pairs; sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_alias_record_data(text, "--alias-json"),
@@ -779,7 +779,7 @@ pub struct CreateRecordSetArgs {
     pub alias: Option<Keyed<::origincloud_dns::v1beta1::AliasRecordData>>,
     #[arg(
         long = "alias-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--alias`.\n\nOne of `--basic`, `--alias`: give exactly one.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--alias`.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
         help = "Alias as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_dns::v1beta1::AliasRecordData>(
@@ -922,7 +922,7 @@ pub struct UpdateRecordSetArgs {
     pub ttl: Option<::origincloud_core::protobuf::Duration>,
     #[arg(
         long = "basic-json",
-        long_help = "Values of its own.\n\nAs the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
+        long_help = "Values of its own.\n\nAs the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
         help = "Basic as JSON; replaced whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_dns::v1beta1::BasicRecordData>(
@@ -933,7 +933,7 @@ pub struct UpdateRecordSetArgs {
     pub basic_json: Option<JsonArg<::origincloud_dns::v1beta1::BasicRecordData>>,
     #[arg(
         long = "alias",
-        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.\n\nA value with a comma in it goes through `--alias-json` too.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
+        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.\n\nA value with a comma in it goes through `--alias-json` too.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
         help = "The address of a platform resource, followed as it changes, as KEY=VALUE pairs; replaced whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_alias_record_data(text, "--alias-json"),
@@ -942,7 +942,7 @@ pub struct UpdateRecordSetArgs {
     pub alias: Option<Keyed<::origincloud_dns::v1beta1::AliasRecordData>>,
     #[arg(
         long = "alias-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--alias`.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--alias`.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
         help = "Alias as JSON; replaced whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_dns::v1beta1::AliasRecordData>(
