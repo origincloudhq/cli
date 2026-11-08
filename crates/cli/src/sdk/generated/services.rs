@@ -185,7 +185,11 @@ pub enum ServiceCommands {
         long_about = "Compute service: instances, images, key pairs, volume attachments, and the instance types and image families on offer.\n\nResource names are given as their parts (`--project`, `--zone`, `--instance`), or the resource's flag takes a whole name; `--project` and `--zone` default to the profile's `default-project` and `default-zone`."
     )]
     Compute(ComputeCli),
-    #[command(name = "dns", about = "The dns service", long_about = "The dns service.")]
+    #[command(
+        name = "dns",
+        about = "DNS: hosted zones, public or private, their record sets, and the VPCs a private zone is attached to",
+        long_about = "DNS: hosted zones, public or private, their record sets, and the VPCs a private zone is attached to.\n\nHosted zones are a project's (`--project`), the same in every region; `--hosted-zone` names one, while `--zone` is an availability zone, that of a Floating IP an alias answers with. A public zone answers on the internet once its name is delegated to the name servers `get-hosted-zone` shows, and becomes `ACTIVE` once the TXT record its challenge names answers where the name is hosted now (`verify-hosted-zone` checks it at once). A private zone answers in the VPCs it is attached to, each a VPC of the zone's project."
+    )]
     Dns(DnsCli),
     #[command(
         name = "iam",

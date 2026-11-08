@@ -60,6 +60,18 @@ name = "resourcemanager"
 about = "Resource manager: organizations and projects, and their quotas"
 
 [[service]]
+name = "dns"
+about = "DNS: hosted zones, public or private, their record sets, and the VPCs a private zone is attached to"
+details = """
+Hosted zones are a project's (`--project`), the same in every region; \
+`--hosted-zone` names one, while `--zone` is an availability zone, that of \
+a Floating IP an alias answers with. A public zone answers on the internet \
+once its name is delegated to the name servers `get-hosted-zone` shows, and \
+becomes `ACTIVE` once the TXT record its challenge names answers where the \
+name is hosted now (`verify-hosted-zone` checks it at once). A private zone \
+answers in the VPCs it is attached to, each a VPC of the zone's project."""
+
+[[service]]
 name = "iam"
 about = "Identity and access management: role bindings, service accounts, roles, permissions, your user and the audit log"
 details = """
@@ -532,3 +544,8 @@ columns = ["name", "description"]
 service = "iam"
 message = "Permission"
 columns = ["name", "service", "resource_type", "action"]
+
+[[view]]
+service = "dns"
+message = "RecordSet"
+columns = ["name", "dns_name", "type", "ttl", "basic.values", "alias.floating_ip"]

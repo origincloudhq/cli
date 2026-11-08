@@ -1499,6 +1499,7 @@ dependencies = [
  "origincloud-billing",
  "origincloud-compute",
  "origincloud-core",
+ "origincloud-dns",
  "origincloud-iam",
  "origincloud-location",
  "origincloud-mcp",

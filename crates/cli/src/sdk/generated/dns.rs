@@ -657,7 +657,14 @@ async fn list_record_sets(
             Listing {
                 field: "recordSets",
                 item: Some("origincloud.dns.v1beta1.RecordSet"),
-                columns: &[],
+                columns: &[
+                    "name",
+                    "dnsName",
+                    "type",
+                    "ttl",
+                    "basic.values",
+                    "alias.floatingIp",
+                ],
                 parents: listed,
                 create: Some("origin dns create-record-set"),
             },
@@ -683,7 +690,14 @@ async fn list_record_sets(
         Listing {
             field: "recordSets",
             item: Some("origincloud.dns.v1beta1.RecordSet"),
-            columns: &[],
+            columns: &[
+                "name",
+                "dnsName",
+                "type",
+                "ttl",
+                "basic.values",
+                "alias.floatingIp",
+            ],
             parents: listed,
             create: Some("origin dns create-record-set"),
         },
