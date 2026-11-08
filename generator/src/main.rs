@@ -855,6 +855,43 @@ mod tests {
         assert!(flat.contains("pick,"), "{code}");
     }
 
+    /// A message field set by its JSON flag alone, its message having no
+    /// `KEY=VALUE,...` form, is named by that flag wherever help names it:
+    /// in a oneof's note and in the method's comment.
+    #[test]
+    fn help_names_a_field_set_by_json_alone_by_its_json_flag() {
+        let source = r#"
+            syntax = "proto3";
+            package origincloud.choices.v1;
+            import "google/api/annotations.proto";
+            // Choices.
+            service ChoiceService {
+              // Makes one from `many` or `first`.
+              rpc MakeChoice(MakeChoiceRequest) returns (MakeChoiceRequest) {
+                option (google.api.http) = {post: "/v1/choices" body: "*"};
+              }
+            }
+            message Many { repeated string items = 1; }
+            message MakeChoiceRequest {
+              string label = 1;
+              oneof pick {
+                Many many = 2;
+                string first = 3;
+              }
+            }
+        "#;
+        let dir = api("choices/v1/choices.proto", source);
+        let files = generated(&[dir.path()]).unwrap();
+        let code = file(&files, "choices.rs");
+        assert!(code.contains("long = \"many-json\""), "{code}");
+        assert!(!code.contains("long = \"many\""), "{code}");
+        assert!(
+            code.contains("Makes one from `--many-json` or `--first`"),
+            "{code}"
+        );
+        assert!(code.contains("One of `--many-json`, `--first`"), "{code}");
+    }
+
     const FOLDERS: &str = r#"
         syntax = "proto3";
         package origincloud.folders.v1;

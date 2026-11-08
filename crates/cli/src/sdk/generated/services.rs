@@ -28,6 +28,18 @@ pub(crate) static COMPUTE: Group = Group {
     regional: true,
     service: compute::service,
 };
+/// `origin dns`.
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
+pub mod dns {
+    include!("dns.rs");
+}
+/// What the runtime knows of `origin dns`.
+pub(crate) static DNS: Group = Group {
+    name: "dns",
+    endpoint_variable: "ORIGINCLOUD_DNS_ENDPOINT",
+    regional: false,
+    service: dns::service,
+};
 /// `origin iam`.
 #[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
 pub mod iam {
@@ -132,6 +144,7 @@ pub(crate) static SUPPORT: Group = Group {
 pub(crate) static GROUPS: &[&Group] = &[
     &BILLING,
     &COMPUTE,
+    &DNS,
     &IAM,
     &LOCATION,
     &NETWORK,
@@ -146,6 +159,7 @@ pub(crate) static GROUPS: &[&Group] = &[
 pub(crate) static GROUPS: &[&Group] = &[
     &BILLING,
     &COMPUTE,
+    &DNS,
     &IAM,
     &LOCATION,
     &NETWORK,
@@ -171,6 +185,12 @@ pub enum ServiceCommands {
         long_about = "Compute service: instances, images, key pairs, volume attachments, and the instance types and image families on offer.\n\nResource names are given as their parts (`--project`, `--zone`, `--instance`), or the resource's flag takes a whole name; `--project` and `--zone` default to the profile's `default-project` and `default-zone`."
     )]
     Compute(ComputeCli),
+    #[command(
+        name = "dns",
+        about = "DNS: hosted zones, public or private, their record sets, and the VPCs a private zone is attached to",
+        long_about = "DNS: hosted zones, public or private, their record sets, and the VPCs a private zone is attached to.\n\nHosted zones are a project's (`--project`), the same in every region; `--hosted-zone` names one, while `--zone` is an availability zone, that of a Floating IP an alias answers with. A public zone answers on the internet once its name is delegated to the name servers `get-hosted-zone` shows, and becomes `ACTIVE` once the TXT record its challenge names answers where the name is hosted now (`verify-hosted-zone` checks it at once). A private zone answers in the VPCs it is attached to, each a VPC of the zone's project."
+    )]
+    Dns(DnsCli),
     #[command(
         name = "iam",
         about = "Identity and access management: role bindings, service accounts, roles, permissions, your user and the audit log",
@@ -250,6 +270,21 @@ pub struct ComputeCli {
     pub endpoint: Option<String>,
     #[command(subcommand)]
     pub command: compute::Commands,
+}
+/// `origin dns`: its options, and the command.
+#[derive(clap::Args, Debug)]
+pub struct DnsCli {
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host, `https://dns.origincloudapis.eu`, the same in every region. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`).
+    #[arg(
+        long,
+        value_name = "URL",
+        env = "ORIGINCLOUD_DNS_ENDPOINT",
+        global = true,
+        help_heading = "Global options"
+    )]
+    pub endpoint: Option<String>,
+    #[command(subcommand)]
+    pub command: dns::Commands,
 }
 /// `origin iam`: its options, and the command.
 #[derive(clap::Args, Debug)]
@@ -385,6 +420,10 @@ pub async fn run(
         ServiceCommands::Compute(cli) => {
             let ctx = Context::new(profile, &COMPUTE, cli.endpoint.as_deref())?;
             compute::run(&ctx, cli.command).await
+        }
+        ServiceCommands::Dns(cli) => {
+            let ctx = Context::new(profile, &DNS, cli.endpoint.as_deref())?;
+            dns::run(&ctx, cli.command).await
         }
         ServiceCommands::Iam(cli) => {
             let ctx = Context::new(profile, &IAM, cli.endpoint.as_deref())?;

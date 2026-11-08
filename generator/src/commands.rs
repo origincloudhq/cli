@@ -1301,43 +1301,81 @@ fn key_kind_of(cx: &Cx<'_>, field: &FieldDescriptor) -> Option<Kind2> {
     }
 }
 
+/// A message's fields as its `KEY=VALUE,...` form sees them.
+struct FieldsAsKeys {
+    /// The fields that can be keys, in field order.
+    keys: Vec<Key>,
+    /// The fields only the JSON form sets: messages, lists and maps.
+    json_only: Vec<String>,
+    /// The keys the form requires.
+    required: Vec<String>,
+    /// Whether a field only the JSON form sets is required.
+    required_json_only: bool,
+}
+
+impl FieldsAsKeys {
+    /// Whether the message has a `KEY=VALUE,...` form: when a field can be
+    /// a key and none that can't is required. Otherwise its JSON flag is
+    /// its one flag.
+    fn has_pairs_form(&self) -> bool {
+        !self.keys.is_empty() && !self.required_json_only
+    }
+}
+
+/// `m`'s fields as keys of its `KEY=VALUE,...` form, or as fields only its
+/// JSON form sets.
+fn fields_as_keys(cx: &Cx<'_>, m: &MessageDescriptor) -> FieldsAsKeys {
+    let mut out = FieldsAsKeys {
+        keys: Vec::new(),
+        json_only: Vec::new(),
+        required: Vec::new(),
+        required_json_only: false,
+    };
+    // The well-known types (a timestamp, a struct) have no keys: their JSON
+    // is their one form.
+    if m.package_name().starts_with("google.") {
+        return out;
+    }
+    for f in m.fields() {
+        let fb = behaviors(cx.pool, &f);
+        if fb.contains(&OUTPUT_ONLY) {
+            continue;
+        }
+        match key_kind(cx, &f) {
+            Some(kind) => {
+                if fb.contains(&REQUIRED) {
+                    out.required.push(f.name().to_owned());
+                }
+                out.keys.push(Key {
+                    name: f.name().to_owned(),
+                    ident: ident(f.name()),
+                    kind,
+                    required: fb.contains(&REQUIRED),
+                    comment: docs::plain(cx.comments.leading(f.parent_file().name(), f.path())),
+                });
+            }
+            None => {
+                out.required_json_only |= fb.contains(&REQUIRED);
+                out.json_only.push(f.name().to_owned());
+            }
+        }
+    }
+    out
+}
+
 /// A nested message's keys, and the function parsing its `KEY=VALUE,...`
 /// form, which is added to the group's code once.
 fn nested(cx: &Cx<'_>, m: &MessageDescriptor) -> Result<Nested, String> {
     let rust = sdk_type(m.package_name(), m.full_name())?;
-    let mut keys = Vec::new();
-    let mut json_only = Vec::new();
-    let mut required = Vec::new();
-    let mut required_json_only = false;
-    // The well-known types (a timestamp, a struct) have no keys: their JSON
-    // is their one form.
-    if !m.package_name().starts_with("google.") {
-        for f in m.fields() {
-            let fb = behaviors(cx.pool, &f);
-            if fb.contains(&OUTPUT_ONLY) {
-                continue;
-            }
-            match key_kind(cx, &f) {
-                Some(kind) => {
-                    if fb.contains(&REQUIRED) {
-                        required.push(f.name().to_owned());
-                    }
-                    keys.push(Key {
-                        name: f.name().to_owned(),
-                        ident: ident(f.name()),
-                        kind,
-                        required: fb.contains(&REQUIRED),
-                        comment: docs::plain(cx.comments.leading(f.parent_file().name(), f.path())),
-                    });
-                }
-                None => {
-                    required_json_only |= fb.contains(&REQUIRED);
-                    json_only.push(f.name().to_owned());
-                }
-            }
-        }
-    }
-    let parser = (!keys.is_empty() && !required_json_only).then(|| {
+    let fields = fields_as_keys(cx, m);
+    let pairs = fields.has_pairs_form();
+    let FieldsAsKeys {
+        keys,
+        json_only,
+        required,
+        ..
+    } = fields;
+    let parser = pairs.then(|| {
         let local = rust_type_path(m.package_name(), m.full_name())
             .replace("::", "_")
             .to_snake_case();
@@ -2493,11 +2531,29 @@ fn resource_of(cx: &Cx<'_>, message: &MessageDescriptor) -> Option<Resource> {
 }
 
 /// The flag a field is set by.
-fn flag_name(_cx: &Cx<'_>, field: &FieldDescriptor) -> String {
-    if field.is_map() || field.is_list() {
+fn flag_name(cx: &Cx<'_>, field: &FieldDescriptor) -> String {
+    if json_flag_alone(cx, field) {
+        format!("{}-json", field.name().to_kebab_case())
+    } else if field.is_map() || field.is_list() {
         singular(field.name()).to_kebab_case()
     } else {
         field.name().to_kebab_case()
+    }
+}
+
+/// Whether a message field, or a list of messages, is set by its JSON flag
+/// alone (`--basic-json`), its message having no `KEY=VALUE,...` form, so
+/// that help naming the field names that flag.
+fn json_flag_alone(cx: &Cx<'_>, field: &FieldDescriptor) -> bool {
+    match field.kind() {
+        Kind::Message(m) => {
+            !field.is_map()
+                && m.full_name() != DURATION
+                && m.full_name() != TIMESTAMP
+                && referenced(cx, field).is_none()
+                && !fields_as_keys(cx, &m).has_pairs_form()
+        }
+        _ => false,
     }
 }
 
@@ -3063,7 +3119,7 @@ fn oneof_flags(
     let update = body.is_some();
     let flags: Vec<String> = members
         .iter()
-        .map(|m| format!("`--{}`", m.name().to_kebab_case()))
+        .map(|m| format!("`--{}`", flag_name(cx, m)))
         .collect();
     let none = format!("no_{}", oneof.name().to_snake_case());
     let none_long = format!("no-{}", oneof.name().to_kebab_case());

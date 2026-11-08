@@ -805,7 +805,11 @@ async fn call_get_project_quota(
             "max_vpcs",
             "no_max_vpcs",
             "max_public_ips",
-            "no_max_public_ips"]
+            "no_max_public_ips",
+            "max_hosted_zones",
+            "no_max_hosted_zones",
+            "max_record_sets",
+            "no_max_record_sets"]
         )
     )
 )]
@@ -858,6 +862,24 @@ pub struct UpdateProjectQuotaArgs {
     /// Unsets `--max-public-ips`; the API's default applies.
     #[arg(long = "no-max-public-ips", conflicts_with = "max_public_ips")]
     pub no_max_public_ips: bool,
+    /// The most DNS hosted zones, including those not yet verified; unset
+    /// means no budget.
+    ///
+    /// Left as it is when not given. `--no-max-hosted-zones` unsets it.
+    #[arg(long = "max-hosted-zones")]
+    pub max_hosted_zones: Option<i64>,
+    /// Unsets `--max-hosted-zones`; the API's default applies.
+    #[arg(long = "no-max-hosted-zones", conflicts_with = "max_hosted_zones")]
+    pub no_max_hosted_zones: bool,
+    /// The most DNS record sets, summed over the project's hosted zones; unset
+    /// means no budget.
+    ///
+    /// Left as it is when not given. `--no-max-record-sets` unsets it.
+    #[arg(long = "max-record-sets")]
+    pub max_record_sets: Option<i64>,
+    /// Unsets `--max-record-sets`; the API's default applies.
+    #[arg(long = "no-max-record-sets", conflicts_with = "max_record_sets")]
+    pub no_max_record_sets: bool,
 }
 async fn update_project_quota(
     ctx: &Context<'_>,
@@ -891,6 +913,14 @@ async fn update_project_quota(
     if args.no_max_public_ips || args.max_public_ips.is_some() {
         project_quota.max_public_ips = args.max_public_ips;
         paths.push("max_public_ips".to_owned());
+    }
+    if args.no_max_hosted_zones || args.max_hosted_zones.is_some() {
+        project_quota.max_hosted_zones = args.max_hosted_zones;
+        paths.push("max_hosted_zones".to_owned());
+    }
+    if args.no_max_record_sets || args.max_record_sets.is_some() {
+        project_quota.max_record_sets = args.max_record_sets;
+        paths.push("max_record_sets".to_owned());
     }
     let request = ::origincloud_resourcemanager::v1beta1::UpdateProjectQuotaRequest {
         project_quota: Some(project_quota),
