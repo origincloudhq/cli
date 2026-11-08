@@ -400,7 +400,7 @@ batch-7   STARTING   c1.xlarge                      30s ago
         assert_eq!(
             printed.lines().next().unwrap(),
             "NAME      STATE      INSTANCE TYPE   IMAGE   IMAGE FAMILY   KEY PAIR   LOGIN USER   \
-             NETWORK INTERFACES   STATE REASON   CREATE TIME"
+             NETWORK INTERFACES   STATE REASON   SERVICE ACCOUNT   CREATE TIME"
         );
     }
 
