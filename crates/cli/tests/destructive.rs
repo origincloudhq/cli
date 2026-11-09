@@ -222,7 +222,9 @@ async fn an_update_sends_the_fields_its_flags_name() {
 }
 
 /// The credentials in the environment come first, as in every SDK; without
-/// them, the login session; without either, a message saying how to log in.
+/// them, the login session; without either, and with the instance's
+/// metadata service left out (the machine running the test may have one of
+/// its own: GitHub's runners have Azure's), a message saying how to log in.
 #[tokio::test(flavor = "multi_thread")]
 async fn credentials_come_from_the_environment_then_the_session() {
     let server = recording(answering(VOLUME)).await;
@@ -242,7 +244,11 @@ async fn credentials_come_from_the_environment_then_the_session() {
     assert_eq!(tokens, ["Bearer from-environment", "Bearer stored-access"]);
 
     std::fs::remove_file(server.home.path().join("origincloud").join("session.json")).unwrap();
-    let description = failure(&server.pvs(&get).await);
+    let description = failure(
+        &server
+            .pvs_with(&get, &[("ORIGINCLOUD_METADATA_DISABLED", "true")])
+            .await,
+    );
     assert!(description.contains("origin id login"), "{description}");
     assert!(
         description.contains("ORIGINCLOUD_ACCESS_TOKEN"),
