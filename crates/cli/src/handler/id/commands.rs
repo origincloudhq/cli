@@ -16,7 +16,8 @@ pub(crate) enum IdentityCommands {
     },
 
     /// Print the access token of the current login session, for calling the
-    /// GraphQL API directly.
+    /// API directly. Without a login session, on an instance that runs as a
+    /// service account, the credential of that service account.
     Token {
         /// Print the token as an HTTP `Authorization` header (`Authorization:
         /// Bearer <token>`).

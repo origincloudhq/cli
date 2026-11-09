@@ -313,7 +313,12 @@ every method of the API, with the API's own descriptions as help:
 - **Credentials.** The login session, or, when they are set, the variables
   every Origin Cloud SDK reads: `ORIGINCLOUD_ACCESS_TOKEN`, or
   `ORIGINCLOUD_CLIENT_ID` and `ORIGINCLOUD_CLIENT_SECRET` for a service
-  account.
+  account. Without either, on an instance that runs as a service account,
+  the credential of that service account from the instance's metadata
+  service: `origin` works there with nothing to configure, and
+  `origin id token` prints that credential for other tools. Off an
+  instance this last step gives up within about two seconds;
+  `ORIGINCLOUD_METADATA_DISABLED=true` leaves it out.
 
 `--endpoint URL`, an option of each of these groups, such as
 `origin pvs --endpoint URL`, sends that group's calls to another base URL,

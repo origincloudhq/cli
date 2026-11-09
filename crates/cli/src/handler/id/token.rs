@@ -1,19 +1,19 @@
-use crate::config::ClientSession;
 use crate::graphql::TokenProvider;
 use crate::output::{CommandResult, SerializableOutput, SerializationError};
+use crate::sdk::credentials::access_token;
 use serde::Serialize;
 
 pub(super) async fn perform_token(
     as_header: bool,
     raw: bool,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let credentials = match ClientSession::read_and_validate_credentials().await {
-        None => {
+    let credentials = match access_token().await {
+        Err(_) => {
             return Ok(Box::new(CommandResult::Failure(
                 "unauthenticated".to_string(),
             )))
         }
-        Some(credentials) => credentials,
+        Ok(credentials) => credentials,
     };
 
     if as_header {
