@@ -120,10 +120,6 @@ impl ClientSession {
         }
         renew(session.refresh_token).await
     }
-
-    pub async fn read_and_validate_credentials() -> Option<ClientSession> {
-        Self::valid(EXPIRY_MARGIN).await.ok()
-    }
 }
 
 /// An exclusive lock on the file at `path`, held until the file is dropped.

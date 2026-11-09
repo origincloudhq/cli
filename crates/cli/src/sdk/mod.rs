@@ -6,7 +6,7 @@
 //! serve`, `nested.rs` what the flags of nested messages and JSON values add
 //! to it; `credentials.rs` hands the SDK the CLI's login session.
 
-mod credentials;
+pub(crate) mod credentials;
 mod nested;
 mod runtime;
 

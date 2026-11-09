@@ -1,5 +1,6 @@
 use crate::config::ClientSession;
 use crate::graphql::{OAuthAuthenticationError, OAuthClientAuthenticator, TokenProvider};
+use crate::sdk::credentials::access_token;
 use origincloud_oauth_login::{
     BrowserLoginOptions, NativeLoginClient, OidcEndpoints, StderrPrompts, TokenResponse,
 };
@@ -14,10 +15,9 @@ pub(crate) struct ConfigAuthenticator {}
 
 impl OAuthClientAuthenticator for ConfigAuthenticator {
     async fn get_token(&self) -> Result<impl TokenProvider, OAuthAuthenticationError> {
-        let credentials = ClientSession::read_and_validate_credentials()
+        access_token()
             .await
-            .ok_or(OAuthAuthenticationError::Unauthenticated)?;
-        Ok(credentials)
+            .map_err(|_| OAuthAuthenticationError::Unauthenticated)
     }
 }
 
