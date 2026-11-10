@@ -298,6 +298,37 @@ sa-2   Old backup     DELETED   serviceAccount:sa-2   c-91be
     assert!(header.contains("DELETE TIME"), "{header}");
 }
 
+/// Roles are listed by their id and the name the console shows them by,
+/// with what holding them allows; their permissions are in `-o wide`.
+#[tokio::test(flavor = "multi_thread")]
+async fn roles_are_listed_by_id_display_name_and_description() {
+    const ROLES: &str = r#"{"roles":[
+        {"name":"roles/owner","urn":"urn:origin:cloud:iam:::role/owner","displayName":"Owner",
+         "description":"Full access, including granting roles.",
+         "includedPermissions":["permissions/iam.roleBindings.create","permissions/compute.instances.create"]},
+        {"name":"roles/billing.administrator","urn":"urn:origin:cloud:iam:::role/billing.administrator",
+         "displayName":"Billing Administrator","description":"Manages billing accounts.",
+         "includedPermissions":["permissions/billing.accounts.update"]}]}"#;
+    let server = recording(|_| Response::json(ROLES)).await;
+    let table = server.run("iam", &["list-roles", "-o", "table"]).await;
+    assert_eq!(
+        text(&table.stdout),
+        "\
+NAME                    DISPLAY NAME            DESCRIPTION
+owner                   Owner                   Full access, including granting roles.
+billing.administrator   Billing Administrator   Manages billing accounts.
+"
+    );
+
+    let wide = server.run("iam", &["list-roles", "-o", "wide"]).await;
+    let wide = text(&wide.stdout);
+    assert!(wide.contains("INCLUDED PERMISSIONS"), "{wide}");
+    assert!(
+        wide.contains("iam.roleBindings.create, compute.instances.create"),
+        "{wide}"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn an_empty_list_says_where_it_looked_and_how_to_make_one() {
     let server = recording(|_| Response::json("{}")).await;

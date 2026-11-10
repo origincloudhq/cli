@@ -452,7 +452,7 @@ async fn list_roles(
         Listing {
             field: "roles",
             item: Some("origincloud.iam.v1beta1.Role"),
-            columns: &["name", "description"],
+            columns: &["name", "displayName", "description"],
             parents: listed,
             create: None,
         },
