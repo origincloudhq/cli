@@ -538,7 +538,7 @@ columns = ["name", "display_name", "state", "member", "client_id", "create_time"
 [[view]]
 service = "iam"
 message = "Role"
-columns = ["name", "description"]
+columns = ["name", "display_name", "description"]
 
 [[view]]
 service = "iam"
