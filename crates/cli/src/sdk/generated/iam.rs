@@ -28,6 +28,30 @@ pub enum Commands {
     )]
     ListAuditLogEntries(ListAuditLogEntriesArgs),
     #[command(
+        name = "get-federated-credential",
+        about = "Returns a federated credential, deleted or not",
+        long_about = "Returns a federated credential, deleted or not. Needs `iam.service_account.list` on the organization."
+    )]
+    GetFederatedCredential(GetFederatedCredentialArgs),
+    #[command(
+        name = "list-federated-credentials",
+        about = "Lists a service account's federated credentials, oldest first",
+        long_about = "Lists a service account's federated credentials, oldest first. Deleted ones are listed only when `--show-deleted` is set. Needs `iam.service_account.list` on the organization."
+    )]
+    ListFederatedCredentials(ListFederatedCredentialsArgs),
+    #[command(
+        name = "create-federated-credential",
+        about = "Creates a federated credential on an active `WORKLOAD` service account",
+        long_about = "Creates a federated credential on an active `WORKLOAD` service account. Anyone whose token matches it acts as the service account, so creating one needs `iam.service_account.create` and `iam.service_account.act_as` on the organization: the right to act as the account yourself. Refused with `INVALID_ARGUMENT` when a condition contains `*`, or when no condition names an identity that never changes: `repository_id` or `repository_owner_id` for GitHub Actions' issuer, `sub` for any other."
+    )]
+    CreateFederatedCredential(CreateFederatedCredentialArgs),
+    #[command(
+        name = "delete-federated-credential",
+        about = "Deletes a federated credential: no token is exchanged for it from then on, and an access token already exchanged for it is refused on its next request",
+        long_about = "Deletes a federated credential: no token is exchanged for it from then on, and an access token already exchanged for it is refused on its next request. It stays readable as `DELETED`. Deleting a deleted one succeeds. Needs `iam.service_account.revoke` on the organization."
+    )]
+    DeleteFederatedCredential(DeleteFederatedCredentialArgs),
+    #[command(
         name = "get-permission",
         about = "Returns a permission",
         long_about = "Returns a permission."
@@ -120,6 +144,18 @@ pub async fn run(
     match command {
         Commands::GetAuditLogEntry(args) => get_audit_log_entry(ctx, args).await,
         Commands::ListAuditLogEntries(args) => list_audit_log_entries(ctx, args).await,
+        Commands::GetFederatedCredential(args) => {
+            get_federated_credential(ctx, args).await
+        }
+        Commands::ListFederatedCredentials(args) => {
+            list_federated_credentials(ctx, args).await
+        }
+        Commands::CreateFederatedCredential(args) => {
+            create_federated_credential(ctx, args).await
+        }
+        Commands::DeleteFederatedCredential(args) => {
+            delete_federated_credential(ctx, args).await
+        }
         Commands::GetPermission(args) => get_permission(ctx, args).await,
         Commands::ListPermissions(args) => list_permissions(ctx, args).await,
         Commands::TestIamPermissions(args) => test_iam_permissions(ctx, args).await,
@@ -286,6 +322,322 @@ async fn call_list_audit_log_entries(
 > {
     ::origincloud_iam::v1beta1::AuditLogClient::new(client.sdk())
         .list_audit_log_entries(request)
+        .await
+}
+/// The flags of `get-federated-credential`.
+#[derive(clap::Args, Debug)]
+pub struct GetFederatedCredentialArgs {
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--federated-credential` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    pub organization: Option<String>,
+    /// The `{service_account}` part of the resource names the command builds. Needed unless `--federated-credential` is given a whole name, which has it.
+    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
+    pub service_account: Option<String>,
+    /// The federated credential to return.
+    ///
+    /// Its id, completed with `--organization` and `--service-account`, or its whole name, `organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}`.
+    #[arg(long = "federated-credential", value_name = "FEDERATED_CREDENTIAL")]
+    pub federated_credential: String,
+}
+async fn get_federated_credential(
+    ctx: &Context<'_>,
+    args: GetFederatedCredentialArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[
+                ("organization", args.organization.as_deref()),
+                ("service_account", args.service_account.as_deref()),
+            ],
+        );
+    names
+        .learn(
+            &[
+                "organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}",
+            ],
+            "federated-credential",
+            Some(args.federated_credential.as_str()),
+        )?;
+    let name = names
+        .reference(
+            &[
+                "organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}",
+            ],
+            "federated-credential",
+            args.federated_credential.as_str(),
+        )?;
+    let request = ::origincloud_iam::v1beta1::GetFederatedCredentialRequest {
+        name,
+    };
+    let client = ctx.client()?;
+    let response = call_get_federated_credential(&client, request)
+        .await
+        .map_err(api_error)?;
+    json(&response, "origincloud.iam.v1beta1.FederatedCredential")
+}
+async fn call_get_federated_credential(
+    client: &ReadClient,
+    request: ::origincloud_iam::v1beta1::GetFederatedCredentialRequest,
+) -> ::core::result::Result<
+    ::origincloud_iam::v1beta1::FederatedCredential,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_iam::v1beta1::FederatedCredentialClient::new(client.sdk())
+        .get_federated_credential(request)
+        .await
+}
+/// The flags of `list-federated-credentials`.
+#[derive(clap::Args, Debug)]
+pub struct ListFederatedCredentialsArgs {
+    /// The `{organization}` part of the resource names the command builds.
+    #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
+    pub organization: Option<String>,
+    /// The `{service_account}` part of the resource names the command builds.
+    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT", required = true)]
+    pub service_account: Option<String>,
+    /// The most federated credentials to return; the server clamps it, and 0
+    /// means its default.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-size")]
+    pub page_size: Option<i32>,
+    /// A previous response's `nextPageToken`, for the page after it.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-token")]
+    pub page_token: Option<String>,
+    /// Whether deleted federated credentials are listed too.
+    #[arg(
+        long = "show-deleted",
+        value_name = "true|false",
+        action = clap::ArgAction::Set
+    )]
+    pub show_deleted: Option<bool>,
+}
+async fn list_federated_credentials(
+    ctx: &Context<'_>,
+    args: ListFederatedCredentialsArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let names = ctx
+        .names(
+            &[
+                ("organization", args.organization.as_deref()),
+                ("service_account", args.service_account.as_deref()),
+            ],
+        );
+    let parent = names
+        .name("organizations/{organization}/serviceAccounts/{service_account}")?;
+    let request = ::origincloud_iam::v1beta1::ListFederatedCredentialsRequest {
+        parent,
+        page_size: args.page_size.unwrap_or_default(),
+        page_token: args.page_token.clone().unwrap_or_default(),
+        show_deleted: args.show_deleted.unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
+    if args.page_size.is_some() || args.page_token.is_some() {
+        let page = call_list_federated_credentials(&client, request)
+            .await
+            .map_err(api_error)?;
+        return list_json(
+            &page,
+            Listing {
+                field: "federatedCredentials",
+                item: Some("origincloud.iam.v1beta1.FederatedCredential"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin iam create-federated-credential"),
+            },
+        );
+    }
+    let mut request = request;
+    let mut items = Vec::new();
+    loop {
+        let page = call_list_federated_credentials(&client, request.clone())
+            .await
+            .map_err(api_error)?;
+        items.extend(page.federated_credentials);
+        if page.next_page_token.is_empty() {
+            break;
+        }
+        request.page_token = page.next_page_token;
+    }
+    list_json(
+        &::origincloud_iam::v1beta1::ListFederatedCredentialsResponse {
+            federated_credentials: items,
+            ..::core::default::Default::default()
+        },
+        Listing {
+            field: "federatedCredentials",
+            item: Some("origincloud.iam.v1beta1.FederatedCredential"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin iam create-federated-credential"),
+        },
+    )
+}
+async fn call_list_federated_credentials(
+    client: &ReadClient,
+    request: ::origincloud_iam::v1beta1::ListFederatedCredentialsRequest,
+) -> ::core::result::Result<
+    ::origincloud_iam::v1beta1::ListFederatedCredentialsResponse,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_iam::v1beta1::FederatedCredentialClient::new(client.sdk())
+        .list_federated_credentials(request)
+        .await
+}
+/// The flags of `create-federated-credential`.
+#[derive(clap::Args, Debug)]
+pub struct CreateFederatedCredentialArgs {
+    /// The `{organization}` part of the resource names the command builds.
+    #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
+    pub organization: Option<String>,
+    /// The `{service_account}` part of the resource names the command builds.
+    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT", required = true)]
+    pub service_account: Option<String>,
+    /// A name of your own, shown in the console; at most 100 characters.
+    #[arg(long = "display-name")]
+    pub display_name: String,
+    /// The identity provider whose tokens are trusted: a token's `iss`, matched
+    /// exactly, an `https` URL that serves
+    /// `/.well-known/openid-configuration`, such as
+    /// `https://token.actions.githubusercontent.com`.
+    #[arg(long = "issuer")]
+    pub issuer: String,
+    /// The audience a token must be issued for, its `aud`, matched exactly;
+    /// `https://sts.origincloudapis.eu` when the create leaves it empty.
+    #[arg(long = "audience")]
+    pub audience: Option<String>,
+    /// The claims a token must carry, each with exactly this value, such as
+    /// `repository_id` and `environment` for GitHub Actions. At least one, on
+    /// an identity that never changes.
+    ///
+    /// As KEY=VALUE; repeat for more.
+    #[arg(long = "condition", value_name = "KEY=VALUE", required = true)]
+    pub condition: Vec<TagArg>,
+    /// A UUID. A repeat of the request with the same `--request-id` within a
+    /// day returns the federated credential the first request created, as it
+    /// is now, instead of creating a second. The same `--request-id` with a
+    /// different request is refused with `CONFLICT`. One is generated when not given.
+    #[arg(long = "request-id")]
+    pub request_id: Option<String>,
+}
+async fn create_federated_credential(
+    ctx: &Context<'_>,
+    args: CreateFederatedCredentialArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let names = ctx
+        .names(
+            &[
+                ("organization", args.organization.as_deref()),
+                ("service_account", args.service_account.as_deref()),
+            ],
+        );
+    let parent = names
+        .name("organizations/{organization}/serviceAccounts/{service_account}")?;
+    let federated_credential = ::origincloud_iam::v1beta1::FederatedCredential {
+        display_name: args.display_name.clone(),
+        issuer: args.issuer.clone(),
+        audience: args.audience.clone().unwrap_or_default(),
+        conditions: tags(&args.condition),
+        ..::core::default::Default::default()
+    };
+    let request = ::origincloud_iam::v1beta1::CreateFederatedCredentialRequest {
+        parent,
+        federated_credential: Some(federated_credential),
+        request_id: args.request_id.clone().unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    let response = call_create_federated_credential(&client, request)
+        .await
+        .map_err(api_error)?;
+    json(&response, "origincloud.iam.v1beta1.FederatedCredential")
+}
+async fn call_create_federated_credential(
+    client: &ReadClient,
+    request: ::origincloud_iam::v1beta1::CreateFederatedCredentialRequest,
+) -> ::core::result::Result<
+    ::origincloud_iam::v1beta1::FederatedCredential,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_iam::v1beta1::FederatedCredentialClient::new(client.sdk())
+        .create_federated_credential(request)
+        .await
+}
+/// The flags of `delete-federated-credential`.
+#[derive(clap::Args, Debug)]
+pub struct DeleteFederatedCredentialArgs {
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--federated-credential` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    pub organization: Option<String>,
+    /// The `{service_account}` part of the resource names the command builds. Needed unless `--federated-credential` is given a whole name, which has it.
+    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
+    pub service_account: Option<String>,
+    /// The federated credential to delete.
+    ///
+    /// Its id, completed with `--organization` and `--service-account`, or its whole name, `organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}`.
+    #[arg(long = "federated-credential", value_name = "FEDERATED_CREDENTIAL")]
+    pub federated_credential: String,
+    #[command(flatten)]
+    pub confirmation: confirm::Confirmation,
+}
+async fn delete_federated_credential(
+    ctx: &Context<'_>,
+    args: DeleteFederatedCredentialArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[
+                ("organization", args.organization.as_deref()),
+                ("service_account", args.service_account.as_deref()),
+            ],
+        );
+    names
+        .learn(
+            &[
+                "organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}",
+            ],
+            "federated-credential",
+            Some(args.federated_credential.as_str()),
+        )?;
+    let name = names
+        .reference(
+            &[
+                "organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}",
+            ],
+            "federated-credential",
+            args.federated_credential.as_str(),
+        )?;
+    let request = ::origincloud_iam::v1beta1::DeleteFederatedCredentialRequest {
+        name,
+    };
+    let confirmed = confirm::require(
+        args.confirmation,
+        confirm::Destructive {
+            verb: "delete",
+            what: "federated credential",
+            target: &request.name,
+            consequence: "It can't be restored.",
+        },
+    )?;
+    let deleted_name = request.name.clone();
+    let client = ctx.confirmed_client(confirmed)?;
+    let response = call_delete_federated_credential(&client, request)
+        .await
+        .map_err(api_error)?;
+    let _ = response;
+    Ok(deleted("federated credential", &deleted_name))
+}
+async fn call_delete_federated_credential(
+    client: &ConfirmedClient,
+    request: ::origincloud_iam::v1beta1::DeleteFederatedCredentialRequest,
+) -> ::core::result::Result<
+    ::origincloud_core::protobuf::Empty,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_iam::v1beta1::FederatedCredentialClient::new(client.sdk())
+        .delete_federated_credential(request)
         .await
 }
 /// The flags of `get-permission`.
