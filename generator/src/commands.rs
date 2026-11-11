@@ -326,7 +326,8 @@ pub fn generate(
         "#[allow(unused_imports)]\n\
          use crate::sdk::runtime::{\n\
              api_error, deadline_after, deleted, duration, json, list_json, names_any, pace, passed,\n\
-             shown_once, success, tags, wait, wait_for, waited, waiting, zones, ConfirmedClient,\n\
+             read_value_file, shown_once, success, tags, wait, wait_for, waited, waiting, zones,\n\
+             ConfirmedClient,\n\
              Context, Listing, ReadClient, OPERATION,\n\
          };\n\
          #[allow(unused_imports)]\n\
@@ -1938,7 +1939,11 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             doc.push_str(" One is generated when not given.");
         }
         let unordered = behaviors(cx.pool, &field).contains(&UNORDERED_LIST);
-        let expr = value(&mut b, &field, &k, required, unordered, &doc)?;
+        let expr = if cx.policy.read_from_file(cx.own, m.name(), &name) {
+            from_file(&mut b, &field, &k, required, &doc)?
+        } else {
+            value(&mut b, &field, &k, required, unordered, &doc)?
+        };
         if name == "timeout" && waits {
             // The flag is a deadline of the command's: each call waits a
             // minute at most, as the API allows, and the command calls again
@@ -2503,6 +2508,40 @@ fn init(field: &str, expr: &str) -> String {
 
 /// How a flag's value of Rust type `ty` is taken from the arguments: cloned
 /// unless it is `Copy`.
+/// The flag of a string field read from a file (`commands.toml`'s
+/// `from_file`), `--{field}-file`, which takes a path or `-` for standard
+/// input, and the expression of its value.
+fn from_file(
+    b: &mut Build,
+    field: &FieldDescriptor,
+    k: &Kind2,
+    required: bool,
+    doc: &str,
+) -> Result<String, String> {
+    if !matches!(k, Kind2::Scalar("String")) {
+        return Err(format!(
+            "{} is read from a file, but isn't a string",
+            field.full_name()
+        ));
+    }
+    let fid = format!("{}_file", ident(field.name()));
+    b.add_flag(Flag {
+        ident: fid.clone(),
+        long: format!("{}-file", field.name().to_kebab_case()),
+        doc: format!(
+            "{doc}\n\nRead from the file at the path, or from standard input with `-`, without \
+             its final newline."
+        ),
+        ty: if required { "String" } else { "Option<String>" }.to_owned(),
+        attrs: vec!["value_name = \"PATH\"".to_owned()],
+    })?;
+    Ok(if required {
+        format!("read_value_file(&args.{fid})?")
+    } else {
+        format!("args.{fid}.as_deref().map(read_value_file).transpose()?.unwrap_or_default()")
+    })
+}
+
 fn clone_of(ty: &str) -> &'static str {
     if ty == "String" {
         ".clone()"

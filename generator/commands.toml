@@ -428,6 +428,28 @@ the output through `(umask 077; jq -r .clientSecret > client-secret)`. A lost \
 secret can't be fetched again: delete the service account and create \
 another."""
 
+[[shown_once]]
+service = "iam"
+method = "RotateServiceAccountSecret"
+field = "client_secret"
+notice = """
+`clientSecret` holds the service account's new client secret, which the API \
+returns this once; the old one no longer works. Save it now where only you \
+can read it, such as by piping the output through \
+`(umask 077; jq -r .clientSecret > client-secret)`. A lost secret can't be \
+fetched again: rotate it again."""
+
+# A string field of a request itself that a command reads from a file, or
+# from standard input with `-`, rather than from the command line, where it
+# would be in the shell's history and in every process listing: its flag is
+# `--{field}-file`, and the value is the file's content without its final
+# newline. Generation fails for one that isn't a string.
+[[from_file]]
+service = "sts"
+method = "AssumeServiceAccount"
+field = "token"
+why = "The OIDC token is a credential, and a CI job or a credential helper has it in a file."
+
 # The columns of the `table` a list of a message is printed as, by the
 # fields' paths from the message, through messages and lists of them:
 # what tells one item from another, and what someone listing them looks

@@ -126,6 +126,18 @@ pub(crate) static SCRATCH: Group = Group {
     regional: true,
     service: scratch::service,
 };
+/// `origin sts`.
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
+pub mod sts {
+    include!("sts.rs");
+}
+/// What the runtime knows of `origin sts`.
+pub(crate) static STS: Group = Group {
+    name: "sts",
+    endpoint_variable: "ORIGINCLOUD_STS_ENDPOINT",
+    regional: false,
+    service: sts::service,
+};
 /// `origin support`.
 #[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
 pub mod support {
@@ -151,6 +163,7 @@ pub(crate) static GROUPS: &[&Group] = &[
     &OBSERVABILITY,
     &PVS,
     &RESOURCEMANAGER,
+    &STS,
     &SUPPORT,
 ];
 /// Every generated group.
@@ -167,6 +180,7 @@ pub(crate) static GROUPS: &[&Group] = &[
     &PVS,
     &RESOURCEMANAGER,
     &SCRATCH,
+    &STS,
     &SUPPORT,
 ];
 /// The command groups generated from the API definitions, one per service.
@@ -234,6 +248,12 @@ pub enum ServiceCommands {
         long_about = "Firewalls: rules that guard the networks of a zone."
     )]
     Scratch(ScratchCli),
+    #[command(
+        name = "sts",
+        about = "The security token service: it turns a token from an identity provider outside Origin Cloud, such as a CI job's OIDC token, into the access token of a `WORKLOAD` service account that trusts it through a federated credential",
+        long_about = "The security token service: it turns a token from an identity provider outside Origin Cloud, such as a CI job's OIDC token, into the access token of a `WORKLOAD` service account that trusts it through a federated credential.\n\nIt authenticates no caller: the token is the proof."
+    )]
+    Sts(StsCli),
     #[command(
         name = "support",
         about = "Support: cases, each a conversation with Origin Cloud support about a question or a problem, and their messages",
@@ -392,6 +412,21 @@ pub struct ScratchCli {
     #[command(subcommand)]
     pub command: scratch::Commands,
 }
+/// `origin sts`: its options, and the command.
+#[derive(clap::Args, Debug)]
+pub struct StsCli {
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host, `https://sts.origincloudapis.eu`, the same in every region. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`).
+    #[arg(
+        long,
+        value_name = "URL",
+        env = "ORIGINCLOUD_STS_ENDPOINT",
+        global = true,
+        help_heading = "Global options"
+    )]
+    pub endpoint: Option<String>,
+    #[command(subcommand)]
+    pub command: sts::Commands,
+}
 /// `origin support`: its options, and the command.
 #[derive(clap::Args, Debug)]
 pub struct SupportCli {
@@ -453,6 +488,10 @@ pub async fn run(
         ServiceCommands::Scratch(cli) => {
             let ctx = Context::new(profile, &SCRATCH, cli.endpoint.as_deref())?;
             scratch::run(&ctx, cli.command).await
+        }
+        ServiceCommands::Sts(cli) => {
+            let ctx = Context::new(profile, &STS, cli.endpoint.as_deref())?;
+            sts::run(&ctx, cli.command).await
         }
         ServiceCommands::Support(cli) => {
             let ctx = Context::new(profile, &SUPPORT, cli.endpoint.as_deref())?;

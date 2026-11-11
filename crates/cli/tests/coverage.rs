@@ -41,6 +41,8 @@ struct Table {
     #[serde(default)]
     shown_once: Vec<Entry>,
     #[serde(default)]
+    from_file: Vec<Entry>,
+    #[serde(default)]
     also_names: Vec<AlsoNames>,
     #[serde(default)]
     view: Vec<View>,
@@ -285,6 +287,7 @@ fn every_table_entry_names_a_method_and_a_field() {
                 .exclude
                 .iter()
                 .chain(&table.one_way)
+                .chain(&table.from_file)
                 .map(|e| (&e.service, &e.method, e.field.as_str())),
         );
     for (service, method_name, field) in entries {
