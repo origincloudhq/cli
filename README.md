@@ -313,7 +313,14 @@ every method of the API, with the API's own descriptions as help:
 - **Credentials.** The login session, or, when they are set, the variables
   every Origin Cloud SDK reads: `ORIGINCLOUD_ACCESS_TOKEN`, or
   `ORIGINCLOUD_CLIENT_ID` and `ORIGINCLOUD_CLIENT_SECRET` for a service
-  account. Without either, on an instance that runs as a service account,
+  account. In a CI job, the job's OIDC token, exchanged at the security
+  token service for the service account a federated credential trusts the
+  job as: GitHub Actions' token in a job granted
+  `permissions: id-token: write`, or the token in the file
+  `ORIGINCLOUD_OIDC_TOKEN_FILE` names. It comes before the login session,
+  covers every command and `origin id token`, and a refused exchange is the
+  command's error; `ORIGINCLOUD_OIDC_DISABLED=true` leaves it out. Without
+  any of these, on an instance that runs as a service account,
   the credential of that service account from the instance's metadata
   service: `origin` works there with nothing to configure, and
   `origin id token` prints that credential for other tools. Off an
