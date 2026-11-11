@@ -157,6 +157,12 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   the API returns in that response alone, such as `CreateKeyPair`'s
   `private_key`: the command prints the response as any other, and its
   `notice` on standard error when the field isn't empty;
+- `[[from_file]]` names a string field of a method's request, such as
+  `AssumeServiceAccount`'s `token`, that its command reads from a file, or
+  from standard input with `-`, rather than from the command line, where a
+  credential would be in the shell's history and in every process listing:
+  its flag is `--{field}-file`, and the value is the file's content without
+  its final newline. Generation fails for a field that isn't a string;
 - `[[also_names]]` names a reference field, by its full name
   (`origincloud.compute.v1beta1.Instance.image`), that takes the names of
   another resource type too (`compute.origincloudapis.eu/PublicImage`),
