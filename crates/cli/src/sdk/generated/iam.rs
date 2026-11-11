@@ -4,8 +4,8 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, shown_once, success, tags, wait, wait_for, waited, waiting, zones,
-    ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_value_file, shown_once, success, tags, wait, wait_for, waited, waiting,
+    zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -1368,6 +1368,10 @@ async fn rotate_service_account_secret(
     let response = call_rotate_service_account_secret(&client, request)
         .await
         .map_err(api_error)?;
+    shown_once(
+        &response.client_secret,
+        "`clientSecret` holds the service account's new client secret, which the API returns this once; the old one no longer works. Save it now where only you can read it, such as by piping the output through `(umask 077; jq -r .clientSecret > client-secret)`. A lost secret can't be fetched again: rotate it again.",
+    );
     json(&response, "origincloud.iam.v1beta1.ServiceAccount")
 }
 async fn call_rotate_service_account_secret(

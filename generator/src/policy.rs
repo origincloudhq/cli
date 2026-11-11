@@ -44,6 +44,9 @@ pub struct Policy {
     /// response alone.
     #[serde(default)]
     pub shown_once: Vec<ShownOnce>,
+    /// String fields of a request a command reads from a file.
+    #[serde(default)]
+    pub from_file: Vec<FromFile>,
     /// Reference fields that also take the names of another resource type.
     #[serde(default)]
     pub also_names: Vec<AlsoNames>,
@@ -152,6 +155,21 @@ pub struct ShownOnce {
     pub notice: String,
 }
 
+/// A string field of a request itself a command reads from a file, or from
+/// standard input, rather than the command line, where it would be in the
+/// shell's history and every process listing: its flag is `--{field}-file`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FromFile {
+    pub service: String,
+    pub method: String,
+    /// The field of the request, such as `token`.
+    pub field: String,
+    /// Why, for whoever reads the table.
+    #[allow(dead_code)]
+    pub why: String,
+}
+
 /// A reference field that also takes the names of a resource type other
 /// than the one its `google.api.resource_reference` declares, which can
 /// name one type only: its flag takes a whole name of either, and an id
@@ -230,6 +248,12 @@ impl Policy {
             .find(|o| o.service == service && o.method == method && o.field == field)
     }
 
+    pub fn read_from_file(&self, service: &str, method: &str, field: &str) -> bool {
+        self.from_file
+            .iter()
+            .any(|f| f.service == service && f.method == method && f.field == field)
+    }
+
     pub fn shown_once(&self, service: &str, method: &str) -> Vec<&ShownOnce> {
         self.shown_once
             .iter()
@@ -254,7 +278,11 @@ impl Policy {
             .one_way
             .iter()
             .map(|o| (o.service.as_str(), o.method.as_str(), o.field.as_str()));
-        no_command.chain(exclude).chain(one_way)
+        let from_file = self
+            .from_file
+            .iter()
+            .map(|f| (f.service.as_str(), f.method.as_str(), f.field.as_str()));
+        no_command.chain(exclude).chain(one_way).chain(from_file)
     }
 }
 
@@ -287,6 +315,12 @@ mod tests {
             field = "private_key"
             notice = "z"
 
+            [[from_file]]
+            service = "sts"
+            method = "AssumeServiceAccount"
+            field = "token"
+            why = "v"
+
             [[also_names]]
             field = "origincloud.compute.v1beta1.Instance.image"
             resource = "compute.origincloudapis.eu/PublicImage"
@@ -307,7 +341,9 @@ mod tests {
         assert!(!policy.no_command("pvs", "WaitOperation"));
         assert!(policy.excluded("pvs", "ImportVolume", "volume.source_snapshot"));
         assert!(!policy.excluded("other", "ImportVolume", "volume.source_snapshot"));
-        assert_eq!(policy.entries().count(), 2);
+        assert!(policy.read_from_file("sts", "AssumeServiceAccount", "token"));
+        assert!(!policy.read_from_file("sts", "AssumeServiceAccount", "lifetime"));
+        assert_eq!(policy.entries().count(), 3);
         assert_eq!(
             policy.also_names[0].resource,
             "compute.origincloudapis.eu/PublicImage"

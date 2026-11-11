@@ -883,3 +883,54 @@ async fn create_instance_takes_dotted_types_and_public_images() {
     );
     assert_eq!(server.requests().len(), before, "{:?}", server.requests());
 }
+
+/// `assume-service-account` reads the OIDC token from a file, never from
+/// the command line, and sends it without the file's final newline; a
+/// missing file fails before anything is sent.
+#[tokio::test(flavor = "multi_thread")]
+async fn assume_service_account_reads_the_token_from_a_file() {
+    const ASSUMED: &str = r#"{"accessToken":"issued","expireTime":"2026-11-11T20:00:00Z","serviceAccount":"organizations/o/serviceAccounts/s","federatedCredential":"organizations/o/serviceAccounts/s/federatedCredentials/f"}"#;
+    let server = recording(|_: &Received| Response::json(ASSUMED)).await;
+    let token = server.home.path().join("token");
+    std::fs::write(&token, "job.token.value\n").unwrap();
+
+    let output = server
+        .run(
+            "sts",
+            &[
+                "assume-service-account",
+                "--token-file",
+                token.to_str().unwrap(),
+                "--service-account",
+                "organizations/o/serviceAccounts/s",
+                "--lifetime",
+                "10m",
+            ],
+        )
+        .await;
+    assert_eq!(success(&output), json(ASSUMED));
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1, "{requests:?}");
+    assert_eq!(requests[0].path, "/v1beta1:assumeServiceAccount");
+    let body: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+    assert_eq!(
+        body,
+        json(
+            r#"{"token":"job.token.value","serviceAccount":"organizations/o/serviceAccounts/s","lifetime":"600s"}"#
+        )
+    );
+
+    let missing = server.home.path().join("no-such-token");
+    let output = server
+        .run(
+            "sts",
+            &[
+                "assume-service-account",
+                "--token-file",
+                missing.to_str().unwrap(),
+            ],
+        )
+        .await;
+    assert!(failure(&output).contains("no-such-token"), "{output:?}");
+    assert_eq!(server.requests().len(), 1);
+}

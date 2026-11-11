@@ -4,8 +4,8 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, shown_once, success, tags, wait, wait_for, waited, waiting, zones,
-    ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_value_file, shown_once, success, tags, wait, wait_for, waited, waiting,
+    zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -44,8 +44,10 @@ pub struct AssumeServiceAccountArgs {
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The OIDC token, a JWT its issuer signed, such as a CI job's.
-    #[arg(long = "token")]
-    pub token: String,
+    ///
+    /// Read from the file at the path, or from standard input with `-`, without its final newline.
+    #[arg(long = "token-file", value_name = "PATH")]
+    pub token_file: String,
     /// The service account to assume,
     /// `organizations/{organization}/serviceAccounts/{service_account}`. Only
     /// its federated credentials are considered. Without it, any service
@@ -84,7 +86,7 @@ async fn assume_service_account(
         None => String::new(),
     };
     let request = ::origincloud_sts::v1beta1::AssumeServiceAccountRequest {
-        token: args.token.clone(),
+        token: read_value_file(&args.token_file)?,
         service_account,
         lifetime: args.lifetime,
     };

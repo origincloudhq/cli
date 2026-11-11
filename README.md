@@ -104,7 +104,7 @@ origin config profile
 | `output-format` | `ORIGINCLOUD_OUTPUT_FORMAT` | `table`, `wide`, `json` or `name` (see [Output](#output)); `--output` (`-o`) overrides it. |
 | `default-project` | `ORIGINCLOUD_PROJECT` | `--project` of the generated commands, such as `origin pvs`'s, when not given. |
 | `default-zone` | `ORIGINCLOUD_ZONE` | `--zone` of the generated commands, when not given; not of the lists, which list every zone without `--zone`. |
-| `region` | `ORIGINCLOUD_REGION` | The region the generated commands work in: the `--region` of the `network` commands' regional resources, when not given, and the front door the `compute`, `network`, `pvs` and `observability` commands call, such as `pvs.{region}.origincloudapis.eu`. Without it, the region of the default zone (`eu-central1` for `eu-central1-az1`); without either, `--region` must be given, and the calls go to the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource. The `location`, `resourcemanager`, `iam`, `billing`, `support` and `dns` commands always call their regionless host. |
+| `region` | `ORIGINCLOUD_REGION` | The region the generated commands work in: the `--region` of the `network` commands' regional resources, when not given, and the front door the `compute`, `network`, `pvs` and `observability` commands call, such as `pvs.{region}.origincloudapis.eu`. Without it, the region of the default zone (`eu-central1` for `eu-central1-az1`); without either, `--region` must be given, and the calls go to the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource. The `location`, `resourcemanager`, `iam`, `billing`, `support`, `dns` and `sts` commands always call their regionless host. |
 
 As in the AWS CLI, a flag comes first, then the environment variable, then
 the profile's value: an environment variable overrides the profile while a
@@ -187,6 +187,10 @@ A group per service of the API:
   volumes and network interfaces.
 - `origin dns`: hosted zones, public or private, their record sets, and
   the VPCs a private zone is attached to.
+- `origin sts`: the security token service, which turns an identity
+  provider's token, such as a CI job's OIDC token, into the access token of
+  a service account whose federated credential trusts it
+  (`assume-service-account --token-file`). It needs no login.
 
 Their commands are generated from the API definitions in
 [origincloudhq/api](https://github.com/origincloudhq/api) and call the

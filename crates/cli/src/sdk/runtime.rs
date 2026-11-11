@@ -718,6 +718,24 @@ pub fn waiting(ctx: &Context<'_>, operation: &origincloud_core::longrunning::Ope
     Spinner::start(progress::label(&json), resume)
 }
 
+/// The value of a field read from a file (`commands.toml`'s `from_file`):
+/// the content of the file at `path`, or of standard input for `-`, without
+/// its final newline.
+pub fn read_value_file(path: &str) -> anyhow::Result<String> {
+    let mut text = if path == "-" {
+        std::io::read_to_string(std::io::stdin()).context("reading standard input")?
+    } else {
+        std::fs::read_to_string(path).with_context(|| format!("reading {path}"))?
+    };
+    if text.ends_with('\n') {
+        text.pop();
+        if text.ends_with('\r') {
+            text.pop();
+        }
+    }
+    Ok(text)
+}
+
 /// Says `notice` on standard error when `value`, a field of the response
 /// holding a secret the API returns this once (`commands.toml`'s
 /// `shown_once`), isn't empty: the output is its only copy.
