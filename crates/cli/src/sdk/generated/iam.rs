@@ -42,7 +42,7 @@ pub enum Commands {
     #[command(
         name = "create-federated-credential",
         about = "Creates a federated credential on an active `WORKLOAD` service account",
-        long_about = "Creates a federated credential on an active `WORKLOAD` service account. Anyone whose token matches it acts as the service account, so creating one needs `iam.service_account.create` and `iam.service_account.act_as` on the organization: the right to act as the account yourself. Refused with `INVALID_ARGUMENT` when a condition contains `*`, or when no condition names an identity that never changes: `repository_id` or `repository_owner_id` for GitHub Actions' issuer, `sub` for any other."
+        long_about = "Creates a federated credential on an active `WORKLOAD` service account. Anyone whose token matches it acts as the service account, so creating one needs `iam.service_account.create` and `iam.service_account.act_as` on the organization: the right to act as the account yourself. Refused with `INVALID_ARGUMENT` when a condition contains `*`, or when no condition names an identity that never changes: `repository_id` or `repository_owner_id` for GitHub Actions' issuer, `project_id` or `namespace_id` for GitLab.com's, `sub` for any other."
     )]
     CreateFederatedCredential(CreateFederatedCredentialArgs),
     #[command(
