@@ -22,9 +22,9 @@ use crate::output::{
 };
 use crate::progress::{self, Spinner};
 
-/// The variables that hold credentials for the SDK. When any is set, the
-/// generated commands use them, as every SDK does, instead of the login
-/// session.
+/// The variables that hold credentials for the SDK. When any is set, or
+/// the environment names a CI job's OIDC token, the generated commands use
+/// the SDK's credentials, as every SDK does, instead of the login session.
 const CREDENTIAL_VARIABLES: [&str; 3] = [
     "ORIGINCLOUD_ACCESS_TOKEN",
     "ORIGINCLOUD_CLIENT_ID",
@@ -150,7 +150,8 @@ impl<'a> Context<'a> {
             );
         let from_environment = CREDENTIAL_VARIABLES
             .iter()
-            .any(|name| std::env::var(name).is_ok_and(|v| !v.is_empty()));
+            .any(|name| std::env::var(name).is_ok_and(|v| !v.is_empty()))
+            || crate::sdk::credentials::ci_job().is_some();
         builder = if from_environment {
             let credentials = origincloud_core::default_credentials().map_err(api_error)?;
             builder.credentials(Shared(credentials))
