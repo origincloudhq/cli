@@ -331,3 +331,73 @@ async fn a_ci_job_s_token_can_be_left_out() {
     assert!(description.contains("not logged in"), "{description}");
     assert!(received.lock().unwrap().is_empty());
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_ci_job_s_token_comes_from_the_variable_the_environment_names() {
+    let (server, received) = ci_job(false).await;
+    let home = tempfile::tempdir().unwrap();
+    let url = server.url();
+    let request_url = format!("{url}/idtoken?api-version=2.0");
+    let printed = success(
+        &origin(
+            home.path(),
+            &["id", "token"],
+            &[
+                // As GitLab CI's `id_tokens` sets it; GitHub's too: the
+                // variable comes first.
+                ("ORIGINCLOUD_OIDC_TOKEN", "variable-token"),
+                ("ACTIONS_ID_TOKEN_REQUEST_URL", request_url.as_str()),
+                ("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "github-request-token"),
+                ("ORIGINCLOUD_STS_ENDPOINT", url.as_str()),
+                ("ORIGINCLOUD_METADATA_DISABLED", "true"),
+            ],
+        )
+        .await,
+    );
+    assert_eq!(printed["token"], "ci-token");
+    let requests = received.lock().unwrap().clone();
+    assert!(
+        requests.iter().all(|r| r.path != "/idtoken"),
+        "GitHub was asked"
+    );
+    let exchange = requests.iter().find(|r| r.path == "/v1/token").unwrap();
+    assert!(exchange.text().contains("subject_token=variable-token"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_expired_token_in_the_variable_is_refused_before_the_exchange() {
+    let (server, received) = ci_job(false).await;
+    let home = tempfile::tempdir().unwrap();
+    let url = server.url();
+    let b64 = |json: &str| {
+        use base64::Engine as _;
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json)
+    };
+    let expired = format!(
+        "{}.{}.sig",
+        b64(r#"{"alg":"RS256"}"#),
+        b64(r#"{"sub":"project_path:acme/deploy","exp":1600000000}"#)
+    );
+    let description = failure(
+        &origin(
+            home.path(),
+            &["location", "--endpoint", &url, "list-zones"],
+            &[
+                ("ORIGINCLOUD_OIDC_TOKEN", expired.as_str()),
+                ("ORIGINCLOUD_STS_ENDPOINT", url.as_str()),
+                ("ORIGINCLOUD_METADATA_DISABLED", "true"),
+            ],
+        )
+        .await,
+    );
+    assert!(description.contains("expired"), "{description}");
+    assert!(!description.contains(&expired), "{description}");
+    assert!(
+        received
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|r| r.path != "/v1/token"),
+        "the STS was asked"
+    );
+}

@@ -1,6 +1,6 @@
 [package]
 name = "origincloud-cli"
-version = "1.16.0"
+version = "1.17.0"
 # Shown as the summary line of `origin --help`.
 description = "Command-line interface for Origin Cloud"
 edition.workspace = true
@@ -73,6 +73,8 @@ rustix = { version = "1.1.6", features = ["termios"] }
 test-services = ["dep:origincloud-scratch"]
 
 [dev-dependencies]
+# The credential tests write an unsigned JWT with an expiry in the past.
+base64.workspace = true
 fake-server.workspace = true
 # The coverage and generated-command tests read the API descriptors the
 # generator checked in, and its table of choices.

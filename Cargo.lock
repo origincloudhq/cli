@@ -1483,11 +1483,12 @@ dependencies = [
 
 [[package]]
 name = "origincloud-cli"
-version = "1.16.0"
+version = "1.17.0"
 dependencies = [
  "anstream",
  "anstyle",
  "anyhow",
+ "base64 0.22.1",
  "chrono",
  "clap",
  "clap_complete",

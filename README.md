@@ -316,8 +316,10 @@ every method of the API, with the API's own descriptions as help:
   account. In a CI job, the job's OIDC token, exchanged at the security
   token service for the service account a federated credential trusts the
   job as: GitHub Actions' token in a job granted
-  `permissions: id-token: write`, or the token in the file
-  `ORIGINCLOUD_OIDC_TOKEN_FILE` names. It comes before the login session,
+  `permissions: id-token: write`, the token in the file
+  `ORIGINCLOUD_OIDC_TOKEN_FILE` names, or the token `ORIGINCLOUD_OIDC_TOKEN`
+  holds, as GitLab CI's `id_tokens` sets it (a token given that way can't be
+  renewed, and an expired one is refused before the exchange). It comes before the login session,
   covers every command and `origin id token`, and a refused exchange is the
   command's error; `ORIGINCLOUD_OIDC_DISABLED=true` leaves it out. Without
   any of these, on an instance that runs as a service account,
