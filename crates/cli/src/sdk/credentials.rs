@@ -24,13 +24,15 @@ use crate::graphql::TokenProvider;
 pub(crate) const NOT_LOGGED_IN: &str = "not logged in: log in with `origin id login`, or set \
     ORIGINCLOUD_ACCESS_TOKEN, or ORIGINCLOUD_CLIENT_ID and ORIGINCLOUD_CLIENT_SECRET, or run in a \
     CI job whose OIDC token a federated credential trusts (GitHub Actions with `permissions: \
-    id-token: write`, or ORIGINCLOUD_OIDC_TOKEN_FILE), or run on an instance that runs as a \
+    id-token: write`, ORIGINCLOUD_OIDC_TOKEN_FILE or ORIGINCLOUD_OIDC_TOKEN), or run on an \
+    instance that runs as a \
     service account";
 
 const ENV_METADATA_DISABLED: &str = "ORIGINCLOUD_METADATA_DISABLED";
 const ENV_METADATA_ENDPOINT: &str = "ORIGINCLOUD_METADATA_ENDPOINT";
 const ENV_OIDC_DISABLED: &str = "ORIGINCLOUD_OIDC_DISABLED";
 const ENV_OIDC_TOKEN_FILE: &str = "ORIGINCLOUD_OIDC_TOKEN_FILE";
+const ENV_OIDC_TOKEN: &str = "ORIGINCLOUD_OIDC_TOKEN";
 const ENV_OIDC_AUDIENCE: &str = "ORIGINCLOUD_OIDC_AUDIENCE";
 const ENV_STS_ENDPOINT: &str = "ORIGINCLOUD_STS_ENDPOINT";
 const ENV_GITHUB_REQUEST_URL: &str = "ACTIONS_ID_TOKEN_REQUEST_URL";
@@ -42,8 +44,9 @@ fn var(name: &str) -> Option<String> {
 
 /// The CI job's OIDC token, exchanged at the STS, when the environment
 /// names one as the SDKs find it: the file `ORIGINCLOUD_OIDC_TOKEN_FILE`
-/// names, or else GitHub Actions' token in a job granted `permissions:
-/// id-token: write`; `None` without one, or with
+/// names, or else the token `ORIGINCLOUD_OIDC_TOKEN` holds (as GitLab CI's
+/// `id_tokens` sets it), or else GitHub Actions' token in a job granted
+/// `permissions: id-token: write`; `None` without one, or with
 /// `ORIGINCLOUD_OIDC_DISABLED=true`. One per process, so its commands
 /// share one exchange.
 pub(crate) fn ci_job() -> Option<&'static Federated> {
@@ -55,11 +58,13 @@ pub(crate) fn ci_job() -> Option<&'static Federated> {
             }
             let mut federated = match (
                 var(ENV_OIDC_TOKEN_FILE),
+                var(ENV_OIDC_TOKEN),
                 var(ENV_GITHUB_REQUEST_URL),
                 var(ENV_GITHUB_REQUEST_TOKEN),
             ) {
-                (Some(path), _, _) => Federated::from_file(path),
-                (None, Some(url), Some(token)) => Federated::github_actions(url, token),
+                (Some(path), _, _, _) => Federated::from_file(path),
+                (None, Some(token), _, _) => Federated::from_token(token),
+                (None, None, Some(url), Some(token)) => Federated::github_actions(url, token),
                 _ => return None,
             };
             if let Some(endpoint) = var(ENV_STS_ENDPOINT) {
