@@ -899,7 +899,7 @@ async fn assume_service_account_reads_the_token_from_a_file() {
             "sts",
             &[
                 "assume-service-account",
-                "--token-file",
+                "--oidc-token-file",
                 token.to_str().unwrap(),
                 "--service-account",
                 "organizations/o/serviceAccounts/s",
@@ -916,7 +916,7 @@ async fn assume_service_account_reads_the_token_from_a_file() {
     assert_eq!(
         body,
         json(
-            r#"{"token":"job.token.value","serviceAccount":"organizations/o/serviceAccounts/s","lifetime":"600s"}"#
+            r#"{"oidcToken":"job.token.value","serviceAccount":"organizations/o/serviceAccounts/s","lifetime":"600s"}"#
         )
     );
 
@@ -926,7 +926,7 @@ async fn assume_service_account_reads_the_token_from_a_file() {
             "sts",
             &[
                 "assume-service-account",
-                "--token-file",
+                "--oidc-token-file",
                 missing.to_str().unwrap(),
             ],
         )

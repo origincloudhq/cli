@@ -447,7 +447,7 @@ fetched again: rotate it again."""
 [[from_file]]
 service = "sts"
 method = "AssumeServiceAccount"
-field = "token"
+field = "oidc_token"
 why = "The OIDC token is a credential, and a CI job or a credential helper has it in a file."
 
 # The columns of the `table` a list of a message is printed as, by the

@@ -158,7 +158,7 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   `private_key`: the command prints the response as any other, and its
   `notice` on standard error when the field isn't empty;
 - `[[from_file]]` names a string field of a method's request, such as
-  `AssumeServiceAccount`'s `token`, that its command reads from a file, or
+  `AssumeServiceAccount`'s `oidc_token`, that its command reads from a file, or
   from standard input with `-`, rather than from the command line, where a
   credential would be in the shell's history and in every process listing:
   its flag is `--{field}-file`, and the value is the file's content without
