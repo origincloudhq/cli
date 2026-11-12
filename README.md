@@ -78,6 +78,7 @@ Then open a new shell.
 ```sh
 origin id login                      # log in through your browser
 origin id login --device             # or with a code, on a machine without one
+origin id login --oidc-token-file t  # or as a service account, with your identity provider's token
 origin resourcemanager list-organizations
 origin location list-zones
 origin pvs list-volumes --project my-project-123 --zone eu-central1-az1
@@ -89,7 +90,18 @@ The login session is stored in `~/.local/share/origincloud/session.json`
 (under `$XDG_DATA_HOME` when set), readable by you only, and renewed as it
 expires; the profile, with your defaults, in
 `~/.config/origincloud/default-profile.json` (under `$XDG_CONFIG_HOME`), or the
-file `--config` names:
+file `--config` names.
+
+`origin id login --oidc-token-file PATH` (or `-` for standard input) logs in as a
+`WORKLOAD` service account instead. It assumes the account with a token from
+your own identity provider, which one of the account's federated credentials
+trusts, at the security token service; `--service-account` names the
+account, when more than one could trust the token. Once the account's access
+token expires, the CLI reads the file again and assumes the account again,
+so a file the identity provider or a credential helper keeps current keeps
+the session going; a token from standard input is read once.
+
+The profile's defaults:
 
 ```sh
 origin config profile-set default-project my-project-123
