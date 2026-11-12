@@ -401,3 +401,79 @@ async fn an_expired_token_in_the_variable_is_refused_before_the_exchange() {
         "the STS was asked"
     );
 }
+
+/// `origin id login --oidc-token-file` assumes the service account with the
+/// identity provider's token, sending no credentials, and stores it as the
+/// login session. Once that is about to expire, the next command reads the
+/// file again, as an identity provider or a credential helper keeps it
+/// current, and assumes the account again.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_login_with_a_token_file_assumes_the_account_again_from_the_file() {
+    let received = std::sync::Arc::new(std::sync::Mutex::new(Vec::<Received>::new()));
+    let seen = std::sync::Arc::clone(&received);
+    let server = FakeServer::start(move |r: Received| {
+        let mut seen = seen.lock().unwrap();
+        // The first token is about to expire, within the 30 s the CLI
+        // renews ahead; the second lives an hour.
+        let (token, lifetime) = if seen.is_empty() {
+            ("assumed-1", chrono::Duration::seconds(10))
+        } else {
+            ("assumed-2", chrono::Duration::hours(1))
+        };
+        seen.push(r);
+        let expires = (chrono::Utc::now() + lifetime).to_rfc3339();
+        let body = format!(
+            r#"{{"accessToken":"{token}","expireTime":"{expires}","serviceAccount":"organizations/o/serviceAccounts/s","federatedCredential":"organizations/o/serviceAccounts/s/federatedCredentials/f"}}"#
+        );
+        async move { Response::json(&body) }
+    })
+    .await;
+    let home = tempfile::tempdir().unwrap();
+    let file = home.path().join("idp-token");
+    std::fs::write(&file, "first-token\n").unwrap();
+    let url = server.url();
+    let env = [
+        ("ORIGINCLOUD_STS_ENDPOINT", url.as_str()),
+        ("ORIGINCLOUD_METADATA_DISABLED", "true"),
+    ];
+
+    let output = origin(
+        home.path(),
+        &[
+            "id",
+            "login",
+            "--oidc-token-file",
+            file.to_str().unwrap(),
+            "--service-account",
+            "organizations/o/serviceAccounts/s",
+        ],
+        &env,
+    )
+    .await;
+    success(&output);
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("Logged in as organizations/o/serviceAccounts/s."),
+        "{output:?}"
+    );
+    {
+        let requests = received.lock().unwrap();
+        assert_eq!(requests.len(), 1, "{requests:?}");
+        assert_eq!(requests[0].path, "/v1beta1:assumeServiceAccount");
+        assert_eq!(requests[0].header("authorization"), None);
+        let body: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+        assert_eq!(body["oidcToken"], "first-token");
+        assert_eq!(body["serviceAccount"], "organizations/o/serviceAccounts/s");
+    }
+
+    std::fs::write(&file, "second-token\n").unwrap();
+    for _ in 0..2 {
+        let printed = success(&origin(home.path(), &["id", "token"], &env).await);
+        assert_eq!(printed["token"], "assumed-2");
+    }
+    let requests = received.lock().unwrap();
+    assert_eq!(requests.len(), 2, "assumed again once: {requests:?}");
+    let body: serde_json::Value = serde_json::from_slice(&requests[1].body).unwrap();
+    assert_eq!(body["oidcToken"], "second-token");
+    assert_eq!(body["serviceAccount"], "organizations/o/serviceAccounts/s");
+}

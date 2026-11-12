@@ -1,6 +1,6 @@
 use super::file_io::{create_private_dir, create_private_file, read_file_opt, safe_file};
 use super::paths::{self, ENV_DATA_DIR_USER};
-use crate::client_auth::refresh;
+use crate::client_auth::{assume, refresh};
 use crate::config::env::{env_or, expect_env};
 use crate::graphql::TokenProvider;
 use chrono::{DateTime, Duration, Utc};
@@ -38,6 +38,24 @@ pub(crate) struct ClientSession {
     refresh_token: String,
     refresh_expires: DateTime<Utc>,
     token_type: String,
+    /// Where a service account's session, from `origin id login
+    /// --token-file`, gets its token again: it has no refresh token.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    assumed: Option<Assumed>,
+}
+
+/// How a session assumed a service account with an identity provider's
+/// token (`origin id login --token-file`), to assume it again once its
+/// access token expires.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub(crate) struct Assumed {
+    /// The file the token is read from again, which its identity provider
+    /// or a credential helper keeps current; `None` for a token read from
+    /// standard input, which can't be read again.
+    pub token_file: Option<PathBuf>,
+    /// The service account assumed, as `organizations/{organization}/
+    /// serviceAccounts/{service_account}`.
+    pub service_account: String,
 }
 
 /// Hand-written so that neither token can be printed.
@@ -50,6 +68,7 @@ impl fmt::Debug for ClientSession {
             .field("refresh_token", &"*****")
             .field("refresh_expires", &self.refresh_expires)
             .field("token_type", &self.token_type)
+            .field("assumed", &self.assumed)
             .finish()
     }
 }
@@ -82,25 +101,57 @@ impl ClientSession {
         !self.access_token.is_empty() && Utc::now() + margin < self.expires
     }
 
+    /// A service account's session, assumed with an identity provider's
+    /// token as `assumed` says, with its access token.
+    pub fn assumed(access_token: String, expires: DateTime<Utc>, assumed: Assumed) -> Self {
+        ClientSession {
+            version: 1,
+            access_token,
+            expires,
+            refresh_token: String::new(),
+            refresh_expires: expires,
+            token_type: "Bearer".to_owned(),
+            assumed: Some(assumed),
+        }
+    }
+
+    /// The service account a session assumed with a token, `None` for a
+    /// person's login.
+    pub fn service_account(&self) -> Option<&str> {
+        self.assumed.as_ref().map(|a| a.service_account.as_str())
+    }
+
+    /// Whether the session can be renewed: by its refresh token until that
+    /// expires, or, for a service account's, by reading its token file
+    /// again.
+    fn renewable(&self) -> bool {
+        match &self.assumed {
+            Some(assumed) => assumed.token_file.is_some(),
+            None => Utc::now() < self.refresh_expires,
+        }
+    }
+
     /// The stored session, renewed when its token expires within `margin`.
     pub async fn valid(margin: Duration) -> Result<ClientSession, SessionError> {
-        Self::valid_at(&session_path(), margin, |refresh_token| async move {
-            refresh(&refresh_token)
-                .await
-                .map_err(|e| SessionError::Renewal(e.to_string()))
+        Self::valid_at(&session_path(), margin, |session| async move {
+            match session.assumed {
+                Some(assumed) => assume(assumed).await,
+                None => refresh(&session.refresh_token).await,
+            }
+            .map_err(|e| SessionError::Renewal(e.to_string()))
         })
         .await
     }
 
     /// [`Self::valid`] for the session at `path`, renewing it with `renew`,
-    /// which stores the renewed session.
+    /// which is handed the stored session and stores the renewed one.
     async fn valid_at<F, Fut>(
         path: &Path,
         margin: Duration,
         renew: F,
     ) -> Result<ClientSession, SessionError>
     where
-        F: FnOnce(String) -> Fut,
+        F: FnOnce(ClientSession) -> Fut,
         Fut: std::future::Future<Output = Result<ClientSession, SessionError>>,
     {
         let session: ClientSession = read_file_opt(path).ok_or(SessionError::None)?;
@@ -115,10 +166,10 @@ impl ClientSession {
         if session.fresh(margin) {
             return Ok(session);
         }
-        if session.refresh_expires <= Utc::now() {
+        if !session.renewable() {
             return Err(SessionError::Expired);
         }
-        renew(session.refresh_token).await
+        renew(session).await
     }
 }
 
@@ -156,6 +207,7 @@ impl From<TokenResponse> for ClientSession {
             refresh_token: value.refresh_token,
             refresh_expires: now + Duration::seconds(value.refresh_expires_in),
             token_type: value.token_type,
+            assumed: None,
         }
     }
 }
@@ -172,6 +224,7 @@ mod tests {
             refresh_token: format!("{token}-refresh"),
             refresh_expires: Utc::now() + Duration::hours(1),
             token_type: "Bearer".to_owned(),
+            assumed: None,
         }
     }
 
@@ -247,5 +300,68 @@ mod tests {
             .await,
             Err(SessionError::None)
         ));
+    }
+
+    /// A service account's session has no refresh token: once it expires,
+    /// it is assumed again with its token file, read again, or, with a token
+    /// that came from standard input, it asks to log in again.
+    #[tokio::test]
+    async fn an_assumed_session_is_assumed_again_from_its_token_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE_NAME_SESSION);
+        let assumed = Assumed {
+            token_file: Some(dir.path().join("token")),
+            service_account: "organizations/o/serviceAccounts/s".to_owned(),
+        };
+        let expired = Utc::now() - Duration::minutes(1);
+        safe_file(
+            &path,
+            &ClientSession::assumed("old".to_owned(), expired, assumed),
+        )
+        .unwrap();
+
+        let found = ClientSession::valid_at(&path, EXPIRY_MARGIN, |session| async move {
+            assert!(session.refresh_token.is_empty());
+            let assumed = session
+                .assumed
+                .expect("the session says how it was assumed");
+            assert_eq!(assumed.token_file, Some(dir.path().join("token")));
+            Ok(ClientSession::assumed(
+                "again".to_owned(),
+                Utc::now() + Duration::minutes(15),
+                assumed,
+            ))
+        })
+        .await
+        .unwrap();
+        assert_eq!(found.token(), "again");
+
+        let from_stdin = Assumed {
+            token_file: None,
+            service_account: "organizations/o/serviceAccounts/s".to_owned(),
+        };
+        let path = tempfile::tempdir().unwrap().keep().join(FILE_NAME_SESSION);
+        safe_file(
+            &path,
+            &ClientSession::assumed("old".to_owned(), expired, from_stdin),
+        )
+        .unwrap();
+        let err = ClientSession::valid_at(&path, EXPIRY_MARGIN, |_| async {
+            panic!("a token from standard input can't be read again")
+        })
+        .await
+        .unwrap_err();
+        assert!(matches!(err, SessionError::Expired), "{err}");
+    }
+
+    /// A session stored before sessions could be assumed reads as a login's.
+    #[test]
+    fn a_session_without_assumed_reads_as_a_login() {
+        let stored: ClientSession = serde_json::from_str(
+            r#"{"version":1,"access_token":"a","expires":"2026-11-11T20:00:00Z","refresh_token":"r","refresh_expires":"2026-11-12T20:00:00Z","token_type":"Bearer"}"#,
+        )
+        .unwrap();
+        assert!(stored.assumed.is_none());
+        assert!(!serde_json::to_string(&stored).unwrap().contains("assumed"));
     }
 }

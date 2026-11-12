@@ -1,4 +1,4 @@
-use crate::client_auth::{login, LoginScheme};
+use crate::client_auth::{login, login_with_token, LoginScheme};
 use crate::graphql::TokenProvider;
 use crate::output::{CommandResult, SerializableOutput};
 use crate::service_apis::iam::IamServiceClient;
@@ -44,6 +44,26 @@ pub(super) async fn perform_login(
     }
 
     Ok(Box::new(CommandResult::Success))
+}
+
+/// Logs in as the service account the identity provider's token in
+/// `token_file` assumes. A service account has no user to read, and no
+/// invites to apply.
+pub(super) async fn perform_token_login(
+    token_file: &str,
+    service_account: Option<String>,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    match login_with_token(token_file, service_account).await {
+        Ok(session) => {
+            if let Some(account) = session.service_account() {
+                eprintln!("Logged in as {account}.");
+            }
+            Ok(Box::new(CommandResult::Success))
+        }
+        Err(err) => Ok(Box::new(CommandResult::Failure(format!(
+            "login failed: {err:#}"
+        )))),
+    }
 }
 
 /// Reads the signed-in user once, right after a user login.

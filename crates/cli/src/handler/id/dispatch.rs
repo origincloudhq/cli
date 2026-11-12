@@ -1,6 +1,6 @@
 use super::commands::IdentityCommands;
 use crate::config::ClientProfile;
-use crate::handler::id::login::perform_login;
+use crate::handler::id::login::{perform_login, perform_token_login};
 use crate::handler::id::token::perform_token;
 use crate::output::SerializableOutput;
 use url::Url;
@@ -11,7 +11,12 @@ pub async fn run_identity_command(
     command: IdentityCommands,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     match command {
-        IdentityCommands::Login { device } => {
+        IdentityCommands::Login {
+            oidc_token_file: Some(oidc_token_file),
+            service_account,
+            ..
+        } => Ok(perform_token_login(&oidc_token_file, service_account).await?),
+        IdentityCommands::Login { device, .. } => {
             Ok(perform_login(device, profile.default_username.clone(), api_url).await?)
         }
         IdentityCommands::Token { as_header, raw } => Ok(perform_token(as_header, raw).await?),

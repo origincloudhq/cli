@@ -15,7 +15,7 @@ mod profile;
 mod session;
 
 pub(crate) use profile::{ClientProfile, OutputFormat};
-pub(crate) use session::ClientSession;
+pub(crate) use session::{Assumed, ClientSession};
 pub(crate) use session::{SessionError, EXPIRY_MARGIN};
 
 #[cfg(test)]
