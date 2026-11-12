@@ -46,8 +46,8 @@ pub struct AssumeServiceAccountArgs {
     /// The OIDC token, a JWT its issuer signed, such as a CI job's.
     ///
     /// Read from the file at the path, or from standard input with `-`, without its final newline.
-    #[arg(long = "token-file", value_name = "PATH")]
-    pub token_file: String,
+    #[arg(long = "oidc-token-file", value_name = "PATH")]
+    pub oidc_token_file: String,
     /// The service account to assume,
     /// `organizations/{organization}/serviceAccounts/{service_account}`. Only
     /// its federated credentials are considered. Without it, any service
@@ -86,7 +86,7 @@ async fn assume_service_account(
         None => String::new(),
     };
     let request = ::origincloud_sts::v1beta1::AssumeServiceAccountRequest {
-        token: read_value_file(&args.token_file)?,
+        oidc_token: read_value_file(&args.oidc_token_file)?,
         service_account,
         lifetime: args.lifetime,
     };

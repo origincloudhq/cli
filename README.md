@@ -190,7 +190,7 @@ A group per service of the API:
 - `origin sts`: the security token service, which turns an identity
   provider's token, such as a CI job's OIDC token, into the access token of
   a service account whose federated credential trusts it
-  (`assume-service-account --token-file`). It needs no login.
+  (`assume-service-account --oidc-token-file`). It needs no login.
 
 Their commands are generated from the API definitions in
 [origincloudhq/api](https://github.com/origincloudhq/api) and call the
