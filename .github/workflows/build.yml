@@ -1,6 +1,6 @@
 # Builds what a release publishes: `origin` for every platform, the Debian
-# packages, the installer and the licence, with their SHA256SUMS, as the
-# artifact `release-assets` (release/assemble.sh). release.yml calls it to
+# packages, the installer, the licence and the command tree, with their
+# SHA256SUMS, as the artifact `release-assets` (release/assemble.sh). release.yml calls it to
 # make a release; ci.yml calls it on every pull request and every push to
 # main, so that the release build is known to work before a release needs
 # it.

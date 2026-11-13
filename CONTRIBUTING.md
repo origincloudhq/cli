@@ -38,6 +38,14 @@ time on it. CI must pass: the checks below, run on every pull request.
   their table are in that repository; the CLI pins it at a commit built on
   the same SDK commit as its own commands, which `scripts/update.sh` keeps
   and `scripts/generate.sh --check` checks.
+- `origin __commands` (`src/handler/command_tree.rs`) prints the command
+  tree as JSON, which each release attaches as `commands.json` for tools
+  that name the CLI's commands and flags (README). It isn't a command of
+  the tree, so neither the help nor the completion offers it. A generated
+  command's method is found in `api.binpb` by the same naming the coverage
+  test checks; `crates/cli/tests/command_tree.rs` fixes its fields, which
+  tools outside this repository read: add fields, never rename or remove
+  one.
 - `crates/oauth-login` is the browser and device-code login.
 
 The generator downloads the API's dependencies from the Buf Schema Registry at

@@ -42,6 +42,9 @@ chrono.workspace = true
 clap.workspace = true
 # `origin completion` writes the shell completion scripts.
 clap_complete = "4"
+# `origin __commands` names a generated command's method as the generator
+# names the command after it.
+heck = "0.5"
 expanduser = "1"
 graphql_client.workspace = true
 # `origin mcp serve` serves the MCP tools on standard input and output.
@@ -79,7 +82,6 @@ base64.workspace = true
 fake-server.workspace = true
 # The coverage and generated-command tests read the API descriptors the
 # generator checked in, and its table of choices.
-heck = "0.5"
 serde.workspace = true
 toml = "0.8"
 # The config-path tests resolve against a real directory tree, so they need a

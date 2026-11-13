@@ -64,9 +64,10 @@ a fix is a new version.
    and for `darwin-arm64` and `darwin-amd64` (on a macOS runner), and checks
    that each binary is its platform's, and each Linux one static
    (`release/build.sh`, `release/check-arch.sh`). Then it builds the Debian packages
-   (`release/deb.sh`), adds `install.sh` and `LICENSE`, writes `SHA256SUMS`
-   over all of them (`release/assemble.sh`), and installs the amd64 package on
-   a clean Debian, where it must report its version.
+   (`release/deb.sh`), adds `install.sh` and `LICENSE`, and `commands.json`,
+   the command tree the linux-amd64 binary prints (`origin __commands`),
+   writes `SHA256SUMS` over all of them (`release/assemble.sh`), and installs
+   the amd64 package on a clean Debian, where it must report its version.
 3. **release**: creates the GitHub release for the tag, at the commit that was
    built, as a draft; attaches the assets; then publishes it, as a prerelease
    for a suffixed version (`release/github-release.sh`). The tag is created
@@ -77,7 +78,8 @@ a fix is a new version.
 4. **publish**: starts origincloudhq/packages' **Publish** workflow for this
    repository and the tag, with a token of the dispatch App, and waits for
    it. That repository holds the signing key and the bucket's credentials,
-   checks every asset against `SHA256SUMS`, and publishes.
+   checks every asset against `SHA256SUMS`, and publishes; `commands.json`
+   stays on the GitHub release.
 
 ## When something fails
 

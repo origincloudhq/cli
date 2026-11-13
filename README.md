@@ -396,6 +396,52 @@ or, for a client configured in JSON:
 The tools are the library [origincloudhq/mcp](https://github.com/origincloudhq/mcp),
 which a server on the network can serve as well.
 
+## The command tree, for tools
+
+Each [release](https://github.com/origincloudhq/cli/releases) has a
+`commands.json`: every visible command, groups and leaves, in the order
+`origin` defines them, with its flags, and for a generated command the API
+method it calls and whether it starts an operation. A tool naming
+`origin`'s commands and flags, such as documentation or an agent's
+instructions, reads it instead of parsing the help. `origin __commands`
+prints it for the installed version.
+
+```json
+{
+  "cli_version": "1.18.0",
+  "api_revision": "<the origincloudhq/api commit the commands are generated from>",
+  "commands": [
+    {
+      "path": ["pvs", "create-volume"],
+      "about": "Creates a volume, empty or as a copy of a snapshot",
+      "method": "origincloud.pvs.v1beta1.VolumeService.CreateVolume",
+      "long_running": true,
+      "args": [
+        {"long": "size-gib", "short": null, "value_name": "SIZE_GIB", "required": true, "multiple": false,
+         "global": false, "positional": false, "help": "The size in GiB, at least 1. …", "possible_values": []}
+      ]
+    }
+  ],
+  "global_args": [
+    {"long": "output", "short": "o", "value_name": "FORMAT", "required": false, "multiple": false,
+     "global": true, "positional": false, "help": "Output format. …", "possible_values": ["table", "wide", "json", "name"]}
+  ]
+}
+```
+
+- `method` and `long_running` are `null` for a group and for a hand-written
+  command (`id login`, `config profile`, `mcp serve`, `completion`); the
+  operation commands (`get-operation`, `wait-operation`) name
+  `origincloud.longrunning`'s methods, and start no operation themselves.
+- A leaf's `args` include the global flags of its group, such as
+  `--endpoint`; a group's are empty. `global_args` are `origin`'s own
+  options: those with `global` set go anywhere on the command line, the
+  others (`--config`, `--api`) before the command.
+- `about` and `help` are the first paragraph of the help, on one line.
+  `--help` and `--version` aren't listed.
+
+Fields may be added; none is renamed or removed within a major version.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), which describes how the commands of
