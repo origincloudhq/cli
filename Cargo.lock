@@ -1631,7 +1631,7 @@ dependencies = [
 [[package]]
 name = "origincloud-mcp"
 version = "0.1.0"
-source = "git+https://github.com/origincloudhq/mcp?rev=75387df9e084c0ab5e447d52b46acd613a9e72f4#75387df9e084c0ab5e447d52b46acd613a9e72f4"
+source = "git+https://github.com/origincloudhq/mcp?rev=2ddd372ee51b92901c865ecba260c4c8b5cbea24#2ddd372ee51b92901c865ecba260c4c8b5cbea24"
 dependencies = [
  "origincloud-billing",
  "origincloud-compute",
@@ -1875,7 +1875,7 @@ version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03da047801ff44bb6a4d407d4860c05fd70bb81714e6b2f3812603d5b145b042"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "itertools",
  "log",
  "multimap",
@@ -2709,7 +2709,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",

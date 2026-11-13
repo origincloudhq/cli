@@ -11,6 +11,18 @@ use serde_json::Value;
 use url::Url;
 
 pub async fn run() -> ! {
+    // `origin __commands`, the command tree as JSON for tools, is no command
+    // of the tree itself: clap's help and the completion scripts list hidden
+    // subcommands too, and this one is for no one to type.
+    let mut args = std::env::args_os().skip(1);
+    if args
+        .next()
+        .is_some_and(|a| a == handler::command_tree::NAME)
+        && args.next().is_none()
+    {
+        exit(handler::command_tree::run());
+    }
+
     let cli = Cli::parse();
     cli.color.apply();
     let mut profile = ClientProfile::load(cli.config.as_deref());
