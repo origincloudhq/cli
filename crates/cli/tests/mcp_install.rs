@@ -372,3 +372,98 @@ fn an_agents_command_that_writes_elsewhere_fails_the_install() {
     let outcomes = machine.mcp(&["install", "--agent", "codex", "--scope", "project"]);
     assert_eq!(outcomes[0]["by"], "file");
 }
+
+/// A config file kept as a symbolic link, such as into a dotfiles
+/// repository, stays one: the edit goes to its target, with the copy beside
+/// the target, whether the link is relative or absolute.
+#[cfg(unix)]
+#[test]
+fn a_linked_file_stays_a_link_and_its_target_is_edited() {
+    let machine = Machine::new();
+    let dotfiles = machine.home.join("dotfiles");
+    std::fs::create_dir_all(&dotfiles).unwrap();
+    let cases = [
+        // (agent, the link, the target, the link's content)
+        (
+            "codex",
+            ".codex/config.toml",
+            "codex.toml",
+            "../dotfiles/codex.toml".to_owned(),
+        ),
+        (
+            "cursor",
+            ".cursor/mcp.json",
+            "cursor.json",
+            dotfiles.join("cursor.json").display().to_string(),
+        ),
+    ];
+    let originals = [
+        "# mine\nmodel = \"gpt-5-codex\"\n",
+        "{\n  \"mcpServers\": {}\n}\n",
+    ];
+    for ((agent, link, target, points_to), original) in cases.iter().zip(originals) {
+        let link = machine.home.join(link);
+        let target = dotfiles.join(target);
+        std::fs::write(&target, original).unwrap();
+        std::fs::create_dir_all(link.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(points_to, &link).unwrap();
+
+        let outcomes = machine.mcp(&["install", "--agent", agent]);
+        assert_eq!(result(&outcomes), ["added"], "{agent}");
+        assert_eq!(
+            std::fs::read_link(&link).unwrap(),
+            Path::new(points_to),
+            "{agent}"
+        );
+        let installed = std::fs::read_to_string(&target).unwrap();
+        assert!(installed.contains("origincloud"), "{agent}: {installed}");
+        assert!(
+            installed.starts_with(&original[..6]),
+            "{agent}: {installed}"
+        );
+        // The copy is beside the target, and nothing is left beside the link.
+        let backup = PathBuf::from(outcomes[0]["backup"].as_str().unwrap());
+        assert_eq!(backup.parent(), Some(dotfiles.as_path()), "{agent}");
+        assert_eq!(std::fs::read_to_string(&backup).unwrap(), original);
+        assert_eq!(
+            std::fs::read_dir(link.parent().unwrap()).unwrap().count(),
+            1
+        );
+
+        let outcomes = machine.mcp(&["uninstall", "--agent", agent]);
+        assert_eq!(result(&outcomes), ["removed"], "{agent}");
+        assert!(std::fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(
+            std::fs::read_to_string(&target).unwrap(),
+            original,
+            "{agent}"
+        );
+    }
+}
+
+/// A file only its owner can read gives a copy and a result only its owner
+/// can read.
+#[cfg(unix)]
+#[test]
+fn the_copy_and_the_result_keep_a_private_files_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+    let machine = Machine::new();
+    let file = machine.home.join(".claude.json");
+    std::fs::write(&file, "{\"numStartups\": 1}\n").unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+    let outcomes = machine.mcp(&["install", "--agent", "claude-code"]);
+    assert_eq!(result(&outcomes), ["added"]);
+    let backup = PathBuf::from(outcomes[0]["backup"].as_str().unwrap());
+    assert_eq!(mode(&file), 0o600);
+    assert_eq!(mode(&backup), 0o600);
+
+    let outcomes = machine.mcp(&["uninstall", "--agent", "claude-code"]);
+    assert_eq!(result(&outcomes), ["removed"]);
+    assert_eq!(mode(&file), 0o600);
+    assert_eq!(mode(&backup), 0o600);
+}

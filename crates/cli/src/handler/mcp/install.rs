@@ -478,8 +478,16 @@ fn run(host: &Host, program: &Path, args: &[String]) -> anyhow::Result<()> {
 
 /// Writes `edited` to `file` when `change` changed it: first a copy of
 /// what it held (`before`), beside it, then the new content to a temporary
-/// file renamed over it, with the old one's permissions, so that the file
-/// is whole at every moment. The path of the copy, if one was made.
+/// file renamed over it, so that the file is whole at every moment. The
+/// path of the copy, if one was made.
+///
+/// A `file` that is a symbolic link, such as one into a dotfiles
+/// repository, is written through: its target is edited, with the copy and
+/// the temporary file beside the target, and the link stays a link. The
+/// copy and the temporary file of an existing file are created with its
+/// permissions from the start, so that the content of a file only you can
+/// read, such as `~/.claude.json`, is never readable by others, not even
+/// for a moment.
 fn write(
     file: &Path,
     before: Option<&str>,
@@ -489,40 +497,101 @@ fn write(
     if matches!(change, Change::Unchanged | Change::Absent) {
         return Ok(None);
     }
+    let file = resolve_links(file)?;
     let dir = file.parent().context("the file has a directory")?;
     std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+    // The file's permissions, when it exists, which the copy and the new
+    // content get.
+    let permissions = match before {
+        Some(_) => Some(
+            std::fs::metadata(&file)
+                .with_context(|| format!("reading {}", file.display()))?
+                .permissions(),
+        ),
+        None => None,
+    };
     let backup = match before {
         Some(before) => {
-            let backup = sibling(file, BACKUP_SUFFIX);
-            std::fs::write(&backup, before)
+            let backup = sibling(&file, BACKUP_SUFFIX);
+            create(&backup, before, permissions.as_ref())
                 .with_context(|| format!("writing the copy {}", backup.display()))?;
-            copy_permissions(file, &backup)?;
             Some(backup.display().to_string())
         }
         None => None,
     };
-    let temporary = sibling(file, ".origin.tmp");
-    std::fs::write(&temporary, edited)
+    let temporary = sibling(&file, ".origin.tmp");
+    create(&temporary, edited, permissions.as_ref())
         .with_context(|| format!("writing {}", temporary.display()))?;
-    if before.is_some() {
-        copy_permissions(file, &temporary)?;
-    }
-    std::fs::rename(&temporary, file).with_context(|| format!("replacing {}", file.display()))?;
+    std::fs::rename(&temporary, &file).with_context(|| format!("replacing {}", file.display()))?;
     Ok(backup)
+}
+
+/// The file `path` names after following its symbolic links, which may
+/// be relative to the directory of the link, or dangle.
+fn resolve_links(path: &Path) -> anyhow::Result<PathBuf> {
+    let mut path = path.to_path_buf();
+    // As many as the kernel follows before it gives up (ELOOP).
+    for _ in 0..40 {
+        match std::fs::symlink_metadata(&path) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                let target = std::fs::read_link(&path)
+                    .with_context(|| format!("reading the link {}", path.display()))?;
+                path = match path.parent() {
+                    Some(dir) if target.is_relative() => dir.join(target),
+                    _ => target,
+                };
+            }
+            // Its directory without the `..` a relative link brings, for
+            // the paths the output names.
+            _ => {
+                return Ok(match (path.parent(), path.file_name()) {
+                    (Some(dir), Some(name)) => match std::fs::canonicalize(dir) {
+                        Ok(dir) => dir.join(name),
+                        Err(_) => path,
+                    },
+                    _ => path,
+                })
+            }
+        }
+    }
+    bail!("{}: too many levels of symbolic links", path.display())
+}
+
+/// Writes `content` to the new file `path`, replacing one left behind by
+/// an earlier run; with `permissions`, the file has them from its creation
+/// on, never more open than they are.
+fn create(
+    path: &Path,
+    content: &str,
+    permissions: Option<&std::fs::Permissions>,
+) -> std::io::Result<()> {
+    match std::fs::remove_file(path) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
+        _ => {}
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    if let Some(permissions) = permissions {
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        // The umask can only narrow this.
+        options.mode(permissions.mode() & 0o7777);
+    }
+    let mut out = options.open(path)?;
+    out.write_all(content.as_bytes())?;
+    out.sync_all()?;
+    drop(out);
+    // Exactly the file's, which the umask may have narrowed.
+    if let Some(permissions) = permissions {
+        std::fs::set_permissions(path, permissions.clone())?;
+    }
+    Ok(())
 }
 
 fn sibling(file: &Path, suffix: &str) -> PathBuf {
     let mut name = file.file_name().unwrap_or_default().to_os_string();
     name.push(suffix);
     file.with_file_name(name)
-}
-
-fn copy_permissions(from: &Path, to: &Path) -> anyhow::Result<()> {
-    let permissions = std::fs::metadata(from)
-        .with_context(|| format!("reading {}", from.display()))?
-        .permissions();
-    std::fs::set_permissions(to, permissions)
-        .with_context(|| format!("setting {}'s permissions", to.display()))
 }
 
 /// The outcome for each agent: a table, or a list in JSON.
