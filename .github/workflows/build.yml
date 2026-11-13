@@ -1,9 +1,9 @@
 # Builds what a release publishes: `origin` for every platform, the Debian
-# packages, the installer and the licence, with their SHA256SUMS, as the
-# artifact `release-assets` (release/assemble.sh). release.yml calls it to
-# make a release; ci.yml calls it on every pull request and every push to
-# main, so that the release build is known to work before a release needs
-# it.
+# packages, the installer, the licence and the command tree, with their
+# SHA256SUMS, as the artifact `release-assets` (release/assemble.sh).
+# release.yml calls it to make a release; ci.yml calls it on every pull
+# request and every push to main, so that the release build is known to
+# work before a release needs it.
 #
 # No cache: what this builds reaches customers, so it builds from the
 # source and Cargo.lock alone. The actions are pinned to commits for the

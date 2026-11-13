@@ -1,8 +1,8 @@
 # Releases the CLI: builds it for every platform (build.yml), attaches the
-# binaries, the Debian packages, install.sh, LICENSE and SHA256SUMS to the
-# GitHub release <version>, then has origincloudhq/packages publish that
-# release to packages.origincloud.eu and waits for it. RELEASING.md says how
-# to make one.
+# binaries, the Debian packages, install.sh, LICENSE, the command tree
+# (commands.json) and SHA256SUMS to the GitHub release <version>, then has
+# origincloudhq/packages publish that release to packages.origincloud.eu
+# and waits for it. RELEASING.md says how to make one.
 #
 # Dispatched from main with the version: vX.Y.Z makes a release, which
 # becomes the channel's latest and enters the apt suite; vX.Y.Z-<suffix>

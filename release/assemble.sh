@@ -9,11 +9,14 @@
 #   origincloud-cli_<version>_<arch>.deb
 #                                     the packages, for amd64 and arm64
 #   install.sh, LICENSE               the installer and the licence
+#   commands.json                     the command tree (`origin __commands`)
 #   SHA256SUMS                        over all of the above
 #
 # That is what packages.origincloud.eu's `cli` channel reads from the
-# release. The version is crates/cli/Cargo.toml's, which release/version.sh
-# has checked against the tag.
+# release, but commands.json, which is the GitHub release's alone: the
+# tools naming `origin`'s commands and flags read it there. The version is
+# crates/cli/Cargo.toml's, which release/version.sh has checked against the
+# tag.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,6 +42,15 @@ for platform in ${PLATFORMS}; do
   "${ROOT}/release/check-arch.sh" "${platform}" "${binary}"
   install -m 0755 "${binary}" "${OUT_DIR}/origin-${platform}"
 done
+
+# Printed by the published binary of this machine, so that it is exactly
+# this version's tree; dpkg-deb, below, needs Linux anyway.
+case "$(uname -s)-$(uname -m)" in
+  Linux-x86_64) host=linux-amd64 ;;
+  Linux-aarch64) host=linux-arm64 ;;
+  *) fail "the command tree is printed by a published binary, which needs Linux on amd64 or arm64, not $(uname -s)-$(uname -m)" ;;
+esac
+"${OUT_DIR}/origin-${host}" __commands > "${OUT_DIR}/commands.json"
 
 "${ROOT}/release/deb.sh" "${version}" "${OUT_DIR}" "${OUT_DIR}"
 install -m 0755 "${ROOT}/release/install.sh" "${OUT_DIR}/install.sh"
