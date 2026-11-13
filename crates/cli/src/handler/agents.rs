@@ -1,21 +1,24 @@
-//! The coding agents `origin mcp install` registers the MCP server with, in
-//! one table, [`AGENTS`]: what each is called, how to tell it is installed,
-//! and, for each scope, the file its MCP servers are configured in, that
-//! file's format, and the agent's own command for adding one.
+//! The coding agents `origin mcp install` registers the MCP server with,
+//! and `origin skill install` installs the agent skills for, in one table,
+//! [`AGENTS`]: what each is called, how to tell it is installed, and, for
+//! each scope, the file its MCP servers are configured in, that file's
+//! format and the agent's own command for adding one (`mcp`), and the
+//! directory it reads skills from (`skills`).
 //!
-//! `--agent`'s values and the help of `origin mcp install`, the README's
-//! table of agents (a test checks it is this one) and the tests all read
-//! it, so adding an agent is a row here, and a format adapter in
-//! `config_file.rs` when it brings a new format. Each agent's capabilities
-//! are a field of their own (`mcp`), so the skills an agent reads, and the
-//! directory it reads them from, can be another without the rest changing.
+//! `--agent`'s values and the help of both commands, the README's tables of
+//! agents (a test checks they are these) and the tests all read it, so
+//! adding an agent is a row here, and a format adapter in
+//! `mcp/config_file.rs` when it brings a new format.
 
 use std::ffi::OsString;
+use std::io::{BufRead, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
-/// Where an agent's MCP configuration applies: to every project of the
-/// user, or to the project in the current directory, in a file that is
-/// usually committed with it.
+use anyhow::bail;
+
+/// Where an agent's MCP configuration or skills apply: to every project of
+/// the user, or to the project in the current directory, in a file or a
+/// directory that is usually committed with it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum Scope {
     /// Every project of this user, in the agent's own configuration.
@@ -47,6 +50,20 @@ pub(crate) struct Agent {
     pub gui: bool,
     /// How the agent is given an MCP server.
     pub mcp: Mcp,
+    /// Where the agent reads agent skills from, if it reads them.
+    pub skills: Option<Skills>,
+}
+
+/// Where an agent reads agent skills from: a directory holding one
+/// directory per skill, each with its `SKILL.md`.
+#[derive(Debug)]
+pub(crate) struct Skills {
+    /// The directory of the user scope.
+    pub user: Location,
+    /// The directory of the project scope, relative to the project's
+    /// directory. Several agents read `.agents/skills`, and share one copy
+    /// there.
+    pub project: &'static str,
 }
 
 /// How an agent is given a local MCP server.
@@ -63,8 +80,8 @@ pub(crate) struct Mcp {
     pub command: Option<AgentCommand>,
 }
 
-/// A file in a user's directory: `dir`/`file` under `base`, or under the
-/// directory the variable `env` names when it is set.
+/// A file or directory in a user's directory: `dir`/`file` under `base`,
+/// or `file` under the directory the variable `env` names when it is set.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Location {
     pub env: Option<&'static str>,
@@ -220,6 +237,15 @@ pub(crate) const AGENTS: &[Agent] = &[
             },
             command: Some(AgentCommand::Claude),
         },
+        skills: Some(Skills {
+            user: Location {
+                env: Some("CLAUDE_CONFIG_DIR"),
+                base: Base::Home,
+                dir: ".claude",
+                file: "skills",
+            },
+            project: ".claude/skills",
+        }),
     },
     Agent {
         id: "codex",
@@ -242,6 +268,15 @@ pub(crate) const AGENTS: &[Agent] = &[
             },
             command: Some(AgentCommand::Codex),
         },
+        skills: Some(Skills {
+            user: Location {
+                env: None,
+                base: Base::Home,
+                dir: ".agents",
+                file: "skills",
+            },
+            project: ".agents/skills",
+        }),
     },
     Agent {
         id: "cursor",
@@ -262,6 +297,15 @@ pub(crate) const AGENTS: &[Agent] = &[
             },
             command: None,
         },
+        skills: Some(Skills {
+            user: Location {
+                env: None,
+                base: Base::Home,
+                dir: ".cursor",
+                file: "skills",
+            },
+            project: ".agents/skills",
+        }),
     },
     Agent {
         id: "gemini-cli",
@@ -282,6 +326,15 @@ pub(crate) const AGENTS: &[Agent] = &[
             },
             command: Some(AgentCommand::Gemini),
         },
+        skills: Some(Skills {
+            user: Location {
+                env: None,
+                base: Base::Home,
+                dir: ".gemini",
+                file: "skills",
+            },
+            project: ".agents/skills",
+        }),
     },
     Agent {
         id: "github-copilot",
@@ -303,6 +356,15 @@ pub(crate) const AGENTS: &[Agent] = &[
             },
             command: None,
         },
+        skills: Some(Skills {
+            user: Location {
+                env: Some("COPILOT_HOME"),
+                base: Base::Home,
+                dir: ".copilot",
+                file: "skills",
+            },
+            project: ".agents/skills",
+        }),
     },
     Agent {
         id: "claude-desktop",
@@ -320,6 +382,7 @@ pub(crate) const AGENTS: &[Agent] = &[
             format: JSON_MCP_SERVERS,
             command: None,
         },
+        skills: None,
     },
 ];
 
@@ -332,6 +395,18 @@ pub(crate) fn agent(id: &str) -> Option<&'static Agent> {
 pub(crate) fn possible_values() -> Vec<clap::builder::PossibleValue> {
     AGENTS
         .iter()
+        .map(|a| clap::builder::PossibleValue::new(a.id).help(a.name))
+        .collect()
+}
+
+/// The agents that read agent skills.
+pub(crate) fn with_skills() -> impl Iterator<Item = &'static Agent> {
+    AGENTS.iter().filter(|a| a.skills.is_some())
+}
+
+/// `--agent`'s values for the skills: the agents that read them.
+pub(crate) fn skill_possible_values() -> Vec<clap::builder::PossibleValue> {
+    with_skills()
         .map(|a| clap::builder::PossibleValue::new(a.id).help(a.name))
         .collect()
 }
@@ -364,7 +439,7 @@ pub(crate) struct Host {
     pub cwd: PathBuf,
     pub os: Os,
     /// The variables the locations read (`CODEX_HOME`, `XDG_CONFIG_HOME`),
-    /// and `PATH`.
+    /// `XDG_STATE_HOME`, and `PATH`.
     pub vars: Vec<(String, OsString)>,
 }
 
@@ -378,8 +453,11 @@ impl Host {
         let mut vars: Vec<(String, OsString)> = ["PATH", "XDG_CONFIG_HOME"]
             .into_iter()
             .chain(AGENTS.iter().filter_map(|a| a.mcp.user.and_then(|l| l.env)))
+            .chain(with_skills().filter_map(|a| a.skills.as_ref().and_then(|s| s.user.env)))
+            .chain(["XDG_STATE_HOME"])
             .filter_map(|name| std::env::var_os(name).map(|v| (name.to_owned(), v)))
             .collect();
+        vars.sort();
         vars.dedup();
         Ok(Self {
             home,
@@ -463,6 +541,19 @@ impl Agent {
         })
     }
 
+    /// The directory the agent reads skills from at `scope` on `host`, or
+    /// why there is none.
+    pub fn skills_dir(&self, scope: Scope, host: &Host) -> anyhow::Result<PathBuf> {
+        let skills = self
+            .skills
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("{} doesn't read agent skills", self.name))?;
+        Ok(match scope {
+            Scope::User => host.resolve(&skills.user),
+            Scope::Project => host.cwd.join(skills.project),
+        })
+    }
+
     /// The agent's command for `scope`, when it has one that covers it.
     pub fn command(&self, scope: Scope) -> Option<AgentCommand> {
         self.mcp.command.filter(|c| c.covers(scope))
@@ -479,6 +570,85 @@ impl Agent {
                 file.exists() || file.parent().is_some_and(|d| d != host.home && d.is_dir())
             })
     }
+}
+
+/// The agents `ids` names; without any, on a terminal, those the user picks
+/// of the ones in `offered` found on this machine, each shown with `place`,
+/// what the command changes for it. `question` asks which.
+pub(crate) fn choose(
+    host: &Host,
+    ids: &[String],
+    offered: &[&'static Agent],
+    place: impl Fn(&Agent) -> String,
+    question: &str,
+) -> anyhow::Result<Vec<&'static Agent>> {
+    if !ids.is_empty() {
+        let mut chosen: Vec<&'static Agent> = Vec::new();
+        for id in ids {
+            let agent = agent(id).expect("clap checked the value");
+            if !chosen.iter().any(|a| a.id == agent.id) {
+                chosen.push(agent);
+            }
+        }
+        return Ok(chosen);
+    }
+    let names = offered.iter().map(|a| a.id).collect::<Vec<_>>().join(", ");
+    if !(std::io::stdin().is_terminal() && std::io::stderr().is_terminal()) {
+        bail!("name the agent with --agent ({names}): without a terminal there is no one to ask");
+    }
+    let found: Vec<&'static Agent> = offered
+        .iter()
+        .copied()
+        .filter(|a| a.detected(host))
+        .collect();
+    if found.is_empty() {
+        bail!("found none of the agents on this machine: name one with --agent ({names})");
+    }
+    let mut stderr = std::io::stderr();
+    writeln!(stderr, "Agents found on this machine:")?;
+    for (i, agent) in found.iter().enumerate() {
+        writeln!(
+            stderr,
+            "  {}. {} ({})  {}",
+            i + 1,
+            agent.name,
+            agent.id,
+            place(agent)
+        )?;
+    }
+    write!(
+        stderr,
+        "{question} Numbers separated by commas, Enter for all: "
+    )?;
+    stderr.flush()?;
+    let mut line = String::new();
+    std::io::stdin().lock().read_line(&mut line)?;
+    let picked = choice(&line, found.len())?;
+    if picked.is_empty() {
+        bail!("no agent chosen");
+    }
+    Ok(picked.into_iter().map(|i| found[i]).collect())
+}
+
+/// The indices an answer to the prompt picks of `count` agents: Enter
+/// for all, else 1-based numbers separated by commas or spaces.
+fn choice(answer: &str, count: usize) -> anyhow::Result<Vec<usize>> {
+    let answer = answer.trim();
+    if answer.is_empty() || answer.eq_ignore_ascii_case("all") {
+        return Ok((0..count).collect());
+    }
+    let mut picked = Vec::new();
+    for word in answer.split([',', ' ']).filter(|w| !w.is_empty()) {
+        match word.parse::<usize>() {
+            Ok(n) if (1..=count).contains(&n) => {
+                if !picked.contains(&(n - 1)) {
+                    picked.push(n - 1);
+                }
+            }
+            _ => bail!("{word:?} isn't one of the numbers 1 to {count}"),
+        }
+    }
+    Ok(picked)
 }
 
 /// How a location is written in the help (`code` false) and the README
@@ -595,6 +765,66 @@ pub(crate) fn help_table() -> String {
         ));
         if agent.gui {
             out.push_str("    The entry names `origin` by its absolute path.\n");
+        }
+    }
+    out
+}
+
+/// The agents that share each skills directory of the project scope, in
+/// the table's order: `.agents/skills` is read by several.
+fn sharing(project: &str) -> Vec<&'static str> {
+    with_skills()
+        .filter(|a| a.skills.as_ref().is_some_and(|s| s.project == project))
+        .map(|a| a.id)
+        .collect()
+}
+
+/// The skill directories as Markdown, as the README has them (a test checks
+/// it does).
+#[cfg(test)]
+pub(crate) fn skills_markdown_table() -> String {
+    let mut out = String::from(
+        "| `--agent` | Agent | User scope | Project scope |\n\
+         |---|---|---|---|\n",
+    );
+    for agent in with_skills() {
+        let skills = agent.skills.as_ref().expect("with skills");
+        let mut project = format!("`{}`", skills.project);
+        if sharing(skills.project).len() > 1 {
+            project.push_str(", shared");
+        }
+        out.push_str(&format!(
+            "| `{}` | {} | {} | {} |\n",
+            agent.id,
+            agent.name,
+            describe_location(&skills.user, true),
+            project
+        ));
+    }
+    out
+}
+
+/// The skill directories as the long help of `origin skill` lists them.
+pub(crate) fn skills_help_table() -> String {
+    let mut out = String::from("Agents, and the directories they read skills from:\n");
+    for agent in with_skills() {
+        let skills = agent.skills.as_ref().expect("with skills");
+        out.push_str(&format!(
+            "\n  {} ({})\n    user:     {}\n    project:  {}\n",
+            agent.id,
+            agent.name,
+            describe_location(&skills.user, false),
+            skills.project
+        ));
+        let others: Vec<&str> = sharing(skills.project)
+            .into_iter()
+            .filter(|id| *id != agent.id)
+            .collect();
+        if !others.is_empty() {
+            out.push_str(&format!(
+                "              shared with {}\n",
+                others.join(", ")
+            ));
         }
     }
     out
@@ -745,23 +975,104 @@ mod tests {
         assert!(!AgentCommand::Codex.covers(Scope::Project));
     }
 
-    /// The README's table of agents is this one.
-    #[test]
-    fn the_readme_lists_the_table() {
-        let readme = include_str!("../../../../../README.md");
-        let start = "<!-- agents: generated from crates/cli/src/handler/mcp/agents.rs -->\n";
-        let at = readme.find(start).expect("the README marks the table") + start.len();
-        let end = readme[at..].find("<!-- /agents -->").expect("and its end") + at;
+    /// The README's part between `<!-- {marker}: generated from … -->` and
+    /// `<!-- /{marker} -->` is `table`; with UPDATE_GOLDEN set, it is made so.
+    fn readme_has(marker: &str, table: &str) {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../README.md");
+        let readme = std::fs::read_to_string(path).unwrap();
+        let start = format!("<!-- {marker}: generated from crates/cli/src/handler/agents.rs -->\n");
+        let at = readme.find(&start).expect("the README marks the table") + start.len();
+        let end = readme[at..]
+            .find(&format!("<!-- /{marker} -->"))
+            .expect("and its end")
+            + at;
         if std::env::var_os("UPDATE_GOLDEN").is_some() {
-            let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../README.md");
-            let updated = format!("{}{}{}", &readme[..at], markdown_table(), &readme[end..]);
+            let updated = format!("{}{}{}", &readme[..at], table, &readme[end..]);
             std::fs::write(path, updated).unwrap();
             return;
         }
         assert_eq!(
             &readme[at..end],
-            markdown_table(),
-            "the README's table of agents isn't the one in agents.rs: copy markdown_table()'s"
+            table,
+            "the README's table {marker} isn't the one in agents.rs: copy it from there"
         );
+    }
+
+    /// The README's tables of agents are these.
+    #[test]
+    fn the_readme_lists_the_tables() {
+        readme_has("agents", &markdown_table());
+        readme_has("skill-agents", &skills_markdown_table());
+    }
+
+    #[test]
+    fn the_skill_directories_resolve_per_scope() {
+        let linux = host(Os::Unix, &[]);
+        let dir =
+            |id: &str, scope, host: &Host| agent(id).unwrap().skills_dir(scope, host).unwrap();
+        assert_eq!(
+            dir("claude-code", Scope::User, &linux),
+            Path::new("/home/u/.claude/skills")
+        );
+        assert_eq!(
+            dir("codex", Scope::User, &linux),
+            Path::new("/home/u/.agents/skills")
+        );
+        assert_eq!(
+            dir("cursor", Scope::User, &linux),
+            Path::new("/home/u/.cursor/skills")
+        );
+        assert_eq!(
+            dir("gemini-cli", Scope::User, &linux),
+            Path::new("/home/u/.gemini/skills")
+        );
+        assert_eq!(
+            dir("github-copilot", Scope::User, &linux),
+            Path::new("/home/u/.copilot/skills")
+        );
+        assert_eq!(
+            dir("claude-code", Scope::Project, &linux),
+            Path::new("/work/p/.claude/skills")
+        );
+        for id in ["codex", "cursor", "gemini-cli", "github-copilot"] {
+            assert_eq!(
+                dir(id, Scope::Project, &linux),
+                Path::new("/work/p/.agents/skills"),
+                "{id}"
+            );
+        }
+        let moved = host(
+            Os::Unix,
+            &[
+                ("CLAUDE_CONFIG_DIR", "/opt/claude"),
+                ("COPILOT_HOME", "/opt/copilot"),
+            ],
+        );
+        assert_eq!(
+            dir("claude-code", Scope::User, &moved),
+            Path::new("/opt/claude/skills")
+        );
+        assert_eq!(
+            dir("github-copilot", Scope::User, &moved),
+            Path::new("/opt/copilot/skills")
+        );
+        let err = agent("claude-desktop")
+            .unwrap()
+            .skills_dir(Scope::User, &linux)
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("doesn't read agent skills"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn an_answer_picks_agents_by_number() {
+        assert_eq!(choice("\n", 3).unwrap(), vec![0, 1, 2]);
+        assert_eq!(choice("all\n", 2).unwrap(), vec![0, 1]);
+        assert_eq!(choice("2, 1 2\n", 3).unwrap(), vec![1, 0]);
+        assert!(choice("4", 3).is_err());
+        assert!(choice("0", 3).is_err());
+        assert!(choice("claude", 3).is_err());
     }
 }

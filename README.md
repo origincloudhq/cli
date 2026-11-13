@@ -416,7 +416,7 @@ origin mcp uninstall --agent claude-code
 The agents, and where each keeps its servers (`origin mcp install --help`
 lists the same):
 
-<!-- agents: generated from crates/cli/src/handler/mcp/agents.rs -->
+<!-- agents: generated from crates/cli/src/handler/agents.rs -->
 | `--agent` | Agent | User scope | Project scope | Format | Added with |
 |---|---|---|---|---|---|
 | `claude-code` | Claude Code | `~/.claude.json`, or `$CLAUDE_CONFIG_DIR/.claude.json` | `.mcp.json` | JSON, `mcpServers` | `claude mcp add` when `claude` is on PATH, else the file |
@@ -454,6 +454,66 @@ Code and GitHub Copilot share a project's `.mcp.json`, and with it the entry.
 
 The tools are the library [origincloudhq/mcp](https://github.com/origincloudhq/mcp),
 which a server on the network can serve as well.
+
+## Agent skills: `origin skill install`
+
+The [agent skills](https://agentskills.io) of
+[origincloudhq/skills](https://github.com/origincloudhq/skills) teach a coding
+agent to use Origin Cloud: `origin` for this CLI, `origincloud-terraform` and
+`origincloud-sdk`. `origin` carries them, from the origincloudhq/skills commit
+`SKILLS_REVISION` names, so the `origin` skill describes the commands of the
+`origin` you have, and installing needs no network access:
+
+```sh
+origin skill install --agent claude-code                  # the origin skill, for every project
+origin skill install --all --agent codex,cursor --scope project
+origin skill install origincloud-terraform --dir ./skills # a directory of your own
+origin skill list                                         # what is installed where, in which version
+origin skill update                                       # bring the installed copies to this version
+```
+
+- **Agents and scope.** `--agent` takes the agents of the table below,
+  separated by commas; on a terminal without it, `origin skill install`
+  offers the agents it finds on the machine, and without a terminal,
+  `--agent` (or `--dir`) is required. `--scope user` (the default) is the
+  agent's own skill directory; `--scope project` the project in the current
+  directory, where the agents that read `.agents/skills` share one copy.
+- **The copy.** Each skill is a directory, `SKILL.md` and its references,
+  written beside the old one and renamed over it. Its `SKILL.md` gets two
+  keys in its frontmatter's `metadata`: `origin-skills-revision`, the
+  origincloudhq/skills commit, and `origin-skills-digest`, the digest of the
+  skill's files. They say which version it is, and that no one changed it
+  since `origin` wrote it.
+- **Someone else's.** A skill's directory `origin` didn't install, such as
+  one `gh skill install` did, or one changed since, is left as it is, and
+  nothing is installed, unless `--force` is given; `origin skill update`
+  skips it. The agent's other skills are never touched. A skill directory
+  kept as a symbolic link stays one, and its target is written.
+- **Versions.** `origin skill list` shows each skill's version and every
+  copy: `current`, `outdated`, `modified`, or `unmanaged`, a copy `origin`
+  didn't install. After an upgrade of `origin`, the first command run on a
+  terminal says which copies are outdated, once, on standard error, and
+  never in `json` output.
+
+The skills are in the repository too, for other tools:
+`gh skill install origincloudhq/skills origin --agent claude-code --scope
+user` installs the same skill, with GitHub CLI's own keys in place of
+`origin`'s, and `gh skill update` updates it.
+
+The agents, and the directories they read skills from (`origin skill install
+--help` lists the same):
+
+<!-- skill-agents: generated from crates/cli/src/handler/agents.rs -->
+| `--agent` | Agent | User scope | Project scope |
+|---|---|---|---|
+| `claude-code` | Claude Code | `~/.claude/skills`, or `$CLAUDE_CONFIG_DIR/skills` | `.claude/skills` |
+| `codex` | OpenAI Codex | `~/.agents/skills` | `.agents/skills`, shared |
+| `cursor` | Cursor | `~/.cursor/skills` | `.agents/skills`, shared |
+| `gemini-cli` | Gemini CLI | `~/.gemini/skills` | `.agents/skills`, shared |
+| `github-copilot` | GitHub Copilot (VS Code, Copilot CLI) | `~/.copilot/skills`, or `$COPILOT_HOME/skills` | `.agents/skills`, shared |
+<!-- /skill-agents -->
+
+Start a new session of the agent for it to find a new skill.
 
 ## The command tree, for tools
 

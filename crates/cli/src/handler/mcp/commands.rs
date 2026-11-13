@@ -1,8 +1,8 @@
 use clap::builder::PossibleValuesParser;
 use clap::{Args, Subcommand};
 
-use super::agents::{self, Scope};
 use super::install::DEFAULT_NAME;
+use crate::handler::agents::{self, Scope};
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum McpCommands {

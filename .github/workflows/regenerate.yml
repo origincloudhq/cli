@@ -1,7 +1,8 @@
 # Keeps the CLI current with the API: daily, and when run by hand,
 # scripts/update.sh moves it to the head of origincloudhq/mcp, the
 # origincloudhq/sdk-rust commit that is built on and the API revision that
-# was generated from, and generates the commands again.
+# was generated from, and generates the commands again; it also moves the
+# agent skills the CLI embeds to the head of origincloudhq/skills.
 # When that changes anything, the result is one pull request from the branch
 # `regenerate`, refreshed by each later run until it is merged; when it
 # changes nothing, an open one is closed.
@@ -10,8 +11,9 @@
 # new method needs, are kept: a later run generates on top of them, with
 # main merged in, and never closes a pull request that has them. Merging
 # main resolves conflicts in what scripts/update.sh writes again anyway
-# (API_REVISION, Cargo.lock, crates/cli/src/sdk/generated, and the scratch
-# service's testing/scratch/sdk/src/generated and Cargo.toml); any other
+# (API_REVISION, SKILLS_REVISION, Cargo.lock, crates/cli/src/sdk/generated,
+# the skills in crates/cli/skills, and the scratch service's
+# testing/scratch/sdk/src/generated and Cargo.toml); any other
 # conflict fails the run until someone merges main into the branch by hand.
 #
 # When generation fails, such as on a field the generator can't make a flag
@@ -25,8 +27,8 @@
 # it holds only this workflow's commits. Releases of the CLI are made by
 # hand (RELEASING.md).
 #
-# It runs when origincloudhq/mcp's main moves (its downstream.yml dispatches
-# it), and daily as a fallback.
+# It runs when origincloudhq/mcp's or origincloudhq/skills' main moves (their
+# downstream.yml dispatches it), and daily as a fallback.
 #
 # With the regeneration App configured (the variable REGENERATE_APP_ID and
 # the secret REGENERATE_APP_PRIVATE_KEY), the branch is pushed and the pull
@@ -81,6 +83,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "PREVIOUS=$(cat API_REVISION)" >> "$GITHUB_ENV"
+          echo "PREVIOUS_SKILLS=$(cat SKILLS_REVISION)" >> "$GITHUB_ENV"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           bot="$(git config user.email)"
@@ -102,7 +105,7 @@ jobs:
               if ! git merge --quiet --no-edit origin/main; then
                 for path in $(git diff --name-only --diff-filter=U); do
                   case "${path}" in
-              API_REVISION | Cargo.lock | crates/cli/src/sdk/generated/* | testing/scratch/sdk/src/generated/* | testing/scratch/sdk/Cargo.toml)
+              API_REVISION | SKILLS_REVISION | Cargo.lock | crates/cli/src/sdk/generated/* | crates/cli/skills/* | testing/scratch/sdk/src/generated/* | testing/scratch/sdk/Cargo.toml)
                       if git checkout --quiet --ours -- "${path}" 2>/dev/null; then
                         git add -- "${path}"
                       else
@@ -149,7 +152,7 @@ jobs:
           if [[ "${status}" -eq 0 ]]; then
             exit 0
           fi
-          kept=(API_REVISION Cargo.toml Cargo.lock)
+          kept=(API_REVISION SKILLS_REVISION Cargo.toml Cargo.lock)
           mkdir -p "${RUNNER_TEMP}/kept"
           cp "${kept[@]}" "${RUNNER_TEMP}/kept/"
           git checkout --quiet -- .
@@ -200,6 +203,7 @@ jobs:
           fi
 
           revision="$(cat API_REVISION)"
+          skills="$(cat SKILLS_REVISION)"
           git switch --quiet -C "${BRANCH}"
           if [[ -n "$(git status --porcelain)" ]]; then
             git add --all
@@ -227,7 +231,7 @@ jobs:
 
           body="Generated from [origincloudhq/api@${revision:0:12}](https://github.com/origincloudhq/api/commit/${revision}) ([changes](https://github.com/origincloudhq/api/compare/${PREVIOUS}...${revision})) by scripts/update.sh.
 
-          The MCP tools are moved to their newest commit, the Rust SDK to the commit they are built on, and API_REVISION to the API revision that commit was generated from.
+          The MCP tools are moved to their newest commit, the Rust SDK to the commit they are built on, and API_REVISION to the API revision that commit was generated from. The embedded agent skills are those of [origincloudhq/skills@${skills:0:12}](https://github.com/origincloudhq/skills/commit/${skills}) ([changes](https://github.com/origincloudhq/skills/compare/${PREVIOUS_SKILLS}...${skills})).
 
           If CI fails, the API uses something the generator (generator/) doesn't support yet, such as a method it can't make a command for; extend it on this branch."
           if [[ -n "${FAILURE:-}" ]]; then

@@ -11,17 +11,17 @@
 //! program, and for the agents that have no such command, the file is
 //! edited (`config_file.rs`), after a copy of it is written beside it.
 
-use std::io::{BufRead, IsTerminal, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 use anyhow::{bail, Context};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::agents::{self, Agent, Host, Scope, AGENTS};
 use super::commands::{InstallArgs, McpCommands, ServeFlags, Target, UninstallArgs};
 use super::config_file::{self, Change, Entry, Found};
+use crate::handler::agents::{self, Agent, Host, Scope, AGENTS};
+use crate::handler::files::{create, resolve_links, sibling};
 use crate::output::{SerializableOutput, SerializationError};
 
 /// The name of the entry without `--name`: the name the server gives
@@ -200,67 +200,20 @@ fn command(host: &Host, absolute: bool) -> anyhow::Result<String> {
 /// The agents `--agent` names; without it, on a terminal, those chosen of
 /// the ones found on this machine.
 fn agents_of(host: &Host, target: &Target, verb: &str) -> anyhow::Result<Vec<&'static Agent>> {
-    if !target.agents.is_empty() {
-        let mut chosen: Vec<&'static Agent> = Vec::new();
-        for id in &target.agents {
-            let agent = agents::agent(id).expect("clap checked the value");
-            if !chosen.iter().any(|a| a.id == agent.id) {
-                chosen.push(agent);
-            }
-        }
-        return Ok(chosen);
-    }
-    let ids = AGENTS.iter().map(|a| a.id).collect::<Vec<_>>().join(", ");
-    if !(std::io::stdin().is_terminal() && std::io::stderr().is_terminal()) {
-        bail!("name the agent with --agent ({ids}): without a terminal there is no one to ask");
-    }
-    let found: Vec<&'static Agent> = AGENTS.iter().filter(|a| a.detected(host)).collect();
-    if found.is_empty() {
-        bail!("found none of the agents on this machine: name one with --agent ({ids})");
-    }
-    let mut stderr = std::io::stderr();
-    writeln!(stderr, "Agents found on this machine:")?;
-    for (i, agent) in found.iter().enumerate() {
-        let file = agent
-            .file(target.scope, host)
-            .map(|f| f.display().to_string())
-            .unwrap_or_else(|_| format!("no {} scope", target.scope.as_str()));
-        writeln!(stderr, "  {}. {} ({})  {file}", i + 1, agent.name, agent.id)?;
-    }
-    write!(
-        stderr,
-        "Which to {verb}, at the {} scope? Numbers separated by commas, Enter for all: ",
-        target.scope.as_str()
-    )?;
-    stderr.flush()?;
-    let mut line = String::new();
-    std::io::stdin().lock().read_line(&mut line)?;
-    let picked = choice(&line, found.len())?;
-    if picked.is_empty() {
-        bail!("no agent chosen");
-    }
-    Ok(picked.into_iter().map(|i| found[i]).collect())
-}
-
-/// The indices an answer to the prompt picks of `count` agents: Enter
-/// for all, else 1-based numbers separated by commas or spaces.
-fn choice(answer: &str, count: usize) -> anyhow::Result<Vec<usize>> {
-    let answer = answer.trim();
-    if answer.is_empty() || answer.eq_ignore_ascii_case("all") {
-        return Ok((0..count).collect());
-    }
-    let mut picked = Vec::new();
-    for word in answer.split([',', ' ']).filter(|w| !w.is_empty()) {
-        match word.parse::<usize>() {
-            Ok(n) if (1..=count).contains(&n) => {
-                if !picked.contains(&(n - 1)) {
-                    picked.push(n - 1);
-                }
-            }
-            _ => bail!("{word:?} isn't one of the numbers 1 to {count}"),
-        }
-    }
-    Ok(picked)
+    let offered: Vec<&'static Agent> = AGENTS.iter().collect();
+    let scope = target.scope;
+    agents::choose(
+        host,
+        &target.agents,
+        &offered,
+        |agent| {
+            agent
+                .file(scope, host)
+                .map(|f| f.display().to_string())
+                .unwrap_or_else(|_| format!("no {} scope", scope.as_str()))
+        },
+        &format!("Which to {verb}, at the {} scope?", scope.as_str()),
+    )
 }
 
 /// What install or uninstall did for one agent.
@@ -526,74 +479,6 @@ fn write(
     Ok(backup)
 }
 
-/// The file `path` names after following its symbolic links, which may
-/// be relative to the directory of the link, or dangle.
-fn resolve_links(path: &Path) -> anyhow::Result<PathBuf> {
-    let mut path = path.to_path_buf();
-    // As many as the kernel follows before it gives up (ELOOP).
-    for _ in 0..40 {
-        match std::fs::symlink_metadata(&path) {
-            Ok(meta) if meta.file_type().is_symlink() => {
-                let target = std::fs::read_link(&path)
-                    .with_context(|| format!("reading the link {}", path.display()))?;
-                path = match path.parent() {
-                    Some(dir) if target.is_relative() => dir.join(target),
-                    _ => target,
-                };
-            }
-            // Its directory without the `..` a relative link brings, for
-            // the paths the output names.
-            _ => {
-                return Ok(match (path.parent(), path.file_name()) {
-                    (Some(dir), Some(name)) => match std::fs::canonicalize(dir) {
-                        Ok(dir) => dir.join(name),
-                        Err(_) => path,
-                    },
-                    _ => path,
-                })
-            }
-        }
-    }
-    bail!("{}: too many levels of symbolic links", path.display())
-}
-
-/// Writes `content` to the new file `path`, replacing one left behind by
-/// an earlier run; with `permissions`, the file has them from its creation
-/// on, never more open than they are.
-fn create(
-    path: &Path,
-    content: &str,
-    permissions: Option<&std::fs::Permissions>,
-) -> std::io::Result<()> {
-    match std::fs::remove_file(path) {
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
-        _ => {}
-    }
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    if let Some(permissions) = permissions {
-        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
-        // The umask can only narrow this.
-        options.mode(permissions.mode() & 0o7777);
-    }
-    let mut out = options.open(path)?;
-    out.write_all(content.as_bytes())?;
-    out.sync_all()?;
-    drop(out);
-    // Exactly the file's, which the umask may have narrowed.
-    if let Some(permissions) = permissions {
-        std::fs::set_permissions(path, permissions.clone())?;
-    }
-    Ok(())
-}
-
-fn sibling(file: &Path, suffix: &str) -> PathBuf {
-    let mut name = file.file_name().unwrap_or_default().to_os_string();
-    name.push(suffix);
-    file.with_file_name(name)
-}
-
 /// The outcome for each agent: a table, or a list in JSON.
 struct Outcomes(Vec<Outcome>);
 
@@ -619,16 +504,6 @@ impl SerializableOutput for Printed {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn an_answer_picks_agents_by_number() {
-        assert_eq!(choice("\n", 3).unwrap(), vec![0, 1, 2]);
-        assert_eq!(choice("all\n", 2).unwrap(), vec![0, 1]);
-        assert_eq!(choice("2, 1 2\n", 3).unwrap(), vec![1, 0]);
-        assert!(choice("4", 3).is_err());
-        assert!(choice("0", 3).is_err());
-        assert!(choice("claude", 3).is_err());
-    }
 
     #[test]
     fn the_entry_passes_the_flags_on() {

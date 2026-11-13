@@ -13,7 +13,7 @@
 # replacing one under another name ([[replacement]] below), fails generation
 # until that group is retired in the same change, as CONTRIBUTING.md says,
 # as `iam` was. The coverage test checks this list is the CLI's.
-hand_written = ["completion", "config", "id", "mcp", "version"]
+hand_written = ["completion", "config", "id", "mcp", "skill", "version"]
 
 # A service replacing a hand-written group under another name. It is written
 # before the API has the service, so that generation fails as soon as a

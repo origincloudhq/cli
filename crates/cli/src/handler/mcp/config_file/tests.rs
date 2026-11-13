@@ -9,7 +9,7 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::handler::mcp::agents::{Agent, AGENTS};
+use crate::handler::agents::{Agent, AGENTS};
 
 fn dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/agent-config")

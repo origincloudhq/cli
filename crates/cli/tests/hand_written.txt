@@ -119,6 +119,9 @@ network update-route-table-routes
 network update-security-group-rules
 network update-subnet-acl
 network update-subnet-auto-assign-public-ip
+skill install
+skill list
+skill update
 storage remove-resource-tags
 storage set-resource-tags
 version

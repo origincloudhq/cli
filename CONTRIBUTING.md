@@ -39,14 +39,26 @@ time on it. CI must pass: the checks below, run on every pull request.
   the same SDK commit as its own commands, which `scripts/update.sh` keeps
   and `scripts/generate.sh --check` checks.
   `origin mcp install` and `uninstall` add that server to the coding
-  agents of the table in `src/handler/mcp/agents.rs`, and remove it, with
+  agents of the table in `src/handler/agents.rs`, and remove it, with
   the agent's own command or by editing its file (`config_file.rs`): an
   agent is a row of the table, plus a format adapter when it brings a
   format of its own. The commands' help, the README's table of agents (a
   test checks it is the table's) and the tests read it. The edits are
   tested against golden files in `crates/cli/tests/agent-config/`;
-  `UPDATE_GOLDEN=1 cargo test` writes those and the README's table anew,
+  `UPDATE_GOLDEN=1 cargo test` writes those and the README's tables anew,
   for review in the diff.
+- `origin skill install`, `list` and `update` (`src/handler/skill/`)
+  install the agent skills of
+  [origincloudhq/skills](https://github.com/origincloudhq/skills) into the
+  skill directories of the same table's agents (its `skills` field). The
+  skills are those of the commit `SKILLS_REVISION` names: `scripts/generate.sh`
+  copies them, without their `evals/`, into `crates/cli/skills/`, which
+  `crates/cli/build.rs` embeds, and `--check` checks the copy;
+  `scripts/update.sh` moves the pin to the head of origincloudhq/skills'
+  main. Never edit the copy: a change to a skill is a change in
+  origincloudhq/skills. An installed copy's `SKILL.md` carries its version
+  and digest in its `metadata` (`src/handler/skill/marker.rs`), which tell
+  `origin`'s copies from anyone else's.
 - `origin __commands` (`src/handler/command_tree.rs`) prints the command
   tree as JSON, which each release attaches as `commands.json` for tools
   that name the CLI's commands and flags (README). It isn't a command of
@@ -220,8 +232,9 @@ generated files.
 
 The regeneration workflow (`.github/workflows/regenerate.yml`) moves the CLI
 to the newest origincloudhq/mcp, the SDK commit that is built on, and the API
-revision it was generated from, when origincloudhq/mcp's main moves, and
-daily, and opens a pull request when that changes anything. Once its CI
+revision it was generated from, and the skills to the newest
+origincloudhq/skills, when origincloudhq/mcp's or origincloudhq/skills' main
+moves, and daily, and opens a pull request when that changes anything. Once its CI
 passes, `merge-regeneration.yml` merges it, unless someone added commits to
 it, which then wait for review; the merge uses a GitHub App's token (the
 variable `REGENERATE_APP_ID` and the secret `REGENERATE_APP_PRIVATE_KEY`),
@@ -315,7 +328,7 @@ you need.
 ```sh
 scripts/generate.sh            # generate the commands of every service again
 scripts/generate.sh --check    # check the checked-in commands are what the API generates
-scripts/update.sh              # move to the newest SDK and its API revision, and generate
+scripts/update.sh              # move to the newest SDK, its API revision and the newest skills, and generate
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
