@@ -63,7 +63,8 @@ pub(crate) enum Commands {
     #[command(subcommand)]
     Id(IdentityCommands),
 
-    /// Serve Origin Cloud's API to an AI agent over MCP.
+    /// Serve Origin Cloud's API to an AI agent over MCP, and add it to
+    /// coding agents.
     #[command(subcommand)]
     Mcp(McpCommands),
 

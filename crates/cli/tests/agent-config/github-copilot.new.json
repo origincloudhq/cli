@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "origincloud": {
+      "type": "stdio",
+      "command": "origin",
+      "args": ["mcp", "serve", "--toolsets", "pvs,location", "--read-only"],
+      "tools": ["*"]
+    }
+  }
+}

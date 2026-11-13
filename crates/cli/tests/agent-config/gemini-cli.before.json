@@ -1,0 +1,14 @@
+{
+  // Gemini CLI settings.
+  "theme": "GitHub",
+  "mcpServers": {
+    "docs": {
+      "command": "npx",
+      "args": ["-y", "docs-mcp"],
+      "trust": false
+    }
+  },
+  "general": {
+    "vimMode": true,
+  },
+}
