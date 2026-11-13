@@ -7,7 +7,6 @@
 //! the table of agents in `agents.rs` and the edits of their files in
 //! `config_file.rs`.
 
-mod agents;
 mod commands;
 mod config_file;
 mod dispatch;

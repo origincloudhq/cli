@@ -53,6 +53,8 @@ rmcp = { workspace = true, features = ["transport-io"] }
 # comments and layout: JSON (with comments) and TOML.
 jsonc-parser = { version = "0.34", features = ["cst", "serde_json"] }
 toml_edit = "0.22"
+# `origin skill install` marks the skills it writes with their digest.
+sha2 = "0.10"
 http.workspace = true
 reqwest.workspace = true
 serde.workspace = true

@@ -25,6 +25,12 @@
 # dependencies from the manifest the SDK's generator scaffolds for a new
 # service, so that the crate builds as the SDK's own crates do.
 #
+# The agent skills `origin skill install` installs are copied from
+# origincloudhq/skills at the commit SKILLS_REVISION names: each skill's
+# directory, skills/{skill}/, into crates/cli/skills/{skill}/, without its
+# evals/, which are for the skills' authors, not for agents. The CLI embeds
+# that copy, so that installing a skill needs no network access.
+#
 # Needs cargo, git and network access: the API's dependencies are
 # downloaded from the Buf Schema Registry at the commits its buf.lock pins,
 # and checked against the digests it pins.
@@ -35,7 +41,8 @@ readonly ROOT
 readonly API_REPOSITORY="https://github.com/origincloudhq/api.git"
 readonly SDK_REPOSITORY="https://github.com/origincloudhq/sdk-rust.git"
 readonly MCP_REPOSITORY="https://github.com/origincloudhq/mcp.git"
-readonly GENERATED=("crates/cli/src/sdk/generated" "testing/scratch/sdk/src/generated" "testing/scratch/sdk/Cargo.toml")
+readonly SKILLS_REPOSITORY="https://github.com/origincloudhq/skills.git"
+readonly GENERATED=("crates/cli/src/sdk/generated" "testing/scratch/sdk/src/generated" "testing/scratch/sdk/Cargo.toml" "crates/cli/skills")
 
 case "${1:-}" in
   "") mode="write" ;;
@@ -45,6 +52,9 @@ esac
 
 revision="$(tr -d '[:space:]' < "${ROOT}/API_REVISION")"
 [[ "${revision}" =~ ^[0-9a-f]{40}$ ]] || { echo "API_REVISION must hold a full commit hash" >&2; exit 1; }
+
+skills_revision="$(tr -d '[:space:]' < "${ROOT}/SKILLS_REVISION")"
+[[ "${skills_revision}" =~ ^[0-9a-f]{40}$ ]] || { echo "SKILLS_REVISION must hold a full commit hash" >&2; exit 1; }
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
@@ -112,6 +122,27 @@ description = "The SDK crate of the CLI tests' scratch service."
 ${dependencies}
 MANIFEST
 
+# The agent skills, without their evals. The CLI writes each skill's files
+# as they are, so a skill holds regular files only: no links, nothing
+# executable.
+git init --quiet "${tmp}/skills"
+git -C "${tmp}/skills" fetch --quiet --depth 1 "${SKILLS_REPOSITORY}" "${skills_revision}"
+git -C "${tmp}/skills" checkout --quiet FETCH_HEAD
+[[ -d "${tmp}/skills/skills" ]] || { echo "origincloudhq/skills@${skills_revision:0:12} has no skills/" >&2; exit 1; }
+mkdir -p "${tmp}/gen/crates/cli/skills"
+for skill in "${tmp}/skills/skills"/*/; do
+  name="$(basename "${skill}")"
+  [[ -f "${skill}/SKILL.md" ]] || continue
+  [[ "${name}" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || { echo "the skill ${name} isn't named as the Agent Skills specification requires" >&2; exit 1; }
+  cp -R "${skill}" "${tmp}/gen/crates/cli/skills/${name}"
+  rm -rf "${tmp}/gen/crates/cli/skills/${name}/evals"
+done
+if [[ -n "$(find "${tmp}/gen/crates/cli/skills" ! -type f ! -type d)" || -n "$(find "${tmp}/gen/crates/cli/skills" -type f -perm /111)" ]]; then
+  echo "origincloudhq/skills@${skills_revision:0:12} has a link, or an executable file, in a skill" >&2
+  exit 1
+fi
+[[ -f "${tmp}/gen/crates/cli/skills/origin/SKILL.md" ]] || { echo "origincloudhq/skills@${skills_revision:0:12} has no origin skill" >&2; exit 1; }
+
 (cd "${ROOT}" && cargo run --quiet --locked -p origincloud-cli-generator -- \
   "${tmp}/api" "${tmp}/sdk-gen" "${tmp}/gen" "${ROOT}/testing/scratch")
 
@@ -126,8 +157,12 @@ generated() {
 
 if [[ "${mode}" == write ]]; then
   generated "${ROOT}" | (cd "${ROOT}" && xargs -r rm -f)
+  # A skill gone, or a directory of one, goes with its files.
+  for dir in "${GENERATED[@]}"; do
+    if [[ -d "${ROOT}/${dir}" ]]; then find "${ROOT}/${dir}" -mindepth 1 -type d -empty -delete; fi
+  done
   generated "${tmp}/gen" | (cd "${tmp}/gen" && xargs -r cp --parents -t "${ROOT}")
-  echo "wrote $(generated "${ROOT}" | wc -l) files from origincloudhq/api@${revision:0:12}"
+  echo "wrote $(generated "${ROOT}" | wc -l) files from origincloudhq/api@${revision:0:12} and origincloudhq/skills@${skills_revision:0:12}"
   exit 0
 fi
 
@@ -140,7 +175,7 @@ else
   done < <(generated "${ROOT}")
 fi
 if [[ "${failed}" -eq 1 ]]; then
-  echo "FAILED: the generated code isn't what origincloudhq/api@${revision:0:12} generates; run $0"
+  echo "FAILED: the generated code isn't what origincloudhq/api@${revision:0:12} generates, or the skills aren't origincloudhq/skills@${skills_revision:0:12}'s; run $0"
   exit 1
 fi
-echo "ok - the generated code is current (origincloudhq/api@${revision:0:12})"
+echo "ok - the generated code is current (origincloudhq/api@${revision:0:12}, origincloudhq/skills@${skills_revision:0:12})"

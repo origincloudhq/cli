@@ -4,7 +4,9 @@
 # dependency to the head of origincloudhq/mcp's main, the SDK dependency to
 # the origincloudhq/sdk-rust commit that one is built on, API_REVISION to the
 # API revision that commit was generated from, then generates the commands
-# again (scripts/generate.sh). The regeneration workflow
+# again (scripts/generate.sh); and SKILLS_REVISION to the head of
+# origincloudhq/skills' main, whose skills generate.sh copies for the CLI to
+# embed. The regeneration workflow
 # (.github/workflows/regenerate.yml) runs it daily; run it by hand the same
 # way.
 #
@@ -18,11 +20,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly ROOT
 readonly SDK_REPOSITORY="https://github.com/origincloudhq/sdk-rust.git"
 readonly MCP_REPOSITORY="https://github.com/origincloudhq/mcp.git"
+readonly SKILLS_REPOSITORY="https://github.com/origincloudhq/skills.git"
 
 cd "${ROOT}"
 
 mcp="$(git ls-remote "${MCP_REPOSITORY}" refs/heads/main | cut -f1)"
 [[ "${mcp}" =~ ^[0-9a-f]{40}$ ]] || { echo "no main branch in ${MCP_REPOSITORY}" >&2; exit 1; }
+skills="$(git ls-remote "${SKILLS_REPOSITORY}" refs/heads/main | cut -f1)"
+[[ "${skills}" =~ ^[0-9a-f]{40}$ ]] || { echo "no main branch in ${SKILLS_REPOSITORY}" >&2; exit 1; }
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
@@ -61,10 +66,11 @@ if [[ "${#packages[@]}" -gt 0 ]]; then
   cargo update --quiet "${packages[@]}"
 fi
 echo "${revision}" > API_REVISION
+echo "${skills}" > SKILLS_REVISION
 # Adds what main's Cargo.toml needs and the lock doesn't hold yet, such as
 # after a lock conflict was resolved with the branch's side, so that the
 # result builds with --locked; it moves no other dependency.
 cargo update --quiet --workspace
 
-echo "origincloudhq/mcp@${mcp:0:12}, origincloudhq/sdk-rust@${sdk:0:12}, origincloudhq/api@${revision:0:12}"
+echo "origincloudhq/mcp@${mcp:0:12}, origincloudhq/sdk-rust@${sdk:0:12}, origincloudhq/api@${revision:0:12}, origincloudhq/skills@${skills:0:12}"
 scripts/generate.sh

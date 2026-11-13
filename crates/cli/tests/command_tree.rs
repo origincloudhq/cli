@@ -147,6 +147,19 @@ fn it_lists_every_visible_command_and_its_flags() {
         "only {} commands: the tree isn't the CLI's",
         paths.len()
     );
+    for hand_written in [
+        &["mcp", "install"][..],
+        &["mcp", "uninstall"],
+        &["skill", "install"],
+        &["skill", "list"],
+        &["skill", "update"],
+    ] {
+        assert!(
+            paths.iter().any(|p| p == hand_written),
+            "origin {} isn't in the tree",
+            hand_written.join(" ")
+        );
+    }
 
     // Clap's own propagation: each command has its groups' global flags.
     let mut built = origincloud_cli::command();
@@ -217,6 +230,23 @@ fn it_lists_every_visible_command_and_its_flags() {
     let no_wait = flag("no-wait");
     assert!(no_wait.value_name.is_none() && no_wait.possible_values.is_empty());
     assert!(flag("endpoint").global);
+
+    let install = tree
+        .commands
+        .iter()
+        .find(|c| c.path == ["skill", "install"])
+        .unwrap();
+    let keys: BTreeSet<String> = install.args.iter().map(Arg::key).collect();
+    for key in ["NAME", "--all", "--agent", "--scope", "--dir", "--force"] {
+        assert!(keys.contains(key), "origin skill install has no {key}");
+    }
+    let agent = install
+        .args
+        .iter()
+        .find(|a| a.long.as_deref() == Some("agent"))
+        .unwrap();
+    assert!(agent.possible_values.iter().any(|v| v == "codex"));
+    assert!(!agent.possible_values.iter().any(|v| v == "claude-desktop"));
 }
 
 /// A generated command names the method it calls, the operation methods

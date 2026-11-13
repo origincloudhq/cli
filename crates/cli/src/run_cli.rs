@@ -1,3 +1,4 @@
+use std::io::IsTerminal;
 use std::process::exit;
 
 use crate::config::{ClientProfile, OutputFormat};
@@ -36,6 +37,23 @@ pub async fn run() -> ! {
         no_pager: cli.no_pager,
     };
 
+    // After an upgrade, once, a word on the agent skills it made outdated:
+    // on a terminal only, and never in `json`, nor beside the commands that
+    // are about the skills, or whose output is for a program.
+    let quiet = matches!(
+        cli.command,
+        None | Some(Commands::Skill(_))
+            | Some(Commands::Mcp(McpCommands::Serve(_)))
+            | Some(Commands::Completion { .. })
+    );
+    if !quiet
+        && output::format_for_stdout(profile.output_format) != OutputFormat::Json
+        && std::io::stdout().is_terminal()
+        && std::io::stderr().is_terminal()
+    {
+        handler::skill::notice();
+    }
+
     match cli.command {
         None => exit(0),
         Some(Commands::Id(id_cmd)) => {
@@ -55,6 +73,7 @@ pub async fn run() -> ! {
             cli.config.as_deref(),
             cmd,
         )),
+        Some(Commands::Skill(cmd)) => printing.exit_with(handler::skill::run_skill_command(cmd)),
         Some(Commands::Services(cmd)) => printing.exit_with(crate::sdk::run(&profile, cmd).await),
         Some(Commands::Config(cmd)) => printing.exit_with(
             handler::config::run_config_command(&profile, cli.config.as_deref(), cmd).await,

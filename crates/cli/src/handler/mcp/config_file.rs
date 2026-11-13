@@ -14,7 +14,7 @@ use jsonc_parser::cst::{CstInputValue, CstObject, CstRootNode};
 use jsonc_parser::ParseOptions;
 use toml_edit::{Array, DocumentMut, Item, Table, Value};
 
-use super::agents::{Format, Syntax};
+use crate::handler::agents::{Format, Syntax};
 
 /// The server entry `origin mcp install` writes.
 #[derive(Debug, Clone, PartialEq, Eq)]
