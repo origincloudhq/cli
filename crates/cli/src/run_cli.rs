@@ -2,6 +2,7 @@ use std::process::exit;
 
 use crate::config::{ClientProfile, OutputFormat};
 use crate::handler;
+use crate::handler::mcp::McpCommands;
 use crate::output::{self, CommandResult, SerializableOutput, SerializationError};
 use crate::root_command::{Cli, Commands};
 use clap::Parser;
@@ -29,13 +30,19 @@ pub async fn run() -> ! {
             printing.exit_with(handler::id::run_identity_command(&profile, &api_url, id_cmd).await)
         }
         // The MCP session owns standard output: nothing is printed on it.
-        Some(Commands::Mcp(cmd)) => match handler::mcp::run_mcp_command(&profile, cmd).await {
-            Ok(()) => exit(0),
-            Err(err) => {
-                eprintln!("origin mcp: {err:#}");
-                exit(1);
+        Some(Commands::Mcp(McpCommands::Serve(args))) => {
+            match handler::mcp::run_mcp_command(&profile, args).await {
+                Ok(()) => exit(0),
+                Err(err) => {
+                    eprintln!("origin mcp: {err:#}");
+                    exit(1);
+                }
             }
-        },
+        }
+        Some(Commands::Mcp(cmd)) => printing.exit_with(handler::mcp::run_install_command(
+            cli.config.as_deref(),
+            cmd,
+        )),
         Some(Commands::Services(cmd)) => printing.exit_with(crate::sdk::run(&profile, cmd).await),
         Some(Commands::Config(cmd)) => printing.exit_with(
             handler::config::run_config_command(&profile, cli.config.as_deref(), cmd).await,

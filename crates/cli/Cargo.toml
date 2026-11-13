@@ -46,6 +46,10 @@ expanduser = "1"
 graphql_client.workspace = true
 # `origin mcp serve` serves the MCP tools on standard input and output.
 rmcp = { workspace = true, features = ["transport-io"] }
+# `origin mcp install` edits the coding agents' files, keeping their
+# comments and layout: JSON (with comments) and TOML.
+jsonc-parser = { version = "0.34", features = ["cst", "serde_json"] }
+toml_edit = "0.22"
 http.workspace = true
 reqwest.workspace = true
 serde.workspace = true

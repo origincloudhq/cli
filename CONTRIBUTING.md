@@ -38,6 +38,15 @@ time on it. CI must pass: the checks below, run on every pull request.
   their table are in that repository; the CLI pins it at a commit built on
   the same SDK commit as its own commands, which `scripts/update.sh` keeps
   and `scripts/generate.sh --check` checks.
+  `origin mcp install` and `uninstall` add that server to the coding
+  agents of the table in `src/handler/mcp/agents.rs`, and remove it, with
+  the agent's own command or by editing its file (`config_file.rs`): an
+  agent is a row of the table, plus a format adapter when it brings a
+  format of its own. The commands' help, the README's table of agents (a
+  test checks it is the table's) and the tests read it. The edits are
+  tested against golden files in `crates/cli/tests/agent-config/`;
+  `UPDATE_GOLDEN=1 cargo test` writes those and the README's table anew,
+  for review in the diff.
 - `crates/oauth-login` is the browser and device-code login.
 
 The generator downloads the API's dependencies from the Buf Schema Registry at

@@ -1,21 +1,16 @@
 use origincloud_mcp::{ClientSource, Defaults, Options, Server};
 use rmcp::ServiceExt;
 
-use super::commands::{McpCommands, ServeArgs};
+use super::commands::ServeArgs;
 use crate::config::ClientProfile;
 
-/// Runs `cmd`. Standard output is the MCP session's, so nothing is printed
-/// on it: an error is the caller's to report on standard error.
-pub async fn run_mcp_command(profile: &ClientProfile, cmd: McpCommands) -> anyhow::Result<()> {
-    match cmd {
-        McpCommands::Serve(args) => serve(profile, args).await,
-    }
-}
-
-async fn serve(profile: &ClientProfile, args: ServeArgs) -> anyhow::Result<()> {
+/// Runs `origin mcp serve`. Standard output is the MCP session's, so
+/// nothing is printed on it: an error is the caller's to report on
+/// standard error.
+pub async fn run_mcp_command(profile: &ClientProfile, args: ServeArgs) -> anyhow::Result<()> {
     let options = Options {
-        toolsets: (!args.toolsets.is_empty()).then_some(args.toolsets),
-        read_only: args.read_only,
+        toolsets: (!args.flags.toolsets.is_empty()).then_some(args.flags.toolsets),
+        read_only: args.flags.read_only,
         defaults: Defaults {
             project: profile.default_project.clone(),
             zone: profile.default_zone.clone(),

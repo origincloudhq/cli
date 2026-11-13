@@ -1,0 +1,10 @@
+# Codex configuration.
+model = "gpt-5-codex"   # the default model
+
+[mcp_servers.docs]
+command = "npx"
+args = ["-y", "docs-mcp"]
+
+# Keep this one last.
+[profiles.fast]
+model = "gpt-5-mini"

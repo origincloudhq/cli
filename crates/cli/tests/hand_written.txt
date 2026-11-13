@@ -63,7 +63,9 @@ iam revoke-role
 iam revoke-service-account
 id login
 id token
+mcp install
 mcp serve
+mcp uninstall
 network allocate-floating-ip
 network associate-floating-ip
 network associate-route-table

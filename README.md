@@ -371,6 +371,65 @@ or, for a client configured in JSON:
 { "mcpServers": { "origincloud": { "command": "origin", "args": ["mcp", "serve"] } } }
 ```
 
+### Adding it to a coding agent: `origin mcp install`
+
+`origin mcp install` adds that entry to a coding agent's MCP servers, and
+`origin mcp uninstall` removes it again:
+
+```sh
+origin mcp install --agent claude-code                    # for every project, with every tool
+origin mcp install --agent codex,cursor --read-only       # only the tools that change nothing
+origin mcp install --agent github-copilot --scope project --toolsets pvs,location
+origin mcp install --agent cursor --print                 # print the entry, change nothing
+origin mcp uninstall --agent claude-code
+```
+
+- **Agents.** `--agent` takes the agents of the table below, separated by
+  commas. On a terminal without it, `origin mcp install` offers the agents
+  it finds on the machine; without a terminal, `--agent` is required.
+- **Scope.** `--scope user` (the default) is the agent's own
+  configuration, for every project; `--scope project` is the project in
+  the current directory, in a file that is usually committed with it.
+- **The entry.** Named `origincloud` (`--name` names it otherwise), it
+  starts `origin mcp serve` with `--toolsets` and `--read-only` as given,
+  and with `--config` when `origin --config FILE mcp install` named one. It
+  holds no credentials, nor anything else from the login or the
+  environment: `origin mcp serve` uses the login and the profile as the
+  other commands do, so a project's file can be committed.
+- **How.** Where the agent has a command for it (`claude mcp add`, `codex
+  mcp add`, `gemini mcp add`) and it is on `PATH`, `origin mcp install`
+  runs that, so that the agent writes its own file; then it checks the
+  entry is in the file the table names. Otherwise it edits the file: the
+  entry alone, keeping the other servers and settings, their order, and
+  the comments where the format has them, after copying the file to
+  `FILE.origin.bak`. Running it again updates the entry; a file that
+  doesn't parse, or an entry of the name that doesn't start `origin mcp
+  serve`, is left as it is, and the command fails.
+- **`PATH`.** An entry names `origin`, for the agent to find on its `PATH`;
+  Claude Desktop, started from a desktop launcher without your shell's
+  `PATH`, gets the binary's absolute path instead, as any agent does with
+  `--absolute-path`.
+- **`--print`** prints the entry as the agent's file would hold it, or in
+  the `mcpServers` form most other MCP clients read without `--agent`, and
+  changes nothing.
+
+The agents, and where each keeps its servers (`origin mcp install --help`
+lists the same):
+
+<!-- agents: generated from crates/cli/src/handler/mcp/agents.rs -->
+| `--agent` | Agent | User scope | Project scope | Format | Added with |
+|---|---|---|---|---|---|
+| `claude-code` | Claude Code | `~/.claude.json`, or `$CLAUDE_CONFIG_DIR/.claude.json` | `.mcp.json` | JSON, `mcpServers` | `claude mcp add` when `claude` is on PATH, else the file |
+| `codex` | OpenAI Codex | `~/.codex/config.toml`, or `$CODEX_HOME/config.toml` | `.codex/config.toml` | TOML, `mcp_servers` | `codex mcp add` (user scope) when `codex` is on PATH, else the file |
+| `cursor` | Cursor | `~/.cursor/mcp.json` | `.cursor/mcp.json` | JSON, `mcpServers` | the file |
+| `gemini-cli` | Gemini CLI | `~/.gemini/settings.json` | `.gemini/settings.json` | JSON with comments, `mcpServers` | `gemini mcp add` when `gemini` is on PATH, else the file |
+| `github-copilot` | GitHub Copilot (VS Code, Copilot CLI) | `~/.copilot/mcp-config.json`, or `$COPILOT_HOME/mcp-config.json` | `.mcp.json` | JSON, `mcpServers` | the file |
+| `claude-desktop` | Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS), `~/.config/Claude/claude_desktop_config.json` (Linux) | – | JSON, `mcpServers`; absolute path of `origin` | the file |
+<!-- /agents -->
+
+Restart the agent, or start a new session, for it to start the server. Claude
+Code and GitHub Copilot share a project's `.mcp.json`, and with it the entry.
+
 - **Tools.** A tool per method of the API, generated like the commands:
   `pvs_create_volume`, `location_list_zones`, and each service's
   `_get_operation` and `_wait_operation`. Each takes the method's request in
