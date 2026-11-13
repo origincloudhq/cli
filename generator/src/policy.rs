@@ -401,11 +401,16 @@ mod tests {
         assert_eq!(table.one_way[0].verb, "grow");
 
         let dir = tempfile::tempdir().unwrap();
-        let (commands, mcp) = (dir.path().join("commands.toml"), dir.path().join("tools.toml"));
+        let (commands, mcp) = (
+            dir.path().join("commands.toml"),
+            dir.path().join("tools.toml"),
+        );
         std::fs::write(&commands, "hand_written = []\n").unwrap();
         std::fs::write(&mcp, ONE_WAY).unwrap();
         let policy = Policy::load(&commands, &mcp).unwrap();
-        let entry = policy.one_way("pvs", "UpdateVolume", "volume.size_gib").unwrap();
+        let entry = policy
+            .one_way("pvs", "UpdateVolume", "volume.size_gib")
+            .unwrap();
         assert_eq!(entry.consequence, "A volume never shrinks back.");
         assert_eq!(policy.one_way_entries().count(), 1);
         assert_eq!(policy.entries().count(), 0);
