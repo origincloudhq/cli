@@ -1,9 +1,11 @@
 //! The choices the API definitions don't express, from `commands.toml`
 //! beside the generator: what a command group's help says, methods left
-//! without a command, fields left out of a command, changes that can't be
-//! undone, secrets a response shows once, reference fields taking the
-//! names of more than one resource type, the columns a list's table shows,
-//! and the hand-written groups the generated ones replace.
+//! without a command, fields left out of a command, secrets a response
+//! shows once, reference fields taking the names of more than one resource
+//! type, the columns a list's table shows, and the hand-written groups the
+//! generated ones replace; and the changes that can't be undone, from
+//! origincloudhq/mcp's `generator/tools.toml`, which holds the one list of
+//! them for the MCP tools, the CLI and the agent skills.
 
 use std::path::Path;
 
@@ -38,7 +40,9 @@ pub struct Policy {
     #[serde(default)]
     pub exclude: Vec<Exclusion>,
     /// Fields whose change can't be undone: setting one needs `--yes`.
-    #[serde(default)]
+    /// They come from origincloudhq/mcp's table, never from
+    /// `commands.toml`, which refuses a `[[one_way]]` of its own.
+    #[serde(skip)]
     pub one_way: Vec<OneWay>,
     /// Fields of a response holding a secret the API returns in that
     /// response alone.
@@ -127,9 +131,17 @@ pub struct Exclusion {
     pub why: String,
 }
 
-/// A field whose change can't be undone.
+/// The part of origincloudhq/mcp's `generator/tools.toml` the CLI uses:
+/// its `[[one_way]]` list. Its other tables are the MCP tools' own.
+#[derive(Debug, Default, Deserialize)]
+pub struct McpTable {
+    #[serde(default)]
+    pub one_way: Vec<OneWay>,
+}
+
+/// A field whose change can't be undone, as origincloudhq/mcp's table
+/// lists it; what else an entry says there is the tools' business.
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct OneWay {
     pub service: String,
     pub method: String,
@@ -204,10 +216,13 @@ pub struct View {
 }
 
 impl Policy {
-    pub fn load(path: &Path) -> Result<Self> {
-        let text =
-            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
-        toml::from_str(&text).with_context(|| format!("reading {}", path.display()))
+    /// `commands.toml` at `path`, with the one-way changes of
+    /// origincloudhq/mcp's `tools.toml` at `mcp_table`.
+    pub fn load(path: &Path, mcp_table: &Path) -> Result<Self> {
+        let mut policy: Self = read(path)?;
+        let table: McpTable = read(mcp_table)?;
+        policy.one_way = table.one_way;
+        Ok(policy)
     }
 
     pub fn group(&self, service: &str) -> Option<&Group> {
@@ -261,9 +276,17 @@ impl Policy {
             .collect()
     }
 
-    /// Every `(service, method, field)` the table names, the field a path
-    /// from the request; the field is empty for a method left without a
-    /// command. The fields of `shown_once`, which are a response's, aren't
+    /// Every `(service, method, field)` the one-way changes name, the field
+    /// a path from the request.
+    pub fn one_way_entries(&self) -> impl Iterator<Item = (&str, &str, &str)> {
+        self.one_way
+            .iter()
+            .map(|o| (o.service.as_str(), o.method.as_str(), o.field.as_str()))
+    }
+
+    /// Every `(service, method, field)` `commands.toml` names, the field a
+    /// path from the request; the field is empty for a method left without
+    /// a command. The fields of `shown_once`, which are a response's, aren't
     /// among them: generation fails for one the response doesn't have.
     pub fn entries(&self) -> impl Iterator<Item = (&str, &str, &str)> {
         let no_command = self
@@ -274,16 +297,18 @@ impl Policy {
             .exclude
             .iter()
             .map(|e| (e.service.as_str(), e.method.as_str(), e.field.as_str()));
-        let one_way = self
-            .one_way
-            .iter()
-            .map(|o| (o.service.as_str(), o.method.as_str(), o.field.as_str()));
         let from_file = self
             .from_file
             .iter()
             .map(|f| (f.service.as_str(), f.method.as_str(), f.field.as_str()));
-        no_command.chain(exclude).chain(one_way).chain(from_file)
+        no_command.chain(exclude).chain(from_file)
     }
+}
+
+fn read<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T> {
+    let text =
+        std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    toml::from_str(&text).with_context(|| format!("reading {}", path.display()))
 }
 
 #[cfg(test)]
@@ -353,5 +378,44 @@ mod tests {
             toml::from_str::<Policy>("[[no_command]]\nservice = \"pvs\"\nmethod = \"X\"\n")
                 .is_err()
         );
+    }
+
+    const ONE_WAY: &str = r#"
+        [[one_way]]
+        service = "pvs"
+        method = "UpdateVolume"
+        field = "volume.size_gib"
+        verb = "grow"
+        consequence = "A volume never shrinks back."
+    "#;
+
+    /// The one-way changes come from origincloudhq/mcp's table, whose other
+    /// tables the CLI ignores; `commands.toml` can't hold a list of its own.
+    #[test]
+    fn the_one_way_changes_are_the_mcp_table_s() {
+        let table: McpTable = toml::from_str(&format!(
+            "[[no_tool]]\nservice = \"iam\"\nmethod = \"X\"\nwhy = \"y\"\n{ONE_WAY}"
+        ))
+        .unwrap();
+        assert_eq!(table.one_way.len(), 1);
+        assert_eq!(table.one_way[0].verb, "grow");
+
+        let dir = tempfile::tempdir().unwrap();
+        let (commands, mcp) = (dir.path().join("commands.toml"), dir.path().join("tools.toml"));
+        std::fs::write(&commands, "hand_written = []\n").unwrap();
+        std::fs::write(&mcp, ONE_WAY).unwrap();
+        let policy = Policy::load(&commands, &mcp).unwrap();
+        let entry = policy.one_way("pvs", "UpdateVolume", "volume.size_gib").unwrap();
+        assert_eq!(entry.consequence, "A volume never shrinks back.");
+        assert_eq!(policy.one_way_entries().count(), 1);
+        assert_eq!(policy.entries().count(), 0);
+
+        std::fs::write(&commands, ONE_WAY).unwrap();
+        assert!(Policy::load(&commands, &mcp).is_err());
+        // An entry without the CLI's verb fails, rather than a refusal
+        // without one.
+        std::fs::write(&commands, "").unwrap();
+        std::fs::write(&mcp, ONE_WAY.replace("verb = \"grow\"", "")).unwrap();
+        assert!(Policy::load(&commands, &mcp).is_err());
     }
 }

@@ -2,14 +2,16 @@
 //! definitions (origincloudhq/api), one per service:
 //!
 //! ```text
-//! origincloud-cli-generator <api-dir> <sdk-dir> <out-dir> [<test-api-dir>]
+//! origincloud-cli-generator <api-dir> <sdk-dir> <mcp-table> <out-dir> [<test-api-dir>]
 //! ```
 //!
 //! `<api-dir>` is a checkout of the API; its dependencies are downloaded at
 //! the commits its `buf.lock` pins. `<sdk-dir>` is a checkout of the Rust
 //! SDK generated from it, whose clients say which services answer at a
 //! region's host (`client.service("pvs", true)`) and which only at their
-//! regionless one. `<test-api-dir>` holds definitions of services that
+//! regionless one. `<mcp-table>` is origincloudhq/mcp's
+//! `generator/tools.toml`, whose `[[one_way]]` list is the one list of the
+//! changes that can't be undone, which need `--yes`. `<test-api-dir>` holds definitions of services that
 //! exist only in this repository's tests (`testing/scratch`): their groups
 //! are generated beside the others, compiled only with the CLI's
 //! `test-services` feature, and left out of `api.binpb`. The files are written to `<out-dir>`, at
@@ -63,11 +65,13 @@ const OUT_DIR: &str = "crates/cli/src/sdk/generated";
 
 fn main() -> Result<()> {
     let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
-    let (api, sdk, out, test_api) = match args.as_slice() {
-        [api, sdk, out] => (api, sdk, out, None),
-        [api, sdk, out, test] => (api, sdk, out, Some(test)),
+    let (api, sdk, mcp_table, out, test_api) = match args.as_slice() {
+        [api, sdk, mcp_table, out] => (api, sdk, mcp_table, out, None),
+        [api, sdk, mcp_table, out, test] => (api, sdk, mcp_table, out, Some(test)),
         _ => {
-            bail!("usage: origincloud-cli-generator <api-dir> <sdk-dir> <out-dir> [<test-api-dir>]")
+            bail!(
+                "usage: origincloud-cli-generator <api-dir> <sdk-dir> <mcp-table> <out-dir> [<test-api-dir>]"
+            )
         }
     };
 
@@ -76,8 +80,10 @@ fn main() -> Result<()> {
     roots.extend(test_api.map(PathBuf::as_path));
     let compiled = compile(&roots, dependencies)?;
     let regional = regional_services(sdk)?;
-    let policy =
-        policy::Policy::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("commands.toml"))?;
+    let policy = policy::Policy::load(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("commands.toml"),
+        mcp_table,
+    )?;
     let files = generate(&compiled, &regional, &policy)?;
     for (path, content) in &files {
         let path = out.join(path);
@@ -121,6 +127,17 @@ fn generate(
         if !named {
             eprintln!(
                 "warning: commands.toml names {service} {method} {field}, which the API doesn't have"
+            );
+        }
+    }
+    for (service, method, field) in policy.one_way_entries() {
+        let named = packages
+            .get(service)
+            .is_some_and(|package| names_a_field(pool, package, method, field));
+        if !named {
+            eprintln!(
+                "warning: origincloudhq/mcp's tools.toml has the one-way change {service} {method} \
+                 {field}, which the API doesn't have"
             );
         }
     }
