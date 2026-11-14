@@ -18,12 +18,11 @@ use anyhow::bail;
 
 /// Where an agent's MCP configuration or skills apply: to every project of
 /// the user, or to the project in the current directory, in a file or a
-/// directory that is usually committed with it.
+/// directory that is usually committed with it. What each value means is
+/// the command's to say: [`mcp_scope_parser`] and [`skill_scope_parser`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum Scope {
-    /// Every project of this user, in the agent's own configuration.
     User,
-    /// The project in the current directory, in a file beside its code.
     Project,
 }
 
@@ -411,6 +410,65 @@ pub(crate) fn skill_possible_values() -> Vec<clap::builder::PossibleValue> {
         .collect()
 }
 
+/// `--scope` of `origin mcp install|uninstall`: where the agent's MCP
+/// configuration is.
+pub(crate) fn mcp_scope_parser() -> impl clap::builder::TypedValueParser<Value = Scope> {
+    scope_parser(
+        "Every project of this user, in the agent's own configuration",
+        "The project in the current directory, in a file beside its code",
+    )
+}
+
+/// `--scope` of `origin skill install|list|update`: the agents' skill
+/// directories at each scope, as the table has them.
+pub(crate) fn skill_scope_parser() -> impl clap::builder::TypedValueParser<Value = Scope> {
+    let mut users = Vec::new();
+    let mut projects = Vec::new();
+    for skills in with_skills().filter_map(|a| a.skills.as_ref()) {
+        let user = describe_default(&skills.user, false);
+        if !users.contains(&user) {
+            users.push(user);
+        }
+        if !projects.contains(&skills.project) {
+            projects.push(skills.project);
+        }
+    }
+    let projects: Vec<String> = projects.into_iter().map(str::to_owned).collect();
+    scope_parser(
+        format!(
+            "Every project of this user, in the agent's own skills directory: {}",
+            or_list(&users)
+        ),
+        format!(
+            "The project in the current directory, in a skills directory beside its code: {}",
+            or_list(&projects)
+        ),
+    )
+}
+
+/// `--scope`'s values, `user` and `project`, with a command's help for each.
+fn scope_parser(
+    user: impl Into<String>,
+    project: impl Into<String>,
+) -> impl clap::builder::TypedValueParser<Value = Scope> {
+    use clap::builder::{PossibleValue, PossibleValuesParser, TypedValueParser};
+    use clap::ValueEnum;
+    PossibleValuesParser::new([
+        PossibleValue::new(Scope::User.as_str()).help(user.into()),
+        PossibleValue::new(Scope::Project.as_str()).help(project.into()),
+    ])
+    .map(|value| Scope::from_str(&value, false).expect("one of the possible values"))
+}
+
+/// `a, b or c`.
+fn or_list(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [only] => only.clone(),
+        [init @ .., last] => format!("{} or {last}", init.join(", ")),
+    }
+}
+
 /// The operating systems whose locations differ.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Os {
@@ -654,6 +712,20 @@ fn choice(answer: &str, count: usize) -> anyhow::Result<Vec<usize>> {
 /// How a location is written in the help (`code` false) and the README
 /// (`code` true): `~/.codex/config.toml, or $CODEX_HOME/config.toml`.
 fn describe_location(location: &Location, code: bool) -> String {
+    let default = describe_default(location, code);
+    match location.env {
+        Some(env) => {
+            let moved = format!("${env}/{}", location.file);
+            let moved = if code { format!("`{moved}`") } else { moved };
+            format!("{default}, or {moved}")
+        }
+        None => default,
+    }
+}
+
+/// A location where its environment variable doesn't move it:
+/// `~/.codex/config.toml`.
+fn describe_default(location: &Location, code: bool) -> String {
     let path = |base: &str| {
         let path = if location.dir.is_empty() {
             format!("{base}/{}", location.file)
@@ -666,21 +738,13 @@ fn describe_location(location: &Location, code: bool) -> String {
             path
         }
     };
-    let default = match location.base {
+    match location.base {
         Base::Home => path("~"),
         Base::AppConfig => format!(
             "{} (macOS), {} (Linux)",
             path("~/Library/Application Support"),
             path("~/.config")
         ),
-    };
-    match location.env {
-        Some(env) => {
-            let moved = format!("${env}/{}", location.file);
-            let moved = if code { format!("`{moved}`") } else { moved };
-            format!("{default}, or {moved}")
-        }
-        None => default,
     }
 }
 
@@ -1003,6 +1067,48 @@ mod tests {
     fn the_readme_lists_the_tables() {
         readme_has("agents", &markdown_table());
         readme_has("skill-agents", &skills_markdown_table());
+    }
+
+    /// The help of each `--scope` value, as `--help` lists it.
+    fn scope_help(
+        parser: impl clap::builder::TypedValueParser<Value = Scope>,
+    ) -> Vec<(String, String)> {
+        parser
+            .possible_values()
+            .expect("possible values")
+            .map(|v| {
+                let help = v.get_help().map(|h| h.to_string()).unwrap_or_default();
+                (v.get_name().to_owned(), help)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn each_command_family_says_what_a_scope_is() {
+        let mcp = scope_help(mcp_scope_parser());
+        assert_eq!(
+            mcp,
+            [
+                (
+                    "user".to_owned(),
+                    "Every project of this user, in the agent's own configuration".to_owned()
+                ),
+                (
+                    "project".to_owned(),
+                    "The project in the current directory, in a file beside its code".to_owned()
+                ),
+            ]
+        );
+        let skill = scope_help(skill_scope_parser());
+        assert_eq!(skill[0].0, "user");
+        assert_eq!(skill[1].0, "project");
+        for agent in with_skills() {
+            let skills = agent.skills.as_ref().expect("with skills");
+            let user = describe_default(&skills.user, false);
+            assert!(skill[0].1.contains(&user), "{}: {user}", agent.id);
+            assert!(skill[1].1.contains(skills.project), "{}", agent.id);
+        }
+        assert!(!skill.iter().any(|(_, help)| help.contains("file")));
     }
 
     #[test]
