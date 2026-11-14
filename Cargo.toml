@@ -30,7 +30,7 @@ fake-server = { git = "https://github.com/origincloudhq/sdk-rust", rev = "37d100
 # commit as the lines above: the CLI hands them the SDK's `Client`, so both
 # must be the same crate. scripts/update.sh moves the three together, and
 # scripts/generate.sh --check fails when they differ.
-origincloud-mcp = { git = "https://github.com/origincloudhq/mcp", rev = "938cdd17c602f9d3ae9bd69c59270b1709a6ec92" }
+origincloud-mcp = { git = "https://github.com/origincloudhq/mcp", rev = "a3d419df4bdc55cc1c3a187bf5e02e851c783fde" }
 
 anyhow = "1"
 base64 = "0.22"
