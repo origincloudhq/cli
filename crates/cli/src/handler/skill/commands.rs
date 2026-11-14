@@ -70,7 +70,7 @@ pub(crate) struct Where {
     /// `user`, the agent's own skill directory, for every project; or
     /// `project`, the project in the current directory, in a directory that
     /// is usually committed with it.
-    #[arg(long, value_enum, conflicts_with = "dir")]
+    #[arg(long, value_parser = agents::skill_scope_parser(), conflicts_with = "dir")]
     pub scope: Option<Scope>,
     /// A skills directory of your own instead of an agent's: each skill is
     /// a directory in it.

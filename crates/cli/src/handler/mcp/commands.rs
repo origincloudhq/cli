@@ -93,7 +93,7 @@ pub(crate) struct Target {
     /// `user`, the agent's own configuration, for every project; or
     /// `project`, the project in the current directory, in a file that is
     /// usually committed with it.
-    #[arg(long, value_enum, default_value = "user")]
+    #[arg(long, value_parser = agents::mcp_scope_parser(), default_value = "user")]
     pub scope: Scope,
     /// The name of the entry.
     #[arg(long, default_value = DEFAULT_NAME)]
