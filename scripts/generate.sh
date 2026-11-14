@@ -17,6 +17,14 @@
 # (origincloudhq/mcp) must be built on that same SDK commit, which both
 # modes check too.
 #
+# The changes that can't be undone, which need `--yes`, are origincloudhq/mcp's
+# `[[one_way]]` list, the one list of them: its generator/tools.toml at the
+# commit Cargo.lock pins is handed to the generator, and copied to
+# crates/cli/src/sdk/generated/mcp-tools.toml, from which the tests check
+# that each of them needs `--yes`. That copy is never edited: a one-way
+# change is added in origincloudhq/mcp, and reaches the CLI with
+# scripts/update.sh.
+#
 # The tests' scratch service (testing/scratch/origincloud/) is generated
 # too: its SDK crate's code, by the SDK's own generator at that commit, into
 # testing/scratch/sdk/src/generated/, and its command group beside the
@@ -43,6 +51,7 @@ readonly SDK_REPOSITORY="https://github.com/origincloudhq/sdk-rust.git"
 readonly MCP_REPOSITORY="https://github.com/origincloudhq/mcp.git"
 readonly SKILLS_REPOSITORY="https://github.com/origincloudhq/skills.git"
 readonly GENERATED=("crates/cli/src/sdk/generated" "testing/scratch/sdk/src/generated" "testing/scratch/sdk/Cargo.toml" "crates/cli/skills")
+readonly MCP_TABLE="crates/cli/src/sdk/generated/mcp-tools.toml"
 
 case "${1:-}" in
   "") mode="write" ;;
@@ -82,6 +91,11 @@ if [[ "${mcp_sdk}" != "${sdk}" ]]; then
   echo "FAILED: the MCP commit ${mcp:0:12} is built on origincloudhq/sdk-rust@${mcp_sdk:0:12}, not the CLI's ${sdk:0:12}; run scripts/update.sh"
   exit 1
 fi
+# Its table of what the API definitions don't express, whose [[one_way]]
+# list the commands follow.
+mkdir -p "$(dirname "${tmp}/gen/${MCP_TABLE}")"
+git -C "${tmp}/mcp" show FETCH_HEAD:generator/tools.toml > "${tmp}/gen/${MCP_TABLE}" \
+  || { echo "origincloudhq/mcp@${mcp:0:12} has no generator/tools.toml" >&2; exit 1; }
 
 git init --quiet "${tmp}/api"
 git -C "${tmp}/api" fetch --quiet --depth 1 "${API_REPOSITORY}" "${revision}"
@@ -144,7 +158,7 @@ fi
 [[ -f "${tmp}/gen/crates/cli/skills/origin/SKILL.md" ]] || { echo "origincloudhq/skills@${skills_revision:0:12} has no origin skill" >&2; exit 1; }
 
 (cd "${ROOT}" && cargo run --quiet --locked -p origincloud-cli-generator -- \
-  "${tmp}/api" "${tmp}/sdk-gen" "${tmp}/gen" "${ROOT}/testing/scratch")
+  "${tmp}/api" "${tmp}/sdk-gen" "${tmp}/gen/${MCP_TABLE}" "${tmp}/gen" "${ROOT}/testing/scratch")
 
 # The generated files, relative to the repository.
 generated() {
@@ -175,7 +189,7 @@ else
   done < <(generated "${ROOT}")
 fi
 if [[ "${failed}" -eq 1 ]]; then
-  echo "FAILED: the generated code isn't what origincloudhq/api@${revision:0:12} generates, or the skills aren't origincloudhq/skills@${skills_revision:0:12}'s; run $0"
+  echo "FAILED: the generated code isn't what origincloudhq/api@${revision:0:12} and origincloudhq/mcp@${mcp:0:12}'s table generate, or the skills aren't origincloudhq/skills@${skills_revision:0:12}'s; run $0"
   exit 1
 fi
 echo "ok - the generated code is current (origincloudhq/api@${revision:0:12}, origincloudhq/skills@${skills_revision:0:12})"

@@ -178,10 +178,6 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   nor an entry here, which is what keeps the CLI at parity with the API;
 - `[[exclude]]` leaves a field out of a method's command, when the method
   doesn't take it although its request message has it, with the reason;
-- `[[one_way]]` marks a change that can't be undone, with the refusal's verb
-  and consequence: a command setting that field requires `--yes`, like every
-  delete. The generated code reaches the SDK's method only through a wrapper
-  that takes the client `--yes` makes;
 - `[[shown_once]]` names a field of a method's response holding a secret
   the API returns in that response alone, such as `CreateKeyPair`'s
   `private_key`: the command prints the response as any other, and its
@@ -207,6 +203,20 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   but its `urn`, its `creator` and its maps, and `wide` adds those after a
   view's. Generation and the coverage test fail for a view of a message or
   a field the API doesn't have.
+
+The changes that can't be undone, such as growing a volume, aren't in
+`commands.toml`: their one list is `[[one_way]]` in origincloudhq/mcp's
+`generator/tools.toml`, which the MCP tools and the agent skills read too.
+`scripts/generate.sh` hands the generator that table at the commit
+`Cargo.lock` pins for `origincloud-mcp`, and copies it to
+`crates/cli/src/sdk/generated/mcp-tools.toml` for the tests. Each entry
+names the field, the refusal's verb and the consequence: a command setting
+that field requires `--yes`, like every delete, and without it refuses
+before sending anything ("refusing to grow volume …"). The generated code
+reaches the SDK's method only through a wrapper that takes the client
+`--yes` makes. A new one-way change is added there, and reaches the CLI
+with `scripts/update.sh`; `commands.toml` refuses a `[[one_way]]` of its
+own.
 
 The human output formats (`crates/cli/src/output/`) are made from the
 JSON a command prints, with what the API's descriptors, `api.binpb`, say

@@ -18,6 +18,10 @@ use prost_reflect::{DescriptorPool, DynamicMessage, MessageDescriptor, MethodDes
 /// keeps them current.
 pub const DESCRIPTORS: &[u8] = include_bytes!("../../src/sdk/generated/api.binpb");
 pub const TABLE: &str = include_str!("../../../../generator/commands.toml");
+/// origincloudhq/mcp's table at the commit `Cargo.lock` pins, as
+/// `scripts/generate.sh` copied it: its `[[one_way]]` list is the one list
+/// of the changes that can't be undone, which need `--yes`.
+pub const MCP_TABLE: &str = include_str!("../../src/sdk/generated/mcp-tools.toml");
 
 /// The service whose package holds the operation methods, which are
 /// commands of every group whose methods answer with operations.

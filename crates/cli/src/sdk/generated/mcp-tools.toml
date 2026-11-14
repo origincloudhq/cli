@@ -1,0 +1,80 @@
+# Choices about the generated MCP tools that the API definitions don't
+# express. The generator applies them; CONTRIBUTING.md describes them.
+#
+# An entry names a service as its packages name it (`pvs` for
+# `origincloud.pvs.v1beta1`, `longrunning` for the operation methods), a
+# method of it (`ImportVolume`) and, for a field, a path from its request
+# (`volume.source_snapshot`). The coverage test fails when an entry names a
+# service, a method or a field the API doesn't have, so that an entry can't
+# silently stop applying.
+
+# Methods left without a tool, with the reason. Every other method of the
+# API has one: the coverage test fails for a method that has neither.
+#
+# [[no_tool]]
+# service = "pvs"
+# method = "ExampleMethod"
+# why = "Why an agent isn't handed it."
+
+[[no_tool]]
+service = "iam"
+method = "CreateServiceAccount"
+why = "Creating a service account answers with its client secret, once; a tool would put working credentials into the model's context. Service accounts are created with the CLI, the console or Terraform."
+
+[[no_tool]]
+service = "iam"
+method = "RotateServiceAccountSecret"
+why = "Rotating a service account's secret answers with the new client secret, once; a tool would put working credentials into the model's context. Secrets are rotated with the CLI, the console or Terraform."
+
+[[no_tool]]
+service = "sts"
+method = "AssumeServiceAccount"
+why = "Assuming a service account answers with its access token; a tool would put working credentials into the model's context, and an agent already has its own. CI jobs assume one through the SDKs and the CLI."
+
+# Fields left out of a tool's input schema, because the method doesn't take
+# them although its request message has them.
+[[exclude]]
+service = "pvs"
+method = "ImportVolume"
+field = "volume.source_snapshot"
+why = "An import's content is the downloaded image: it takes a size, a storage class and tags."
+
+# Fields a tool requires although their field behavior doesn't, with the
+# reason, which the tool's description gives. The messages on the way to
+# the field are required too, and an empty string counts as missing.
+#
+# [[require]]
+# service = "pvs"
+# method = "ExampleMethod"
+# field = "example.field"
+# why = "Why the tool doesn't take a call without it."
+
+[[require]]
+service = "compute"
+method = "CreateKeyPair"
+field = "key_pair.public_key"
+why = "The tool registers a key you already have and never generates one: generating a key, whose private half the API answers with once, is left to the CLI, the console and Terraform, so that a private key never reaches the model's context."
+
+# Changes that can't be undone: the method's tool is marked destructive, and
+# its description says what can't be undone. Every delete's tool is
+# destructive without an entry here.
+#
+# This is the one list of the API's one-way changes. The `origin` CLI's
+# generator reads it at the commit the CLI depends on: a command setting
+# the field requires `--yes`, and refuses without it, saying "refusing to
+# {verb} …" and the consequence. The agent skills (origincloudhq/skills)
+# read it too, and ask before the change. Neither keeps a copy.
+#
+# [[one_way]]
+# service = "pvs"
+# method = "ExampleMethod"
+# field = "example.field"
+# verb = "change"       # the CLI's refusal: "refusing to change …"
+# consequence = "What can't be undone, for someone deciding whether to go on."
+
+[[one_way]]
+service = "pvs"
+method = "UpdateVolume"
+field = "volume.size_gib"
+verb = "grow"
+consequence = "A volume never shrinks back, and its larger size is charged."

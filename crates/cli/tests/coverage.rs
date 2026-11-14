@@ -16,7 +16,8 @@ mod common;
 use std::collections::BTreeSet;
 
 use common::{
-    extension, groups, methods, operation_groups, pattern_of_type, pool, OPERATIONS, TABLE,
+    extension, groups, methods, operation_groups, pattern_of_type, pool, MCP_TABLE, OPERATIONS,
+    TABLE,
 };
 use heck::{ToKebabCase, ToSnakeCase};
 use prost_reflect::Kind;
@@ -36,7 +37,8 @@ struct Table {
     no_command: Vec<NoCommand>,
     #[serde(default)]
     exclude: Vec<Entry>,
-    #[serde(default)]
+    /// From origincloudhq/mcp's table: `commands.toml` has none.
+    #[serde(skip)]
     one_way: Vec<Entry>,
     #[serde(default)]
     shown_once: Vec<Entry>,
@@ -104,8 +106,18 @@ struct Entry {
     field: String,
 }
 
+/// The table of the CLI's own choices, and the one-way changes of
+/// origincloudhq/mcp's.
 fn table() -> Table {
-    toml::from_str(TABLE).expect("generator/commands.toml parses")
+    #[derive(Deserialize)]
+    struct McpTable {
+        #[serde(default)]
+        one_way: Vec<Entry>,
+    }
+    let mut table: Table = toml::from_str(TABLE).expect("generator/commands.toml parses");
+    let mcp: McpTable = toml::from_str(MCP_TABLE).expect("origincloudhq/mcp's table parses");
+    table.one_way = mcp.one_way;
+    table
 }
 
 fn group(name: &str) -> clap::Command {
