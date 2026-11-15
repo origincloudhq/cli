@@ -775,12 +775,13 @@ async fn a_refusal_s_metadata_the_message_doesn_t_name_is_said() {
 }
 
 /// `create-instance` builds its own parent from `--project` and `--zone`,
-/// and sends each reference as given: a full name, on the host of the
-/// referenced type's service, or a relative one, of another project too,
-/// and an instance type whose id holds dots. A reference's parts never
-/// fill in the instance's, nor are they checked against them.
+/// and sends each reference as a full name: one given as given, on the
+/// host of the referenced type's service, a relative one with that host
+/// put in front, of another project too, and an instance type whose id
+/// holds dots. A reference's parts never fill in the instance's, nor are
+/// they checked against them.
 #[tokio::test(flavor = "multi_thread")]
-async fn create_instance_sends_references_as_given() {
+async fn create_instance_sends_references_as_full_names() {
     const LAUNCHING: &str = r#"{"name":"projects/p/zones/z/operations/op-1"}"#;
     let server = recording(|_| Response::json(LAUNCHING)).await;
     let create = |instance_type: &'static str, image: &'static str, key_pair: &'static str| {
@@ -831,12 +832,19 @@ async fn create_instance_sends_references_as_given() {
             "{args:?}"
         );
         let body: serde_json::Value = serde_json::from_slice(&sent.body).unwrap();
+        let full = |name: &str| {
+            if name.starts_with("//") {
+                name.to_owned()
+            } else {
+                format!("//compute.origincloudapis.eu/{name}")
+            }
+        };
         assert_eq!(
             body,
             serde_json::json!({
-                "instanceType": instance_type,
-                "image": image,
-                "keyPair": key_pair,
+                "instanceType": full(instance_type),
+                "image": full(image),
+                "keyPair": full(key_pair),
                 "networkInterfaces": ["//network.origincloudapis.eu/projects/p/zones/z/networkInterfaces/ni-1"],
             }),
             "{args:?}"
@@ -901,7 +909,8 @@ async fn create_instance_sends_references_as_given() {
 
 /// A volume attachment names its instance, a parent, by its id or its whole
 /// name, which gives the project and zone, and a volume of another service
-/// by its full name, sent as given. A disagreeing `--zone` is refused.
+/// by its full name, sent as given. A disagreeing `--zone` is refused,
+/// and a relative volume is sent as its full name.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_volume_attachment_takes_a_parent_and_another_services_volume() {
     const ATTACHING: &str = r#"{"name":"projects/p/zones/z/operations/op-1"}"#;
@@ -940,7 +949,7 @@ async fn a_volume_attachment_takes_a_parent_and_another_services_volume() {
                     "--instance",
                     "i-1",
                     "--volume",
-                    volume,
+                    "projects/p/zones/z/volumes/vol-1",
                     "--no-wait",
                 ],
             )
@@ -1105,7 +1114,7 @@ async fn assume_service_account_reads_the_token_from_a_file() {
     assert_eq!(
         body,
         json(
-            r#"{"oidcToken":"job.token.value","serviceAccount":"organizations/o/serviceAccounts/s","lifetime":"600s"}"#
+            r#"{"oidcToken":"job.token.value","serviceAccount":"//iam.origincloudapis.eu/organizations/o/serviceAccounts/s","lifetime":"600s"}"#
         )
     );
 

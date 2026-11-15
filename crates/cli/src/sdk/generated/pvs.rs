@@ -337,7 +337,7 @@ pub struct CreateSnapshotArgs {
     pub zone: Option<String>,
     /// The volume copied, in the same project and zone.
     ///
-    /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`; not an id.
+    /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`, which is sent as its full name; not an id.
     #[arg(long = "source-volume", value_name = "NAME")]
     pub source_volume: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -954,14 +954,14 @@ pub struct CreateVolumeArgs {
     /// The storage class, `storageClasses/{storage_class}`. The default class
     /// when left empty.
     ///
-    /// Its full name, `//pvs.origincloudapis.eu/storageClasses/{storage_class}`, or its relative name, `storageClasses/{storage_class}`; not an id.
+    /// Its full name, `//pvs.origincloudapis.eu/storageClasses/{storage_class}`, or its relative name, `storageClasses/{storage_class}`, which is sent as its full name; not an id.
     #[arg(long = "storage-class", value_name = "NAME")]
     pub storage_class: Option<String>,
     /// The snapshot the volume was created from, in the same project and
     /// zone; empty for an empty volume. The volume is at least the snapshot's
     /// size.
     ///
-    /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`, or its relative name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`; not an id.
+    /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`, or its relative name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`, which is sent as its full name; not an id.
     #[arg(long = "source-snapshot", value_name = "NAME")]
     pub source_snapshot: Option<String>,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -1055,7 +1055,7 @@ pub struct ImportVolumeArgs {
     /// The storage class, `storageClasses/{storage_class}`. The default class
     /// when left empty.
     ///
-    /// Its full name, `//pvs.origincloudapis.eu/storageClasses/{storage_class}`, or its relative name, `storageClasses/{storage_class}`; not an id.
+    /// Its full name, `//pvs.origincloudapis.eu/storageClasses/{storage_class}`, or its relative name, `storageClasses/{storage_class}`, which is sent as its full name; not an id.
     #[arg(long = "storage-class", value_name = "NAME")]
     pub storage_class: Option<String>,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the

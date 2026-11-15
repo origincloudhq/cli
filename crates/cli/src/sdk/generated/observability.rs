@@ -43,7 +43,7 @@ pub(crate) fn service(
 pub struct QueryTimeSeriesArgs {
     /// The project the resource is in, `projects/{project}`.
     ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`; not an id.
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`, which is sent as its full name; not an id.
     #[arg(long = "parent", value_name = "NAME")]
     pub parent: String,
     /// The resource whose metrics to return, in `parent`: an instance,

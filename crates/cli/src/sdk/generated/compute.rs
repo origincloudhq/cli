@@ -593,7 +593,7 @@ pub struct CreateImageArgs {
     pub root_device: String,
     #[arg(
         long = "block-device",
-        long_help = "The image's disks, each created for an instance launched from it.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`device`, required: The device name the disk appears under on every instance launched from the image: `vda` to `vdz` but `vdc`, unique within the image.\n\n`size_gib`, required: The disk's size in GiB, at least the snapshot's.\n\n`source_snapshot`: The protected snapshot the disk is created from, in the image's project and zone; an empty disk when left empty. Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`, or its relative name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`; not an id.\n\nA value with a comma in it goes through `--block-devices-json` too.",
+        long_help = "The image's disks, each created for an instance launched from it.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`device`, required: The device name the disk appears under on every instance launched from the image: `vda` to `vdz` but `vdc`, unique within the image.\n\n`size_gib`, required: The disk's size in GiB, at least the snapshot's.\n\n`source_snapshot`: The protected snapshot the disk is created from, in the image's project and zone; an empty disk when left empty. Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`, or its relative name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`, which is sent as its full name; not an id.\n\nA value with a comma in it goes through `--block-devices-json` too.",
         help = "The image's disks, each created for an instance launched from it: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_image_block_device(text, "--block-devices-json"),
@@ -603,7 +603,7 @@ pub struct CreateImageArgs {
     pub block_device: Vec<Keyed<::origincloud_compute::v1beta1::ImageBlockDevice>>,
     #[arg(
         long = "block-devices-json",
-        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, never an id, as in its KEY=VALUE form. Instead of `--block-device`.",
+        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, which is sent as its full name, never an id, as in its KEY=VALUE form. Instead of `--block-device`.",
         help = "Block devices as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<Vec<::origincloud_compute::v1beta1::ImageBlockDevice>>(
@@ -1028,7 +1028,7 @@ pub struct CreateInstanceArgs {
     /// `instanceTypes/gp1.core.2`: one whose `available` is true. Changing it
     /// needs the instance `STOPPED`.
     ///
-    /// Its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, or its relative name, `instanceTypes/{instance_type}`; not an id.
+    /// Its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, or its relative name, `instanceTypes/{instance_type}`, which is sent as its full name; not an id.
     #[arg(long = "instance-type", value_name = "NAME")]
     pub instance_type: String,
     /// The image the boot volume is created from, in the instance's zone: one
@@ -1037,20 +1037,20 @@ pub struct CreateInstanceArgs {
     /// `--image` and `--image-family`; launched from a family, this is the public
     /// image the family resolved to.
     ///
-    /// Its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}` or `//compute.origincloudapis.eu/zones/{zone}/images/{image}`, or its relative name, `projects/{project}/zones/{zone}/images/{image}` or `zones/{zone}/images/{image}`; not an id.
+    /// Its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}` or `//compute.origincloudapis.eu/zones/{zone}/images/{image}`, or its relative name, `projects/{project}/zones/{zone}/images/{image}` or `zones/{zone}/images/{image}`, which is sent as its full name; not an id.
     #[arg(long = "image", value_name = "NAME")]
     pub image: Option<String>,
     /// The image family to launch the current public image of,
     /// `imageFamilies/{image_family}`. Set exactly one of `--image` and
     /// `--image-family`. Empty when the instance was launched from an image.
     ///
-    /// Its full name, `//compute.origincloudapis.eu/imageFamilies/{image_family}`, or its relative name, `imageFamilies/{image_family}`; not an id.
+    /// Its full name, `//compute.origincloudapis.eu/imageFamilies/{image_family}`, or its relative name, `imageFamilies/{image_family}`, which is sent as its full name; not an id.
     #[arg(long = "image-family", value_name = "NAME")]
     pub image_family: Option<String>,
     /// The key pair whose public key is installed for `--login-user`, in the
     /// instance's project.
     ///
-    /// Its full name, `//compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}`, or its relative name, `projects/{project}/keyPairs/{key_pair}`; not an id.
+    /// Its full name, `//compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}`, or its relative name, `projects/{project}/keyPairs/{key_pair}`, which is sent as its full name; not an id.
     #[arg(long = "key-pair", value_name = "NAME")]
     pub key_pair: String,
     /// The account to log in as: a user created at first boot that holds the
@@ -1061,7 +1061,7 @@ pub struct CreateInstanceArgs {
     pub login_user: Option<String>,
     #[arg(
         long = "boot-volume",
-        long_help = "The boot volume: its size and storage class at launch, and the volume. The image's size on the default storage class when left out.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`size_gib`: The size in GiB the volume was created with, at least the image's size; the image's size when left at 0. Grow the volume itself to resize it; this keeps the size at launch.\n\n`storage_class`: The storage class, `storageClasses/{storage_class}` of the persistent volume service; the default class when left empty. Its full name, `//pvs.origincloudapis.eu/storageClasses/{storage_class}`, or its relative name, `storageClasses/{storage_class}`; not an id.\n\nA value with a comma in it goes through `--boot-volume-json` too.",
+        long_help = "The boot volume: its size and storage class at launch, and the volume. The image's size on the default storage class when left out.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`size_gib`: The size in GiB the volume was created with, at least the image's size; the image's size when left at 0. Grow the volume itself to resize it; this keeps the size at launch.\n\n`storage_class`: The storage class, `storageClasses/{storage_class}` of the persistent volume service; the default class when left empty. Its full name, `//pvs.origincloudapis.eu/storageClasses/{storage_class}`, or its relative name, `storageClasses/{storage_class}`, which is sent as its full name; not an id.\n\nA value with a comma in it goes through `--boot-volume-json` too.",
         help = "The boot volume: its size and storage class at launch, and the volume, as KEY=VALUE pairs; sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_boot_volume(text, "--boot-volume-json"),
@@ -1070,7 +1070,7 @@ pub struct CreateInstanceArgs {
     pub boot_volume: Option<Keyed<::origincloud_compute::v1beta1::BootVolume>>,
     #[arg(
         long = "boot-volume-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, never an id, as in its KEY=VALUE form. Instead of `--boot-volume`.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, which is sent as its full name, never an id, as in its KEY=VALUE form. Instead of `--boot-volume`.",
         help = "Boot volume as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_compute::v1beta1::BootVolume>(
@@ -1087,7 +1087,7 @@ pub struct CreateInstanceArgs {
     /// launched before interfaces were named at launch shows the interface
     /// created for it, which is deleted with the instance.
     ///
-    /// Each by its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`; not an id.
+    /// Each by its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, which is sent as its full name; not an id.
     ///
     /// Repeat for more.
     #[arg(long = "network-interface", required = true, value_name = "NAME")]
@@ -1106,7 +1106,7 @@ pub struct CreateInstanceArgs {
     /// that leaves it empty removes it, and a terminated instance's can't
     /// change. Empty for an instance that runs as none.
     ///
-    /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`; not an id.
+    /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`, which is sent as its full name; not an id.
     #[arg(long = "service-account", value_name = "NAME")]
     pub service_account: Option<String>,
     /// A UUID; a repeat with the same id returns the first request's
@@ -1260,7 +1260,7 @@ pub struct UpdateInstanceArgs {
     /// `instanceTypes/gp1.core.2`: one whose `available` is true. Changing it
     /// needs the instance `STOPPED`.
     ///
-    /// Its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, or its relative name, `instanceTypes/{instance_type}`; not an id.
+    /// Its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, or its relative name, `instanceTypes/{instance_type}`, which is sent as its full name; not an id.
     ///
     /// Left as it is when not given.
     #[arg(long = "instance-type", value_name = "NAME")]
@@ -1282,7 +1282,7 @@ pub struct UpdateInstanceArgs {
     /// that leaves it empty removes it, and a terminated instance's can't
     /// change. Empty for an instance that runs as none.
     ///
-    /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`; not an id.
+    /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`, which is sent as its full name; not an id.
     ///
     /// Left as it is when not given.
     #[arg(long = "service-account", value_name = "NAME")]
@@ -2163,7 +2163,7 @@ pub struct ListVolumeAttachmentsArgs {
     pub page_token: Option<String>,
     /// Only the attachments of this volume; every volume's when left empty.
     ///
-    /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`; not an id.
+    /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`, which is sent as its full name; not an id.
     #[arg(long = "volume", value_name = "NAME")]
     pub volume: Option<String>,
 }
@@ -2305,7 +2305,7 @@ pub struct CreateVolumeAttachmentArgs {
     pub instance: Option<String>,
     /// The volume, in the instance's project and zone.
     ///
-    /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`; not an id.
+    /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`, which is sent as its full name; not an id.
     #[arg(long = "volume", value_name = "NAME")]
     pub volume: String,
     /// The device name the guest sees the volume under, `vda` to `vdz`. The

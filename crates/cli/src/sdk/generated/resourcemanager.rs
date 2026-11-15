@@ -511,7 +511,7 @@ async fn call_get_project(
 pub struct ListProjectsArgs {
     /// The organization whose projects to list, `organizations/{organization}`.
     ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`; not an id.
+    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`, which is sent as its full name; not an id.
     #[arg(long = "organization", value_name = "NAME")]
     pub organization: String,
     /// The most projects to return; the server clamps it, and 0 means its
@@ -598,7 +598,7 @@ async fn call_list_projects(
 pub struct CreateProjectArgs {
     /// The organization the project belongs to, `organizations/{organization}`.
     ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`; not an id.
+    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`, which is sent as its full name; not an id.
     #[arg(long = "organization", value_name = "NAME")]
     pub organization: String,
     /// The name the console shows. Not empty.
