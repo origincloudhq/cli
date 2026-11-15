@@ -396,7 +396,7 @@ batch-7   STARTING   c1.xlarge                      30s ago
     fn without_a_view_the_columns_are_the_definitions_fields_that_fit() {
         let printed = render(instances(), Some(INSTANCE), &[], false, None);
         // The definitions' order, `state` moved up and `createTime` last;
-        // the urn, the creator and the tags left out.
+        // the creator and the tags left out.
         assert_eq!(
             printed.lines().next().unwrap(),
             "NAME      STATE      INSTANCE TYPE   IMAGE   IMAGE FAMILY   KEY PAIR   LOGIN USER   \
@@ -414,7 +414,9 @@ batch-7   STARTING   c1.xlarge                      30s ago
             Some(20),
         );
         let header = printed.lines().next().unwrap();
-        assert!(header.starts_with("NAME      STATE      URN"), "{header}");
+        // The view's columns first, then the fields the default leaves out.
+        assert!(header.starts_with("NAME      STATE      "), "{header}");
+        assert!(header.contains("CREATOR"), "{header}");
         assert!(header.contains("TAGS"), "{header}");
         assert!(printed.contains("env=prod"), "{printed}");
     }
