@@ -46,11 +46,13 @@ pub struct QueryTimeSeriesArgs {
     /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`, which is sent as its full name; not an id.
     #[arg(long = "parent", value_name = "NAME")]
     pub parent: String,
-    /// The resource whose metrics to return, in `parent`: an instance,
-    /// `projects/{project}/zones/{zone}/instances/{instance}`, a volume,
-    /// `projects/{project}/zones/{zone}/volumes/{volume}`, or a network
-    /// interface,
-    /// `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
+    /// The full name of the resource whose metrics to return, in `parent`: an
+    /// instance,
+    /// `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`,
+    /// a volume,
+    /// `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`,
+    /// or a network interface,
+    /// `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
     #[arg(long = "resource")]
     pub resource: String,
     /// The metrics to return, such as `oc_compute_instance_cpu_seconds_total`,

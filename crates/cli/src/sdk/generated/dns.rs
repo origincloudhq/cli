@@ -793,7 +793,7 @@ pub struct CreateRecordSetArgs {
     pub basic_json: Option<JsonArg<::origincloud_dns::v1beta1::BasicRecordData>>,
     #[arg(
         long = "alias",
-        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, which is sent as its full name; not an id.\n\nA value with a comma in it goes through `--alias-json` too.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
+        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The full name of the Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, which is sent as its full name; not an id.\n\nA value with a comma in it goes through `--alias-json` too.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
         help = "The address of a platform resource, followed as it changes, as KEY=VALUE pairs; sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_alias_record_data(text, "--alias-json"),
@@ -940,7 +940,7 @@ pub struct UpdateRecordSetArgs {
     pub basic_json: Option<JsonArg<::origincloud_dns::v1beta1::BasicRecordData>>,
     #[arg(
         long = "alias",
-        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, which is sent as its full name; not an id.\n\nA value with a comma in it goes through `--alias-json` too.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
+        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The full name of the Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, which is sent as its full name; not an id.\n\nA value with a comma in it goes through `--alias-json` too.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
         help = "The address of a platform resource, followed as it changes, as KEY=VALUE pairs; replaced whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_alias_record_data(text, "--alias-json"),
@@ -1159,7 +1159,7 @@ pub struct BatchChangeRecordSetsArgs {
     /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE", required = true)]
     pub hosted_zone: Option<String>,
-    /// The record sets to delete, by name.
+    /// The record sets to delete, by their full names.
     ///
     /// Each by its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`, which is sent as its full name; not an id.
     ///
@@ -1342,7 +1342,8 @@ pub struct ListVpcAttachmentsArgs {
     /// Without `--page-size` or `--page-token`, every page is listed.
     #[arg(long = "page-token")]
     pub page_token: Option<String>,
-    /// Only the attachments to this VPC; every VPC's when left empty.
+    /// Only the attachments to this VPC, by its full name; every VPC's when
+    /// left empty.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
     #[arg(long = "vpc", value_name = "NAME")]
@@ -1444,7 +1445,7 @@ pub struct CreateVpcAttachmentArgs {
     /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE", required = true)]
     pub hosted_zone: Option<String>,
-    /// The VPC the zone answers in, in the zone's project.
+    /// The full name of the VPC the zone answers in, in the zone's project.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
     #[arg(long = "vpc", value_name = "NAME")]

@@ -219,8 +219,9 @@ pub struct CreateCaseArgs {
     /// The `{organization}` part of the resource names the command builds.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
-    /// The project the case is about, `projects/{project}`, one of the
-    /// organization's. Empty for a case about the organization as a whole.
+    /// The full name of the project the case is about, one of the
+    /// organization's: `//resourcemanager.origincloudapis.eu/projects/{project}`.
+    /// Empty for a case about the organization as a whole.
     ///
     /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`, which is sent as its full name; not an id.
     #[arg(long = "project", value_name = "NAME")]

@@ -509,7 +509,8 @@ async fn call_get_project(
 /// The flags of `list-projects`.
 #[derive(clap::Args, Debug)]
 pub struct ListProjectsArgs {
-    /// The organization whose projects to list, `organizations/{organization}`.
+    /// The full name of the organization whose projects to list,
+    /// `//resourcemanager.origincloudapis.eu/organizations/{organization}`.
     ///
     /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`, which is sent as its full name; not an id.
     #[arg(long = "organization", value_name = "NAME")]
@@ -596,7 +597,8 @@ async fn call_list_projects(
 /// The flags of `create-project`.
 #[derive(clap::Args, Debug)]
 pub struct CreateProjectArgs {
-    /// The organization the project belongs to, `organizations/{organization}`.
+    /// The full name of the organization the project belongs to,
+    /// `//resourcemanager.origincloudapis.eu/organizations/{organization}`.
     ///
     /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`, which is sent as its full name; not an id.
     #[arg(long = "organization", value_name = "NAME")]

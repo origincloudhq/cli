@@ -1231,7 +1231,8 @@ pub struct SignArgs {
     /// Read from the file at the path, or from standard input with `-`, byte for byte.
     #[arg(long = "data-file", value_name = "PATH")]
     pub data_file: String,
-    /// The version of `--key` to sign with, `{name}/versions/{version}`.
+    /// The full name of the version of `--key` to sign with,
+    /// `//kms.origincloudapis.eu/{name}/versions/{version}`.
     /// Without it, the key's primary version signs. Name it when the
     /// signature's verifiers must know the version before the signature
     /// exists, for example a token whose header names its key: the primary

@@ -421,7 +421,7 @@ pub struct CreateBillingAccountArgs {
     pub request_id: Option<String>,
     #[arg(
         long = "accepted-legal-document",
-        long_help = "The legal document versions the new billing account accepts, each with the `sha256` of the text shown. Required once a version of a document customers accept is in force: every such version must be accepted, or the request fails naming `acceptedLegalDocuments` and creates nothing.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`legal_document_version`, required: The version, `legalDocuments/{legal_document}/versions/{version}`. Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`, or its relative name, `legalDocuments/{legal_document}/versions/{version}`, which is sent as its full name; not an id.\n\n`sha256`, required: The version's `sha256`, as read with it: an acceptance is refused when the text shown isn't the version's.\n\nA value with a comma in it goes through `--accepted-legal-documents-json` too.",
+        long_help = "The legal document versions the new billing account accepts, each with the `sha256` of the text shown. Required once a version of a document customers accept is in force: every such version must be accepted, or the request fails naming `acceptedLegalDocuments` and creates nothing.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`legal_document_version`, required: The version's full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`. Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`, or its relative name, `legalDocuments/{legal_document}/versions/{version}`, which is sent as its full name; not an id.\n\n`sha256`, required: The version's `sha256`, as read with it: an acceptance is refused when the text shown isn't the version's.\n\nA value with a comma in it goes through `--accepted-legal-documents-json` too.",
         help = "The legal document versions the new billing account accepts, each with the `sha256` of the text shown: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_legal_document_version_to_accept(
@@ -924,8 +924,9 @@ pub struct UpdateProjectBillingInfoArgs {
     /// Its id, or its full name, `//billing.origincloudapis.eu/projects/{project}/billingInfo`, or its relative name, `projects/{project}/billingInfo`.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: String,
-    /// The billing account that pays for the project's usage, one of its
-    /// organization's.
+    /// The full name of the billing account that pays for the project's usage,
+    /// one of its organization's:
+    /// `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`.
     ///
     /// Its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`, which is sent as its full name; not an id.
     ///
@@ -1710,7 +1711,7 @@ pub struct AcceptLegalDocumentsArgs {
     pub billing_account: String,
     #[arg(
         long = "version",
-        long_help = "The versions to accept.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`legal_document_version`, required: The version, `legalDocuments/{legal_document}/versions/{version}`. Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`, or its relative name, `legalDocuments/{legal_document}/versions/{version}`, which is sent as its full name; not an id.\n\n`sha256`, required: The version's `sha256`, as read with it: an acceptance is refused when the text shown isn't the version's.\n\nA value with a comma in it goes through `--versions-json` too.",
+        long_help = "The versions to accept.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`legal_document_version`, required: The version's full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`. Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`, or its relative name, `legalDocuments/{legal_document}/versions/{version}`, which is sent as its full name; not an id.\n\n`sha256`, required: The version's `sha256`, as read with it: an acceptance is refused when the text shown isn't the version's.\n\nA value with a comma in it goes through `--versions-json` too.",
         help = "The versions to accept: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_legal_document_version_to_accept(
