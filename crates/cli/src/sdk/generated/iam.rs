@@ -1565,27 +1565,20 @@ pub struct LookupUserArgs {
     /// The organization the caller looks the user up for, where it needs
     /// `iam.role.assign`: `organizations/{organization}`, or its full name.
     ///
-    /// Its id, or its whole name, `organizations/{organization}`.
-    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`; not an id.
+    #[arg(long = "organization", value_name = "NAME")]
     pub organization: String,
 }
 async fn lookup_user(
     ctx: &Context<'_>,
     args: LookupUserArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[]);
-    names
-        .learn(
-            &["organizations/{organization}"],
-            "organization",
-            Some(args.organization.as_str()),
-        )?;
-    let organization = names
-        .reference(
-            &["organizations/{organization}"],
-            "organization",
-            args.organization.as_str(),
-        )?;
+    let organization = reference(
+        &["organizations/{organization}"],
+        &["resourcemanager"],
+        "--organization",
+        args.organization.as_str(),
+    )?;
     let request = ::origincloud_iam::v1beta1::LookupUserRequest {
         email: args.email.clone(),
         organization,
