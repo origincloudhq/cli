@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_bytes_file, read_value_file, shown_once, success, tags, wait, wait_for,
-    waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -158,12 +159,12 @@ pub struct GetGrantArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{key}` part of the resource names the command builds. Needed unless `--grant` is given a whole name, which has it.
+    /// The key: its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`. Needed unless `--grant` is given a whole name, which has it.
     #[arg(long = "key", value_name = "KEY")]
     pub key: Option<String>,
     /// The grant to return.
     ///
-    /// Its id, completed with `--project` and `--region` and `--key`, or its whole name, `projects/{project}/regions/{region}/keys/{key}/grants/{grant}`.
+    /// Its id, completed with `--project` and `--region` and `--key`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}/grants/{grant}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}/grants/{grant}`.
     #[arg(long = "grant", value_name = "GRANT")]
     pub grant: String,
 }
@@ -179,15 +180,18 @@ async fn get_grant(
                 ("key", args.key.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}/regions/{region}/keys/{key}", &["kms"], "key")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}/grants/{grant}"],
+            &["kms"],
             "grant",
             Some(args.grant.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/keys/{key}/grants/{grant}"],
+            &["kms"],
             "grant",
             args.grant.as_str(),
         )?;
@@ -216,7 +220,7 @@ pub struct ListGrantsArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{key}` part of the resource names the command builds.
+    /// The key: its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`.
     #[arg(long = "key", value_name = "KEY", required = true)]
     pub key: Option<String>,
     /// The most grants to return; the server clamps it, and 0 means its
@@ -235,7 +239,7 @@ async fn list_grants(
     ctx: &Context<'_>,
     args: ListGrantsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("project", args.project.as_deref()),
@@ -243,6 +247,7 @@ async fn list_grants(
                 ("key", args.key.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}/regions/{region}/keys/{key}", &["kms"], "key")?;
     let parent = names.name("projects/{project}/regions/{region}/keys/{key}")?;
     let request = ::origincloud_kms::v1beta1::ListGrantsRequest {
         parent,
@@ -306,7 +311,7 @@ pub struct CreateGrantArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{key}` part of the resource names the command builds.
+    /// The key: its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`.
     #[arg(long = "key", value_name = "KEY", required = true)]
     pub key: Option<String>,
     /// What the host may do with the key.
@@ -340,7 +345,7 @@ async fn create_grant(
     ctx: &Context<'_>,
     args: CreateGrantArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("project", args.project.as_deref()),
@@ -348,6 +353,7 @@ async fn create_grant(
                 ("key", args.key.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}/regions/{region}/keys/{key}", &["kms"], "key")?;
     let parent = names.name("projects/{project}/regions/{region}/keys/{key}")?;
     let grant = ::origincloud_kms::v1beta1::Grant {
         operation: ::origincloud_kms::v1beta1::grant::Operation::from_str_name(
@@ -388,12 +394,12 @@ pub struct RenewGrantArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{key}` part of the resource names the command builds. Needed unless `--grant` is given a whole name, which has it.
+    /// The key: its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`. Needed unless `--grant` is given a whole name, which has it.
     #[arg(long = "key", value_name = "KEY")]
     pub key: Option<String>,
     /// The grant to renew.
     ///
-    /// Its id, completed with `--project` and `--region` and `--key`, or its whole name, `projects/{project}/regions/{region}/keys/{key}/grants/{grant}`.
+    /// Its id, completed with `--project` and `--region` and `--key`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}/grants/{grant}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}/grants/{grant}`.
     #[arg(long = "grant", value_name = "GRANT")]
     pub grant: String,
     /// How long the grant lives from now: 1 to 60 minutes.
@@ -419,15 +425,18 @@ async fn renew_grant(
                 ("key", args.key.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}/regions/{region}/keys/{key}", &["kms"], "key")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}/grants/{grant}"],
+            &["kms"],
             "grant",
             Some(args.grant.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/keys/{key}/grants/{grant}"],
+            &["kms"],
             "grant",
             args.grant.as_str(),
         )?;
@@ -457,12 +466,12 @@ pub struct DeleteGrantArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{key}` part of the resource names the command builds. Needed unless `--grant` is given a whole name, which has it.
+    /// The key: its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`. Needed unless `--grant` is given a whole name, which has it.
     #[arg(long = "key", value_name = "KEY")]
     pub key: Option<String>,
     /// The grant to end.
     ///
-    /// Its id, completed with `--project` and `--region` and `--key`, or its whole name, `projects/{project}/regions/{region}/keys/{key}/grants/{grant}`.
+    /// Its id, completed with `--project` and `--region` and `--key`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}/grants/{grant}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}/grants/{grant}`.
     #[arg(long = "grant", value_name = "GRANT")]
     pub grant: String,
     #[command(flatten)]
@@ -480,15 +489,18 @@ async fn delete_grant(
                 ("key", args.key.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}/regions/{region}/keys/{key}", &["kms"], "key")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}/grants/{grant}"],
+            &["kms"],
             "grant",
             Some(args.grant.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/keys/{key}/grants/{grant}"],
+            &["kms"],
             "grant",
             args.grant.as_str(),
         )?;
@@ -532,7 +544,7 @@ pub struct GetKeyArgs {
     pub region: Option<String>,
     /// The key to return.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/keys/{key}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`.
     #[arg(long = "key", value_name = "KEY")]
     pub key: String,
 }
@@ -547,12 +559,14 @@ async fn get_key(
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             Some(args.key.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             args.key.as_str(),
         )?;
@@ -746,7 +760,7 @@ pub struct UpdateKeyArgs {
     pub region: Option<String>,
     /// The key to change.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/keys/{key}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`.
     #[arg(long = "key", value_name = "KEY")]
     pub key: String,
     /// Whether the key can be used. A new key is `ENABLED`; UpdateKey sets it
@@ -780,12 +794,14 @@ async fn update_key(
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             Some(args.key.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             args.key.as_str(),
         )?;
@@ -831,7 +847,7 @@ pub struct DeleteKeyArgs {
     pub region: Option<String>,
     /// The key to delete.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/keys/{key}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`.
     #[arg(long = "key", value_name = "KEY")]
     pub key: String,
     /// How long until the key's material is destroyed: whole days, from 1 to
@@ -858,12 +874,14 @@ async fn delete_key(
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             Some(args.key.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             args.key.as_str(),
         )?;
@@ -902,7 +920,7 @@ pub struct UndeleteKeyArgs {
     pub region: Option<String>,
     /// The deleted key to restore.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/keys/{key}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`.
     #[arg(long = "key", value_name = "KEY")]
     pub key: String,
     /// A UUID; a repeat with the same id within a day returns the key as the
@@ -921,12 +939,14 @@ async fn undelete_key(
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             Some(args.key.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             args.key.as_str(),
         )?;
@@ -955,7 +975,7 @@ pub struct RotateKeyArgs {
     pub region: Option<String>,
     /// The key to rotate.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/keys/{key}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`.
     #[arg(long = "key", value_name = "KEY")]
     pub key: String,
     /// A UUID; a repeat with the same id within a day returns the key as the
@@ -974,12 +994,14 @@ async fn rotate_key(
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             Some(args.key.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             args.key.as_str(),
         )?;
@@ -1008,7 +1030,7 @@ pub struct EncryptArgs {
     pub region: Option<String>,
     /// The `ENCRYPT_DECRYPT` key to encrypt with.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/keys/{key}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`.
     #[arg(long = "key", value_name = "KEY")]
     pub key: String,
     /// The data to encrypt, at most 64 KiB.
@@ -1035,12 +1057,14 @@ async fn encrypt(
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             Some(args.key.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             args.key.as_str(),
         )?;
@@ -1073,7 +1097,7 @@ pub struct DecryptArgs {
     pub region: Option<String>,
     /// The key the ciphertext was made with.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/keys/{key}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`.
     #[arg(long = "key", value_name = "KEY")]
     pub key: String,
     /// What Encrypt or GenerateDataKey returned as `--ciphertext-file`.
@@ -1098,12 +1122,14 @@ async fn decrypt(
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             Some(args.key.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             args.key.as_str(),
         )?;
@@ -1136,7 +1162,7 @@ pub struct GenerateDataKeyArgs {
     pub region: Option<String>,
     /// The `ENCRYPT_DECRYPT` key to encrypt the data key with.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/keys/{key}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`.
     #[arg(long = "key", value_name = "KEY")]
     pub key: String,
     /// Pairs bound into the data key's ciphertext, as Encrypt's.
@@ -1156,12 +1182,14 @@ async fn generate_data_key(
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             Some(args.key.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             args.key.as_str(),
         )?;
@@ -1195,7 +1223,7 @@ pub struct SignArgs {
     pub region: Option<String>,
     /// The signing key to sign with.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/keys/{key}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`.
     #[arg(long = "key", value_name = "KEY")]
     pub key: String,
     /// The data to sign, at most 64 KiB.
@@ -1223,12 +1251,14 @@ async fn sign(
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             Some(args.key.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/keys/{key}"],
+            &["kms"],
             "key",
             args.key.as_str(),
         )?;
@@ -1259,13 +1289,13 @@ pub struct GetPublicKeyArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{key}` part of the resource names the command builds. Needed unless `--version` is given a whole name, which has it.
+    /// The key: its id, completed with `--project` and `--region`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}`, or its relative name, `projects/{project}/regions/{region}/keys/{key}`. Needed unless `--version` is given a whole name, which has it.
     #[arg(long = "key", value_name = "KEY")]
     pub key: Option<String>,
     /// The public key to return: a key version's name followed by
     /// `/publicKey`.
     ///
-    /// Its id, completed with `--project` and `--region` and `--key`, or its whole name, `projects/{project}/regions/{region}/keys/{key}/versions/{version}/publicKey`.
+    /// Its id, completed with `--project` and `--region` and `--key`, or its full name, `//kms.origincloudapis.eu/projects/{project}/regions/{region}/keys/{key}/versions/{version}/publicKey`, or its relative name, `projects/{project}/regions/{region}/keys/{key}/versions/{version}/publicKey`.
     #[arg(long = "version", value_name = "VERSION")]
     pub version: String,
 }
@@ -1281,19 +1311,22 @@ async fn get_public_key(
                 ("key", args.key.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}/regions/{region}/keys/{key}", &["kms"], "key")?;
     names
         .learn(
             &[
                 "projects/{project}/regions/{region}/keys/{key}/versions/{version}/publicKey",
             ],
+            &["kms"],
             "version",
             Some(args.version.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/regions/{region}/keys/{key}/versions/{version}/publicKey",
             ],
+            &["kms"],
             "version",
             args.version.as_str(),
         )?;

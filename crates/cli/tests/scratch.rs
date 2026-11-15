@@ -54,13 +54,13 @@ async fn a_create_sends_nested_and_repeated_fields() {
             "--rule",
             "protocol=TCP,port=443,cidr=0.0.0.0/0",
             "--rule",
-            "protocol=UDP,network=n-1,idle_timeout=1m30s,allow=true",
+            "protocol=UDP,network=projects/p/zones/z/networks/n-1,idle_timeout=1m30s,allow=true",
             "--port",
             "80",
             "--port",
             "443",
             "--network",
-            "n-1",
+            "projects/p/zones/z/networks/n-1",
             "--network",
             "projects/p/zones/z/networks/n-2",
             "--alias",
@@ -315,7 +315,7 @@ async fn an_update_replaces_whole_fields() {
         update(&["--logging", "sample_percent=5"]),
         update(&["--no-metadata", "--no-ports", "--no-logging"]),
         update(&["--rules-json", "[]", "--alias", "x"]),
-        update(&["--network", "n-3"]),
+        update(&["--network", "projects/p/zones/z/networks/n-3"]),
     ] {
         success(&scratch(&server, &args).await);
     }
@@ -509,60 +509,80 @@ async fn a_json_value_is_checked_value_by_value() {
     );
 }
 
-/// A resource name in a field of the JSON's message itself is completed
-/// with `--project` and `--zone`, as in the KEY=VALUE form; one nested
-/// deeper must be whole. A whole name, in either form, must agree with
-/// `--project` and `--zone`.
+/// A resource name in a nested value, a key or JSON at any depth, is a
+/// whole name sent as given, of another project too; an id is refused, as
+/// it is in a flag, before anything is sent.
 #[tokio::test(flavor = "multi_thread")]
-async fn resource_names_in_nested_values_are_completed_or_whole() {
+async fn resource_names_in_nested_values_are_whole() {
     let server = recording(echo).await;
-    let rules = r#"[{"protocol": "TCP", "network": "n-1", "match": {"network": "projects/p/zones/z/networks/n-2"}}]"#;
+    let rules = r#"[{"protocol": "TCP", "network": "projects/q/zones/z/networks/n-1", "match": {"network": "projects/p/zones/z/networks/n-2"}}]"#;
     success(&scratch(&server, &[&CREATE[..], &["--rules-json", rules]].concat()).await);
+    success(
+        &scratch(
+            &server,
+            &[
+                &CREATE[..],
+                &[
+                    "--rule",
+                    "protocol=TCP,network=projects/q/zones/z/networks/n-1",
+                ],
+            ]
+            .concat(),
+        )
+        .await,
+    );
     assert_eq!(
         body(&server.requests()[0])["rules"],
         json!([{
             "protocol": "TCP",
-            "network": "projects/p/zones/z/networks/n-1",
+            "network": "projects/q/zones/z/networks/n-1",
             "match": {"network": "projects/p/zones/z/networks/n-2"}
         }])
     );
+    assert_eq!(
+        body(&server.requests()[1])["rules"],
+        json!([{"protocol": "TCP", "network": "projects/q/zones/z/networks/n-1"}])
+    );
 
-    refused(
-        &server,
-        &[
-            &CREATE[..],
-            &[
-                "--rules-json",
-                r#"[{"protocol": "TCP", "match": {"network": "n-2"}}]"#,
-            ],
-        ]
-        .concat(),
-        r#"[0].match.network: "n-2" is an id; give the resource's whole name here"#,
-    )
-    .await;
-    for args in [
-        &[
-            "--rule",
-            "protocol=TCP,network=projects/q/zones/z/networks/n",
-        ][..],
-        &[
-            "--rules-json",
-            r#"[{"protocol": "TCP", "network": "projects/q/zones/z/networks/n"}]"#,
-        ],
+    for (rules, says) in [
+        (
+            r#"[{"protocol": "TCP", "network": "n-1"}]"#,
+            r#"[0].network: "n-1" is an id; give the resource's full name"#,
+        ),
+        (
+            r#"[{"protocol": "TCP", "match": {"network": "n-2"}}]"#,
+            r#"[0].match.network: "n-2" is an id; give the resource's full name"#,
+        ),
     ] {
-        let description = failure(&scratch(&server, &[&CREATE[..], args].concat()).await);
-        assert!(
-            description.contains("--project p differs from the project of --rule network"),
-            "{args:?}: {description}"
-        );
+        refused(
+            &server,
+            &[&CREATE[..], &["--rules-json", rules]].concat(),
+            says,
+        )
+        .await;
     }
-    assert_eq!(server.requests().len(), 1);
+    let description = failure(
+        &scratch(
+            &server,
+            &[&CREATE[..], &["--rule", "protocol=TCP,network=n-1"]].concat(),
+        )
+        .await,
+    );
+    assert!(
+        description.starts_with(
+            "--rule network: \"n-1\" is an id; give the resource's full name, such as \
+             //scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}"
+        ),
+        "{description}"
+    );
+    assert_eq!(server.requests().len(), 2);
 }
 
 /// A reference whose resource has several name patterns, as the scratch
 /// network has, takes a whole name of each wherever it is given: a
-/// repeatable flag, a oneof's member, a key and a JSON value; an id
-/// completes to the first. An id may hold dots, bare or in a whole name.
+/// repeatable flag, a oneof's member, a key and a JSON value, each sent as
+/// given, whatever `--zone` says. An id may hold dots in a whole name; an
+/// id alone is refused.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
     let server = recording(echo).await;
@@ -575,11 +595,9 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
                     "--rule",
                     "protocol=TCP,network=zones/z/networks/shared.2",
                     "--rule",
-                    "protocol=UDP,network=n.3",
+                    "protocol=UDP,network=projects/p/zones/z/networks/n.3",
                     "--network",
-                    "zones/z/networks/shared-1",
-                    "--network",
-                    "n.1",
+                    "zones/z2/networks/shared-1",
                     "--network",
                     "projects/p/zones/z/networks/n.2",
                     "--mirror-network",
@@ -594,8 +612,7 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
     assert_eq!(
         sent["networks"],
         json!([
-            "zones/z/networks/shared-1",
-            "projects/p/zones/z/networks/n.1",
+            "zones/z2/networks/shared-1",
             "projects/p/zones/z/networks/n.2"
         ])
     );
@@ -615,7 +632,7 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
         json!([{"protocol": "TCP", "network": "zones/z/networks/s.1"}])
     );
 
-    // An update, whose firewall's name is learned from a whole name too.
+    // An update, whose firewall's name is learned from a whole name.
     success(
         &scratch(
             &server,
@@ -636,20 +653,13 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
         json!(["zones/z/networks/shared-1"])
     );
 
-    // A whole name of either form must agree with --zone, and one of
-    // neither form, or with a part that could leave its place, is refused.
+    // An id, a name of neither form, or one with a part that could leave
+    // its place, is refused.
     for (args, says) in [
+        (&["--network", "n.1"][..], "--network: \"n.1\" is an id"),
         (
-            &["--network", "zones/z2/networks/s"][..],
-            "--zone z differs from the zone of --network zones/z2/networks/s",
-        ),
-        (
-            &["--mirror-network", "zones/z2/networks/s"],
-            "--zone z differs from the zone of --mirror-network",
-        ),
-        (
-            &["--rule", "protocol=TCP,network=zones/z2/networks/s"],
-            "--zone z differs from the zone of --rule network",
+            &["--mirror-network", "m-1"],
+            "--mirror-network: \"m-1\" is an id",
         ),
         (
             &["--network", "networks/s"],
@@ -660,19 +670,20 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
             &["--network", "zones/z/networks/.."],
             "isn't a name of the form",
         ),
-        (&["--network", ".."], "isn't an id"),
+        (&["--network", ".."], "is an id"),
     ] {
-        let rule: &[&str] = if args[0] == "--rule" {
-            &[]
-        } else {
-            &["--rule", "protocol=TCP"]
-        };
-        let description = failure(&scratch(&server, &[&CREATE[..], args, rule].concat()).await);
+        let description = failure(
+            &scratch(
+                &server,
+                &[&CREATE[..], args, &["--rule", "protocol=TCP"]].concat(),
+            )
+            .await,
+        );
         assert!(description.contains(says), "{args:?}: {description}");
     }
     assert_eq!(server.requests().len(), 3);
 
-    // The help names both forms.
+    // The help names both forms, full and relative.
     let help = origincloud_cli::command()
         .find_subcommand("scratch")
         .and_then(|g| g.find_subcommand("create-firewall"))
@@ -682,13 +693,15 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
         .and_then(|a| a.get_long_help().or(a.get_help()))
         .map(|h| h.to_string())
         .unwrap();
-    assert!(
-        help.contains(
-            "`projects/{project}/zones/{zone}/networks/{network}` or \
-             `zones/{zone}/networks/{network}`"
-        ),
-        "{help}"
-    );
+    for form in [
+        "full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` \
+         or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`",
+        "relative name, `projects/{project}/zones/{zone}/networks/{network}` or \
+         `zones/{zone}/networks/{network}`",
+        "not an id",
+    ] {
+        assert!(help.contains(form), "{form}: {help}");
+    }
 }
 
 /// A key is a field's name with `_` or `-`; a timestamp, as a flag or a
@@ -984,7 +997,7 @@ async fn a_oneof_is_one_flag_of_its_members() {
     for extra in [
         &[
             "--mirror-network",
-            "n-1",
+            "projects/p/zones/z/networks/n-1",
             "--notify-email",
             "ops@example.com",
         ][..],
@@ -1183,9 +1196,9 @@ async fn a_top_level_list_pages_through_every_page() {
         .all(|r| r.method == "GET" && r.path == "/v1/firewallPolicies"));
 }
 
-/// A list filtering on a field rather than a parent takes it as a flag,
-/// a resource name completed from its parts; a reference to a type no
-/// package declares is sent whole.
+/// A list filtering on a field rather than a parent takes it as a flag, a
+/// whole resource name sent as given; a reference to a type no package
+/// declares is sent whole too.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_filtered_list_sends_its_filters() {
     let server =
@@ -1196,12 +1209,8 @@ async fn a_filtered_list_sends_its_filters() {
             &server,
             &[
                 "list-networks",
-                "--project",
-                "p",
-                "--zone",
-                "z",
                 "--firewall",
-                "f",
+                "projects/p/zones/z/firewalls/f",
                 "--owner",
                 "people/ada",
             ],

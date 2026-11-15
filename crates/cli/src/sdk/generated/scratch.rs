@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_bytes_file, read_value_file, shown_once, success, tags, wait, wait_for,
-    waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -97,7 +98,7 @@ pub struct GetFirewallArgs {
     pub zone: Option<String>,
     /// The firewall to return.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/firewalls/{firewall}`, or its relative name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
     #[arg(long = "firewall", value_name = "FIREWALL")]
     pub firewall: String,
 }
@@ -110,12 +111,14 @@ async fn get_firewall(
     names
         .learn(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            &["scratch"],
             "firewall",
             Some(args.firewall.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            &["scratch"],
             "firewall",
             args.firewall.as_str(),
         )?;
@@ -164,7 +167,7 @@ pub struct CreateFirewallArgs {
     pub zone: Option<String>,
     #[arg(
         long = "rule",
-        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.",
+        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`, or its relative name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`; not an id.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.",
         help = "The rules, in the order they are evaluated; the first that matches decides: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_rule(text, "--rules-json"),
@@ -174,7 +177,7 @@ pub struct CreateFirewallArgs {
     pub rule: Vec<Keyed<::origincloud_scratch::v1::Rule>>,
     #[arg(
         long = "rules-json",
-        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--rule`.",
+        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, never an id, as in its KEY=VALUE form. Instead of `--rule`.",
         help = "Rules as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<Vec<::origincloud_scratch::v1::Rule>>(
@@ -190,10 +193,10 @@ pub struct CreateFirewallArgs {
     pub port: Vec<i32>,
     /// The networks the firewall guards.
     ///
-    /// Each by its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`.
+    /// Each by its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`, or its relative name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`; not an id.
     ///
     /// Repeat for more.
-    #[arg(long = "network", value_name = "NETWORK")]
+    #[arg(long = "network", value_name = "NAME")]
     pub network: Vec<String>,
     /// Other names the firewall answers to.
     ///
@@ -268,8 +271,8 @@ pub struct CreateFirewallArgs {
     ///
     /// One of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`.
-    #[arg(long = "mirror-network", value_name = "NETWORK")]
+    /// Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`, or its relative name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`; not an id.
+    #[arg(long = "mirror-network", value_name = "NAME")]
     pub mirror_network: Option<String>,
     /// An address that receives the copies, such as `10.0.0.9:4789`.
     ///
@@ -321,53 +324,8 @@ async fn create_firewall(
     ctx: &Context<'_>,
     args: CreateFirewallArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
-    for keyed in &args.rule {
-        let item = &keyed.value;
-        names
-            .learn(
-                &[
-                    "projects/{project}/zones/{zone}/networks/{network}",
-                    "zones/{zone}/networks/{network}",
-                ],
-                "rule network",
-                Some(item.network.as_str()),
-            )?;
-    }
-    if let Some(json) = &args.rules_json {
-        for item in &json.0 {
-            names
-                .learn(
-                    &[
-                        "projects/{project}/zones/{zone}/networks/{network}",
-                        "zones/{zone}/networks/{network}",
-                    ],
-                    "rule network",
-                    Some(item.network.as_str()),
-                )?;
-        }
-    }
-    for value in &args.network {
-        names
-            .learn(
-                &[
-                    "projects/{project}/zones/{zone}/networks/{network}",
-                    "zones/{zone}/networks/{network}",
-                ],
-                "network",
-                Some(value.as_str()),
-            )?;
-    }
-    names
-        .learn(
-            &[
-                "projects/{project}/zones/{zone}/networks/{network}",
-                "zones/{zone}/networks/{network}",
-            ],
-            "mirror-network",
-            args.mirror_network.as_deref(),
-        )?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let mut rules = match args.rules_json {
         Some(json) => json.0,
@@ -378,31 +336,29 @@ async fn create_firewall(
     };
     for item in &mut rules {
         if !item.network.is_empty() {
-            item.network = names
-                .reference(
-                    &[
-                        "projects/{project}/zones/{zone}/networks/{network}",
-                        "zones/{zone}/networks/{network}",
-                    ],
-                    "rule network",
-                    item.network.as_str(),
-                )?;
+            item.network = reference(
+                &[
+                    "projects/{project}/zones/{zone}/networks/{network}",
+                    "zones/{zone}/networks/{network}",
+                ],
+                &["scratch"],
+                "--rule network",
+                item.network.as_str(),
+            )?;
         }
     }
     let networks = args
         .network
         .iter()
-        .map(|v| {
-            names
-                .reference(
-                    &[
-                        "projects/{project}/zones/{zone}/networks/{network}",
-                        "zones/{zone}/networks/{network}",
-                    ],
-                    "network",
-                    v.as_str(),
-                )
-        })
+        .map(|v| reference(
+            &[
+                "projects/{project}/zones/{zone}/networks/{network}",
+                "zones/{zone}/networks/{network}",
+            ],
+            &["scratch"],
+            "--network",
+            v.as_str(),
+        ))
         .collect::<anyhow::Result<Vec<String>>>()?;
     unique(&args.alias, "--alias")?;
     let logging = match args.logging_json {
@@ -421,17 +377,15 @@ async fn create_firewall(
     let mirror = if let Some(value) = args
         .mirror_network
         .as_deref()
-        .map(|v| {
-            names
-                .reference(
-                    &[
-                        "projects/{project}/zones/{zone}/networks/{network}",
-                        "zones/{zone}/networks/{network}",
-                    ],
-                    "mirror-network",
-                    v,
-                )
-        })
+        .map(|v| reference(
+            &[
+                "projects/{project}/zones/{zone}/networks/{network}",
+                "zones/{zone}/networks/{network}",
+            ],
+            &["scratch"],
+            "--mirror-network",
+            v,
+        ))
         .transpose()?
     {
         Some(::origincloud_scratch::v1::firewall::Mirror::MirrorNetwork(value))
@@ -575,12 +529,12 @@ pub struct UpdateFirewallArgs {
     pub zone: Option<String>,
     /// The firewall to change.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/firewalls/{firewall}`, or its relative name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
     #[arg(long = "firewall", value_name = "FIREWALL")]
     pub firewall: String,
     #[arg(
         long = "rule",
-        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
+        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`, or its relative name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`; not an id.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
         help = "The rules, in the order they are evaluated; the first that matches decides: one element per flag, as KEY=VALUE pairs; the list is replaced whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_rule(text, "--rules-json"),
@@ -589,7 +543,7 @@ pub struct UpdateFirewallArgs {
     pub rule: Vec<Keyed<::origincloud_scratch::v1::Rule>>,
     #[arg(
         long = "rules-json",
-        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--rule`.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
+        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, never an id, as in its KEY=VALUE form. Instead of `--rule`.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
         help = "Rules as JSON; replaced whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<Vec<::origincloud_scratch::v1::Rule>>(
@@ -608,10 +562,10 @@ pub struct UpdateFirewallArgs {
     pub no_ports: bool,
     /// The networks the firewall guards.
     ///
-    /// Each by its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`.
+    /// Each by its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`, or its relative name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`; not an id.
     ///
     /// Repeat for more. Replaces all of them, so give every one to keep; `--no-networks` removes them all. Left as they are when neither is given.
-    #[arg(long = "network", value_name = "NETWORK")]
+    #[arg(long = "network", value_name = "NAME")]
     pub network: Vec<String>,
     /// Remove all of its networks.
     #[arg(long = "no-networks", conflicts_with = "network")]
@@ -715,8 +669,8 @@ pub struct UpdateFirewallArgs {
     ///
     /// One of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set; `--no-mirror` sets none.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`.
-    #[arg(long = "mirror-network", value_name = "NETWORK")]
+    /// Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`, or its relative name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`; not an id.
+    #[arg(long = "mirror-network", value_name = "NAME")]
     pub mirror_network: Option<String>,
     /// An address that receives the copies, such as `10.0.0.9:4789`.
     ///
@@ -769,57 +723,14 @@ async fn update_firewall(
     names
         .learn(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            &["scratch"],
             "firewall",
             Some(args.firewall.as_str()),
         )?;
-    for keyed in &args.rule {
-        let item = &keyed.value;
-        names
-            .learn(
-                &[
-                    "projects/{project}/zones/{zone}/networks/{network}",
-                    "zones/{zone}/networks/{network}",
-                ],
-                "rule network",
-                Some(item.network.as_str()),
-            )?;
-    }
-    if let Some(json) = &args.rules_json {
-        for item in &json.0 {
-            names
-                .learn(
-                    &[
-                        "projects/{project}/zones/{zone}/networks/{network}",
-                        "zones/{zone}/networks/{network}",
-                    ],
-                    "rule network",
-                    Some(item.network.as_str()),
-                )?;
-        }
-    }
-    for value in &args.network {
-        names
-            .learn(
-                &[
-                    "projects/{project}/zones/{zone}/networks/{network}",
-                    "zones/{zone}/networks/{network}",
-                ],
-                "network",
-                Some(value.as_str()),
-            )?;
-    }
-    names
-        .learn(
-            &[
-                "projects/{project}/zones/{zone}/networks/{network}",
-                "zones/{zone}/networks/{network}",
-            ],
-            "mirror-network",
-            args.mirror_network.as_deref(),
-        )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            &["scratch"],
             "firewall",
             args.firewall.as_str(),
         )?;
@@ -846,15 +757,15 @@ async fn update_firewall(
         };
         for item in &mut value {
             if !item.network.is_empty() {
-                item.network = names
-                    .reference(
-                        &[
-                            "projects/{project}/zones/{zone}/networks/{network}",
-                            "zones/{zone}/networks/{network}",
-                        ],
-                        "rule network",
-                        item.network.as_str(),
-                    )?;
+                item.network = reference(
+                    &[
+                        "projects/{project}/zones/{zone}/networks/{network}",
+                        "zones/{zone}/networks/{network}",
+                    ],
+                    &["scratch"],
+                    "--rule network",
+                    item.network.as_str(),
+                )?;
             }
         }
         firewall.rules = value;
@@ -868,17 +779,15 @@ async fn update_firewall(
         firewall.networks = args
             .network
             .iter()
-            .map(|v| {
-                names
-                    .reference(
-                        &[
-                            "projects/{project}/zones/{zone}/networks/{network}",
-                            "zones/{zone}/networks/{network}",
-                        ],
-                        "network",
-                        v.as_str(),
-                    )
-            })
+            .map(|v| reference(
+                &[
+                    "projects/{project}/zones/{zone}/networks/{network}",
+                    "zones/{zone}/networks/{network}",
+                ],
+                &["scratch"],
+                "--network",
+                v.as_str(),
+            ))
             .collect::<anyhow::Result<Vec<String>>>()?;
         paths.push("networks".to_owned());
     }
@@ -976,17 +885,15 @@ async fn update_firewall(
     if let Some(value) = args
         .mirror_network
         .as_deref()
-        .map(|v| {
-            names
-                .reference(
-                    &[
-                        "projects/{project}/zones/{zone}/networks/{network}",
-                        "zones/{zone}/networks/{network}",
-                    ],
-                    "mirror-network",
-                    v,
-                )
-        })
+        .map(|v| reference(
+            &[
+                "projects/{project}/zones/{zone}/networks/{network}",
+                "zones/{zone}/networks/{network}",
+            ],
+            &["scratch"],
+            "--mirror-network",
+            v,
+        ))
         .transpose()?
     {
         firewall.mirror = Some(
@@ -1060,7 +967,7 @@ pub struct DeleteFirewallArgs {
     pub zone: Option<String>,
     /// The firewall to delete.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/firewalls/{firewall}`, or its relative name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
     #[arg(long = "firewall", value_name = "FIREWALL")]
     pub firewall: String,
     #[command(flatten)]
@@ -1075,12 +982,14 @@ async fn delete_firewall(
     names
         .learn(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            &["scratch"],
             "firewall",
             Some(args.firewall.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            &["scratch"],
             "firewall",
             args.firewall.as_str(),
         )?;
@@ -1122,7 +1031,7 @@ pub struct UndeleteFirewallArgs {
     pub zone: Option<String>,
     /// The firewall to restore.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/firewalls/{firewall}`, or its relative name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
     #[arg(long = "firewall", value_name = "FIREWALL")]
     pub firewall: String,
 }
@@ -1135,12 +1044,14 @@ async fn undelete_firewall(
     names
         .learn(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            &["scratch"],
             "firewall",
             Some(args.firewall.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            &["scratch"],
             "firewall",
             args.firewall.as_str(),
         )?;
@@ -1180,7 +1091,7 @@ pub struct SignFirewallDataArgs {
     pub zone: Option<String>,
     /// The firewall whose key signs.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/firewalls/{firewall}`, or its relative name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
     #[arg(long = "firewall", value_name = "FIREWALL")]
     pub firewall: String,
     /// The data to sign.
@@ -1215,12 +1126,14 @@ async fn sign_firewall_data(
     names
         .learn(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            &["scratch"],
             "firewall",
             Some(args.firewall.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            &["scratch"],
             "firewall",
             args.firewall.as_str(),
         )?;
@@ -1345,16 +1258,10 @@ async fn call_list_firewall_policies(
 /// The flags of `list-networks`.
 #[derive(clap::Args, Debug)]
 pub struct ListNetworksArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
-    #[arg(long = "project", value_name = "PROJECT")]
-    pub project: Option<String>,
-    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
-    #[arg(long = "zone", value_name = "ZONE")]
-    pub zone: Option<String>,
     /// The firewall whose networks to list.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
-    #[arg(long = "firewall", value_name = "FIREWALL")]
+    /// Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/firewalls/{firewall}`, or its relative name, `projects/{project}/zones/{zone}/firewalls/{firewall}`; not an id.
+    #[arg(long = "firewall", value_name = "NAME")]
     pub firewall: String,
     /// Only the networks this person owns, of a service no package declares.
     #[arg(long = "owner")]
@@ -1374,20 +1281,12 @@ async fn list_networks(
     ctx: &Context<'_>,
     args: ListNetworksArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
-    names
-        .learn(
-            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
-            "firewall",
-            Some(args.firewall.as_str()),
-        )?;
-    let firewall = names
-        .reference(
-            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
-            "firewall",
-            args.firewall.as_str(),
-        )?;
+    let firewall = reference(
+        &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+        &["scratch"],
+        "--firewall",
+        args.firewall.as_str(),
+    )?;
     let request = ::origincloud_scratch::v1::ListNetworksRequest {
         firewall,
         owner: args.owner.clone().unwrap_or_default(),

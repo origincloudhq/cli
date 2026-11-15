@@ -658,7 +658,7 @@ mod tests {
             "pub expire_time: Option<::origincloud_core::protobuf::Timestamp>,",
             "required_keys(&pairs, &[\"protocol\"])?;",
             // The resource name a key gives is completed.
-            "\"rule network\", item.network.as_str()",
+            "\"--rule network\", item.network.as_str()",
             // Repeated scalars and references.
             "pub port: Vec<i32>,",
             "pub network: Vec<String>,",
@@ -909,10 +909,10 @@ mod tests {
         assert!(!delete.contains("deleted_name"), "{code}");
     }
 
-    /// The help of a message's JSON flag names the flags an id in it is
-    /// completed with: the parts of the referenced pattern but its own.
+    /// The help of a message's JSON flag says a resource name in it is a
+    /// whole name, never an id completed from the command's flags.
     #[test]
-    fn json_help_names_the_flags_that_complete_a_name() {
+    fn json_help_says_a_name_in_it_is_whole() {
         let source = r#"
             syntax = "proto3";
             package origincloud.docs.v1;
@@ -941,15 +941,69 @@ mod tests {
         let dir = api("docs/v1/docs.proto", source);
         let files = generated(&[dir.path()]).unwrap();
         let code = file(&files, "docs.rs");
+        let whole = "A resource name in it is a full name, \
+                     `//{service}.origincloudapis.eu/{name}`, or a relative one, never an id";
+        assert!(code.contains(whole), "{code}");
+        assert!(!code.contains("completed with"), "{code}");
+        assert!(!code.contains("`--document`"), "{code}");
+    }
+
+    /// The command's own target takes its id, completed from the name-part
+    /// flags, or a whole name of its own service, sent as its relative name;
+    /// a parent's flag, such as a rule's `--group`, takes its id or a whole
+    /// name too, which gives the parts before it. `--project` stays an id.
+    #[test]
+    fn a_target_and_its_parents_take_whole_names() {
+        let source = r#"
+            syntax = "proto3";
+            package origincloud.walls.v1;
+            import "google/api/annotations.proto";
+            import "google/api/field_behavior.proto";
+            import "google/api/resource.proto";
+            // Walls.
+            service WallService {
+              // Returns a rule.
+              rpc GetRule(GetRuleRequest) returns (Rule) {
+                option (google.api.http) = {get: "/v1/{name=projects/*/groups/*/rules/*}"};
+              }
+              // Lists a group's rules.
+              rpc ListRules(ListRulesRequest) returns (ListRulesResponse) {
+                option (google.api.http) = {get: "/v1/{parent=projects/*/groups/*}/rules"};
+              }
+            }
+            message Rule {
+              option (google.api.resource) = { type: "walls.origincloudapis.eu/Rule" pattern: "projects/{project}/groups/{group}/rules/{rule}" };
+              string name = 1;
+            }
+            message GetRuleRequest {
+              string name = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "walls.origincloudapis.eu/Rule"];
+            }
+            message ListRulesRequest {
+              string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).child_type = "walls.origincloudapis.eu/Rule"];
+              int32 page_size = 2;
+              string page_token = 3;
+            }
+            message ListRulesResponse { repeated Rule rules = 1; string next_page_token = 2; }
+        "#;
+        let dir = api("walls/v1/walls.proto", source);
+        let code = file(&generated(&[dir.path()]).unwrap(), "walls.rs");
+        let flat: String = code.split_whitespace().collect();
+        for expected in [
+            r#"names.learn_part("projects/{project}/groups/{group}", &["walls"], "group")?;"#,
+            r#".learn(&["projects/{project}/groups/{group}/rules/{rule}"], &["walls"], "rule", Some(args.rule.as_str())"#,
+            r#".target(&["projects/{project}/groups/{group}/rules/{rule}"], &["walls"], "rule", args.rule.as_str()"#,
+            "The group: its id, completed with `--project`, or its full name, \
+             `//walls.origincloudapis.eu/projects/{project}/groups/{group}`, or its relative name, \
+             `projects/{project}/groups/{group}`.",
+            "Its id, completed with `--project` and `--group`, or its full name, \
+             `//walls.origincloudapis.eu/projects/{project}/groups/{group}/rules/{rule}`",
+        ] {
+            let wanted: String = expected.split_whitespace().collect();
+            assert!(flat.contains(&wanted), "no {expected:?} in:\n{code}");
+        }
         assert!(
-            code.contains("is completed with `--document`, as in its KEY=VALUE form"),
+            !flat.contains(r#"learn_part("projects/{project}""#),
             "{code}"
-        );
-        assert!(!code.contains("`--project`"), "{code}");
-        let scratch = file(&generated(&[&scratch()]).unwrap(), "scratch.rs");
-        assert!(
-            scratch.contains("is completed with `--project` and `--zone`, as in"),
-            "{scratch}"
         );
     }
 
@@ -1152,10 +1206,10 @@ mod tests {
             orgs.contains("request.page_token=page.next_page_token;"),
             "{orgs}"
         );
-        // A required filter is a required flag, completed as a name.
+        // A required filter is a required flag, a whole name.
         let folders = between("pubstructListFoldersArgs", "asyncfnlist_folders");
         assert!(
-            folders.contains("#[arg(long=\"org\",value_name=\"ORG\")]puborg:String,"),
+            folders.contains("#[arg(long=\"org\",value_name=\"NAME\")]puborg:String,"),
             "{folders}"
         );
         assert!(
@@ -1226,9 +1280,9 @@ mod tests {
     }
 
     /// A reference whose resource declares several name patterns takes a
-    /// whole name of each, and an id completes to the first; so does a field
-    /// `[[also_names]]` gives another type's patterns, and its help names
-    /// every form.
+    /// whole name of each, full on its type's host or relative, and no id;
+    /// so does a field `[[also_names]]` gives another type's patterns, and
+    /// its help names every form.
     #[test]
     fn a_reference_takes_a_whole_name_of_every_pattern() {
         let dir = api("shelf/v1/shelf.proto", SHELF);
@@ -1239,10 +1293,11 @@ mod tests {
 
         let code = flat(&generated(&[dir.path()]).unwrap());
         for expected in [
-            r#"names.learn(&["projects/{project}/books/{book}", "books/{book}"], "book", Some(args.book.as_str())"#,
-            r#"names.reference(&["projects/{project}/books/{book}", "books/{book}"], "book", args.book.as_str()"#,
-            "or its whole name, `projects/{project}/books/{book}` or `books/{book}`.",
-            r#"names.reference(&["projects/{project}/shelves/{shelf}"], "shelf", v"#,
+            r#"reference(&["projects/{project}/books/{book}", "books/{book}"], &["shelf"], "--book", args.book.as_str()"#,
+            "Its full name, `//shelf.origincloudapis.eu/projects/{project}/books/{book}` or \
+             `//shelf.origincloudapis.eu/books/{book}`, or its relative name, \
+             `projects/{project}/books/{book}` or `books/{book}`; not an id.",
+            r#"reference(&["projects/{project}/shelves/{shelf}"], &["shelf"], "--shelf", v)"#,
         ] {
             assert!(
                 code.contains(&wanted(expected)),
@@ -1256,8 +1311,8 @@ mod tests {
         );
         let code = flat(&generated_with(&[dir.path()], &policy).unwrap());
         for expected in [
-            r#"names.reference(&["projects/{project}/shelves/{shelf}", "shelves/{shelf}"], "shelf", v"#,
-            "or its whole name, `projects/{project}/shelves/{shelf}` or `shelves/{shelf}`.",
+            r#"reference(&["projects/{project}/shelves/{shelf}", "shelves/{shelf}"], &["shelf"], "--shelf", v"#,
+            "or its relative name, `projects/{project}/shelves/{shelf}` or `shelves/{shelf}`; not an id.",
         ] {
             assert!(
                 code.contains(&wanted(expected)),

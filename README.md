@@ -217,28 +217,41 @@ every method of the API, with the API's own descriptions as help:
 - **Command names.** The service's name, then the method's name in kebab
   case: `CreateVolume` is `origin pvs create-volume`, `ListZones` is
   `origin location list-zones`.
-- **Resource names.** A resource is named by its parts, each an id, such as
-  `vol-123` or `gp1.core.2`: anything but empty, `.` or `..`, and without
-  `/`. `--project` and
-  `--zone` are shared by every name a command builds, and default to the
-  profile's `default-project` and `default-zone`; a regional resource of
-  `origin network`, such as a VPC, takes `--region` instead of `--zone`,
-  which defaults to the profile's `region`, or the region of its
-  `default-zone`; the resource's own id is the
-  flag named after it (`--volume vol-123`, `--zone eu-central1-az1` for
-  `origin location get-zone`), or after the field for a reference
-  (`--source-snapshot snapshot-123`, `--storage-class gp1`). That flag also
-  takes a whole name, such as
-  `--volume projects/my-project-123/zones/eu-central1-az1/volumes/vol-123`,
-  whose project and zone then fill in the others: the `name` of a listed
-  volume can be passed straight on. Where a flag takes more than one form
-  of name, its help names each, and an id is the first: `--image` of
-  `origin compute create-instance` takes one of the project's own images,
-  `projects/{project}/zones/{zone}/images/{image}`, which its id
-  completes to, or a public one, `zones/{zone}/images/{image}`. A part of a parent's name without a
-  default, such as `--instance` of `origin compute
-  create-volume-attachment`, is required, unless a whole name given to
-  another flag has it.
+- **Resource names.** A resource is named by its full name,
+  `//{service}.origincloudapis.eu/{relative name}`, such as
+  `//pvs.origincloudapis.eu/projects/my-project-123/zones/eu-central1-az1/volumes/vol-123`,
+  and every flag naming a resource takes it. Its host is that of the
+  service the resource belongs to, which may be another than the
+  command's: `origin compute create-volume-attachment --volume` takes a
+  volume's, `//pvs.origincloudapis.eu/…`, and a name on any other host is
+  refused before anything is sent. The relative name, the full name
+  without `//{host}/` (`projects/…/volumes/vol-123`, a resource's `name`
+  as the API prints it), is taken too.
+  - **The resource a command acts on**, and its parents, can also be built
+    from their ids, each anything but empty, `.` or `..`, and without `/`,
+    such as `vol-123` or `gp1.core.2`: the flag named after the resource
+    (`--volume vol-123`, `--zone eu-central1-az1` for
+    `origin location get-zone`), or after a parent (`--instance` of
+    `origin compute create-volume-attachment`, `--security-group` of
+    `origin network create-security-group-rule`). `--project` and `--zone`
+    are shared by every name a command builds, and default to the profile's
+    `default-project` and `default-zone`; a regional resource, such as a
+    VPC, takes `--region` instead of `--zone`, which defaults to the
+    profile's `region`, or the region of its `default-zone`. A whole name
+    given to one of these flags fills in the other parts, which must agree
+    with any given (`--zone`); the request's path is always the relative
+    name. A part without a default, such as `--instance`, is required
+    unless a whole name given to another flag has it.
+  - **A reference** to another resource, such as `--source-snapshot`,
+    `--storage-class` or `--key-pair`, takes a whole name only, which is
+    sent as given: it is never completed from `--project` or `--zone`, and
+    may name another project's resource. An id is refused, with the full
+    name's form: `--storage-class //pvs.origincloudapis.eu/storageClasses/gp1`
+    or `--storage-class storageClasses/gp1`. Where a reference takes more
+    than one form of name, its help names each: `--image` of
+    `origin compute create-instance` takes one of the project's own images,
+    `projects/{project}/zones/{zone}/images/{image}`, or a public one,
+    `zones/{zone}/images/{image}`.
 - **Other flags.** Each other field of the request, and of the volume or
   snapshot it carries, is the flag of its name in kebab case: `size_gib` is
   `--size-gib`. Output-only fields aren't flags, and neither is a field the
@@ -280,8 +293,8 @@ every method of the API, with the API's own descriptions as help:
   ```
 
   Each key is typed and checked like a flag of its own (an enum's values, a
-  number, `true` or `false`, a duration, a time, a resource name by its id or
-  whole name), a required key must be given, and the flag's help lists the
+  number, `true` or `false`, a duration, a time, a resource name by its full
+  or relative name), a required key must be given, and the flag's help lists the
   keys. Every such field also has a `-json` flag taking the field as the
   API's JSON, or `@FILE` to read it from a file, for what pairs can't say: a
   value with a comma, or a message nested deeper. Its fields are named as the
@@ -289,9 +302,8 @@ every method of the API, with the API's own descriptions as help:
   Before anything is sent it is checked at every depth, each refusal naming
   its path: a field the message doesn't have, a key given twice, a value of
   the wrong type, an enum value that isn't one, an element given twice where
-  the API keeps each once. A resource name in a field of the message itself
-  is completed with `--project` and `--zone`, as in the pairs; one nested
-  deeper must be whole:
+  the API keeps each once. A resource name in it, at any depth, is a full or
+  relative name, never an id:
 
   ```sh
   --rules-json '[{"protocol": "TCP", "match": {"headers": [{"name": "x-env", "value": "prod"}]}}]'

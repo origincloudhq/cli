@@ -253,7 +253,7 @@ fn check_field(
         };
         let value_field = entry.map_entry_value_field();
         for (k, v) in entries {
-            check_value(v, &value_field, &format!("{here}[{k:?}]"), depth + 1, false)?;
+            check_value(v, &value_field, &format!("{here}[{k:?}]"), depth + 1)?;
         }
         return Ok(());
     }
@@ -262,7 +262,7 @@ fn check_field(
             return Err(format!("{here}: {value} isn't a list"));
         };
         for (i, item) in items.iter().enumerate() {
-            check_value(item, field, &format!("{here}[{i}]"), depth, true)?;
+            check_value(item, field, &format!("{here}[{i}]"), depth)?;
         }
         if has_behavior(field, UNORDERED_LIST) {
             for (i, item) in items.iter().enumerate() {
@@ -275,16 +275,15 @@ fn check_field(
         }
         return Ok(());
     }
-    check_value(value, field, here, depth, false)
+    check_value(value, field, here, depth)
 }
 
-/// Checks one value of `field`'s type: an element, for a list.
+/// Checks one value of `field`'s type, or an element of it, for a list.
 fn check_value(
     value: &serde_json::Value,
     field: &FieldDescriptor,
     here: &str,
     depth: usize,
-    element: bool,
 ) -> Result<(), String> {
     use serde_json::Value as J;
     match field.kind() {
@@ -335,14 +334,11 @@ fn check_value(
         },
         Kind::String => match value {
             J::String(s) => {
-                // A resource name a flag's own keys don't give, which nothing
-                // completes: a singular one of the flag's message is
-                // completed with `--project` and `--zone`, any other must be
-                // whole.
-                let completed = depth == 0 && !element;
-                if is_reference(field) && !completed && !s.is_empty() && !s.contains('/') {
+                // A resource name is never completed from parts: it is a
+                // full name, or a relative one, at any depth.
+                if is_reference(field) && !s.is_empty() && !s.contains('/') {
                     Err(format!(
-                        "{here}: {s:?} is an id; give the resource's whole name here"
+                        "{here}: {s:?} is an id; give the resource's full name, //{{service}}.origincloudapis.eu/{{name}}"
                     ))
                 } else {
                     Ok(())
@@ -778,7 +774,19 @@ mod tests {
         }
         // A value of an enum, by its name or its number.
         assert!(json_arg::<Volume>(r#"{"state": "AVAILABLE"}"#, volume).is_ok());
-        assert!(json_arg::<Volume>(r#"{"sourceSnapshot": "snap-1"}"#, volume).is_ok());
+        // A resource name is whole, full or relative, never an id.
+        for whole in [
+            r#"{"sourceSnapshot": "projects/p/zones/z/snapshots/snap-1"}"#,
+            r#"{"sourceSnapshot": "//pvs.origincloudapis.eu/projects/p/zones/z/snapshots/snap-1"}"#,
+        ] {
+            assert!(json_arg::<Volume>(whole, volume).is_ok(), "{whole}");
+        }
+        let refused = json_arg::<Volume>(r#"{"sourceSnapshot": "snap-1"}"#, volume).unwrap_err();
+        assert!(
+            refused
+                .starts_with("sourceSnapshot: \"snap-1\" is an id; give the resource's full name"),
+            "{refused}"
+        );
         assert!(json_arg::<Volume>("@/no/such/file", volume)
             .unwrap_err()
             .starts_with("reading"));
