@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_bytes_file, read_value_file, shown_once, success, tags, wait, wait_for,
-    waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -242,7 +243,7 @@ pub(crate) fn service(
 pub struct GetInstanceTypeArgs {
     /// The type to return, `instanceTypes/{instance_type}`.
     ///
-    /// Its id, or its whole name, `instanceTypes/{instance_type}`.
+    /// Its id, or its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, or its relative name, `instanceTypes/{instance_type}`.
     #[arg(long = "instance-type", value_name = "INSTANCE_TYPE")]
     pub instance_type: String,
 }
@@ -254,12 +255,14 @@ async fn get_instance_type(
     names
         .learn(
             &["instanceTypes/{instance_type}"],
+            &["compute"],
             "instance-type",
             Some(args.instance_type.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["instanceTypes/{instance_type}"],
+            &["compute"],
             "instance-type",
             args.instance_type.as_str(),
         )?;
@@ -320,7 +323,7 @@ async fn call_list_instance_types(
 pub struct GetImageFamilyArgs {
     /// The family to return, `imageFamilies/{image_family}`.
     ///
-    /// Its id, or its whole name, `imageFamilies/{image_family}`.
+    /// Its id, or its full name, `//compute.origincloudapis.eu/imageFamilies/{image_family}`, or its relative name, `imageFamilies/{image_family}`.
     #[arg(long = "image-family", value_name = "IMAGE_FAMILY")]
     pub image_family: String,
 }
@@ -332,12 +335,14 @@ async fn get_image_family(
     names
         .learn(
             &["imageFamilies/{image_family}"],
+            &["compute"],
             "image-family",
             Some(args.image_family.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["imageFamilies/{image_family}"],
+            &["compute"],
             "image-family",
             args.image_family.as_str(),
         )?;
@@ -411,7 +416,7 @@ pub struct GetImageArgs {
     pub zone: Option<String>,
     /// The image to return.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/images/{image}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`, or its relative name, `projects/{project}/zones/{zone}/images/{image}`.
     #[arg(long = "image", value_name = "IMAGE")]
     pub image: String,
 }
@@ -424,12 +429,14 @@ async fn get_image(
     names
         .learn(
             &["projects/{project}/zones/{zone}/images/{image}"],
+            &["compute"],
             "image",
             Some(args.image.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/images/{image}"],
+            &["compute"],
             "image",
             args.image.as_str(),
         )?;
@@ -586,7 +593,7 @@ pub struct CreateImageArgs {
     pub root_device: String,
     #[arg(
         long = "block-device",
-        long_help = "The image's disks, each created for an instance launched from it.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`device`, required: The device name the disk appears under on every instance launched from the image: `vda` to `vdz` but `vdc`, unique within the image.\n\n`size_gib`, required: The disk's size in GiB, at least the snapshot's.\n\n`source_snapshot`: The protected snapshot the disk is created from, in the image's project and zone; an empty disk when left empty. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`.\n\nA value with a comma in it goes through `--block-devices-json` too.",
+        long_help = "The image's disks, each created for an instance launched from it.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`device`, required: The device name the disk appears under on every instance launched from the image: `vda` to `vdz` but `vdc`, unique within the image.\n\n`size_gib`, required: The disk's size in GiB, at least the snapshot's.\n\n`source_snapshot`: The protected snapshot the disk is created from, in the image's project and zone; an empty disk when left empty. Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`, or its relative name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`; not an id.\n\nA value with a comma in it goes through `--block-devices-json` too.",
         help = "The image's disks, each created for an instance launched from it: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_image_block_device(text, "--block-devices-json"),
@@ -596,7 +603,7 @@ pub struct CreateImageArgs {
     pub block_device: Vec<Keyed<::origincloud_compute::v1beta1::ImageBlockDevice>>,
     #[arg(
         long = "block-devices-json",
-        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--block-device`.",
+        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, never an id, as in its KEY=VALUE form. Instead of `--block-device`.",
         help = "Block devices as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<Vec<::origincloud_compute::v1beta1::ImageBlockDevice>>(
@@ -622,27 +629,8 @@ async fn create_image(
     ctx: &Context<'_>,
     args: CreateImageArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
-    for keyed in &args.block_device {
-        let item = &keyed.value;
-        names
-            .learn(
-                &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
-                "block-device source_snapshot",
-                Some(item.source_snapshot.as_str()),
-            )?;
-    }
-    if let Some(json) = &args.block_devices_json {
-        for item in &json.0 {
-            names
-                .learn(
-                    &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
-                    "block-device source_snapshot",
-                    Some(item.source_snapshot.as_str()),
-                )?;
-        }
-    }
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let mut block_devices = match args.block_devices_json {
         Some(json) => json.0,
@@ -657,12 +645,12 @@ async fn create_image(
     };
     for item in &mut block_devices {
         if !item.source_snapshot.is_empty() {
-            item.source_snapshot = names
-                .reference(
-                    &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
-                    "block-device source_snapshot",
-                    item.source_snapshot.as_str(),
-                )?;
+            item.source_snapshot = reference(
+                &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+                &["pvs"],
+                "--block-device source_snapshot",
+                item.source_snapshot.as_str(),
+            )?;
         }
     }
     let image = ::origincloud_compute::v1beta1::Image {
@@ -711,7 +699,7 @@ pub struct UpdateImageArgs {
     pub zone: Option<String>,
     /// The image to change.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/images/{image}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`, or its relative name, `projects/{project}/zones/{zone}/images/{image}`.
     #[arg(long = "image", value_name = "IMAGE")]
     pub image: String,
     /// What the image holds, as you describe it.
@@ -738,12 +726,14 @@ async fn update_image(
     names
         .learn(
             &["projects/{project}/zones/{zone}/images/{image}"],
+            &["compute"],
             "image",
             Some(args.image.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/images/{image}"],
+            &["compute"],
             "image",
             args.image.as_str(),
         )?;
@@ -792,7 +782,7 @@ pub struct DeleteImageArgs {
     pub zone: Option<String>,
     /// The image to delete.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/images/{image}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`, or its relative name, `projects/{project}/zones/{zone}/images/{image}`.
     #[arg(long = "image", value_name = "IMAGE")]
     pub image: String,
     #[command(flatten)]
@@ -807,12 +797,14 @@ async fn delete_image(
     names
         .learn(
             &["projects/{project}/zones/{zone}/images/{image}"],
+            &["compute"],
             "image",
             Some(args.image.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/images/{image}"],
+            &["compute"],
             "image",
             args.image.as_str(),
         )?;
@@ -856,7 +848,7 @@ pub struct GetInstanceArgs {
     pub zone: Option<String>,
     /// The instance to return.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/instances/{instance}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`, or its relative name, `projects/{project}/zones/{zone}/instances/{instance}`.
     #[arg(long = "instance", value_name = "INSTANCE")]
     pub instance: String,
 }
@@ -869,12 +861,14 @@ async fn get_instance(
     names
         .learn(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
+            &["compute"],
             "instance",
             Some(args.instance.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
+            &["compute"],
             "instance",
             args.instance.as_str(),
         )?;
@@ -1030,15 +1024,12 @@ pub struct CreateInstanceArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
-    #[arg(long = "organization", value_name = "ORGANIZATION")]
-    pub organization: Option<String>,
     /// The instance type, `instanceTypes/{instance_type}`, such as
     /// `instanceTypes/gp1.core.2`: one whose `available` is true. Changing it
     /// needs the instance `STOPPED`.
     ///
-    /// Its id, or its whole name, `instanceTypes/{instance_type}`.
-    #[arg(long = "instance-type", value_name = "INSTANCE_TYPE")]
+    /// Its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, or its relative name, `instanceTypes/{instance_type}`; not an id.
+    #[arg(long = "instance-type", value_name = "NAME")]
     pub instance_type: String,
     /// The image the boot volume is created from, in the instance's zone: one
     /// of the project's own, `projects/{project}/zones/{zone}/images/{image}`,
@@ -1046,21 +1037,21 @@ pub struct CreateInstanceArgs {
     /// `--image` and `--image-family`; launched from a family, this is the public
     /// image the family resolved to.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/images/{image}` or `zones/{zone}/images/{image}`.
-    #[arg(long = "image", value_name = "IMAGE")]
+    /// Its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}` or `//compute.origincloudapis.eu/zones/{zone}/images/{image}`, or its relative name, `projects/{project}/zones/{zone}/images/{image}` or `zones/{zone}/images/{image}`; not an id.
+    #[arg(long = "image", value_name = "NAME")]
     pub image: Option<String>,
     /// The image family to launch the current public image of,
     /// `imageFamilies/{image_family}`. Set exactly one of `--image` and
     /// `--image-family`. Empty when the instance was launched from an image.
     ///
-    /// Its id, or its whole name, `imageFamilies/{image_family}`.
-    #[arg(long = "image-family", value_name = "IMAGE_FAMILY")]
+    /// Its full name, `//compute.origincloudapis.eu/imageFamilies/{image_family}`, or its relative name, `imageFamilies/{image_family}`; not an id.
+    #[arg(long = "image-family", value_name = "NAME")]
     pub image_family: Option<String>,
     /// The key pair whose public key is installed for `--login-user`, in the
     /// instance's project.
     ///
-    /// Its id, completed with `--project`, or its whole name, `projects/{project}/keyPairs/{key_pair}`.
-    #[arg(long = "key-pair", value_name = "KEY_PAIR")]
+    /// Its full name, `//compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}`, or its relative name, `projects/{project}/keyPairs/{key_pair}`; not an id.
+    #[arg(long = "key-pair", value_name = "NAME")]
     pub key_pair: String,
     /// The account to log in as: a user created at first boot that holds the
     /// key pair. A POSIX user name of at most 32 lowercase letters, digits,
@@ -1070,7 +1061,7 @@ pub struct CreateInstanceArgs {
     pub login_user: Option<String>,
     #[arg(
         long = "boot-volume",
-        long_help = "The boot volume: its size and storage class at launch, and the volume. The image's size on the default storage class when left out.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`size_gib`: The size in GiB the volume was created with, at least the image's size; the image's size when left at 0. Grow the volume itself to resize it; this keeps the size at launch.\n\n`storage_class`: The storage class, `storageClasses/{storage_class}` of the persistent volume service; the default class when left empty. Its id, or its whole name, `storageClasses/{storage_class}`.\n\nA value with a comma in it goes through `--boot-volume-json` too.",
+        long_help = "The boot volume: its size and storage class at launch, and the volume. The image's size on the default storage class when left out.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`size_gib`: The size in GiB the volume was created with, at least the image's size; the image's size when left at 0. Grow the volume itself to resize it; this keeps the size at launch.\n\n`storage_class`: The storage class, `storageClasses/{storage_class}` of the persistent volume service; the default class when left empty. Its full name, `//pvs.origincloudapis.eu/storageClasses/{storage_class}`, or its relative name, `storageClasses/{storage_class}`; not an id.\n\nA value with a comma in it goes through `--boot-volume-json` too.",
         help = "The boot volume: its size and storage class at launch, and the volume, as KEY=VALUE pairs; sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_boot_volume(text, "--boot-volume-json"),
@@ -1079,7 +1070,7 @@ pub struct CreateInstanceArgs {
     pub boot_volume: Option<Keyed<::origincloud_compute::v1beta1::BootVolume>>,
     #[arg(
         long = "boot-volume-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. Instead of `--boot-volume`.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, never an id, as in its KEY=VALUE form. Instead of `--boot-volume`.",
         help = "Boot volume as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_compute::v1beta1::BootVolume>(
@@ -1096,10 +1087,10 @@ pub struct CreateInstanceArgs {
     /// launched before interfaces were named at launch shows the interface
     /// created for it, which is deleted with the instance.
     ///
-    /// Each by its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
+    /// Each by its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`; not an id.
     ///
     /// Repeat for more.
-    #[arg(long = "network-interface", required = true, value_name = "NETWORK_INTERFACE")]
+    #[arg(long = "network-interface", required = true, value_name = "NAME")]
     pub network_interface: Vec<String>,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
@@ -1115,8 +1106,8 @@ pub struct CreateInstanceArgs {
     /// that leaves it empty removes it, and a terminated instance's can't
     /// change. Empty for an instance that runs as none.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/serviceAccounts/{service_account}`.
-    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
+    /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`; not an id.
+    #[arg(long = "service-account", value_name = "NAME")]
     pub service_account: Option<String>,
     /// A UUID; a repeat with the same id returns the first request's
     /// operation instead of launching a second instance. One is generated when not given.
@@ -1130,142 +1121,78 @@ async fn create_instance(
     ctx: &Context<'_>,
     args: CreateInstanceArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[
-                ("project", args.project.as_deref()),
-                ("zone", args.zone.as_deref()),
-                ("organization", args.organization.as_deref()),
-            ],
-        );
-    names
-        .learn(
-            &["instanceTypes/{instance_type}"],
-            "instance-type",
-            Some(args.instance_type.as_str()),
-        )?;
-    names
-        .learn(
-            &[
-                "projects/{project}/zones/{zone}/images/{image}",
-                "zones/{zone}/images/{image}",
-            ],
-            "image",
-            args.image.as_deref(),
-        )?;
-    names
-        .learn(
-            &["imageFamilies/{image_family}"],
-            "image-family",
-            args.image_family.as_deref(),
-        )?;
-    names
-        .learn(
-            &["projects/{project}/keyPairs/{key_pair}"],
-            "key-pair",
-            Some(args.key_pair.as_str()),
-        )?;
-    if let Some(keyed) = &args.boot_volume {
-        let item = &keyed.value;
-        names
-            .learn(
-                &["storageClasses/{storage_class}"],
-                "boot-volume storage_class",
-                Some(item.storage_class.as_str()),
-            )?;
-    }
-    if let Some(json) = &args.boot_volume_json {
-        let item = &json.0;
-        names
-            .learn(
-                &["storageClasses/{storage_class}"],
-                "boot-volume storage_class",
-                Some(item.storage_class.as_str()),
-            )?;
-    }
-    for value in &args.network_interface {
-        names
-            .learn(
-                &[
-                    "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
-                ],
-                "network-interface",
-                Some(value.as_str()),
-            )?;
-    }
-    names
-        .learn(
-            &["organizations/{organization}/serviceAccounts/{service_account}"],
-            "service-account",
-            args.service_account.as_deref(),
-        )?;
+    let names = ctx
+        .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     let parent = names.name("projects/{project}/zones/{zone}")?;
-    let instance_type = names
-        .reference(
-            &["instanceTypes/{instance_type}"],
-            "instance-type",
-            args.instance_type.as_str(),
-        )?;
+    let instance_type = reference(
+        &["instanceTypes/{instance_type}"],
+        &["compute"],
+        "--instance-type",
+        args.instance_type.as_str(),
+    )?;
     let image = match args.image.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &[
-                        "projects/{project}/zones/{zone}/images/{image}",
-                        "zones/{zone}/images/{image}",
-                    ],
-                    "image",
-                    v,
-                )?
+            reference(
+                &[
+                    "projects/{project}/zones/{zone}/images/{image}",
+                    "zones/{zone}/images/{image}",
+                ],
+                &["compute"],
+                "--image",
+                v,
+            )?
         }
         None => String::new(),
     };
     let image_family = match args.image_family.as_deref() {
-        Some(v) => names.reference(&["imageFamilies/{image_family}"], "image-family", v)?,
+        Some(v) => {
+            reference(
+                &["imageFamilies/{image_family}"],
+                &["compute"],
+                "--image-family",
+                v,
+            )?
+        }
         None => String::new(),
     };
-    let key_pair = names
-        .reference(
-            &["projects/{project}/keyPairs/{key_pair}"],
-            "key-pair",
-            args.key_pair.as_str(),
-        )?;
+    let key_pair = reference(
+        &["projects/{project}/keyPairs/{key_pair}"],
+        &["compute"],
+        "--key-pair",
+        args.key_pair.as_str(),
+    )?;
     let mut boot_volume = match args.boot_volume_json {
         Some(json) => Some(json.0),
         None => args.boot_volume.map(|keyed| { keyed.value }),
     };
     if let Some(item) = &mut boot_volume {
         if !item.storage_class.is_empty() {
-            item.storage_class = names
-                .reference(
-                    &["storageClasses/{storage_class}"],
-                    "boot-volume storage_class",
-                    item.storage_class.as_str(),
-                )?;
+            item.storage_class = reference(
+                &["storageClasses/{storage_class}"],
+                &["pvs"],
+                "--boot-volume storage_class",
+                item.storage_class.as_str(),
+            )?;
         }
     }
     let network_interfaces = args
         .network_interface
         .iter()
-        .map(|v| {
-            names
-                .reference(
-                    &[
-                        "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
-                    ],
-                    "network-interface",
-                    v.as_str(),
-                )
-        })
+        .map(|v| reference(
+            &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
+            &["network"],
+            "--network-interface",
+            v.as_str(),
+        ))
         .collect::<anyhow::Result<Vec<String>>>()?;
     let service_account = match args.service_account.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &["organizations/{organization}/serviceAccounts/{service_account}"],
-                    "service-account",
-                    v,
-                )?
+            reference(
+                &["organizations/{organization}/serviceAccounts/{service_account}"],
+                &["iam"],
+                "--service-account",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -1324,22 +1251,19 @@ pub struct UpdateInstanceArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
-    #[arg(long = "organization", value_name = "ORGANIZATION")]
-    pub organization: Option<String>,
     /// The instance to change.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/instances/{instance}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`, or its relative name, `projects/{project}/zones/{zone}/instances/{instance}`.
     #[arg(long = "instance", value_name = "INSTANCE")]
     pub instance: String,
     /// The instance type, `instanceTypes/{instance_type}`, such as
     /// `instanceTypes/gp1.core.2`: one whose `available` is true. Changing it
     /// needs the instance `STOPPED`.
     ///
-    /// Its id, or its whole name, `instanceTypes/{instance_type}`.
+    /// Its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, or its relative name, `instanceTypes/{instance_type}`; not an id.
     ///
     /// Left as it is when not given.
-    #[arg(long = "instance-type", value_name = "INSTANCE_TYPE")]
+    #[arg(long = "instance-type", value_name = "NAME")]
     pub instance_type: Option<String>,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
@@ -1358,10 +1282,10 @@ pub struct UpdateInstanceArgs {
     /// that leaves it empty removes it, and a terminated instance's can't
     /// change. Empty for an instance that runs as none.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/serviceAccounts/{service_account}`.
+    /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`; not an id.
     ///
     /// Left as it is when not given.
-    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
+    #[arg(long = "service-account", value_name = "NAME")]
     pub service_account: Option<String>,
     /// A UUID; a repeat with the same id returns the first request's
     /// operation instead of changing the instance again. One is generated when not given.
@@ -1376,34 +1300,18 @@ async fn update_instance(
     args: UpdateInstanceArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
-        .names(
-            &[
-                ("project", args.project.as_deref()),
-                ("zone", args.zone.as_deref()),
-                ("organization", args.organization.as_deref()),
-            ],
-        );
+        .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     names
         .learn(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
+            &["compute"],
             "instance",
             Some(args.instance.as_str()),
         )?;
-    names
-        .learn(
-            &["instanceTypes/{instance_type}"],
-            "instance-type",
-            args.instance_type.as_deref(),
-        )?;
-    names
-        .learn(
-            &["organizations/{organization}/serviceAccounts/{service_account}"],
-            "service-account",
-            args.service_account.as_deref(),
-        )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
+            &["compute"],
             "instance",
             args.instance.as_str(),
         )?;
@@ -1413,8 +1321,12 @@ async fn update_instance(
     };
     let mut paths: Vec<String> = Vec::new();
     if let Some(value) = args.instance_type.as_deref() {
-        instance.instance_type = names
-            .reference(&["instanceTypes/{instance_type}"], "instance-type", value)?;
+        instance.instance_type = reference(
+            &["instanceTypes/{instance_type}"],
+            &["compute"],
+            "--instance-type",
+            value,
+        )?;
         paths.push("instance_type".to_owned());
     }
     if args.no_tags || !args.tag.is_empty() {
@@ -1422,12 +1334,12 @@ async fn update_instance(
         paths.push("tags".to_owned());
     }
     if let Some(value) = args.service_account.as_deref() {
-        instance.service_account = names
-            .reference(
-                &["organizations/{organization}/serviceAccounts/{service_account}"],
-                "service-account",
-                value,
-            )?;
+        instance.service_account = reference(
+            &["organizations/{organization}/serviceAccounts/{service_account}"],
+            &["iam"],
+            "--service-account",
+            value,
+        )?;
         paths.push("service_account".to_owned());
     }
     let request = ::origincloud_compute::v1beta1::UpdateInstanceRequest {
@@ -1468,7 +1380,7 @@ pub struct DeleteInstanceArgs {
     pub zone: Option<String>,
     /// The instance to terminate.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/instances/{instance}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`, or its relative name, `projects/{project}/zones/{zone}/instances/{instance}`.
     #[arg(long = "instance", value_name = "INSTANCE")]
     pub instance: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -1490,12 +1402,14 @@ async fn delete_instance(
     names
         .learn(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
+            &["compute"],
             "instance",
             Some(args.instance.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
+            &["compute"],
             "instance",
             args.instance.as_str(),
         )?;
@@ -1544,7 +1458,7 @@ pub struct StartInstanceArgs {
     pub zone: Option<String>,
     /// The instance to start.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/instances/{instance}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`, or its relative name, `projects/{project}/zones/{zone}/instances/{instance}`.
     #[arg(long = "instance", value_name = "INSTANCE")]
     pub instance: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -1564,12 +1478,14 @@ async fn start_instance(
     names
         .learn(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
+            &["compute"],
             "instance",
             Some(args.instance.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
+            &["compute"],
             "instance",
             args.instance.as_str(),
         )?;
@@ -1608,7 +1524,7 @@ pub struct StopInstanceArgs {
     pub zone: Option<String>,
     /// The instance to stop.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/instances/{instance}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`, or its relative name, `projects/{project}/zones/{zone}/instances/{instance}`.
     #[arg(long = "instance", value_name = "INSTANCE")]
     pub instance: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -1628,12 +1544,14 @@ async fn stop_instance(
     names
         .learn(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
+            &["compute"],
             "instance",
             Some(args.instance.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
+            &["compute"],
             "instance",
             args.instance.as_str(),
         )?;
@@ -1669,7 +1587,7 @@ pub struct GetKeyPairArgs {
     pub project: Option<String>,
     /// The key pair to return.
     ///
-    /// Its id, completed with `--project`, or its whole name, `projects/{project}/keyPairs/{key_pair}`.
+    /// Its id, completed with `--project`, or its full name, `//compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}`, or its relative name, `projects/{project}/keyPairs/{key_pair}`.
     #[arg(long = "key-pair", value_name = "KEY_PAIR")]
     pub key_pair: String,
 }
@@ -1681,12 +1599,14 @@ async fn get_key_pair(
     names
         .learn(
             &["projects/{project}/keyPairs/{key_pair}"],
+            &["compute"],
             "key-pair",
             Some(args.key_pair.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/keyPairs/{key_pair}"],
+            &["compute"],
             "key-pair",
             args.key_pair.as_str(),
         )?;
@@ -1863,7 +1783,7 @@ pub struct UpdateKeyPairArgs {
     pub project: Option<String>,
     /// The key pair to change.
     ///
-    /// Its id, completed with `--project`, or its whole name, `projects/{project}/keyPairs/{key_pair}`.
+    /// Its id, completed with `--project`, or its full name, `//compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}`, or its relative name, `projects/{project}/keyPairs/{key_pair}`.
     #[arg(long = "key-pair", value_name = "KEY_PAIR")]
     pub key_pair: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -1884,12 +1804,14 @@ async fn update_key_pair(
     names
         .learn(
             &["projects/{project}/keyPairs/{key_pair}"],
+            &["compute"],
             "key-pair",
             Some(args.key_pair.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/keyPairs/{key_pair}"],
+            &["compute"],
             "key-pair",
             args.key_pair.as_str(),
         )?;
@@ -1931,7 +1853,7 @@ pub struct DeleteKeyPairArgs {
     pub project: Option<String>,
     /// The key pair to delete.
     ///
-    /// Its id, completed with `--project`, or its whole name, `projects/{project}/keyPairs/{key_pair}`.
+    /// Its id, completed with `--project`, or its full name, `//compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}`, or its relative name, `projects/{project}/keyPairs/{key_pair}`.
     #[arg(long = "key-pair", value_name = "KEY_PAIR")]
     pub key_pair: String,
     #[command(flatten)]
@@ -1945,12 +1867,14 @@ async fn delete_key_pair(
     names
         .learn(
             &["projects/{project}/keyPairs/{key_pair}"],
+            &["compute"],
             "key-pair",
             Some(args.key_pair.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/keyPairs/{key_pair}"],
+            &["compute"],
             "key-pair",
             args.key_pair.as_str(),
         )?;
@@ -1991,7 +1915,7 @@ pub struct GetPublicImageArgs {
     pub zone: Option<String>,
     /// The image to return, `zones/{zone}/images/{image}`.
     ///
-    /// Its id, completed with `--zone`, or its whole name, `zones/{zone}/images/{image}`.
+    /// Its id, completed with `--zone`, or its full name, `//compute.origincloudapis.eu/zones/{zone}/images/{image}`, or its relative name, `zones/{zone}/images/{image}`.
     #[arg(long = "image", value_name = "IMAGE")]
     pub image: String,
 }
@@ -2000,9 +1924,20 @@ async fn get_public_image(
     args: GetPublicImageArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("zone", args.zone.as_deref())]);
-    names.learn(&["zones/{zone}/images/{image}"], "image", Some(args.image.as_str()))?;
+    names
+        .learn(
+            &["zones/{zone}/images/{image}"],
+            &["compute"],
+            "image",
+            Some(args.image.as_str()),
+        )?;
     let name = names
-        .reference(&["zones/{zone}/images/{image}"], "image", args.image.as_str())?;
+        .target(
+            &["zones/{zone}/images/{image}"],
+            &["compute"],
+            "image",
+            args.image.as_str(),
+        )?;
     let request = ::origincloud_compute::v1beta1::GetPublicImageRequest {
         name,
     };
@@ -2138,12 +2073,12 @@ pub struct GetVolumeAttachmentArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{instance}` part of the resource names the command builds. Needed unless `--volume-attachment` is given a whole name, which has it.
+    /// The instance: its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`, or its relative name, `projects/{project}/zones/{zone}/instances/{instance}`. Needed unless `--volume-attachment` is given a whole name, which has it.
     #[arg(long = "instance", value_name = "INSTANCE")]
     pub instance: Option<String>,
     /// The attachment to return.
     ///
-    /// Its id, completed with `--project` and `--zone` and `--instance`, or its whole name, `projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}`.
+    /// Its id, completed with `--project` and `--zone` and `--instance`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}`, or its relative name, `projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}`.
     #[arg(long = "volume-attachment", value_name = "VOLUME_ATTACHMENT")]
     pub volume_attachment: String,
 }
@@ -2160,18 +2095,26 @@ async fn get_volume_attachment(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/zones/{zone}/instances/{instance}",
+            &["compute"],
+            "instance",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}",
             ],
+            &["compute"],
             "volume-attachment",
             Some(args.volume_attachment.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}",
             ],
+            &["compute"],
             "volume-attachment",
             args.volume_attachment.as_str(),
         )?;
@@ -2204,7 +2147,7 @@ pub struct ListVolumeAttachmentsArgs {
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{instance}` part of the resource names the command builds.
+    /// The instance: its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`, or its relative name, `projects/{project}/zones/{zone}/instances/{instance}`.
     #[arg(long = "instance", value_name = "INSTANCE", required = true)]
     pub instance: Option<String>,
     /// The most attachments to return; the server clamps it, and 0 means its
@@ -2220,8 +2163,8 @@ pub struct ListVolumeAttachmentsArgs {
     pub page_token: Option<String>,
     /// Only the attachments of this volume; every volume's when left empty.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/volumes/{volume}`.
-    #[arg(long = "volume", value_name = "VOLUME")]
+    /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`; not an id.
+    #[arg(long = "volume", value_name = "NAME")]
     pub volume: Option<String>,
 }
 async fn list_volume_attachments(
@@ -2237,19 +2180,19 @@ async fn list_volume_attachments(
             ],
         );
     names
-        .learn(
-            &["projects/{project}/zones/{zone}/volumes/{volume}"],
-            "volume",
-            args.volume.as_deref(),
+        .learn_part(
+            "projects/{project}/zones/{zone}/instances/{instance}",
+            &["compute"],
+            "instance",
         )?;
     let volume = match args.volume.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &["projects/{project}/zones/{zone}/volumes/{volume}"],
-                    "volume",
-                    v,
-                )?
+            reference(
+                &["projects/{project}/zones/{zone}/volumes/{volume}"],
+                &["pvs"],
+                "--volume",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -2357,13 +2300,13 @@ pub struct CreateVolumeAttachmentArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{instance}` part of the resource names the command builds.
+    /// The instance: its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`, or its relative name, `projects/{project}/zones/{zone}/instances/{instance}`.
     #[arg(long = "instance", value_name = "INSTANCE", required = true)]
     pub instance: Option<String>,
     /// The volume, in the instance's project and zone.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/volumes/{volume}`.
-    #[arg(long = "volume", value_name = "VOLUME")]
+    /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`; not an id.
+    #[arg(long = "volume", value_name = "NAME")]
     pub volume: String,
     /// The device name the guest sees the volume under, `vda` to `vdz`. The
     /// first free one when left empty.
@@ -2390,18 +2333,18 @@ async fn create_volume_attachment(
             ],
         );
     names
-        .learn(
-            &["projects/{project}/zones/{zone}/volumes/{volume}"],
-            "volume",
-            Some(args.volume.as_str()),
+        .learn_part(
+            "projects/{project}/zones/{zone}/instances/{instance}",
+            &["compute"],
+            "instance",
         )?;
     let parent = names.name("projects/{project}/zones/{zone}/instances/{instance}")?;
-    let volume = names
-        .reference(
-            &["projects/{project}/zones/{zone}/volumes/{volume}"],
-            "volume",
-            args.volume.as_str(),
-        )?;
+    let volume = reference(
+        &["projects/{project}/zones/{zone}/volumes/{volume}"],
+        &["pvs"],
+        "--volume",
+        args.volume.as_str(),
+    )?;
     let volume_attachment = ::origincloud_compute::v1beta1::VolumeAttachment {
         volume,
         device: args.device.clone().unwrap_or_default(),
@@ -2443,12 +2386,12 @@ pub struct DeleteVolumeAttachmentArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{instance}` part of the resource names the command builds. Needed unless `--volume-attachment` is given a whole name, which has it.
+    /// The instance: its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`, or its relative name, `projects/{project}/zones/{zone}/instances/{instance}`. Needed unless `--volume-attachment` is given a whole name, which has it.
     #[arg(long = "instance", value_name = "INSTANCE")]
     pub instance: Option<String>,
     /// The attachment to delete, detaching its volume.
     ///
-    /// Its id, completed with `--project` and `--zone` and `--instance`, or its whole name, `projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}`.
+    /// Its id, completed with `--project` and `--zone` and `--instance`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}`, or its relative name, `projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}`.
     #[arg(long = "volume-attachment", value_name = "VOLUME_ATTACHMENT")]
     pub volume_attachment: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -2474,18 +2417,26 @@ async fn delete_volume_attachment(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/zones/{zone}/instances/{instance}",
+            &["compute"],
+            "instance",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}",
             ],
+            &["compute"],
             "volume-attachment",
             Some(args.volume_attachment.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/zones/{zone}/instances/{instance}/volumeAttachments/{volume_attachment}",
             ],
+            &["compute"],
             "volume-attachment",
             args.volume_attachment.as_str(),
         )?;
@@ -2536,7 +2487,7 @@ pub struct GetOperationArgs {
     pub zone: Option<String>,
     /// The operation.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/operations/{operation}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/operations/{operation}`, or its relative name, `projects/{project}/zones/{zone}/operations/{operation}`.
     #[arg(long = "operation", value_name = "OPERATION")]
     pub operation: String,
 }
@@ -2549,12 +2500,14 @@ async fn get_operation(
     names
         .learn(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
+            &["compute"],
             "operation",
             Some(args.operation.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
+            &["compute"],
             "operation",
             args.operation.as_str(),
         )?;
@@ -2589,7 +2542,7 @@ pub struct WaitOperationArgs {
     pub zone: Option<String>,
     /// The operation.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/operations/{operation}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/operations/{operation}`, or its relative name, `projects/{project}/zones/{zone}/operations/{operation}`.
     #[arg(long = "operation", value_name = "OPERATION")]
     pub operation: String,
     /// How long to wait for the operation, such as `30s` or `5m`. Without it, the command waits as long as the operation takes. When it passes first, the command prints the operation as it is and exits with status 1.
@@ -2605,12 +2558,14 @@ async fn wait_operation(
     names
         .learn(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
+            &["compute"],
             "operation",
             Some(args.operation.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
+            &["compute"],
             "operation",
             args.operation.as_str(),
         )?;

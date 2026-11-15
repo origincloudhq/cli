@@ -119,9 +119,9 @@ struct Cx<'a> {
     /// The name patterns and singular names of the package's resources, by
     /// resource type.
     resources: BTreeMap<String, Resource>,
-    /// The patterns a reference field also takes, by the field's full name,
-    /// from `[[also_names]]`.
-    also: BTreeMap<String, Vec<String>>,
+    /// The resources a reference field's names may also be of, by the
+    /// field's full name, from `[[also_names]]`.
+    also: BTreeMap<String, Vec<Resource>>,
     /// Every field name of the package, for the help text.
     fields: BTreeSet<String>,
     /// The command creating each message of the package that one creates,
@@ -141,6 +141,10 @@ struct Resource {
     /// declares, and those of the types `[[also_names]]` adds for a field.
     others: Vec<String>,
     singular: String,
+    /// The services whose hosts its full names have: the domain of its type
+    /// (`pvs` for `pvs.origincloudapis.eu/Volume`), and those of the types
+    /// `[[also_names]]` adds.
+    services: Vec<String>,
 }
 
 impl Resource {
@@ -157,11 +161,24 @@ impl Resource {
         format!("&{:?}", self.patterns())
     }
 
-    /// The resource, also taking whole names of `patterns`.
-    fn also_taking(mut self, patterns: &[String]) -> Self {
-        for p in patterns {
-            if *p != self.pattern && !self.others.contains(p) {
-                self.others.push(p.clone());
+    /// The services as the runtime takes them: `&["…"]`.
+    fn services_arg(&self) -> String {
+        format!("&{:?}", self.services)
+    }
+
+    /// The resource, also taking whole names of `other`'s patterns, on its
+    /// service's host.
+    fn also_taking(mut self, other: &[Resource]) -> Self {
+        for o in other {
+            for p in o.patterns() {
+                if p != self.pattern && !self.others.iter().any(|q| q == p) {
+                    self.others.push(p.to_owned());
+                }
+            }
+            for service in &o.services {
+                if !self.services.contains(service) {
+                    self.services.push(service.clone());
+                }
             }
         }
         self
@@ -328,8 +345,8 @@ pub fn generate(
         "#[allow(unused_imports)]\n\
          use crate::sdk::runtime::{\n\
              api_error, deadline_after, deleted, duration, json, list_json, names_any, pace, passed,\n\
-             read_bytes_file, read_value_file, shown_once, success, tags, wait, wait_for, waited,\n\
-             waiting, zones,\n\
+             read_bytes_file, read_value_file, reference, shown_once, success, tags, wait, wait_for,\n\
+             waited, waiting, zones,\n\
              ConfirmedClient,\n\
              Context, Listing, ReadClient, OPERATION,\n\
          };\n\
@@ -789,6 +806,23 @@ fn json_path(message: &MessageDescriptor, path: &str) -> Option<String> {
     Some(json.join("."))
 }
 
+/// The service a resource type is of: the domain before
+/// `.origincloudapis.eu`, `pvs` for `pvs.origincloudapis.eu/Volume`.
+fn service_of_type(t: &str) -> &str {
+    t.split(['.', '/']).next().unwrap_or_default()
+}
+
+/// The full name form of `pattern` on `service`'s host:
+/// `//pvs.origincloudapis.eu/projects/{project}/…`.
+fn full_form(service: &str, pattern: &str) -> String {
+    format!("//{service}.origincloudapis.eu/{pattern}")
+}
+
+/// The name parts that stay ids, shorthand for the command's own target
+/// and never whole names: a parent's flag, such as `--security-group`,
+/// takes a whole name as well.
+const SHORTHAND: [&str; 4] = ["project", "zone", "region", "organization"];
+
 fn resources(pool: &DescriptorPool) -> BTreeMap<String, Resource> {
     let mut out = BTreeMap::new();
     for message in pool.all_messages() {
@@ -819,12 +853,14 @@ fn resources(pool: &DescriptorPool) -> BTreeMap<String, Resource> {
         if singular.is_empty() {
             singular = message.name().to_snake_case();
         }
+        let t = text("type");
         out.insert(
-            text("type"),
+            t.clone(),
             Resource {
                 pattern,
                 others: patterns,
                 singular,
+                services: vec![service_of_type(&t).to_owned()],
             },
         );
     }
@@ -839,9 +875,9 @@ fn resources(pool: &DescriptorPool) -> BTreeMap<String, Resource> {
 fn also_names(
     pool: &DescriptorPool,
     policy: &Policy,
-) -> anyhow::Result<BTreeMap<String, Vec<String>>> {
+) -> anyhow::Result<BTreeMap<String, Vec<Resource>>> {
     let resources = resources(pool);
-    let mut out: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut out: BTreeMap<String, Vec<Resource>> = BTreeMap::new();
     for entry in &policy.also_names {
         let refused = |why: &str| {
             anyhow::anyhow!(
@@ -873,7 +909,7 @@ fn also_names(
         })?;
         out.entry(entry.field.clone())
             .or_default()
-            .extend(resource.patterns().into_iter().map(str::to_owned));
+            .push(resource.clone());
     }
     Ok(out)
 }
@@ -944,7 +980,7 @@ fn reference(pool: &DescriptorPool, field: &FieldDescriptor) -> Option<(String, 
 fn named_resource(cx: &Cx<'_>, m: &MethodDescriptor, field: &FieldDescriptor) -> Option<Resource> {
     match reference(cx.pool, field) {
         Some(_) => referenced(cx, field),
-        None => http_resource(cx.pool, m, field.name()),
+        None => http_resource(cx.pool, cx.service, m, field.name()),
     }
 }
 
@@ -954,7 +990,14 @@ fn named_resource(cx: &Cx<'_>, m: &MethodDescriptor, field: &FieldDescriptor) ->
 /// named after the collection before it, in the singular, as
 /// `projects/{project}/zones/{zone}/operations/{operation}`. `None` when
 /// the binding doesn't have that shape.
-fn http_resource(pool: &DescriptorPool, m: &MethodDescriptor, field: &str) -> Option<Resource> {
+/// A path field's resource as its HTTP rule's template has it, the field
+/// declaring no type: a resource of the method's own service, `service`.
+fn http_resource(
+    pool: &DescriptorPool,
+    service: &str,
+    m: &MethodDescriptor,
+    field: &str,
+) -> Option<Resource> {
     let rule = message_extension(pool, &m.options(), "google.api.http")?;
     let path = ["get", "put", "post", "delete", "patch"]
         .iter()
@@ -971,6 +1014,7 @@ fn http_resource(pool: &DescriptorPool, m: &MethodDescriptor, field: &str) -> Op
         pattern,
         others: Vec::new(),
         singular,
+        services: vec![service.to_owned()],
     })
 }
 
@@ -1525,6 +1569,10 @@ struct Build {
     /// The flags taking a whole name that gives a name part, by the part:
     /// such a part can come from one of them instead of its own flag.
     whole_names: BTreeMap<String, Vec<String>>,
+    /// The name pattern each part a parent's flag sets ends, and the
+    /// service it is of: `projects/{project}/regions/{region}/securityGroups/{security_group}`
+    /// for `security_group`. Such a flag takes a whole name of it.
+    parents: BTreeMap<String, (String, String)>,
     /// Statements learning name parts from whole names given.
     learn: Vec<String>,
     /// Statements before the request.
@@ -1535,9 +1583,6 @@ struct Build {
     vocabulary: BTreeMap<String, String>,
     /// The ids of the flags of an update, at least one of which is needed.
     update_ids: Vec<String>,
-    /// Whether the handler completes resource names, such as those a
-    /// nested message's keys give, without a name-part flag.
-    needs_names: bool,
     /// The flags of each oneof, by its name: at most one is given.
     oneofs: Vec<(String, Vec<String>, bool)>,
 }
@@ -1556,23 +1601,47 @@ impl Build {
         Ok(())
     }
 
-    fn add_components(&mut self, pattern: &str, leaf: Option<&str>) {
-        for var in variables(pattern) {
-            if Some(var.as_str()) != leaf && !self.components.contains(&var) {
-                self.components.push(var);
+    /// Adds the name parts of `pattern`, of `service`, but `leaf`. A part
+    /// that isn't shorthand is a parent's: its flag takes a whole name of
+    /// the pattern up to it, which gives the parts before it.
+    fn add_components(&mut self, pattern: &str, service: &str, leaf: Option<&str>) {
+        let segments: Vec<&str> = pattern.split('/').collect();
+        for (i, segment) in segments.iter().enumerate() {
+            let Some(var) = segment.strip_prefix('{').and_then(|s| s.strip_suffix('}')) else {
+                continue;
+            };
+            if Some(var) == leaf {
+                continue;
+            }
+            if !self.components.iter().any(|c| c == var) {
+                self.components.push(var.to_owned());
+            }
+            if !SHORTHAND.contains(&var) && !self.parents.contains_key(var) {
+                let prefix = segments[..=i].join("/");
+                for before in variables(&prefix).into_iter().filter(|v| v != var) {
+                    self.gives(&before, &var.to_kebab_case());
+                }
+                self.parents
+                    .insert(var.to_owned(), (prefix, service.to_owned()));
             }
         }
     }
 
-    /// Adds the name parts of `pattern` but its last, `leaf`, which `flag`
-    /// takes, by its id or as a whole name giving the others.
-    fn add_reference(&mut self, pattern: &str, leaf: &str, flag: &str) {
-        self.add_components(pattern, Some(leaf));
+    /// Records that a whole name given to `--{flag}` gives the part `var`.
+    fn gives(&mut self, var: &str, flag: &str) {
+        let flags = self.whole_names.entry(var.to_owned()).or_default();
+        if !flags.iter().any(|f| f == flag) {
+            flags.push(flag.to_owned());
+        }
+    }
+
+    /// Adds the name parts of the command's own target, `pattern` of
+    /// `service`, but its last, `leaf`, which `flag` takes, by its id or as
+    /// a whole name giving the others.
+    fn add_target(&mut self, pattern: &str, service: &str, leaf: &str, flag: &str) {
+        self.add_components(pattern, service, Some(leaf));
         for var in variables(pattern).into_iter().filter(|v| v != leaf) {
-            let flags = self.whole_names.entry(var).or_default();
-            if !flags.iter().any(|f| f == flag) {
-                flags.push(flag.to_owned());
-            }
+            self.gives(&var, flag);
         }
     }
 }
@@ -1599,38 +1668,95 @@ fn component_doc(var: &str) -> String {
     }
 }
 
-/// The help of a flag taking a name of `resource`: an id completes to its
-/// first pattern, and a whole name may have any of them.
-fn reference_doc(comment: &str, resource: &Resource, leaf: &str) -> String {
+/// The forms of `resource`'s whole names, full then relative, for help:
+/// "its full name, `//…`, or its relative name, `…`", each of any of its
+/// patterns.
+fn whole_forms(resource: &Resource) -> String {
+    let join = |forms: Vec<String>| match forms.as_slice() {
+        [first @ .., last] if !first.is_empty() => format!("{} or {last}", first.join(", ")),
+        _ => forms.join(""),
+    };
+    let patterns = resource.patterns();
+    let full = join(
+        patterns
+            .iter()
+            .map(|p| format!("`{}`", full_form(&resource.services[0], p)))
+            .collect(),
+    );
+    let relative = join(patterns.iter().map(|p| format!("`{p}`")).collect());
+    format!("its full name, {full}, or its relative name, {relative}")
+}
+
+/// The help of the flag of the command's own target, of `resource`: its id,
+/// completed into its first pattern with the other parts' flags, or a whole
+/// name of any of its patterns.
+fn target_doc(comment: &str, resource: &Resource, leaf: &str) -> String {
     let others: Vec<String> = variables(&resource.pattern)
         .into_iter()
         .filter(|v| v != leaf)
         .map(|v| format!("`--{}`", v.to_kebab_case()))
         .collect();
-    let forms: Vec<String> = resource
-        .patterns()
-        .iter()
-        .map(|p| format!("`{p}`"))
-        .collect();
-    let whole = match forms.as_slice() {
-        [first @ .., last] if !first.is_empty() => {
-            format!("{} or {last}", first.join(", "))
-        }
-        _ => forms.join(""),
-    };
-    let how = if others.is_empty() {
-        format!("Its id, or its whole name, {whole}.")
+    let id = if others.is_empty() {
+        "Its id".to_owned()
     } else {
-        format!(
-            "Its id, completed with {}, or its whole name, {whole}.",
-            others.join(" and ")
-        )
+        format!("Its id, completed with {}", others.join(" and "))
     };
+    with_comment(comment, format!("{id}, or {}.", whole_forms(resource)))
+}
+
+/// The help of a flag referring to a resource of `resource`'s type: a whole
+/// name, never an id, sent as given.
+fn reference_doc(comment: &str, resource: &Resource) -> String {
+    let forms = whole_forms(resource);
+    let mut chars = forms.chars();
+    let forms = match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect::<String>(),
+        None => forms,
+    };
+    with_comment(comment, format!("{forms}; not an id."))
+}
+
+fn with_comment(comment: &str, how: String) -> String {
     if comment.is_empty() {
         how
     } else {
         format!("{comment}\n\n{how}")
     }
+}
+
+/// The runtime's check of `value`, a `&str` expression, given to `source`
+/// as a reference to a resource of `resource`'s type: the name to send, or
+/// an error. `reference(&[…], &["pvs"], "--volume", value)`.
+fn reference_call(resource: &Resource, source: &str, value: &str) -> String {
+    format!(
+        "reference({}, {}, {source:?}, {value})",
+        resource.patterns_arg(),
+        resource.services_arg()
+    )
+}
+
+/// The help of the flag of a parent's part, such as `--security-group` of
+/// a rule: its id, completed with the parts before it, or a whole name of
+/// `pattern`, which ends with it, on `service`'s host.
+fn parent_doc(var: &str, pattern: &str, service: &str) -> String {
+    let what = var.replace('_', " ");
+    let before: Vec<String> = variables(pattern)
+        .into_iter()
+        .filter(|v| v != var)
+        .map(|v| format!("`--{}`", v.to_kebab_case()))
+        .collect();
+    let id = if before.is_empty() {
+        format!("The {what}: its id")
+    } else {
+        format!(
+            "The {what}: its id, completed with {}",
+            before.join(" and ")
+        )
+    };
+    format!(
+        "{id}, or its full name, `{}`, or its relative name, `{pattern}`.",
+        full_form(service, pattern)
+    )
 }
 
 fn leaf_of(pattern: &str) -> String {
@@ -1918,7 +2044,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                 if pattern.is_empty() {
                     continue;
                 }
-                b.add_components(&pattern, None);
+                b.add_components(&pattern, &resource.services[0], None);
                 if list.is_some() && variables(&pattern).iter().any(|v| v == "zone") {
                     // Set per zone, once the zones are known.
                     zonal_parent = Some(pattern);
@@ -1939,7 +2065,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                 continue;
             }
         } else if name == "name" {
-            if let Some(resource) = http_resource(cx.pool, m, &name) {
+            if let Some(resource) = http_resource(cx.pool, cx.service, m, &name) {
                 // The field's comment describes the name as one string; the
                 // flag takes it by its parts too, which its help says.
                 let leaf = leaf_of(&resource.pattern);
@@ -2341,22 +2467,27 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
              the service is listed, in catalog order; the profile's `default-zone` isn't used \
              for lists."
                 .to_owned()
-        } else if DEFAULTED.contains(&var.as_str()) {
-            component_doc(var)
-        } else if let Some(flags) = b.whole_names.get(var) {
-            // Only the runtime knows whether one of them is given a whole
-            // name, which gives the part.
-            let flags: Vec<String> = flags.iter().map(|f| format!("`--{f}`")).collect();
-            format!(
-                "{} Needed unless {} is given a whole name, which has it.",
-                component_doc(var),
-                flags.join(" or ")
-            )
         } else {
-            // Nothing else gives it: clap requires it, and the usage line
-            // shows it.
-            attrs.push("required = true".to_owned());
-            component_doc(var)
+            let own = match b.parents.get(var) {
+                Some((pattern, service)) => parent_doc(var, pattern, service),
+                None => component_doc(var),
+            };
+            if DEFAULTED.contains(&var.as_str()) {
+                own
+            } else if let Some(flags) = b.whole_names.get(var) {
+                // Only the runtime knows whether one of them is given a
+                // whole name, which gives the part.
+                let flags: Vec<String> = flags.iter().map(|f| format!("`--{f}`")).collect();
+                format!(
+                    "{own} Needed unless {} is given a whole name, which has it.",
+                    flags.join(" or ")
+                )
+            } else {
+                // Nothing else gives it: clap requires it, and the usage
+                // line shows it.
+                attrs.push("required = true".to_owned());
+                own
+            }
         };
         Flag {
             ident: ident(var),
@@ -2390,7 +2521,20 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         .iter()
         .map(|v| format!("({v:?}, args.{}.as_deref())", ident(v)))
         .collect();
-    let uses_names = !b.components.is_empty() || !b.learn.is_empty() || b.needs_names;
+    // A parent's flag given a whole name gives the parts before it, first,
+    // so that the target's whole name is checked against them.
+    let parent_parts: Vec<String> = b
+        .components
+        .iter()
+        .filter_map(|var| {
+            let (pattern, service) = b.parents.get(var)?;
+            Some(format!(
+                "names.learn_part({pattern:?}, &[{service:?}], {var:?})?;"
+            ))
+        })
+        .collect();
+    b.learn.splice(0..0, parent_parts);
+    let uses_names = !b.components.is_empty() || !b.learn.is_empty();
     if uses_names {
         let mutable = if b.learn.is_empty() { "" } else { "mut " };
         let _ = writeln!(
@@ -2712,22 +2856,24 @@ fn leaf_name(
 ) -> Result<String, String> {
     let fid = ident(leaf);
     let long = leaf.to_kebab_case();
-    b.add_reference(&resource.pattern, leaf, &long);
+    b.add_target(&resource.pattern, &resource.services[0], leaf, &long);
     b.add_flag(Flag {
         ident: fid.clone(),
         long: long.clone(),
-        doc: reference_doc(comment, resource, leaf),
+        doc: target_doc(comment, resource, leaf),
         ty: "String".to_owned(),
         attrs: vec![format!("value_name = {:?}", leaf.to_uppercase())],
     })?;
     b.learn.push(format!(
-        "names.learn({}, {:?}, Some(args.{fid}.as_str()))?;",
+        "names.learn({}, {}, {:?}, Some(args.{fid}.as_str()))?;",
         resource.patterns_arg(),
+        resource.services_arg(),
         long
     ));
     Ok(format!(
-        "names.reference({}, {long:?}, args.{fid}.as_str())?",
-        resource.patterns_arg()
+        "names.target({}, {}, {long:?}, args.{fid}.as_str())?",
+        resource.patterns_arg(),
+        resource.services_arg()
     ))
 }
 
@@ -2828,7 +2974,7 @@ fn value(
             let long = singular(field.name()).to_kebab_case();
             let mut attrs = Vec::new();
             required_attr(&mut attrs);
-            let (ty, doc, expr) = list_elements(b, elem, &one, &long, doc);
+            let (ty, doc, expr) = list_elements(elem, &one, &long, doc);
             attrs.extend(list_attrs(elem));
             b.add_flag(Flag {
                 ident: one.clone(),
@@ -2918,29 +3064,21 @@ fn value(
             }
         }
         Kind2::Reference(resource) => {
-            let leaf = leaf_of(&resource.pattern);
-            b.add_reference(&resource.pattern, &leaf, &long);
             b.add_flag(Flag {
                 ident: fid.clone(),
                 long: long.clone(),
-                doc: reference_doc(doc, resource, &leaf),
+                doc: reference_doc(doc, resource),
                 ty: if required { "String" } else { "Option<String>" }.to_owned(),
-                attrs: vec![format!("value_name = {:?}", leaf.to_uppercase())],
+                attrs: vec![format!("value_name = {:?}", "NAME")],
             })?;
-            let patterns = resource.patterns_arg();
+            let source = format!("--{long}");
             if required {
-                b.learn.push(format!(
-                    "names.learn({patterns}, {long:?}, Some(args.{fid}.as_str()))?;"
-                ));
-                b.prelude.push(format!(
-                    "let {fid} = names.reference({patterns}, {long:?}, args.{fid}.as_str())?;"
-                ));
+                let call = reference_call(resource, &source, &format!("args.{fid}.as_str()"));
+                b.prelude.push(format!("let {fid} = {call}?;"));
             } else {
-                b.learn.push(format!(
-                    "names.learn({patterns}, {long:?}, args.{fid}.as_deref())?;"
-                ));
+                let call = reference_call(resource, &source, "v");
                 b.prelude.push(format!(
-                    "let {fid} = match args.{fid}.as_deref() {{ Some(v) => names.reference({patterns}, {long:?}, v)?, None => String::new() }};"
+                    "let {fid} = match args.{fid}.as_deref() {{ Some(v) => {call}?, None => String::new() }};"
                 ));
             }
             fid
@@ -3022,7 +3160,7 @@ fn update_field(
             let none = format!("no_{}", name.to_snake_case());
             let (ty, comment, expr, attrs, form) = match k {
                 Kind2::List(elem) => {
-                    let (ty, comment, expr) = list_elements(b, elem, &one, &one_long, comment);
+                    let (ty, comment, expr) = list_elements(elem, &one, &one_long, comment);
                     (ty, comment, expr, list_attrs(elem), "Repeat")
                 }
                 _ => (
@@ -3149,23 +3287,18 @@ fn update_field(
             )
         }
         Kind2::Reference(resource) => {
-            let leaf = leaf_of(&resource.pattern);
-            b.add_reference(&resource.pattern, &leaf, &long);
             b.add_flag(Flag {
                 ident: fid.clone(),
                 long: long.clone(),
-                doc: format!("{}{kept}", reference_doc(comment, resource, &leaf)),
+                doc: format!("{}{kept}", reference_doc(comment, resource)),
                 ty: "Option<String>".to_owned(),
-                attrs: vec![format!("value_name = {:?}", leaf.to_uppercase())],
+                attrs: vec![format!("value_name = {:?}", "NAME")],
             })?;
             b.update_ids.push(arg_id(&fid).to_owned());
-            let patterns = resource.patterns_arg();
-            b.learn.push(format!(
-                "names.learn({patterns}, {long:?}, args.{fid}.as_deref())?;"
-            ));
+            let call = reference_call(resource, &format!("--{long}"), "value");
             format!(
                 "if let Some(value) = args.{fid}.as_deref() {{ {} }}",
-                set(&format!("names.reference({patterns}, {long:?}, value)?"))
+                set(&format!("{call}?"))
             )
         }
     })
@@ -3397,23 +3530,16 @@ fn oneof_flags(
                 format!("args.{fid}")
             }
             Kind2::Reference(resource) => {
-                let leaf = leaf_of(&resource.pattern);
-                b.add_reference(&resource.pattern, &leaf, &long);
                 b.add_flag(Flag {
                     ident: fid.clone(),
                     long: long.clone(),
-                    doc: reference_doc(&doc, &resource, &leaf),
+                    doc: reference_doc(&doc, &resource),
                     ty: "Option<String>".to_owned(),
-                    attrs: vec![format!("value_name = {:?}", leaf.to_uppercase())],
+                    attrs: vec![format!("value_name = {:?}", "NAME")],
                 })?;
-                let patterns = resource.patterns_arg();
-                b.learn.push(format!(
-                    "names.learn({patterns}, {long:?}, args.{fid}.as_deref())?;"
-                ));
                 ids.push(arg_id(&fid).to_owned());
-                format!(
-                    "args.{fid}.as_deref().map(|v| names.reference({patterns}, {long:?}, v)).transpose()?"
-                )
+                let call = reference_call(&resource, &format!("--{long}"), "v");
+                format!("args.{fid}.as_deref().map(|v| {call}).transpose()?")
             }
             Kind2::Message(n) => {
                 let before = b.flags.len();
@@ -3519,13 +3645,7 @@ fn docs_of(doc: &str) -> &str {
 
 /// A repeated scalar field's flag: its type, its help, and the expression
 /// of its value, given the flag's field `one` and name `long`.
-fn list_elements(
-    b: &mut Build,
-    elem: &Elem,
-    one: &str,
-    long: &str,
-    doc: &str,
-) -> (String, String, String) {
+fn list_elements(elem: &Elem, one: &str, long: &str, doc: &str) -> (String, String, String) {
     match elem {
         Elem::Scalar(ty) => (
             format!("Vec<{ty}>"),
@@ -3540,17 +3660,12 @@ fn list_elements(
             ),
         ),
         Elem::Reference(resource) => {
-            let leaf = leaf_of(&resource.pattern);
-            b.add_reference(&resource.pattern, &leaf, long);
-            let patterns = resource.patterns_arg();
-            b.learn.push(format!(
-                "for value in &args.{one} {{ names.learn({patterns}, {long:?}, Some(value.as_str()))?; }}"
-            ));
+            let call = reference_call(resource, &format!("--{long}"), "v.as_str()");
             (
                 "Vec<String>".to_owned(),
-                reference_doc(doc, resource, &leaf).replace("Its id", "Each by its id"),
+                reference_doc(doc, resource).replace("Its full name", "Each by its full name"),
                 format!(
-                    "args.{one}.iter().map(|v| names.reference({patterns}, {long:?}, v.as_str())).collect::<anyhow::Result<Vec<String>>>()?"
+                    "args.{one}.iter().map(|v| {call}).collect::<anyhow::Result<Vec<String>>>()?"
                 ),
             )
         }
@@ -3564,31 +3679,26 @@ fn list_attrs(elem: &Elem) -> Vec<String> {
             let quoted: Vec<String> = values.iter().map(|v| format!("{v:?}")).collect();
             vec![format!("value_parser = [{}]", quoted.join(", "))]
         }
-        Elem::Reference(resource) => {
-            vec![format!(
-                "value_name = {:?}",
-                leaf_of(&resource.pattern).to_uppercase()
-            )]
-        }
+        Elem::Reference(_) => vec![format!("value_name = {:?}", "NAME")],
         Elem::Scalar(_) => Vec::new(),
     }
 }
 
-/// The statements completing the resource names a nested message's keys
-/// gave, on the message `var`, given with the flag `--{flag}`: an id is
-/// completed with the command's `--project` and `--zone`, as everywhere.
-fn completions(b: &mut Build, n: &Nested, var: &str, flag: &str) -> Vec<String> {
+/// The statements checking the resource names a nested message's keys
+/// gave, on the message `var`, given with the flag `--{flag}`: each a full
+/// name on the referenced type's host, or a relative name, never an id.
+fn completions(n: &Nested, var: &str, flag: &str) -> Vec<String> {
     let mut out = Vec::new();
     for key in &n.keys {
         if let Kind2::Reference(resource) = &key.kind {
-            let leaf = leaf_of(&resource.pattern);
-            b.add_reference(&resource.pattern, &leaf, flag);
-            b.needs_names = true;
             let id = &key.ident;
-            let label = format!("{flag} {}", key.name);
+            let call = reference_call(
+                resource,
+                &format!("--{flag} {}", key.name),
+                &format!("{var}.{id}.as_str()"),
+            );
             out.push(format!(
-                "if !{var}.{id}.is_empty() {{ {var}.{id} = names.reference({}, {label:?}, {var}.{id}.as_str())?; }}",
-                resource.patterns_arg()
+                "if !{var}.{id}.is_empty() {{ {var}.{id} = {call}?; }}"
             ));
         }
     }
@@ -3606,10 +3716,7 @@ fn key_hint(kind: &Kind2) -> String {
         Kind2::Bool => " `true` or `false`.".to_owned(),
         Kind2::Duration => " Such as `30s` or `1m`.".to_owned(),
         Kind2::Timestamp => " As RFC 3339, such as `2026-11-01T12:00:00Z`.".to_owned(),
-        Kind2::Reference(resource) => {
-            let leaf = leaf_of(&resource.pattern);
-            format!(" {}", reference_doc("", resource, &leaf))
-        }
+        Kind2::Reference(resource) => format!(" {}", reference_doc("", resource)),
         _ => String::new(),
     }
 }
@@ -3768,37 +3875,6 @@ fn message_flags(
         b.update_ids.push(none.clone());
     }
 
-    // A whole resource name a key gives is checked against the command's
-    // `--project` and `--zone`, as a whole name given to a flag is.
-    let learned: Vec<String> = n
-        .keys
-        .iter()
-        .filter_map(|key| match &key.kind {
-            Kind2::Reference(resource) => Some(format!(
-                "names.learn({}, {:?}, Some(item.{}.as_str()))?;",
-                resource.patterns_arg(),
-                format!("{one_long} {}", key.name),
-                key.ident
-            )),
-            _ => None,
-        })
-        .collect();
-    if !learned.is_empty() {
-        let body = learned.join(" ");
-        if n.parser.is_some() {
-            b.learn.push(if repeated {
-                format!("for keyed in &args.{one} {{ let item = &keyed.value; {body} }}")
-            } else {
-                format!("if let Some(keyed) = &args.{one} {{ let item = &keyed.value; {body} }}")
-            });
-        }
-        b.learn.push(if repeated {
-            format!("if let Some(json) = &args.{json} {{ for item in &json.0 {{ {body} }} }}")
-        } else {
-            format!("if let Some(json) = &args.{json} {{ let item = &json.0; {body} }}")
-        });
-    }
-
     // The value: from the JSON flag or the pairs, its names completed, each
     // element once in a list the API keeps unordered. An update says what
     // it replaces.
@@ -3828,7 +3904,7 @@ fn message_flags(
             format!("notice_reset(\"--{one_long}\", {name:?}, &[{all_keys}], &keyed.given); ")
         }
     };
-    let completions = completions(b, n, "item", &one_long);
+    let completions = completions(n, "item", &one_long);
     let binding = if completions.is_empty() {
         "let"
     } else {
@@ -3952,36 +4028,16 @@ fn json_doc(comment: &str, n: &Nested, keyed_long: &str, repeated: bool) -> Stri
          definitions name them; `@FILE` reads it from a file. Each field and value is checked \
          before anything is sent, at any depth."
     ));
-    // Only a message naming a resource has a name to complete, with the
-    // flags of its parts but its own.
-    let mut parts: Vec<String> = Vec::new();
-    for key in &n.keys {
-        let resource = match &key.kind {
-            Kind2::Reference(r) => r,
-            Kind2::Optional(kind) => match &**kind {
-                Kind2::Reference(r) => r,
-                _ => continue,
-            },
-            _ => continue,
-        };
-        let leaf = leaf_of(&resource.pattern);
-        for var in variables(&resource.pattern) {
-            let flag = format!("`--{}`", var.to_kebab_case());
-            if var != leaf && !parts.contains(&flag) {
-                parts.push(flag);
-            }
-        }
-    }
-    if !parts.is_empty() {
-        let with = match parts.split_last() {
-            Some((last, [])) => last.clone(),
-            Some((last, rest)) => format!("{} and {last}", rest.join(", ")),
-            None => unreachable!("parts isn't empty"),
-        };
-        doc.push_str(&format!(
-            " A resource name in a field of the message itself is completed with {with}, as in \
-             its KEY=VALUE form; one nested deeper must be whole."
-        ));
+    // A resource name in it is never completed from parts.
+    let names = n.keys.iter().any(|k| {
+        matches!(&k.kind, Kind2::Reference(_))
+            || matches!(&k.kind, Kind2::Optional(kind) if matches!(**kind, Kind2::Reference(_)))
+    });
+    if names {
+        doc.push_str(
+            " A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a \
+             relative one, never an id, as in its KEY=VALUE form.",
+        );
     }
     if n.parser.is_some() {
         doc.push_str(&format!(" Instead of `--{keyed_long}`."));

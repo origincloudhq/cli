@@ -96,10 +96,28 @@ it.
 A resource name is checked as the SDK checks the names it sends
 (`origincloud_core::path_value`), never against an alphabet of the CLI's:
 each id is one segment, not empty, `.` or `..`, and without `/`, and
-anything else, such as the dots of `gp1.core.2`, is the API's to judge. A
-reference whose resource declares several patterns (`google.api.resource`'s
-`pattern` list) takes a whole name of each, its help naming them all; an id
-completes to the first.
+anything else, such as the dots of `gp1.core.2`, is the API's to judge.
+
+Every flag naming a resource takes its full name (AIP-122),
+`//{service}.origincloudapis.eu/{relative}`, parsed with the SDK's
+`origincloud_core::names::FullName`, whose host must be the service of the
+type the field refers to (the domain of its `google.api.resource_reference`
+type, `pvs` for `pvs.origincloudapis.eu/Volume`), and its relative name
+too. The command's own target (`name`, or the resource of an update) and
+its parents' flags (`--instance` of a volume attachment, any part of the
+pattern but `--project`, `--zone`, `--region` and `--organization`) also
+take ids, completed from those flags and the profile (`runtime.rs`'s
+`Names`); a whole name given to one fills in the other parts, and the
+request's path is the relative name. A reference to another resource, in a
+flag, a key or JSON at any depth, is never made of parts (`runtime.rs`'s
+`reference`): it is a whole name, sent as given, and an id is refused with
+the full name's form. A reference whose resource declares several patterns
+(`google.api.resource`'s `pattern` list) takes a whole name of each, its
+help naming them all.
+
+The tests' scratch service isn't one of the platform's, so its full names
+aren't (`FullName` knows the platform's services only): its tests use
+relative names, and full names are tested through the published services.
 
 A duration or a timestamp is a flag of its own form (`30s`, RFC 3339). A
 `bytes` field is `--{field}-file`, taking a path or `-` for standard input,
@@ -206,8 +224,8 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   (`origincloud.compute.v1beta1.Instance.image`), that takes the names of
   another resource type too (`compute.origincloudapis.eu/PublicImage`),
   which its `google.api.resource_reference`, naming one type, can't say:
-  its flag, key or JSON value takes a whole name of either, and an id still
-  completes to the declared type's pattern. Generation fails when the
+  its flag, key or JSON value takes a whole name of either, full on that
+  type's service's host or relative. Generation fails when the
   field isn't a reference to a type the API declares, or the other type
   isn't one;
 - `[[view]]` names the columns of the `table` a list of a message is
@@ -298,7 +316,7 @@ required `organization`) page through the request as its flags make it; a
 client-chosen id (AIP-133, `CreateProject`'s `project_id`) is a flag like any
 request field, required when the API requires it. A reference to a resource
 type the API doesn't declare, such as one of a package not published yet, is
-a string flag taking the whole name.
+a string flag taking the whole name, unchecked.
 
 ### A service replacing a hand-written group
 

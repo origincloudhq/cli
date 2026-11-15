@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_bytes_file, read_value_file, shown_once, success, tags, wait, wait_for,
-    waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -245,7 +246,7 @@ pub struct GetBillingAccountArgs {
     pub organization: Option<String>,
     /// The billing account to return.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}`.
+    /// Its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`.
     #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
     pub billing_account: String,
 }
@@ -257,12 +258,14 @@ async fn get_billing_account(
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             Some(args.billing_account.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             args.billing_account.as_str(),
         )?;
@@ -373,9 +376,6 @@ pub struct CreateBillingAccountArgs {
     /// The `{organization}` part of the resource names the command builds.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
-    /// The `{legal_document}` part of the resource names the command builds. Needed unless `--accepted-legal-document` is given a whole name, which has it.
-    #[arg(long = "legal-document", value_name = "LEGAL_DOCUMENT")]
-    pub legal_document: Option<String>,
     /// The name the console and spend-limit alerts show. Not empty. An
     /// organization's default account is called `default` until it is
     /// renamed.
@@ -421,7 +421,7 @@ pub struct CreateBillingAccountArgs {
     pub request_id: Option<String>,
     #[arg(
         long = "accepted-legal-document",
-        long_help = "The legal document versions the new billing account accepts, each with the `sha256` of the text shown. Required once a version of a document customers accept is in force: every such version must be accepted, or the request fails naming `acceptedLegalDocuments` and creates nothing.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`legal_document_version`, required: The version, `legalDocuments/{legal_document}/versions/{version}`. Its id, completed with `--legal-document`, or its whole name, `legalDocuments/{legal_document}/versions/{version}`.\n\n`sha256`, required: The version's `sha256`, as read with it: an acceptance is refused when the text shown isn't the version's.\n\nA value with a comma in it goes through `--accepted-legal-documents-json` too.",
+        long_help = "The legal document versions the new billing account accepts, each with the `sha256` of the text shown. Required once a version of a document customers accept is in force: every such version must be accepted, or the request fails naming `acceptedLegalDocuments` and creates nothing.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`legal_document_version`, required: The version, `legalDocuments/{legal_document}/versions/{version}`. Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`, or its relative name, `legalDocuments/{legal_document}/versions/{version}`; not an id.\n\n`sha256`, required: The version's `sha256`, as read with it: an acceptance is refused when the text shown isn't the version's.\n\nA value with a comma in it goes through `--accepted-legal-documents-json` too.",
         help = "The legal document versions the new billing account accepts, each with the `sha256` of the text shown: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_legal_document_version_to_accept(
@@ -435,7 +435,7 @@ pub struct CreateBillingAccountArgs {
     >,
     #[arg(
         long = "accepted-legal-documents-json",
-        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--legal-document`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--accepted-legal-document`.",
+        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, never an id, as in its KEY=VALUE form. Instead of `--accepted-legal-document`.",
         help = "Accepted legal documents as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<Vec<::origincloud_billing::v1beta1::LegalDocumentVersionToAccept>>(
@@ -459,32 +459,7 @@ async fn create_billing_account(
     ctx: &Context<'_>,
     args: CreateBillingAccountArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[
-                ("organization", args.organization.as_deref()),
-                ("legal_document", args.legal_document.as_deref()),
-            ],
-        );
-    for keyed in &args.accepted_legal_document {
-        let item = &keyed.value;
-        names
-            .learn(
-                &["legalDocuments/{legal_document}/versions/{version}"],
-                "accepted-legal-document legal_document_version",
-                Some(item.legal_document_version.as_str()),
-            )?;
-    }
-    if let Some(json) = &args.accepted_legal_documents_json {
-        for item in &json.0 {
-            names
-                .learn(
-                    &["legalDocuments/{legal_document}/versions/{version}"],
-                    "accepted-legal-document legal_document_version",
-                    Some(item.legal_document_version.as_str()),
-                )?;
-        }
-    }
+    let names = ctx.names(&[("organization", args.organization.as_deref())]);
     let parent = names.name("organizations/{organization}")?;
     let billing_address = match args.billing_address_json {
         Some(json) => Some(json.0),
@@ -511,12 +486,12 @@ async fn create_billing_account(
     };
     for item in &mut accepted_legal_documents {
         if !item.legal_document_version.is_empty() {
-            item.legal_document_version = names
-                .reference(
-                    &["legalDocuments/{legal_document}/versions/{version}"],
-                    "accepted-legal-document legal_document_version",
-                    item.legal_document_version.as_str(),
-                )?;
+            item.legal_document_version = reference(
+                &["legalDocuments/{legal_document}/versions/{version}"],
+                &["billing"],
+                "--accepted-legal-document legal_document_version",
+                item.legal_document_version.as_str(),
+            )?;
         }
     }
     let request = ::origincloud_billing::v1beta1::CreateBillingAccountRequest {
@@ -570,7 +545,7 @@ pub struct UpdateBillingAccountArgs {
     pub organization: Option<String>,
     /// The billing account to change.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}`.
+    /// Its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`.
     #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
     pub billing_account: String,
     /// The name the console and spend-limit alerts show. Not empty. An
@@ -636,12 +611,14 @@ async fn update_billing_account(
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             Some(args.billing_account.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             args.billing_account.as_str(),
         )?;
@@ -726,7 +703,7 @@ pub struct DeleteBillingAccountArgs {
     pub organization: Option<String>,
     /// The billing account to delete.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}`.
+    /// Its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`.
     #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
     pub billing_account: String,
     #[command(flatten)]
@@ -740,12 +717,14 @@ async fn delete_billing_account(
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             Some(args.billing_account.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             args.billing_account.as_str(),
         )?;
@@ -788,7 +767,7 @@ pub struct StartPaymentMethodSetupArgs {
     pub organization: Option<String>,
     /// The billing account to add a payment method to.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}`.
+    /// Its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`.
     #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
     pub billing_account: String,
 }
@@ -800,12 +779,14 @@ async fn start_payment_method_setup(
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             Some(args.billing_account.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             args.billing_account.as_str(),
         )?;
@@ -837,7 +818,7 @@ pub struct ConfirmPaymentMethodSetupArgs {
     pub organization: Option<String>,
     /// The billing account whose setup to complete.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}`.
+    /// Its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`.
     #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
     pub billing_account: String,
 }
@@ -849,12 +830,14 @@ async fn confirm_payment_method_setup(
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             Some(args.billing_account.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             args.billing_account.as_str(),
         )?;
@@ -883,7 +866,7 @@ async fn call_confirm_payment_method_setup(
 pub struct GetProjectBillingInfoArgs {
     /// The billing info to return, `projects/{project}/billingInfo`.
     ///
-    /// Its id, or its whole name, `projects/{project}/billingInfo`.
+    /// Its id, or its full name, `//billing.origincloudapis.eu/projects/{project}/billingInfo`, or its relative name, `projects/{project}/billingInfo`.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: String,
 }
@@ -895,12 +878,14 @@ async fn get_project_billing_info(
     names
         .learn(
             &["projects/{project}/billingInfo"],
+            &["billing"],
             "project",
             Some(args.project.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/billingInfo"],
+            &["billing"],
             "project",
             args.project.as_str(),
         )?;
@@ -934,43 +919,36 @@ async fn call_get_project_billing_info(
     )
 )]
 pub struct UpdateProjectBillingInfoArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
-    #[arg(long = "organization", value_name = "ORGANIZATION")]
-    pub organization: Option<String>,
     /// The project billing info to change.
     ///
-    /// Its id, or its whole name, `projects/{project}/billingInfo`.
+    /// Its id, or its full name, `//billing.origincloudapis.eu/projects/{project}/billingInfo`, or its relative name, `projects/{project}/billingInfo`.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: String,
     /// The billing account that pays for the project's usage, one of its
     /// organization's.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}`.
+    /// Its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`; not an id.
     ///
     /// Left as it is when not given.
-    #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
+    #[arg(long = "billing-account", value_name = "NAME")]
     pub billing_account: Option<String>,
 }
 async fn update_project_billing_info(
     ctx: &Context<'_>,
     args: UpdateProjectBillingInfoArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    let mut names = ctx.names(&[]);
     names
         .learn(
             &["projects/{project}/billingInfo"],
+            &["billing"],
             "project",
             Some(args.project.as_str()),
         )?;
-    names
-        .learn(
-            &["organizations/{organization}/billingAccounts/{billing_account}"],
-            "billing-account",
-            args.billing_account.as_deref(),
-        )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/billingInfo"],
+            &["billing"],
             "project",
             args.project.as_str(),
         )?;
@@ -980,12 +958,12 @@ async fn update_project_billing_info(
     };
     let mut paths: Vec<String> = Vec::new();
     if let Some(value) = args.billing_account.as_deref() {
-        project_billing_info.billing_account = names
-            .reference(
-                &["organizations/{organization}/billingAccounts/{billing_account}"],
-                "billing-account",
-                value,
-            )?;
+        project_billing_info.billing_account = reference(
+            &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
+            "--billing-account",
+            value,
+        )?;
         paths.push("billing_account".to_owned());
     }
     let request = ::origincloud_billing::v1beta1::UpdateProjectBillingInfoRequest {
@@ -1019,7 +997,7 @@ pub struct ListProjectBillingInfoArgs {
     pub organization: Option<String>,
     /// The billing account whose projects to list.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}`.
+    /// Its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`.
     #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
     pub billing_account: String,
     /// The most projects to return; the server clamps it, and 0 means its
@@ -1042,12 +1020,14 @@ async fn list_project_billing_info(
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             Some(args.billing_account.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             args.billing_account.as_str(),
         )?;
@@ -1116,7 +1096,7 @@ pub struct GetBillingCountryArgs {
     /// The country to return, `billingCountries/{code}`, such as
     /// `billingCountries/DE`.
     ///
-    /// Its id, or its whole name, `billingCountries/{billing_country}`.
+    /// Its id, or its full name, `//billing.origincloudapis.eu/billingCountries/{billing_country}`, or its relative name, `billingCountries/{billing_country}`.
     #[arg(long = "billing-country", value_name = "BILLING_COUNTRY")]
     pub billing_country: String,
 }
@@ -1128,12 +1108,14 @@ async fn get_billing_country(
     names
         .learn(
             &["billingCountries/{billing_country}"],
+            &["billing"],
             "billing-country",
             Some(args.billing_country.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["billingCountries/{billing_country}"],
+            &["billing"],
             "billing-country",
             args.billing_country.as_str(),
         )?;
@@ -1237,8 +1219,8 @@ async fn call_list_billing_countries(
 pub struct QueryProjectCostArgs {
     /// The project, `projects/{project}`.
     ///
-    /// Its id, or its whole name, `projects/{project}`.
-    #[arg(long = "project", value_name = "PROJECT")]
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`; not an id.
+    #[arg(long = "project", value_name = "NAME")]
     pub project: String,
     /// The period's start, included.
     ///
@@ -1268,10 +1250,12 @@ async fn query_project_cost(
     ctx: &Context<'_>,
     args: QueryProjectCostArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[]);
-    names.learn(&["projects/{project}"], "project", Some(args.project.as_str()))?;
-    let project = names
-        .reference(&["projects/{project}"], "project", args.project.as_str())?;
+    let project = reference(
+        &["projects/{project}"],
+        &["resourcemanager"],
+        "--project",
+        args.project.as_str(),
+    )?;
     let request = ::origincloud_billing::v1beta1::QueryProjectCostRequest {
         project,
         start_time: Some(args.start_time),
@@ -1302,8 +1286,8 @@ async fn call_query_project_cost(
 pub struct QueryOrganizationCostArgs {
     /// The organization, `organizations/{organization}`.
     ///
-    /// Its id, or its whole name, `organizations/{organization}`.
-    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`; not an id.
+    #[arg(long = "organization", value_name = "NAME")]
     pub organization: String,
     /// The period's start, included.
     ///
@@ -1333,19 +1317,12 @@ async fn query_organization_cost(
     ctx: &Context<'_>,
     args: QueryOrganizationCostArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[]);
-    names
-        .learn(
-            &["organizations/{organization}"],
-            "organization",
-            Some(args.organization.as_str()),
-        )?;
-    let organization = names
-        .reference(
-            &["organizations/{organization}"],
-            "organization",
-            args.organization.as_str(),
-        )?;
+    let organization = reference(
+        &["organizations/{organization}"],
+        &["resourcemanager"],
+        "--organization",
+        args.organization.as_str(),
+    )?;
     let request = ::origincloud_billing::v1beta1::QueryOrganizationCostRequest {
         organization,
         start_time: Some(args.start_time),
@@ -1376,13 +1353,10 @@ async fn call_query_organization_cost(
 /// The flags of `query-billing-account-cost`.
 #[derive(clap::Args, Debug)]
 pub struct QueryBillingAccountCostArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
-    #[arg(long = "organization", value_name = "ORGANIZATION")]
-    pub organization: Option<String>,
     /// The billing account.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}`.
-    #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
+    /// Its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`; not an id.
+    #[arg(long = "billing-account", value_name = "NAME")]
     pub billing_account: String,
     /// The period's start, included.
     ///
@@ -1412,19 +1386,12 @@ async fn query_billing_account_cost(
     ctx: &Context<'_>,
     args: QueryBillingAccountCostArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
-    names
-        .learn(
-            &["organizations/{organization}/billingAccounts/{billing_account}"],
-            "billing-account",
-            Some(args.billing_account.as_str()),
-        )?;
-    let billing_account = names
-        .reference(
-            &["organizations/{organization}/billingAccounts/{billing_account}"],
-            "billing-account",
-            args.billing_account.as_str(),
-        )?;
+    let billing_account = reference(
+        &["organizations/{organization}/billingAccounts/{billing_account}"],
+        &["billing"],
+        "--billing-account",
+        args.billing_account.as_str(),
+    )?;
     let request = ::origincloud_billing::v1beta1::QueryBillingAccountCostRequest {
         billing_account,
         start_time: Some(args.start_time),
@@ -1457,8 +1424,8 @@ async fn call_query_billing_account_cost(
 pub struct QueryProjectUsageArgs {
     /// The project, `projects/{project}`.
     ///
-    /// Its id, or its whole name, `projects/{project}`.
-    #[arg(long = "project", value_name = "PROJECT")]
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`; not an id.
+    #[arg(long = "project", value_name = "NAME")]
     pub project: String,
     /// The period's start: records that end after it are listed.
     ///
@@ -1497,10 +1464,12 @@ async fn query_project_usage(
     ctx: &Context<'_>,
     args: QueryProjectUsageArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[]);
-    names.learn(&["projects/{project}"], "project", Some(args.project.as_str()))?;
-    let project = names
-        .reference(&["projects/{project}"], "project", args.project.as_str())?;
+    let project = reference(
+        &["projects/{project}"],
+        &["resourcemanager"],
+        "--project",
+        args.project.as_str(),
+    )?;
     let request = ::origincloud_billing::v1beta1::QueryProjectUsageRequest {
         project,
         start_time: Some(args.start_time),
@@ -1563,10 +1532,10 @@ async fn call_query_project_usage(
 /// The flags of `list-legal-acceptances`.
 #[derive(clap::Args, Debug)]
 pub struct ListLegalAcceptancesArgs {
-    /// The `{organization}` part of the resource names the command builds.
-    #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
-    /// The `{billing_account}` part of the resource names the command builds.
+    /// The billing account: its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`.
     #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT", required = true)]
     pub billing_account: Option<String>,
     /// The most acceptances to return; the server clamps it, and 0 means its
@@ -1585,13 +1554,19 @@ async fn list_legal_acceptances(
     ctx: &Context<'_>,
     args: ListLegalAcceptancesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("organization", args.organization.as_deref()),
                 ("billing_account", args.billing_account.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}/billingAccounts/{billing_account}",
+            &["billing"],
+            "billing_account",
+        )?;
     let parent = names
         .name("organizations/{organization}/billingAccounts/{billing_account}")?;
     let request = ::origincloud_billing::v1beta1::ListLegalAcceptancesRequest {
@@ -1656,15 +1631,15 @@ async fn call_list_legal_acceptances(
 /// The flags of `get-legal-acceptance`.
 #[derive(clap::Args, Debug)]
 pub struct GetLegalAcceptanceArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--legal-acceptance` is given a whole name, which has it.
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` or `--legal-acceptance` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
-    /// The `{billing_account}` part of the resource names the command builds. Needed unless `--legal-acceptance` is given a whole name, which has it.
+    /// The billing account: its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`. Needed unless `--legal-acceptance` is given a whole name, which has it.
     #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
     pub billing_account: Option<String>,
     /// The acceptance to return.
     ///
-    /// Its id, completed with `--organization` and `--billing-account`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}/legalAcceptances/{legal_acceptance}`.
+    /// Its id, completed with `--organization` and `--billing-account`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}/legalAcceptances/{legal_acceptance}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}/legalAcceptances/{legal_acceptance}`.
     #[arg(long = "legal-acceptance", value_name = "LEGAL_ACCEPTANCE")]
     pub legal_acceptance: String,
 }
@@ -1680,18 +1655,26 @@ async fn get_legal_acceptance(
             ],
         );
     names
+        .learn_part(
+            "organizations/{organization}/billingAccounts/{billing_account}",
+            &["billing"],
+            "billing_account",
+        )?;
+    names
         .learn(
             &[
                 "organizations/{organization}/billingAccounts/{billing_account}/legalAcceptances/{legal_acceptance}",
             ],
+            &["billing"],
             "legal-acceptance",
             Some(args.legal_acceptance.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "organizations/{organization}/billingAccounts/{billing_account}/legalAcceptances/{legal_acceptance}",
             ],
+            &["billing"],
             "legal-acceptance",
             args.legal_acceptance.as_str(),
         )?;
@@ -1719,18 +1702,15 @@ pub struct AcceptLegalDocumentsArgs {
     /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
-    /// The `{legal_document}` part of the resource names the command builds. Needed unless `--version` is given a whole name, which has it.
-    #[arg(long = "legal-document", value_name = "LEGAL_DOCUMENT")]
-    pub legal_document: Option<String>,
     /// The billing account that accepts,
     /// `organizations/{organization}/billingAccounts/{billing_account}`.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}`.
+    /// Its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`.
     #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
     pub billing_account: String,
     #[arg(
         long = "version",
-        long_help = "The versions to accept.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`legal_document_version`, required: The version, `legalDocuments/{legal_document}/versions/{version}`. Its id, completed with `--legal-document`, or its whole name, `legalDocuments/{legal_document}/versions/{version}`.\n\n`sha256`, required: The version's `sha256`, as read with it: an acceptance is refused when the text shown isn't the version's.\n\nA value with a comma in it goes through `--versions-json` too.",
+        long_help = "The versions to accept.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`legal_document_version`, required: The version, `legalDocuments/{legal_document}/versions/{version}`. Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`, or its relative name, `legalDocuments/{legal_document}/versions/{version}`; not an id.\n\n`sha256`, required: The version's `sha256`, as read with it: an acceptance is refused when the text shown isn't the version's.\n\nA value with a comma in it goes through `--versions-json` too.",
         help = "The versions to accept: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_legal_document_version_to_accept(
@@ -1745,7 +1725,7 @@ pub struct AcceptLegalDocumentsArgs {
     >,
     #[arg(
         long = "versions-json",
-        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--legal-document`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--version`.",
+        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, never an id, as in its KEY=VALUE form. Instead of `--version`.",
         help = "Versions as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<Vec<::origincloud_billing::v1beta1::LegalDocumentVersionToAccept>>(
@@ -1770,41 +1750,18 @@ async fn accept_legal_documents(
     ctx: &Context<'_>,
     args: AcceptLegalDocumentsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[
-                ("organization", args.organization.as_deref()),
-                ("legal_document", args.legal_document.as_deref()),
-            ],
-        );
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             Some(args.billing_account.as_str()),
         )?;
-    for keyed in &args.version {
-        let item = &keyed.value;
-        names
-            .learn(
-                &["legalDocuments/{legal_document}/versions/{version}"],
-                "version legal_document_version",
-                Some(item.legal_document_version.as_str()),
-            )?;
-    }
-    if let Some(json) = &args.versions_json {
-        for item in &json.0 {
-            names
-                .learn(
-                    &["legalDocuments/{legal_document}/versions/{version}"],
-                    "version legal_document_version",
-                    Some(item.legal_document_version.as_str()),
-                )?;
-        }
-    }
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             args.billing_account.as_str(),
         )?;
@@ -1821,12 +1778,12 @@ async fn accept_legal_documents(
     };
     for item in &mut versions {
         if !item.legal_document_version.is_empty() {
-            item.legal_document_version = names
-                .reference(
-                    &["legalDocuments/{legal_document}/versions/{version}"],
-                    "version legal_document_version",
-                    item.legal_document_version.as_str(),
-                )?;
+            item.legal_document_version = reference(
+                &["legalDocuments/{legal_document}/versions/{version}"],
+                &["billing"],
+                "--version legal_document_version",
+                item.legal_document_version.as_str(),
+            )?;
         }
     }
     let request = ::origincloud_billing::v1beta1::AcceptLegalDocumentsRequest {
@@ -1860,7 +1817,7 @@ pub struct QueryLegalRequirementsArgs {
     /// The billing account,
     /// `organizations/{organization}/billingAccounts/{billing_account}`.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}`.
+    /// Its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`.
     #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
     pub billing_account: String,
 }
@@ -1872,12 +1829,14 @@ async fn query_legal_requirements(
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             Some(args.billing_account.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
+            &["billing"],
             "billing-account",
             args.billing_account.as_str(),
         )?;
@@ -1981,7 +1940,7 @@ async fn call_list_legal_documents(
 pub struct GetLegalDocumentArgs {
     /// The document to return, `legalDocuments/{legal_document}`.
     ///
-    /// Its id, or its whole name, `legalDocuments/{legal_document}`.
+    /// Its id, or its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}`, or its relative name, `legalDocuments/{legal_document}`.
     #[arg(long = "legal-document", value_name = "LEGAL_DOCUMENT")]
     pub legal_document: String,
 }
@@ -1993,12 +1952,14 @@ async fn get_legal_document(
     names
         .learn(
             &["legalDocuments/{legal_document}"],
+            &["billing"],
             "legal-document",
             Some(args.legal_document.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["legalDocuments/{legal_document}"],
+            &["billing"],
             "legal-document",
             args.legal_document.as_str(),
         )?;
@@ -2025,8 +1986,8 @@ async fn call_get_legal_document(
 pub struct ListLegalDocumentVersionsArgs {
     /// The document whose versions to list, `legalDocuments/{legal_document}`.
     ///
-    /// Its id, or its whole name, `legalDocuments/{legal_document}`.
-    #[arg(long = "parent", value_name = "LEGAL_DOCUMENT")]
+    /// Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}`, or its relative name, `legalDocuments/{legal_document}`; not an id.
+    #[arg(long = "parent", value_name = "NAME")]
     pub parent: String,
     /// The most versions to return; the server clamps it, and 0 means its
     /// default.
@@ -2044,19 +2005,12 @@ async fn list_legal_document_versions(
     ctx: &Context<'_>,
     args: ListLegalDocumentVersionsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[]);
-    names
-        .learn(
-            &["legalDocuments/{legal_document}"],
-            "parent",
-            Some(args.parent.as_str()),
-        )?;
-    let parent = names
-        .reference(
-            &["legalDocuments/{legal_document}"],
-            "parent",
-            args.parent.as_str(),
-        )?;
+    let parent = reference(
+        &["legalDocuments/{legal_document}"],
+        &["billing"],
+        "--parent",
+        args.parent.as_str(),
+    )?;
     let request = ::origincloud_billing::v1beta1::ListLegalDocumentVersionsRequest {
         parent,
         page_size: args.page_size.unwrap_or_default(),
@@ -2119,13 +2073,13 @@ async fn call_list_legal_document_versions(
 /// The flags of `get-legal-document-version`.
 #[derive(clap::Args, Debug)]
 pub struct GetLegalDocumentVersionArgs {
-    /// The `{legal_document}` part of the resource names the command builds. Needed unless `--version` is given a whole name, which has it.
+    /// The legal document: its id, or its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}`, or its relative name, `legalDocuments/{legal_document}`. Needed unless `--version` is given a whole name, which has it.
     #[arg(long = "legal-document", value_name = "LEGAL_DOCUMENT")]
     pub legal_document: Option<String>,
     /// The version to return,
     /// `legalDocuments/{legal_document}/versions/{version}`.
     ///
-    /// Its id, completed with `--legal-document`, or its whole name, `legalDocuments/{legal_document}/versions/{version}`.
+    /// Its id, completed with `--legal-document`, or its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`, or its relative name, `legalDocuments/{legal_document}/versions/{version}`.
     #[arg(long = "version", value_name = "VERSION")]
     pub version: String,
 }
@@ -2134,15 +2088,18 @@ async fn get_legal_document_version(
     args: GetLegalDocumentVersionArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("legal_document", args.legal_document.as_deref())]);
+    names.learn_part("legalDocuments/{legal_document}", &["billing"], "legal_document")?;
     names
         .learn(
             &["legalDocuments/{legal_document}/versions/{version}"],
+            &["billing"],
             "version",
             Some(args.version.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["legalDocuments/{legal_document}/versions/{version}"],
+            &["billing"],
             "version",
             args.version.as_str(),
         )?;
@@ -2198,7 +2155,7 @@ pub struct GetSpendLimitArgs {
     pub organization: Option<String>,
     /// The spend limit to return.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}/spendLimit`.
+    /// Its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}/spendLimit`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}/spendLimit`.
     #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
     pub billing_account: String,
 }
@@ -2212,14 +2169,16 @@ async fn get_spend_limit(
             &[
                 "organizations/{organization}/billingAccounts/{billing_account}/spendLimit",
             ],
+            &["billing"],
             "billing-account",
             Some(args.billing_account.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "organizations/{organization}/billingAccounts/{billing_account}/spendLimit",
             ],
+            &["billing"],
             "billing-account",
             args.billing_account.as_str(),
         )?;
@@ -2267,7 +2226,7 @@ pub struct UpdateSpendLimitArgs {
     pub organization: Option<String>,
     /// The spend limit to change.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/billingAccounts/{billing_account}/spendLimit`.
+    /// Its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}/spendLimit`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}/spendLimit`.
     #[arg(long = "billing-account", value_name = "BILLING_ACCOUNT")]
     pub billing_account: String,
     /// The amount per calendar month in EUR, before VAT, as a decimal string
@@ -2312,14 +2271,16 @@ async fn update_spend_limit(
             &[
                 "organizations/{organization}/billingAccounts/{billing_account}/spendLimit",
             ],
+            &["billing"],
             "billing-account",
             Some(args.billing_account.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "organizations/{organization}/billingAccounts/{billing_account}/spendLimit",
             ],
+            &["billing"],
             "billing-account",
             args.billing_account.as_str(),
         )?;

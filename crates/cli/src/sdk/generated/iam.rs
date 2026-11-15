@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_bytes_file, read_value_file, shown_once, success, tags, wait, wait_for,
-    waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -195,7 +196,7 @@ pub struct GetAuditLogEntryArgs {
     pub organization: Option<String>,
     /// The entry to return.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/auditLogEntries/{audit_log_entry}`.
+    /// Its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/auditLogEntries/{audit_log_entry}`, or its relative name, `organizations/{organization}/auditLogEntries/{audit_log_entry}`.
     #[arg(long = "audit-log-entry", value_name = "AUDIT_LOG_ENTRY")]
     pub audit_log_entry: String,
 }
@@ -207,12 +208,14 @@ async fn get_audit_log_entry(
     names
         .learn(
             &["organizations/{organization}/auditLogEntries/{audit_log_entry}"],
+            &["iam"],
             "audit-log-entry",
             Some(args.audit_log_entry.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/auditLogEntries/{audit_log_entry}"],
+            &["iam"],
             "audit-log-entry",
             args.audit_log_entry.as_str(),
         )?;
@@ -243,8 +246,8 @@ pub struct ListAuditLogEntriesArgs {
     /// Only the entries of changes limited to this project,
     /// `projects/{project}`. Every entry when empty.
     ///
-    /// Its id, or its whole name, `projects/{project}`.
-    #[arg(long = "project", value_name = "PROJECT")]
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`; not an id.
+    #[arg(long = "project", value_name = "NAME")]
     pub project: Option<String>,
     /// Only the entries of changes made by this member, named by its full
     /// name as a role binding's member is, or as an entry's `--actor` shows it.
@@ -271,11 +274,12 @@ async fn list_audit_log_entries(
     ctx: &Context<'_>,
     args: ListAuditLogEntriesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
-    names.learn(&["projects/{project}"], "project", args.project.as_deref())?;
+    let names = ctx.names(&[("organization", args.organization.as_deref())]);
     let parent = names.name("organizations/{organization}")?;
     let project = match args.project.as_deref() {
-        Some(v) => names.reference(&["projects/{project}"], "project", v)?,
+        Some(v) => {
+            reference(&["projects/{project}"], &["resourcemanager"], "--project", v)?
+        }
         None => String::new(),
     };
     let request = ::origincloud_iam::v1beta1::ListAuditLogEntriesRequest {
@@ -343,15 +347,15 @@ async fn call_list_audit_log_entries(
 /// The flags of `get-federated-credential`.
 #[derive(clap::Args, Debug)]
 pub struct GetFederatedCredentialArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--federated-credential` is given a whole name, which has it.
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` or `--federated-credential` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
-    /// The `{service_account}` part of the resource names the command builds. Needed unless `--federated-credential` is given a whole name, which has it.
+    /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`. Needed unless `--federated-credential` is given a whole name, which has it.
     #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
     pub service_account: Option<String>,
     /// The federated credential to return.
     ///
-    /// Its id, completed with `--organization` and `--service-account`, or its whole name, `organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}`.
+    /// Its id, completed with `--organization` and `--service-account`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}`.
     #[arg(long = "federated-credential", value_name = "FEDERATED_CREDENTIAL")]
     pub federated_credential: String,
 }
@@ -367,18 +371,26 @@ async fn get_federated_credential(
             ],
         );
     names
+        .learn_part(
+            "organizations/{organization}/serviceAccounts/{service_account}",
+            &["iam"],
+            "service_account",
+        )?;
+    names
         .learn(
             &[
                 "organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}",
             ],
+            &["iam"],
             "federated-credential",
             Some(args.federated_credential.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}",
             ],
+            &["iam"],
             "federated-credential",
             args.federated_credential.as_str(),
         )?;
@@ -405,10 +417,10 @@ async fn call_get_federated_credential(
 /// The flags of `list-federated-credentials`.
 #[derive(clap::Args, Debug)]
 pub struct ListFederatedCredentialsArgs {
-    /// The `{organization}` part of the resource names the command builds.
-    #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
-    /// The `{service_account}` part of the resource names the command builds.
+    /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`.
     #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT", required = true)]
     pub service_account: Option<String>,
     /// The most federated credentials to return; the server clamps it, and 0
@@ -434,13 +446,19 @@ async fn list_federated_credentials(
     ctx: &Context<'_>,
     args: ListFederatedCredentialsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("organization", args.organization.as_deref()),
                 ("service_account", args.service_account.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}/serviceAccounts/{service_account}",
+            &["iam"],
+            "service_account",
+        )?;
     let parent = names
         .name("organizations/{organization}/serviceAccounts/{service_account}")?;
     let request = ::origincloud_iam::v1beta1::ListFederatedCredentialsRequest {
@@ -506,10 +524,10 @@ async fn call_list_federated_credentials(
 /// The flags of `create-federated-credential`.
 #[derive(clap::Args, Debug)]
 pub struct CreateFederatedCredentialArgs {
-    /// The `{organization}` part of the resource names the command builds.
-    #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
-    /// The `{service_account}` part of the resource names the command builds.
+    /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`.
     #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT", required = true)]
     pub service_account: Option<String>,
     /// A name of your own, shown in the console; at most 100 characters.
@@ -543,13 +561,19 @@ async fn create_federated_credential(
     ctx: &Context<'_>,
     args: CreateFederatedCredentialArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("organization", args.organization.as_deref()),
                 ("service_account", args.service_account.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}/serviceAccounts/{service_account}",
+            &["iam"],
+            "service_account",
+        )?;
     let parent = names
         .name("organizations/{organization}/serviceAccounts/{service_account}")?;
     let federated_credential = ::origincloud_iam::v1beta1::FederatedCredential {
@@ -584,15 +608,15 @@ async fn call_create_federated_credential(
 /// The flags of `delete-federated-credential`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteFederatedCredentialArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--federated-credential` is given a whole name, which has it.
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` or `--federated-credential` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
-    /// The `{service_account}` part of the resource names the command builds. Needed unless `--federated-credential` is given a whole name, which has it.
+    /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`. Needed unless `--federated-credential` is given a whole name, which has it.
     #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
     pub service_account: Option<String>,
     /// The federated credential to delete.
     ///
-    /// Its id, completed with `--organization` and `--service-account`, or its whole name, `organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}`.
+    /// Its id, completed with `--organization` and `--service-account`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}`.
     #[arg(long = "federated-credential", value_name = "FEDERATED_CREDENTIAL")]
     pub federated_credential: String,
     #[command(flatten)]
@@ -610,18 +634,26 @@ async fn delete_federated_credential(
             ],
         );
     names
+        .learn_part(
+            "organizations/{organization}/serviceAccounts/{service_account}",
+            &["iam"],
+            "service_account",
+        )?;
+    names
         .learn(
             &[
                 "organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}",
             ],
+            &["iam"],
             "federated-credential",
             Some(args.federated_credential.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "organizations/{organization}/serviceAccounts/{service_account}/federatedCredentials/{federated_credential}",
             ],
+            &["iam"],
             "federated-credential",
             args.federated_credential.as_str(),
         )?;
@@ -661,7 +693,7 @@ async fn call_delete_federated_credential(
 pub struct GetPermissionArgs {
     /// The permission to return, `permissions/{permission}`.
     ///
-    /// Its id, or its whole name, `permissions/{permission}`.
+    /// Its id, or its full name, `//iam.origincloudapis.eu/permissions/{permission}`, or its relative name, `permissions/{permission}`.
     #[arg(long = "permission", value_name = "PERMISSION")]
     pub permission: String,
 }
@@ -673,12 +705,14 @@ async fn get_permission(
     names
         .learn(
             &["permissions/{permission}"],
+            &["iam"],
             "permission",
             Some(args.permission.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["permissions/{permission}"],
+            &["iam"],
             "permission",
             args.permission.as_str(),
         )?;
@@ -776,7 +810,7 @@ async fn call_test_iam_permissions(
 pub struct GetRoleArgs {
     /// The role to return, `roles/{role}`.
     ///
-    /// Its id, or its whole name, `roles/{role}`.
+    /// Its id, or its full name, `//iam.origincloudapis.eu/roles/{role}`, or its relative name, `roles/{role}`.
     #[arg(long = "role", value_name = "ROLE")]
     pub role: String,
 }
@@ -785,8 +819,8 @@ async fn get_role(
     args: GetRoleArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn(&["roles/{role}"], "role", Some(args.role.as_str()))?;
-    let name = names.reference(&["roles/{role}"], "role", args.role.as_str())?;
+    names.learn(&["roles/{role}"], &["iam"], "role", Some(args.role.as_str()))?;
+    let name = names.target(&["roles/{role}"], &["iam"], "role", args.role.as_str())?;
     let request = ::origincloud_iam::v1beta1::GetRoleRequest {
         name,
     };
@@ -843,7 +877,7 @@ pub struct GetRoleBindingArgs {
     pub organization: Option<String>,
     /// The binding to return.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/roleBindings/{role_binding}`.
+    /// Its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/roleBindings/{role_binding}`, or its relative name, `organizations/{organization}/roleBindings/{role_binding}`.
     #[arg(long = "role-binding", value_name = "ROLE_BINDING")]
     pub role_binding: String,
 }
@@ -855,12 +889,14 @@ async fn get_role_binding(
     names
         .learn(
             &["organizations/{organization}/roleBindings/{role_binding}"],
+            &["iam"],
             "role-binding",
             Some(args.role_binding.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/roleBindings/{role_binding}"],
+            &["iam"],
             "role-binding",
             args.role_binding.as_str(),
         )?;
@@ -896,8 +932,8 @@ pub struct ListRoleBindingsArgs {
     /// Only the bindings limited to this project, `projects/{project}`. Every
     /// binding, organization-wide or not, when empty.
     ///
-    /// Its id, or its whole name, `projects/{project}`.
-    #[arg(long = "project", value_name = "PROJECT")]
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`; not an id.
+    #[arg(long = "project", value_name = "NAME")]
     pub project: Option<String>,
     /// The most bindings to return; the server clamps it, and 0 means its
     /// default.
@@ -915,11 +951,12 @@ async fn list_role_bindings(
     ctx: &Context<'_>,
     args: ListRoleBindingsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
-    names.learn(&["projects/{project}"], "project", args.project.as_deref())?;
+    let names = ctx.names(&[("organization", args.organization.as_deref())]);
     let parent = names.name("organizations/{organization}")?;
     let project = match args.project.as_deref() {
-        Some(v) => names.reference(&["projects/{project}"], "project", v)?,
+        Some(v) => {
+            reference(&["projects/{project}"], &["resourcemanager"], "--project", v)?
+        }
         None => String::new(),
     };
     let request = ::origincloud_iam::v1beta1::ListRoleBindingsRequest {
@@ -997,15 +1034,15 @@ pub struct CreateRoleBindingArgs {
     pub member: String,
     /// The role granted, `roles/{role}`.
     ///
-    /// Its id, or its whole name, `roles/{role}`.
-    #[arg(long = "role", value_name = "ROLE")]
+    /// Its full name, `//iam.origincloudapis.eu/roles/{role}`, or its relative name, `roles/{role}`; not an id.
+    #[arg(long = "role", value_name = "NAME")]
     pub role: String,
     /// The project the binding is limited to, `projects/{project}`, one of
     /// the organization's. Empty for a binding on the whole organization,
     /// which covers every project in it.
     ///
-    /// Its id, or its whole name, `projects/{project}`.
-    #[arg(long = "project", value_name = "PROJECT")]
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`; not an id.
+    #[arg(long = "project", value_name = "NAME")]
     pub project: Option<String>,
     /// A UUID. A repeat of the request with the same `--request-id` within a
     /// day returns the binding the first request created, as it is now,
@@ -1017,13 +1054,13 @@ async fn create_role_binding(
     ctx: &Context<'_>,
     args: CreateRoleBindingArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
-    names.learn(&["roles/{role}"], "role", Some(args.role.as_str()))?;
-    names.learn(&["projects/{project}"], "project", args.project.as_deref())?;
+    let names = ctx.names(&[("organization", args.organization.as_deref())]);
     let parent = names.name("organizations/{organization}")?;
-    let role = names.reference(&["roles/{role}"], "role", args.role.as_str())?;
+    let role = reference(&["roles/{role}"], &["iam"], "--role", args.role.as_str())?;
     let project = match args.project.as_deref() {
-        Some(v) => names.reference(&["projects/{project}"], "project", v)?,
+        Some(v) => {
+            reference(&["projects/{project}"], &["resourcemanager"], "--project", v)?
+        }
         None => String::new(),
     };
     let role_binding = ::origincloud_iam::v1beta1::RoleBinding {
@@ -1060,7 +1097,7 @@ pub struct DeleteRoleBindingArgs {
     pub organization: Option<String>,
     /// The binding to delete.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/roleBindings/{role_binding}`.
+    /// Its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/roleBindings/{role_binding}`, or its relative name, `organizations/{organization}/roleBindings/{role_binding}`.
     #[arg(long = "role-binding", value_name = "ROLE_BINDING")]
     pub role_binding: String,
     /// A UUID. A repeat of the request with the same `--request-id` within a
@@ -1078,12 +1115,14 @@ async fn delete_role_binding(
     names
         .learn(
             &["organizations/{organization}/roleBindings/{role_binding}"],
+            &["iam"],
             "role-binding",
             Some(args.role_binding.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/roleBindings/{role_binding}"],
+            &["iam"],
             "role-binding",
             args.role_binding.as_str(),
         )?;
@@ -1125,7 +1164,7 @@ pub struct GetServiceAccountArgs {
     pub organization: Option<String>,
     /// The service account to return.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/serviceAccounts/{service_account}`.
+    /// Its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`.
     #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
     pub service_account: String,
 }
@@ -1137,12 +1176,14 @@ async fn get_service_account(
     names
         .learn(
             &["organizations/{organization}/serviceAccounts/{service_account}"],
+            &["iam"],
             "service-account",
             Some(args.service_account.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/serviceAccounts/{service_account}"],
+            &["iam"],
             "service-account",
             args.service_account.as_str(),
         )?;
@@ -1349,7 +1390,7 @@ pub struct RotateServiceAccountSecretArgs {
     pub organization: Option<String>,
     /// The `EXTERNAL` service account whose secret to replace.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/serviceAccounts/{service_account}`.
+    /// Its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`.
     #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
     pub service_account: String,
     /// How long the new secret is accepted, from now: more than zero and at
@@ -1374,12 +1415,14 @@ async fn rotate_service_account_secret(
     names
         .learn(
             &["organizations/{organization}/serviceAccounts/{service_account}"],
+            &["iam"],
             "service-account",
             Some(args.service_account.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/serviceAccounts/{service_account}"],
+            &["iam"],
             "service-account",
             args.service_account.as_str(),
         )?;
@@ -1417,7 +1460,7 @@ pub struct DeleteServiceAccountArgs {
     pub organization: Option<String>,
     /// The service account to delete.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/serviceAccounts/{service_account}`.
+    /// Its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`.
     #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
     pub service_account: String,
     #[command(flatten)]
@@ -1431,12 +1474,14 @@ async fn delete_service_account(
     names
         .learn(
             &["organizations/{organization}/serviceAccounts/{service_account}"],
+            &["iam"],
             "service-account",
             Some(args.service_account.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/serviceAccounts/{service_account}"],
+            &["iam"],
             "service-account",
             args.service_account.as_str(),
         )?;
@@ -1476,7 +1521,7 @@ async fn call_delete_service_account(
 pub struct GetUserArgs {
     /// The user to return: `users/me`, or the caller's own `users/{user}`.
     ///
-    /// Its id, or its whole name, `users/{user}`.
+    /// Its id, or its full name, `//iam.origincloudapis.eu/users/{user}`, or its relative name, `users/{user}`.
     #[arg(long = "user", value_name = "USER")]
     pub user: String,
 }
@@ -1485,8 +1530,8 @@ async fn get_user(
     args: GetUserArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn(&["users/{user}"], "user", Some(args.user.as_str()))?;
-    let name = names.reference(&["users/{user}"], "user", args.user.as_str())?;
+    names.learn(&["users/{user}"], &["iam"], "user", Some(args.user.as_str()))?;
+    let name = names.target(&["users/{user}"], &["iam"], "user", args.user.as_str())?;
     let request = ::origincloud_iam::v1beta1::GetUserRequest {
         name,
     };

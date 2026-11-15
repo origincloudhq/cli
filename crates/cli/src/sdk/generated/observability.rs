@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_bytes_file, read_value_file, shown_once, success, tags, wait, wait_for,
-    waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -42,8 +43,8 @@ pub(crate) fn service(
 pub struct QueryTimeSeriesArgs {
     /// The project the resource is in, `projects/{project}`.
     ///
-    /// Its id, or its whole name, `projects/{project}`.
-    #[arg(long = "parent", value_name = "PROJECT")]
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`; not an id.
+    #[arg(long = "parent", value_name = "NAME")]
     pub parent: String,
     /// The resource whose metrics to return, in `parent`: an instance,
     /// `projects/{project}/zones/{zone}/instances/{instance}`, a volume,
@@ -100,10 +101,12 @@ async fn query_time_series(
     ctx: &Context<'_>,
     args: QueryTimeSeriesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[]);
-    names.learn(&["projects/{project}"], "parent", Some(args.parent.as_str()))?;
-    let parent = names
-        .reference(&["projects/{project}"], "parent", args.parent.as_str())?;
+    let parent = reference(
+        &["projects/{project}"],
+        &["resourcemanager"],
+        "--parent",
+        args.parent.as_str(),
+    )?;
     let request = ::origincloud_observability::v1beta1::QueryTimeSeriesRequest {
         parent,
         resource: args.resource.clone(),

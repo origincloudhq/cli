@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_bytes_file, read_value_file, shown_once, success, tags, wait, wait_for,
-    waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -676,7 +677,7 @@ pub struct GetAclArgs {
     pub region: Option<String>,
     /// The ACL to return.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/acls/{acl}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}`, or its relative name, `projects/{project}/regions/{region}/acls/{acl}`.
     #[arg(long = "acl", value_name = "ACL")]
     pub acl: String,
 }
@@ -691,12 +692,14 @@ async fn get_acl(
     names
         .learn(
             &["projects/{project}/regions/{region}/acls/{acl}"],
+            &["network"],
             "acl",
             Some(args.acl.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/acls/{acl}"],
+            &["network"],
             "acl",
             args.acl.as_str(),
         )?;
@@ -738,33 +741,27 @@ pub struct ListAclsArgs {
     pub page_token: Option<String>,
     /// Only the ACLs of this VPC, when set.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`; not an id.
+    #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: Option<String>,
 }
 async fn list_acls(
     ctx: &Context<'_>,
     args: ListAclsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            args.vpc.as_deref(),
-        )?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-                    "vpc",
-                    v,
-                )?
+            reference(
+                &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+                &["network"],
+                "--vpc",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -833,8 +830,8 @@ pub struct CreateAclArgs {
     pub region: Option<String>,
     /// The VPC the ACL belongs to, in the same project and region.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`; not an id.
+    #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
@@ -854,23 +851,17 @@ async fn create_acl(
     ctx: &Context<'_>,
     args: CreateAclArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            Some(args.vpc.as_str()),
-        )?;
     let parent = names.name("projects/{project}/regions/{region}")?;
-    let vpc = names
-        .reference(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            args.vpc.as_str(),
-        )?;
+    let vpc = reference(
+        &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+        &["network"],
+        "--vpc",
+        args.vpc.as_str(),
+    )?;
     let acl = ::origincloud_network::v1beta1::Acl {
         vpc,
         tags: tags(&args.tag),
@@ -919,7 +910,7 @@ pub struct UpdateAclArgs {
     pub region: Option<String>,
     /// The acl to change.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/acls/{acl}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}`, or its relative name, `projects/{project}/regions/{region}/acls/{acl}`.
     #[arg(long = "acl", value_name = "ACL")]
     pub acl: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -950,12 +941,14 @@ async fn update_acl(
     names
         .learn(
             &["projects/{project}/regions/{region}/acls/{acl}"],
+            &["network"],
             "acl",
             Some(args.acl.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/acls/{acl}"],
+            &["network"],
             "acl",
             args.acl.as_str(),
         )?;
@@ -1006,7 +999,7 @@ pub struct DeleteAclArgs {
     pub region: Option<String>,
     /// The ACL to delete.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/acls/{acl}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}`, or its relative name, `projects/{project}/regions/{region}/acls/{acl}`.
     #[arg(long = "acl", value_name = "ACL")]
     pub acl: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -1030,12 +1023,14 @@ async fn delete_acl(
     names
         .learn(
             &["projects/{project}/regions/{region}/acls/{acl}"],
+            &["network"],
             "acl",
             Some(args.acl.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/acls/{acl}"],
+            &["network"],
             "acl",
             args.acl.as_str(),
         )?;
@@ -1082,12 +1077,12 @@ pub struct GetAclAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{subnet}` part of the resource names the command builds. Needed unless `--acl-association` is given a whole name, which has it.
+    /// The subnet: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`. Needed unless `--acl-association` is given a whole name, which has it.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: Option<String>,
     /// The association to return.
     ///
-    /// Its id, completed with `--project` and `--zone` and `--subnet`, or its whole name, `projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}`.
+    /// Its id, completed with `--project` and `--zone` and `--subnet`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}`.
     #[arg(long = "acl-association", value_name = "ACL_ASSOCIATION")]
     pub acl_association: String,
 }
@@ -1104,18 +1099,26 @@ async fn get_acl_association(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["network"],
+            "subnet",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}",
             ],
+            &["network"],
             "acl-association",
             Some(args.acl_association.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}",
             ],
+            &["network"],
             "acl-association",
             args.acl_association.as_str(),
         )?;
@@ -1146,7 +1149,7 @@ pub struct ListAclAssociationsArgs {
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{subnet}` part of the resource names the command builds.
+    /// The subnet: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
     #[arg(long = "subnet", value_name = "SUBNET", required = true)]
     pub subnet: Option<String>,
     /// The most associations to return; the server clamps it, and 0 means
@@ -1165,7 +1168,7 @@ async fn list_acl_associations(
     ctx: &Context<'_>,
     args: ListAclAssociationsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("project", args.project.as_deref()),
@@ -1173,6 +1176,12 @@ async fn list_acl_associations(
                 ("subnet", args.subnet.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["network"],
+            "subnet",
+        )?;
     let request = ::origincloud_network::v1beta1::ListAclAssociationsRequest {
         parent: String::new(),
         page_size: args.page_size.unwrap_or_default(),
@@ -1272,16 +1281,13 @@ pub struct CreateAclAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{subnet}` part of the resource names the command builds.
+    /// The subnet: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
     #[arg(long = "subnet", value_name = "SUBNET", required = true)]
     pub subnet: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
     /// The ACL that filters the subnet's traffic, in the subnet's VPC.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/acls/{acl}`.
-    #[arg(long = "acl", value_name = "ACL")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}`, or its relative name, `projects/{project}/regions/{region}/acls/{acl}`; not an id.
+    #[arg(long = "acl", value_name = "NAME")]
     pub acl: String,
     /// A UUID; a repeat with the same id returns the first request's
     /// operation. One is generated when not given.
@@ -1301,22 +1307,21 @@ async fn create_acl_association(
                 ("project", args.project.as_deref()),
                 ("zone", args.zone.as_deref()),
                 ("subnet", args.subnet.as_deref()),
-                ("region", args.region.as_deref()),
             ],
         );
     names
-        .learn(
-            &["projects/{project}/regions/{region}/acls/{acl}"],
-            "acl",
-            Some(args.acl.as_str()),
+        .learn_part(
+            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["network"],
+            "subnet",
         )?;
     let parent = names.name("projects/{project}/zones/{zone}/subnets/{subnet}")?;
-    let acl = names
-        .reference(
-            &["projects/{project}/regions/{region}/acls/{acl}"],
-            "acl",
-            args.acl.as_str(),
-        )?;
+    let acl = reference(
+        &["projects/{project}/regions/{region}/acls/{acl}"],
+        &["network"],
+        "--acl",
+        args.acl.as_str(),
+    )?;
     let acl_association = ::origincloud_network::v1beta1::AclAssociation {
         acl,
         ..::core::default::Default::default()
@@ -1357,12 +1362,12 @@ pub struct DeleteAclAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{subnet}` part of the resource names the command builds. Needed unless `--acl-association` is given a whole name, which has it.
+    /// The subnet: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`. Needed unless `--acl-association` is given a whole name, which has it.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: Option<String>,
     /// The association to remove.
     ///
-    /// Its id, completed with `--project` and `--zone` and `--subnet`, or its whole name, `projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}`.
+    /// Its id, completed with `--project` and `--zone` and `--subnet`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}`.
     #[arg(long = "acl-association", value_name = "ACL_ASSOCIATION")]
     pub acl_association: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -1388,18 +1393,26 @@ async fn delete_acl_association(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["network"],
+            "subnet",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}",
             ],
+            &["network"],
             "acl-association",
             Some(args.acl_association.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/zones/{zone}/subnets/{subnet}/aclAssociations/{acl_association}",
             ],
+            &["network"],
             "acl-association",
             args.acl_association.as_str(),
         )?;
@@ -1448,12 +1461,12 @@ pub struct GetAclRuleArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{acl}` part of the resource names the command builds. Needed unless `--rule` is given a whole name, which has it.
+    /// The acl: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}`, or its relative name, `projects/{project}/regions/{region}/acls/{acl}`. Needed unless `--rule` is given a whole name, which has it.
     #[arg(long = "acl", value_name = "ACL")]
     pub acl: Option<String>,
     /// The rule to return.
     ///
-    /// Its id, completed with `--project` and `--region` and `--acl`, or its whole name, `projects/{project}/regions/{region}/acls/{acl}/rules/{rule}`.
+    /// Its id, completed with `--project` and `--region` and `--acl`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}/rules/{rule}`, or its relative name, `projects/{project}/regions/{region}/acls/{acl}/rules/{rule}`.
     #[arg(long = "rule", value_name = "RULE")]
     pub rule: String,
 }
@@ -1470,14 +1483,22 @@ async fn get_acl_rule(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/regions/{region}/acls/{acl}",
+            &["network"],
+            "acl",
+        )?;
+    names
         .learn(
             &["projects/{project}/regions/{region}/acls/{acl}/rules/{rule}"],
+            &["network"],
             "rule",
             Some(args.rule.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/acls/{acl}/rules/{rule}"],
+            &["network"],
             "rule",
             args.rule.as_str(),
         )?;
@@ -1508,7 +1529,7 @@ pub struct ListAclRulesArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{acl}` part of the resource names the command builds.
+    /// The acl: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}`, or its relative name, `projects/{project}/regions/{region}/acls/{acl}`.
     #[arg(long = "acl", value_name = "ACL", required = true)]
     pub acl: Option<String>,
     /// The most rules to return; the server clamps it, and 0 means its
@@ -1527,7 +1548,7 @@ async fn list_acl_rules(
     ctx: &Context<'_>,
     args: ListAclRulesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("project", args.project.as_deref()),
@@ -1535,6 +1556,12 @@ async fn list_acl_rules(
                 ("acl", args.acl.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "projects/{project}/regions/{region}/acls/{acl}",
+            &["network"],
+            "acl",
+        )?;
     let parent = names.name("projects/{project}/regions/{region}/acls/{acl}")?;
     let request = ::origincloud_network::v1beta1::ListAclRulesRequest {
         parent,
@@ -1620,7 +1647,7 @@ pub struct CreateAclRuleArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{acl}` part of the resource names the command builds.
+    /// The acl: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}`, or its relative name, `projects/{project}/regions/{region}/acls/{acl}`.
     #[arg(long = "acl", value_name = "ACL", required = true)]
     pub acl: Option<String>,
     /// Which traffic the rule applies to.
@@ -1665,7 +1692,7 @@ async fn create_acl_rule(
     ctx: &Context<'_>,
     args: CreateAclRuleArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("project", args.project.as_deref()),
@@ -1673,6 +1700,12 @@ async fn create_acl_rule(
                 ("acl", args.acl.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "projects/{project}/regions/{region}/acls/{acl}",
+            &["network"],
+            "acl",
+        )?;
     let parent = names.name("projects/{project}/regions/{region}/acls/{acl}")?;
     let acl_rule = ::origincloud_network::v1beta1::AclRule {
         direction: ::origincloud_network::v1beta1::acl_rule::Direction::from_str_name(
@@ -1727,12 +1760,12 @@ pub struct DeleteAclRuleArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{acl}` part of the resource names the command builds. Needed unless `--rule` is given a whole name, which has it.
+    /// The acl: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}`, or its relative name, `projects/{project}/regions/{region}/acls/{acl}`. Needed unless `--rule` is given a whole name, which has it.
     #[arg(long = "acl", value_name = "ACL")]
     pub acl: Option<String>,
     /// The rule to remove.
     ///
-    /// Its id, completed with `--project` and `--region` and `--acl`, or its whole name, `projects/{project}/regions/{region}/acls/{acl}/rules/{rule}`.
+    /// Its id, completed with `--project` and `--region` and `--acl`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}/rules/{rule}`, or its relative name, `projects/{project}/regions/{region}/acls/{acl}/rules/{rule}`.
     #[arg(long = "rule", value_name = "RULE")]
     pub rule: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -1758,14 +1791,22 @@ async fn delete_acl_rule(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/regions/{region}/acls/{acl}",
+            &["network"],
+            "acl",
+        )?;
+    names
         .learn(
             &["projects/{project}/regions/{region}/acls/{acl}/rules/{rule}"],
+            &["network"],
             "rule",
             Some(args.rule.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/acls/{acl}/rules/{rule}"],
+            &["network"],
             "rule",
             args.rule.as_str(),
         )?;
@@ -1814,7 +1855,7 @@ pub struct GetDnsPolicyArgs {
     pub region: Option<String>,
     /// The DNS policy to return.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, or its relative name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
     #[arg(long = "dns-policy", value_name = "DNS_POLICY")]
     pub dns_policy: String,
 }
@@ -1829,12 +1870,14 @@ async fn get_dns_policy(
     names
         .learn(
             &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            &["network"],
             "dns-policy",
             Some(args.dns_policy.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            &["network"],
             "dns-policy",
             args.dns_policy.as_str(),
         )?;
@@ -2048,7 +2091,7 @@ pub struct UpdateDnsPolicyArgs {
     pub region: Option<String>,
     /// The dns policy to change.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, or its relative name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
     #[arg(long = "dns-policy", value_name = "DNS_POLICY")]
     pub dns_policy: String,
     /// Whether the resolver relays names it can't answer itself to
@@ -2098,12 +2141,14 @@ async fn update_dns_policy(
     names
         .learn(
             &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            &["network"],
             "dns-policy",
             Some(args.dns_policy.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            &["network"],
             "dns-policy",
             args.dns_policy.as_str(),
         )?;
@@ -2162,7 +2207,7 @@ pub struct DeleteDnsPolicyArgs {
     pub region: Option<String>,
     /// The DNS policy to delete.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, or its relative name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
     #[arg(long = "dns-policy", value_name = "DNS_POLICY")]
     pub dns_policy: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -2186,12 +2231,14 @@ async fn delete_dns_policy(
     names
         .learn(
             &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            &["network"],
             "dns-policy",
             Some(args.dns_policy.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            &["network"],
             "dns-policy",
             args.dns_policy.as_str(),
         )?;
@@ -2240,7 +2287,7 @@ pub struct SetDefaultDnsPolicyArgs {
     pub region: Option<String>,
     /// The DNS policy to make the default.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, or its relative name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
     #[arg(long = "dns-policy", value_name = "DNS_POLICY")]
     pub dns_policy: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -2262,12 +2309,14 @@ async fn set_default_dns_policy(
     names
         .learn(
             &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            &["network"],
             "dns-policy",
             Some(args.dns_policy.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+            &["network"],
             "dns-policy",
             args.dns_policy.as_str(),
         )?;
@@ -2306,12 +2355,12 @@ pub struct GetDnsPolicyAssociationArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{vpc}` part of the resource names the command builds. Needed unless `--dns-policy-association` is given a whole name, which has it.
+    /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`. Needed unless `--dns-policy-association` is given a whole name, which has it.
     #[arg(long = "vpc", value_name = "VPC")]
     pub vpc: Option<String>,
     /// The association to return.
     ///
-    /// Its id, completed with `--project` and `--region` and `--vpc`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}`.
+    /// Its id, completed with `--project` and `--region` and `--vpc`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}`.
     #[arg(long = "dns-policy-association", value_name = "DNS_POLICY_ASSOCIATION")]
     pub dns_policy_association: String,
 }
@@ -2328,18 +2377,26 @@ async fn get_dns_policy_association(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["network"],
+            "vpc",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
             ],
+            &["network"],
             "dns-policy-association",
             Some(args.dns_policy_association.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
             ],
+            &["network"],
             "dns-policy-association",
             args.dns_policy_association.as_str(),
         )?;
@@ -2372,7 +2429,7 @@ pub struct ListDnsPolicyAssociationsArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{vpc}` part of the resource names the command builds.
+    /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
     #[arg(long = "vpc", value_name = "VPC", required = true)]
     pub vpc: Option<String>,
     /// The most associations to return; the server clamps it, and 0 means
@@ -2391,7 +2448,7 @@ async fn list_dns_policy_associations(
     ctx: &Context<'_>,
     args: ListDnsPolicyAssociationsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("project", args.project.as_deref()),
@@ -2399,6 +2456,12 @@ async fn list_dns_policy_associations(
                 ("vpc", args.vpc.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["network"],
+            "vpc",
+        )?;
     let parent = names.name("projects/{project}/regions/{region}/vpcs/{vpc}")?;
     let request = ::origincloud_network::v1beta1::ListDnsPolicyAssociationsRequest {
         parent,
@@ -2468,13 +2531,13 @@ pub struct CreateDnsPolicyAssociationArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{vpc}` part of the resource names the command builds.
+    /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
     #[arg(long = "vpc", value_name = "VPC", required = true)]
     pub vpc: Option<String>,
     /// The DNS policy the VPC relays through, in the VPC's project and region.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
-    #[arg(long = "dns-policy", value_name = "DNS_POLICY")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, or its relative name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`; not an id.
+    #[arg(long = "dns-policy", value_name = "NAME")]
     pub dns_policy: String,
     /// A UUID; a repeat with the same id returns the first request's
     /// operation. One is generated when not given.
@@ -2497,18 +2560,18 @@ async fn create_dns_policy_association(
             ],
         );
     names
-        .learn(
-            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
-            "dns-policy",
-            Some(args.dns_policy.as_str()),
+        .learn_part(
+            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["network"],
+            "vpc",
         )?;
     let parent = names.name("projects/{project}/regions/{region}/vpcs/{vpc}")?;
-    let dns_policy = names
-        .reference(
-            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
-            "dns-policy",
-            args.dns_policy.as_str(),
-        )?;
+    let dns_policy = reference(
+        &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
+        &["network"],
+        "--dns-policy",
+        args.dns_policy.as_str(),
+    )?;
     let dns_policy_association = ::origincloud_network::v1beta1::DnsPolicyAssociation {
         dns_policy,
         ..::core::default::Default::default()
@@ -2549,12 +2612,12 @@ pub struct DeleteDnsPolicyAssociationArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{vpc}` part of the resource names the command builds. Needed unless `--dns-policy-association` is given a whole name, which has it.
+    /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`. Needed unless `--dns-policy-association` is given a whole name, which has it.
     #[arg(long = "vpc", value_name = "VPC")]
     pub vpc: Option<String>,
     /// The association to remove.
     ///
-    /// Its id, completed with `--project` and `--region` and `--vpc`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}`.
+    /// Its id, completed with `--project` and `--region` and `--vpc`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}`.
     #[arg(long = "dns-policy-association", value_name = "DNS_POLICY_ASSOCIATION")]
     pub dns_policy_association: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -2580,18 +2643,26 @@ async fn delete_dns_policy_association(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["network"],
+            "vpc",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
             ],
+            &["network"],
             "dns-policy-association",
             Some(args.dns_policy_association.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
             ],
+            &["network"],
             "dns-policy-association",
             args.dns_policy_association.as_str(),
         )?;
@@ -2642,7 +2713,7 @@ pub struct GetFloatingIpArgs {
     pub zone: Option<String>,
     /// The floating IP to return.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.
     #[arg(long = "floating-ip", value_name = "FLOATING_IP")]
     pub floating_ip: String,
 }
@@ -2655,12 +2726,14 @@ async fn get_floating_ip(
     names
         .learn(
             &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+            &["network"],
             "floating-ip",
             Some(args.floating_ip.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+            &["network"],
             "floating-ip",
             args.floating_ip.as_str(),
         )?;
@@ -2882,7 +2955,7 @@ pub struct UpdateFloatingIpArgs {
     pub zone: Option<String>,
     /// The floating ip to change.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.
     #[arg(long = "floating-ip", value_name = "FLOATING_IP")]
     pub floating_ip: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -2911,12 +2984,14 @@ async fn update_floating_ip(
     names
         .learn(
             &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+            &["network"],
             "floating-ip",
             Some(args.floating_ip.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+            &["network"],
             "floating-ip",
             args.floating_ip.as_str(),
         )?;
@@ -2967,7 +3042,7 @@ pub struct DeleteFloatingIpArgs {
     pub zone: Option<String>,
     /// The floating IP to release.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.
     #[arg(long = "floating-ip", value_name = "FLOATING_IP")]
     pub floating_ip: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -2989,12 +3064,14 @@ async fn delete_floating_ip(
     names
         .learn(
             &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+            &["network"],
             "floating-ip",
             Some(args.floating_ip.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+            &["network"],
             "floating-ip",
             args.floating_ip.as_str(),
         )?;
@@ -3041,12 +3118,12 @@ pub struct GetFloatingIpAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{floating_ip}` part of the resource names the command builds. Needed unless `--association` is given a whole name, which has it.
+    /// The floating ip: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`. Needed unless `--association` is given a whole name, which has it.
     #[arg(long = "floating-ip", value_name = "FLOATING_IP")]
     pub floating_ip: Option<String>,
     /// The association to return.
     ///
-    /// Its id, completed with `--project` and `--zone` and `--floating-ip`, or its whole name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}`.
+    /// Its id, completed with `--project` and `--zone` and `--floating-ip`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}`.
     #[arg(long = "association", value_name = "ASSOCIATION")]
     pub association: String,
 }
@@ -3063,18 +3140,26 @@ async fn get_floating_ip_association(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
+            &["network"],
+            "floating_ip",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}",
             ],
+            &["network"],
             "association",
             Some(args.association.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}",
             ],
+            &["network"],
             "association",
             args.association.as_str(),
         )?;
@@ -3107,7 +3192,7 @@ pub struct ListFloatingIpAssociationsArgs {
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{floating_ip}` part of the resource names the command builds.
+    /// The floating ip: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.
     #[arg(long = "floating-ip", value_name = "FLOATING_IP", required = true)]
     pub floating_ip: Option<String>,
     /// The most associations to return; the server clamps it, and 0 means
@@ -3126,7 +3211,7 @@ async fn list_floating_ip_associations(
     ctx: &Context<'_>,
     args: ListFloatingIpAssociationsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("project", args.project.as_deref()),
@@ -3134,6 +3219,12 @@ async fn list_floating_ip_associations(
                 ("floating_ip", args.floating_ip.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
+            &["network"],
+            "floating_ip",
+        )?;
     let request = ::origincloud_network::v1beta1::ListFloatingIpAssociationsRequest {
         parent: String::new(),
         page_size: args.page_size.unwrap_or_default(),
@@ -3239,14 +3330,14 @@ pub struct CreateFloatingIpAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{floating_ip}` part of the resource names the command builds.
+    /// The floating ip: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.
     #[arg(long = "floating-ip", value_name = "FLOATING_IP", required = true)]
     pub floating_ip: Option<String>,
     /// The network interface the address reaches, in the floating IP's project
     /// and zone.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
-    #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`; not an id.
+    #[arg(long = "network-interface", value_name = "NAME")]
     pub network_interface: String,
     /// A UUID; a repeat with the same id returns the first request's
     /// operation. One is generated when not given.
@@ -3269,19 +3360,19 @@ async fn create_floating_ip_association(
             ],
         );
     names
-        .learn(
-            &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
-            "network-interface",
-            Some(args.network_interface.as_str()),
+        .learn_part(
+            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
+            &["network"],
+            "floating_ip",
         )?;
     let parent = names
         .name("projects/{project}/zones/{zone}/floatingIps/{floating_ip}")?;
-    let network_interface = names
-        .reference(
-            &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
-            "network-interface",
-            args.network_interface.as_str(),
-        )?;
+    let network_interface = reference(
+        &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
+        &["network"],
+        "--network-interface",
+        args.network_interface.as_str(),
+    )?;
     let floating_ip_association = ::origincloud_network::v1beta1::FloatingIpAssociation {
         network_interface,
         ..::core::default::Default::default()
@@ -3322,12 +3413,12 @@ pub struct DeleteFloatingIpAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{floating_ip}` part of the resource names the command builds. Needed unless `--association` is given a whole name, which has it.
+    /// The floating ip: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`. Needed unless `--association` is given a whole name, which has it.
     #[arg(long = "floating-ip", value_name = "FLOATING_IP")]
     pub floating_ip: Option<String>,
     /// The association to remove.
     ///
-    /// Its id, completed with `--project` and `--zone` and `--floating-ip`, or its whole name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}`.
+    /// Its id, completed with `--project` and `--zone` and `--floating-ip`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}`.
     #[arg(long = "association", value_name = "ASSOCIATION")]
     pub association: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -3353,18 +3444,26 @@ async fn delete_floating_ip_association(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
+            &["network"],
+            "floating_ip",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}",
             ],
+            &["network"],
             "association",
             Some(args.association.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/zones/{zone}/floatingIps/{floating_ip}/associations/{association}",
             ],
+            &["network"],
             "association",
             args.association.as_str(),
         )?;
@@ -3415,7 +3514,7 @@ pub struct GetInternetGatewayArgs {
     pub region: Option<String>,
     /// The internet gateway to return.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/internetGateways/{internet_gateway}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/internetGateways/{internet_gateway}`, or its relative name, `projects/{project}/regions/{region}/internetGateways/{internet_gateway}`.
     #[arg(long = "internet-gateway", value_name = "INTERNET_GATEWAY")]
     pub internet_gateway: String,
 }
@@ -3430,12 +3529,14 @@ async fn get_internet_gateway(
     names
         .learn(
             &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
+            &["network"],
             "internet-gateway",
             Some(args.internet_gateway.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
+            &["network"],
             "internet-gateway",
             args.internet_gateway.as_str(),
         )?;
@@ -3479,33 +3580,27 @@ pub struct ListInternetGatewaysArgs {
     pub page_token: Option<String>,
     /// Only the gateway of this VPC, when set.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`; not an id.
+    #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: Option<String>,
 }
 async fn list_internet_gateways(
     ctx: &Context<'_>,
     args: ListInternetGatewaysArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            args.vpc.as_deref(),
-        )?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-                    "vpc",
-                    v,
-                )?
+            reference(
+                &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+                &["network"],
+                "--vpc",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -3580,8 +3675,8 @@ pub struct CreateInternetGatewayArgs {
     pub region: Option<String>,
     /// The VPC the gateway connects, in the same project and region.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`; not an id.
+    #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
@@ -3601,23 +3696,17 @@ async fn create_internet_gateway(
     ctx: &Context<'_>,
     args: CreateInternetGatewayArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            Some(args.vpc.as_str()),
-        )?;
     let parent = names.name("projects/{project}/regions/{region}")?;
-    let vpc = names
-        .reference(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            args.vpc.as_str(),
-        )?;
+    let vpc = reference(
+        &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+        &["network"],
+        "--vpc",
+        args.vpc.as_str(),
+    )?;
     let internet_gateway = ::origincloud_network::v1beta1::InternetGateway {
         vpc,
         tags: tags(&args.tag),
@@ -3668,7 +3757,7 @@ pub struct UpdateInternetGatewayArgs {
     pub region: Option<String>,
     /// The internet gateway to change.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/internetGateways/{internet_gateway}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/internetGateways/{internet_gateway}`, or its relative name, `projects/{project}/regions/{region}/internetGateways/{internet_gateway}`.
     #[arg(long = "internet-gateway", value_name = "INTERNET_GATEWAY")]
     pub internet_gateway: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -3699,12 +3788,14 @@ async fn update_internet_gateway(
     names
         .learn(
             &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
+            &["network"],
             "internet-gateway",
             Some(args.internet_gateway.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
+            &["network"],
             "internet-gateway",
             args.internet_gateway.as_str(),
         )?;
@@ -3757,7 +3848,7 @@ pub struct DeleteInternetGatewayArgs {
     pub region: Option<String>,
     /// The internet gateway to delete.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/internetGateways/{internet_gateway}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/internetGateways/{internet_gateway}`, or its relative name, `projects/{project}/regions/{region}/internetGateways/{internet_gateway}`.
     #[arg(long = "internet-gateway", value_name = "INTERNET_GATEWAY")]
     pub internet_gateway: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -3781,12 +3872,14 @@ async fn delete_internet_gateway(
     names
         .learn(
             &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
+            &["network"],
             "internet-gateway",
             Some(args.internet_gateway.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
+            &["network"],
             "internet-gateway",
             args.internet_gateway.as_str(),
         )?;
@@ -3837,7 +3930,7 @@ pub struct GetNatGatewayArgs {
     pub zone: Option<String>,
     /// The NAT gateway to return.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/natGateways/{nat_gateway}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/natGateways/{nat_gateway}`, or its relative name, `projects/{project}/zones/{zone}/natGateways/{nat_gateway}`.
     #[arg(long = "nat-gateway", value_name = "NAT_GATEWAY")]
     pub nat_gateway: String,
 }
@@ -3850,12 +3943,14 @@ async fn get_nat_gateway(
     names
         .learn(
             &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
+            &["network"],
             "nat-gateway",
             Some(args.nat_gateway.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
+            &["network"],
             "nat-gateway",
             args.nat_gateway.as_str(),
         )?;
@@ -3999,14 +4094,14 @@ pub struct CreateNatGatewayArgs {
     pub zone: Option<String>,
     /// The public subnet the gateway lives in, in the same project and zone.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
-    #[arg(long = "subnet", value_name = "SUBNET")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`; not an id.
+    #[arg(long = "subnet", value_name = "NAME")]
     pub subnet: String,
     /// The floating IP instances behind the gateway appear as, in the same
     /// project and zone. It stays allocated when the gateway is deleted.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.
-    #[arg(long = "floating-ip", value_name = "FLOATING_IP")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`; not an id.
+    #[arg(long = "floating-ip", value_name = "NAME")]
     pub floating_ip: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
@@ -4026,33 +4121,21 @@ async fn create_nat_gateway(
     ctx: &Context<'_>,
     args: CreateNatGatewayArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
-    names
-        .learn(
-            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
-            "subnet",
-            Some(args.subnet.as_str()),
-        )?;
-    names
-        .learn(
-            &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
-            "floating-ip",
-            Some(args.floating_ip.as_str()),
-        )?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
-    let subnet = names
-        .reference(
-            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
-            "subnet",
-            args.subnet.as_str(),
-        )?;
-    let floating_ip = names
-        .reference(
-            &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
-            "floating-ip",
-            args.floating_ip.as_str(),
-        )?;
+    let subnet = reference(
+        &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+        &["network"],
+        "--subnet",
+        args.subnet.as_str(),
+    )?;
+    let floating_ip = reference(
+        &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+        &["network"],
+        "--floating-ip",
+        args.floating_ip.as_str(),
+    )?;
     let nat_gateway = ::origincloud_network::v1beta1::NatGateway {
         subnet,
         floating_ip,
@@ -4102,7 +4185,7 @@ pub struct UpdateNatGatewayArgs {
     pub zone: Option<String>,
     /// The nat gateway to change.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/natGateways/{nat_gateway}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/natGateways/{nat_gateway}`, or its relative name, `projects/{project}/zones/{zone}/natGateways/{nat_gateway}`.
     #[arg(long = "nat-gateway", value_name = "NAT_GATEWAY")]
     pub nat_gateway: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -4131,12 +4214,14 @@ async fn update_nat_gateway(
     names
         .learn(
             &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
+            &["network"],
             "nat-gateway",
             Some(args.nat_gateway.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
+            &["network"],
             "nat-gateway",
             args.nat_gateway.as_str(),
         )?;
@@ -4187,7 +4272,7 @@ pub struct DeleteNatGatewayArgs {
     pub zone: Option<String>,
     /// The NAT gateway to delete.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/natGateways/{nat_gateway}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/natGateways/{nat_gateway}`, or its relative name, `projects/{project}/zones/{zone}/natGateways/{nat_gateway}`.
     #[arg(long = "nat-gateway", value_name = "NAT_GATEWAY")]
     pub nat_gateway: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -4209,12 +4294,14 @@ async fn delete_nat_gateway(
     names
         .learn(
             &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
+            &["network"],
             "nat-gateway",
             Some(args.nat_gateway.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
+            &["network"],
             "nat-gateway",
             args.nat_gateway.as_str(),
         )?;
@@ -4263,7 +4350,7 @@ pub struct GetNetworkInterfaceArgs {
     pub zone: Option<String>,
     /// The network interface to return.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
     #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE")]
     pub network_interface: String,
 }
@@ -4276,12 +4363,14 @@ async fn get_network_interface(
     names
         .learn(
             &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
+            &["network"],
             "network-interface",
             Some(args.network_interface.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
+            &["network"],
             "network-interface",
             args.network_interface.as_str(),
         )?;
@@ -4327,30 +4416,24 @@ pub struct ListNetworkInterfacesArgs {
     pub page_token: Option<String>,
     /// Only the interfaces in this subnet, when set.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
-    #[arg(long = "subnet", value_name = "SUBNET")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`; not an id.
+    #[arg(long = "subnet", value_name = "NAME")]
     pub subnet: Option<String>,
 }
 async fn list_network_interfaces(
     ctx: &Context<'_>,
     args: ListNetworkInterfacesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
-    names
-        .learn(
-            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
-            "subnet",
-            args.subnet.as_deref(),
-        )?;
     let subnet = match args.subnet.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &["projects/{project}/zones/{zone}/subnets/{subnet}"],
-                    "subnet",
-                    v,
-                )?
+            reference(
+                &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+                &["network"],
+                "--subnet",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -4467,8 +4550,8 @@ pub struct CreateNetworkInterfaceArgs {
     /// The subnet the interface has its addresses in, in the same project
     /// and zone.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
-    #[arg(long = "subnet", value_name = "SUBNET")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`; not an id.
+    #[arg(long = "subnet", value_name = "NAME")]
     pub subnet: String,
     /// Whether a packet the instance sends must carry the interface's own
     /// MAC and IP address as its source; `true` when left unset. Turn it off
@@ -4500,21 +4583,15 @@ async fn create_network_interface(
     ctx: &Context<'_>,
     args: CreateNetworkInterfaceArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
-    names
-        .learn(
-            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
-            "subnet",
-            Some(args.subnet.as_str()),
-        )?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
-    let subnet = names
-        .reference(
-            &["projects/{project}/zones/{zone}/subnets/{subnet}"],
-            "subnet",
-            args.subnet.as_str(),
-        )?;
+    let subnet = reference(
+        &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+        &["network"],
+        "--subnet",
+        args.subnet.as_str(),
+    )?;
     let network_interface = ::origincloud_network::v1beta1::NetworkInterface {
         subnet,
         source_address_check: args.source_address_check,
@@ -4570,7 +4647,7 @@ pub struct UpdateNetworkInterfaceArgs {
     pub zone: Option<String>,
     /// The network interface to change.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
     #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE")]
     pub network_interface: String,
     /// Whether a packet the instance sends must carry the interface's own
@@ -4614,12 +4691,14 @@ async fn update_network_interface(
     names
         .learn(
             &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
+            &["network"],
             "network-interface",
             Some(args.network_interface.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
+            &["network"],
             "network-interface",
             args.network_interface.as_str(),
         )?;
@@ -4676,7 +4755,7 @@ pub struct DeleteNetworkInterfaceArgs {
     pub zone: Option<String>,
     /// The network interface to delete.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
     #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE")]
     pub network_interface: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -4698,12 +4777,14 @@ async fn delete_network_interface(
     names
         .learn(
             &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
+            &["network"],
             "network-interface",
             Some(args.network_interface.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
+            &["network"],
             "network-interface",
             args.network_interface.as_str(),
         )?;
@@ -4752,12 +4833,12 @@ pub struct GetRouteArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{route_table}` part of the resource names the command builds. Needed unless `--route` is given a whole name, which has it.
+    /// The route table: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}`, or its relative name, `projects/{project}/regions/{region}/routeTables/{route_table}`. Needed unless `--route` is given a whole name, which has it.
     #[arg(long = "route-table", value_name = "ROUTE_TABLE")]
     pub route_table: Option<String>,
     /// The route to return.
     ///
-    /// Its id, completed with `--project` and `--region` and `--route-table`, or its whole name, `projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}`.
+    /// Its id, completed with `--project` and `--region` and `--route-table`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}`, or its relative name, `projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}`.
     #[arg(long = "route", value_name = "ROUTE")]
     pub route: String,
 }
@@ -4774,18 +4855,26 @@ async fn get_route(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/regions/{region}/routeTables/{route_table}",
+            &["network"],
+            "route_table",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}",
             ],
+            &["network"],
             "route",
             Some(args.route.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}",
             ],
+            &["network"],
             "route",
             args.route.as_str(),
         )?;
@@ -4816,7 +4905,7 @@ pub struct ListRoutesArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{route_table}` part of the resource names the command builds.
+    /// The route table: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}`, or its relative name, `projects/{project}/regions/{region}/routeTables/{route_table}`.
     #[arg(long = "route-table", value_name = "ROUTE_TABLE", required = true)]
     pub route_table: Option<String>,
     /// The most routes to return; the server clamps it, and 0 means its
@@ -4835,7 +4924,7 @@ async fn list_routes(
     ctx: &Context<'_>,
     args: ListRoutesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("project", args.project.as_deref()),
@@ -4843,6 +4932,12 @@ async fn list_routes(
                 ("route_table", args.route_table.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "projects/{project}/regions/{region}/routeTables/{route_table}",
+            &["network"],
+            "route_table",
+        )?;
     let parent = names
         .name("projects/{project}/regions/{region}/routeTables/{route_table}")?;
     let request = ::origincloud_network::v1beta1::ListRoutesRequest {
@@ -4909,12 +5004,9 @@ pub struct CreateRouteArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{route_table}` part of the resource names the command builds.
+    /// The route table: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}`, or its relative name, `projects/{project}/regions/{region}/routeTables/{route_table}`.
     #[arg(long = "route-table", value_name = "ROUTE_TABLE", required = true)]
     pub route_table: Option<String>,
-    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
-    #[arg(long = "zone", value_name = "ZONE")]
-    pub zone: Option<String>,
     /// The destination: the IPv4 default route, written with an all-zero
     /// address and prefix length 0, or the IPv6 one, `::/0`. A route table
     /// decides only where traffic to the internet goes.
@@ -4922,16 +5014,16 @@ pub struct CreateRouteArgs {
     pub destination: String,
     /// The internet gateway of the table's VPC to send the traffic to.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/internetGateways/{internet_gateway}`.
-    #[arg(long = "internet-gateway", value_name = "INTERNET_GATEWAY")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/internetGateways/{internet_gateway}`, or its relative name, `projects/{project}/regions/{region}/internetGateways/{internet_gateway}`; not an id.
+    #[arg(long = "internet-gateway", value_name = "NAME")]
     pub internet_gateway: Option<String>,
     /// The NAT gateway in the table's VPC to send the traffic to, for the
     /// IPv4 default route only: a NAT gateway translates IPv4 only. Named in
     /// the gateway's own zone; a name with another zone is refused with
     /// `INVALID_ARGUMENT`.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/natGateways/{nat_gateway}`.
-    #[arg(long = "nat-gateway", value_name = "NAT_GATEWAY")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/natGateways/{nat_gateway}`, or its relative name, `projects/{project}/zones/{zone}/natGateways/{nat_gateway}`; not an id.
+    #[arg(long = "nat-gateway", value_name = "NAME")]
     pub nat_gateway: Option<String>,
     /// A UUID; a repeat with the same id returns the first request's
     /// operation instead of adding the route again. One is generated when not given.
@@ -4951,44 +5043,37 @@ async fn create_route(
                 ("project", args.project.as_deref()),
                 ("region", args.region.as_deref()),
                 ("route_table", args.route_table.as_deref()),
-                ("zone", args.zone.as_deref()),
             ],
         );
     names
-        .learn(
-            &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
-            "internet-gateway",
-            args.internet_gateway.as_deref(),
-        )?;
-    names
-        .learn(
-            &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
-            "nat-gateway",
-            args.nat_gateway.as_deref(),
+        .learn_part(
+            "projects/{project}/regions/{region}/routeTables/{route_table}",
+            &["network"],
+            "route_table",
         )?;
     let parent = names
         .name("projects/{project}/regions/{region}/routeTables/{route_table}")?;
     let internet_gateway = match args.internet_gateway.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &[
-                        "projects/{project}/regions/{region}/internetGateways/{internet_gateway}",
-                    ],
-                    "internet-gateway",
-                    v,
-                )?
+            reference(
+                &[
+                    "projects/{project}/regions/{region}/internetGateways/{internet_gateway}",
+                ],
+                &["network"],
+                "--internet-gateway",
+                v,
+            )?
         }
         None => String::new(),
     };
     let nat_gateway = match args.nat_gateway.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
-                    "nat-gateway",
-                    v,
-                )?
+            reference(
+                &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
+                &["network"],
+                "--nat-gateway",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -5032,12 +5117,12 @@ pub struct DeleteRouteArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{route_table}` part of the resource names the command builds. Needed unless `--route` is given a whole name, which has it.
+    /// The route table: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}`, or its relative name, `projects/{project}/regions/{region}/routeTables/{route_table}`. Needed unless `--route` is given a whole name, which has it.
     #[arg(long = "route-table", value_name = "ROUTE_TABLE")]
     pub route_table: Option<String>,
     /// The route to remove.
     ///
-    /// Its id, completed with `--project` and `--region` and `--route-table`, or its whole name, `projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}`.
+    /// Its id, completed with `--project` and `--region` and `--route-table`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}`, or its relative name, `projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}`.
     #[arg(long = "route", value_name = "ROUTE")]
     pub route: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -5063,18 +5148,26 @@ async fn delete_route(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/regions/{region}/routeTables/{route_table}",
+            &["network"],
+            "route_table",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}",
             ],
+            &["network"],
             "route",
             Some(args.route.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/regions/{region}/routeTables/{route_table}/routes/{route}",
             ],
+            &["network"],
             "route",
             args.route.as_str(),
         )?;
@@ -5123,7 +5216,7 @@ pub struct GetRouteTableArgs {
     pub region: Option<String>,
     /// The route table to return.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/routeTables/{route_table}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}`, or its relative name, `projects/{project}/regions/{region}/routeTables/{route_table}`.
     #[arg(long = "route-table", value_name = "ROUTE_TABLE")]
     pub route_table: String,
 }
@@ -5138,12 +5231,14 @@ async fn get_route_table(
     names
         .learn(
             &["projects/{project}/regions/{region}/routeTables/{route_table}"],
+            &["network"],
             "route-table",
             Some(args.route_table.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/routeTables/{route_table}"],
+            &["network"],
             "route-table",
             args.route_table.as_str(),
         )?;
@@ -5187,33 +5282,27 @@ pub struct ListRouteTablesArgs {
     pub page_token: Option<String>,
     /// Only the route tables of this VPC, when set.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`; not an id.
+    #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: Option<String>,
 }
 async fn list_route_tables(
     ctx: &Context<'_>,
     args: ListRouteTablesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            args.vpc.as_deref(),
-        )?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-                    "vpc",
-                    v,
-                )?
+            reference(
+                &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+                &["network"],
+                "--vpc",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -5286,8 +5375,8 @@ pub struct CreateRouteTableArgs {
     pub region: Option<String>,
     /// The VPC the table routes for, in the same project and region.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`; not an id.
+    #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
@@ -5307,23 +5396,17 @@ async fn create_route_table(
     ctx: &Context<'_>,
     args: CreateRouteTableArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            Some(args.vpc.as_str()),
-        )?;
     let parent = names.name("projects/{project}/regions/{region}")?;
-    let vpc = names
-        .reference(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            args.vpc.as_str(),
-        )?;
+    let vpc = reference(
+        &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+        &["network"],
+        "--vpc",
+        args.vpc.as_str(),
+    )?;
     let route_table = ::origincloud_network::v1beta1::RouteTable {
         vpc,
         tags: tags(&args.tag),
@@ -5372,7 +5455,7 @@ pub struct UpdateRouteTableArgs {
     pub region: Option<String>,
     /// The route table to change.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/routeTables/{route_table}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}`, or its relative name, `projects/{project}/regions/{region}/routeTables/{route_table}`.
     #[arg(long = "route-table", value_name = "ROUTE_TABLE")]
     pub route_table: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -5403,12 +5486,14 @@ async fn update_route_table(
     names
         .learn(
             &["projects/{project}/regions/{region}/routeTables/{route_table}"],
+            &["network"],
             "route-table",
             Some(args.route_table.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/routeTables/{route_table}"],
+            &["network"],
             "route-table",
             args.route_table.as_str(),
         )?;
@@ -5459,7 +5544,7 @@ pub struct DeleteRouteTableArgs {
     pub region: Option<String>,
     /// The route table to delete.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/routeTables/{route_table}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}`, or its relative name, `projects/{project}/regions/{region}/routeTables/{route_table}`.
     #[arg(long = "route-table", value_name = "ROUTE_TABLE")]
     pub route_table: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -5483,12 +5568,14 @@ async fn delete_route_table(
     names
         .learn(
             &["projects/{project}/regions/{region}/routeTables/{route_table}"],
+            &["network"],
             "route-table",
             Some(args.route_table.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/routeTables/{route_table}"],
+            &["network"],
             "route-table",
             args.route_table.as_str(),
         )?;
@@ -5535,12 +5622,12 @@ pub struct GetRouteTableAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{subnet}` part of the resource names the command builds. Needed unless `--route-table-association` is given a whole name, which has it.
+    /// The subnet: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`. Needed unless `--route-table-association` is given a whole name, which has it.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: Option<String>,
     /// The association to return.
     ///
-    /// Its id, completed with `--project` and `--zone` and `--subnet`, or its whole name, `projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}`.
+    /// Its id, completed with `--project` and `--zone` and `--subnet`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}`.
     #[arg(long = "route-table-association", value_name = "ROUTE_TABLE_ASSOCIATION")]
     pub route_table_association: String,
 }
@@ -5557,18 +5644,26 @@ async fn get_route_table_association(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["network"],
+            "subnet",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}",
             ],
+            &["network"],
             "route-table-association",
             Some(args.route_table_association.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}",
             ],
+            &["network"],
             "route-table-association",
             args.route_table_association.as_str(),
         )?;
@@ -5601,7 +5696,7 @@ pub struct ListRouteTableAssociationsArgs {
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{subnet}` part of the resource names the command builds.
+    /// The subnet: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
     #[arg(long = "subnet", value_name = "SUBNET", required = true)]
     pub subnet: Option<String>,
     /// The most associations to return; the server clamps it, and 0 means
@@ -5620,7 +5715,7 @@ async fn list_route_table_associations(
     ctx: &Context<'_>,
     args: ListRouteTableAssociationsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("project", args.project.as_deref()),
@@ -5628,6 +5723,12 @@ async fn list_route_table_associations(
                 ("subnet", args.subnet.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["network"],
+            "subnet",
+        )?;
     let request = ::origincloud_network::v1beta1::ListRouteTableAssociationsRequest {
         parent: String::new(),
         page_size: args.page_size.unwrap_or_default(),
@@ -5727,16 +5828,13 @@ pub struct CreateRouteTableAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{subnet}` part of the resource names the command builds.
+    /// The subnet: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
     #[arg(long = "subnet", value_name = "SUBNET", required = true)]
     pub subnet: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
     /// The route table the subnet uses, in the subnet's VPC.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/routeTables/{route_table}`.
-    #[arg(long = "route-table", value_name = "ROUTE_TABLE")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}`, or its relative name, `projects/{project}/regions/{region}/routeTables/{route_table}`; not an id.
+    #[arg(long = "route-table", value_name = "NAME")]
     pub route_table: String,
     /// A UUID; a repeat with the same id returns the first request's
     /// operation. One is generated when not given.
@@ -5756,22 +5854,21 @@ async fn create_route_table_association(
                 ("project", args.project.as_deref()),
                 ("zone", args.zone.as_deref()),
                 ("subnet", args.subnet.as_deref()),
-                ("region", args.region.as_deref()),
             ],
         );
     names
-        .learn(
-            &["projects/{project}/regions/{region}/routeTables/{route_table}"],
-            "route-table",
-            Some(args.route_table.as_str()),
+        .learn_part(
+            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["network"],
+            "subnet",
         )?;
     let parent = names.name("projects/{project}/zones/{zone}/subnets/{subnet}")?;
-    let route_table = names
-        .reference(
-            &["projects/{project}/regions/{region}/routeTables/{route_table}"],
-            "route-table",
-            args.route_table.as_str(),
-        )?;
+    let route_table = reference(
+        &["projects/{project}/regions/{region}/routeTables/{route_table}"],
+        &["network"],
+        "--route-table",
+        args.route_table.as_str(),
+    )?;
     let route_table_association = ::origincloud_network::v1beta1::RouteTableAssociation {
         route_table,
         ..::core::default::Default::default()
@@ -5812,12 +5909,12 @@ pub struct DeleteRouteTableAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{subnet}` part of the resource names the command builds. Needed unless `--route-table-association` is given a whole name, which has it.
+    /// The subnet: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`. Needed unless `--route-table-association` is given a whole name, which has it.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: Option<String>,
     /// The association to remove.
     ///
-    /// Its id, completed with `--project` and `--zone` and `--subnet`, or its whole name, `projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}`.
+    /// Its id, completed with `--project` and `--zone` and `--subnet`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}`.
     #[arg(long = "route-table-association", value_name = "ROUTE_TABLE_ASSOCIATION")]
     pub route_table_association: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -5843,18 +5940,26 @@ async fn delete_route_table_association(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/zones/{zone}/subnets/{subnet}",
+            &["network"],
+            "subnet",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}",
             ],
+            &["network"],
             "route-table-association",
             Some(args.route_table_association.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/zones/{zone}/subnets/{subnet}/routeTableAssociations/{route_table_association}",
             ],
+            &["network"],
             "route-table-association",
             args.route_table_association.as_str(),
         )?;
@@ -5905,7 +6010,7 @@ pub struct GetSecurityGroupArgs {
     pub region: Option<String>,
     /// The security group to return.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/securityGroups/{security_group}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}`.
     #[arg(long = "security-group", value_name = "SECURITY_GROUP")]
     pub security_group: String,
 }
@@ -5920,12 +6025,14 @@ async fn get_security_group(
     names
         .learn(
             &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+            &["network"],
             "security-group",
             Some(args.security_group.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+            &["network"],
             "security-group",
             args.security_group.as_str(),
         )?;
@@ -5969,33 +6076,27 @@ pub struct ListSecurityGroupsArgs {
     pub page_token: Option<String>,
     /// Only the groups of this VPC, when set.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`; not an id.
+    #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: Option<String>,
 }
 async fn list_security_groups(
     ctx: &Context<'_>,
     args: ListSecurityGroupsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            args.vpc.as_deref(),
-        )?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-                    "vpc",
-                    v,
-                )?
+            reference(
+                &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+                &["network"],
+                "--vpc",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -6068,8 +6169,8 @@ pub struct CreateSecurityGroupArgs {
     pub region: Option<String>,
     /// The VPC the group belongs to, in the same project and region.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`; not an id.
+    #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
@@ -6089,23 +6190,17 @@ async fn create_security_group(
     ctx: &Context<'_>,
     args: CreateSecurityGroupArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            Some(args.vpc.as_str()),
-        )?;
     let parent = names.name("projects/{project}/regions/{region}")?;
-    let vpc = names
-        .reference(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            args.vpc.as_str(),
-        )?;
+    let vpc = reference(
+        &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+        &["network"],
+        "--vpc",
+        args.vpc.as_str(),
+    )?;
     let security_group = ::origincloud_network::v1beta1::SecurityGroup {
         vpc,
         tags: tags(&args.tag),
@@ -6156,7 +6251,7 @@ pub struct UpdateSecurityGroupArgs {
     pub region: Option<String>,
     /// The security group to change.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/securityGroups/{security_group}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}`.
     #[arg(long = "security-group", value_name = "SECURITY_GROUP")]
     pub security_group: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -6187,12 +6282,14 @@ async fn update_security_group(
     names
         .learn(
             &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+            &["network"],
             "security-group",
             Some(args.security_group.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+            &["network"],
             "security-group",
             args.security_group.as_str(),
         )?;
@@ -6245,7 +6342,7 @@ pub struct DeleteSecurityGroupArgs {
     pub region: Option<String>,
     /// The security group to delete.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/securityGroups/{security_group}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}`.
     #[arg(long = "security-group", value_name = "SECURITY_GROUP")]
     pub security_group: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -6269,12 +6366,14 @@ async fn delete_security_group(
     names
         .learn(
             &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+            &["network"],
             "security-group",
             Some(args.security_group.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+            &["network"],
             "security-group",
             args.security_group.as_str(),
         )?;
@@ -6323,12 +6422,12 @@ pub struct GetSecurityGroupAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{network_interface}` part of the resource names the command builds. Needed unless `--security-group-association` is given a whole name, which has it.
+    /// The network interface: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`. Needed unless `--security-group-association` is given a whole name, which has it.
     #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE")]
     pub network_interface: Option<String>,
     /// The association to return.
     ///
-    /// Its id, completed with `--project` and `--zone` and `--network-interface`, or its whole name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}`.
+    /// Its id, completed with `--project` and `--zone` and `--network-interface`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}`.
     #[arg(
         long = "security-group-association",
         value_name = "SECURITY_GROUP_ASSOCIATION"
@@ -6348,18 +6447,26 @@ async fn get_security_group_association(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
+            &["network"],
+            "network_interface",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}",
             ],
+            &["network"],
             "security-group-association",
             Some(args.security_group_association.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}",
             ],
+            &["network"],
             "security-group-association",
             args.security_group_association.as_str(),
         )?;
@@ -6392,7 +6499,7 @@ pub struct ListSecurityGroupAssociationsArgs {
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{network_interface}` part of the resource names the command builds.
+    /// The network interface: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
     #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE", required = true)]
     pub network_interface: Option<String>,
     /// The most associations to return; the server clamps it, and 0 means
@@ -6411,7 +6518,7 @@ async fn list_security_group_associations(
     ctx: &Context<'_>,
     args: ListSecurityGroupAssociationsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("project", args.project.as_deref()),
@@ -6419,6 +6526,12 @@ async fn list_security_group_associations(
                 ("network_interface", args.network_interface.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
+            &["network"],
+            "network_interface",
+        )?;
     let request = ::origincloud_network::v1beta1::ListSecurityGroupAssociationsRequest {
         parent: String::new(),
         page_size: args.page_size.unwrap_or_default(),
@@ -6526,16 +6639,13 @@ pub struct CreateSecurityGroupAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{network_interface}` part of the resource names the command builds.
+    /// The network interface: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
     #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE", required = true)]
     pub network_interface: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
     /// The security group, in the interface's VPC.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/securityGroups/{security_group}`.
-    #[arg(long = "security-group", value_name = "SECURITY_GROUP")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}`; not an id.
+    #[arg(long = "security-group", value_name = "NAME")]
     pub security_group: String,
     /// A UUID; a repeat with the same id returns the first request's
     /// operation. One is generated when not given.
@@ -6555,23 +6665,22 @@ async fn create_security_group_association(
                 ("project", args.project.as_deref()),
                 ("zone", args.zone.as_deref()),
                 ("network_interface", args.network_interface.as_deref()),
-                ("region", args.region.as_deref()),
             ],
         );
     names
-        .learn(
-            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
-            "security-group",
-            Some(args.security_group.as_str()),
+        .learn_part(
+            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
+            &["network"],
+            "network_interface",
         )?;
     let parent = names
         .name("projects/{project}/zones/{zone}/networkInterfaces/{network_interface}")?;
-    let security_group = names
-        .reference(
-            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
-            "security-group",
-            args.security_group.as_str(),
-        )?;
+    let security_group = reference(
+        &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+        &["network"],
+        "--security-group",
+        args.security_group.as_str(),
+    )?;
     let security_group_association = ::origincloud_network::v1beta1::SecurityGroupAssociation {
         security_group,
         ..::core::default::Default::default()
@@ -6614,12 +6723,12 @@ pub struct DeleteSecurityGroupAssociationArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The `{network_interface}` part of the resource names the command builds. Needed unless `--security-group-association` is given a whole name, which has it.
+    /// The network interface: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`. Needed unless `--security-group-association` is given a whole name, which has it.
     #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE")]
     pub network_interface: Option<String>,
     /// The association to remove.
     ///
-    /// Its id, completed with `--project` and `--zone` and `--network-interface`, or its whole name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}`.
+    /// Its id, completed with `--project` and `--zone` and `--network-interface`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}`.
     #[arg(
         long = "security-group-association",
         value_name = "SECURITY_GROUP_ASSOCIATION"
@@ -6648,18 +6757,26 @@ async fn delete_security_group_association(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
+            &["network"],
+            "network_interface",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}",
             ],
+            &["network"],
             "security-group-association",
             Some(args.security_group_association.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}/securityGroupAssociations/{security_group_association}",
             ],
+            &["network"],
             "security-group-association",
             args.security_group_association.as_str(),
         )?;
@@ -6708,12 +6825,12 @@ pub struct GetSecurityGroupRuleArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{security_group}` part of the resource names the command builds. Needed unless `--rule` is given a whole name, which has it.
+    /// The security group: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}`. Needed unless `--rule` is given a whole name, which has it.
     #[arg(long = "security-group", value_name = "SECURITY_GROUP")]
     pub security_group: Option<String>,
     /// The rule to return.
     ///
-    /// Its id, completed with `--project` and `--region` and `--security-group`, or its whole name, `projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}`.
+    /// Its id, completed with `--project` and `--region` and `--security-group`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}`.
     #[arg(long = "rule", value_name = "RULE")]
     pub rule: String,
 }
@@ -6730,18 +6847,26 @@ async fn get_security_group_rule(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/regions/{region}/securityGroups/{security_group}",
+            &["network"],
+            "security_group",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}",
             ],
+            &["network"],
             "rule",
             Some(args.rule.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}",
             ],
+            &["network"],
             "rule",
             args.rule.as_str(),
         )?;
@@ -6774,7 +6899,7 @@ pub struct ListSecurityGroupRulesArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{security_group}` part of the resource names the command builds.
+    /// The security group: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}`.
     #[arg(long = "security-group", value_name = "SECURITY_GROUP", required = true)]
     pub security_group: Option<String>,
     /// The most rules to return; the server clamps it, and 0 means its
@@ -6793,7 +6918,7 @@ async fn list_security_group_rules(
     ctx: &Context<'_>,
     args: ListSecurityGroupRulesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("project", args.project.as_deref()),
@@ -6801,6 +6926,12 @@ async fn list_security_group_rules(
                 ("security_group", args.security_group.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "projects/{project}/regions/{region}/securityGroups/{security_group}",
+            &["network"],
+            "security_group",
+        )?;
     let parent = names
         .name("projects/{project}/regions/{region}/securityGroups/{security_group}")?;
     let request = ::origincloud_network::v1beta1::ListSecurityGroupRulesRequest {
@@ -6887,7 +7018,7 @@ pub struct CreateSecurityGroupRuleArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{security_group}` part of the resource names the command builds.
+    /// The security group: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}`.
     #[arg(long = "security-group", value_name = "SECURITY_GROUP", required = true)]
     pub security_group: Option<String>,
     /// Which traffic the rule applies to.
@@ -6917,8 +7048,8 @@ pub struct CreateSecurityGroupRuleArgs {
     /// addresses. The rule's own group is refused here with
     /// `INVALID_ARGUMENT`: it is `--same-group`.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/securityGroups/{security_group}`.
-    #[arg(long = "peer-security-group", value_name = "SECURITY_GROUP")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}`; not an id.
+    #[arg(long = "peer-security-group", value_name = "NAME")]
     pub peer_security_group: Option<String>,
     /// The peer as the rule's own group's members.
     #[arg(long = "same-group", value_name = "true|false", action = clap::ArgAction::Set)]
@@ -6947,23 +7078,21 @@ async fn create_security_group_rule(
             ],
         );
     names
-        .learn(
-            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
-            "peer-security-group",
-            args.peer_security_group.as_deref(),
+        .learn_part(
+            "projects/{project}/regions/{region}/securityGroups/{security_group}",
+            &["network"],
+            "security_group",
         )?;
     let parent = names
         .name("projects/{project}/regions/{region}/securityGroups/{security_group}")?;
     let peer_security_group = match args.peer_security_group.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &[
-                        "projects/{project}/regions/{region}/securityGroups/{security_group}",
-                    ],
-                    "peer-security-group",
-                    v,
-                )?
+            reference(
+                &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+                &["network"],
+                "--peer-security-group",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -7020,12 +7149,12 @@ pub struct DeleteSecurityGroupRuleArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The `{security_group}` part of the resource names the command builds. Needed unless `--rule` is given a whole name, which has it.
+    /// The security group: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}`. Needed unless `--rule` is given a whole name, which has it.
     #[arg(long = "security-group", value_name = "SECURITY_GROUP")]
     pub security_group: Option<String>,
     /// The rule to remove.
     ///
-    /// Its id, completed with `--project` and `--region` and `--security-group`, or its whole name, `projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}`.
+    /// Its id, completed with `--project` and `--region` and `--security-group`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}`.
     #[arg(long = "rule", value_name = "RULE")]
     pub rule: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -7051,18 +7180,26 @@ async fn delete_security_group_rule(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/regions/{region}/securityGroups/{security_group}",
+            &["network"],
+            "security_group",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}",
             ],
+            &["network"],
             "rule",
             Some(args.rule.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/regions/{region}/securityGroups/{security_group}/rules/{rule}",
             ],
+            &["network"],
             "rule",
             args.rule.as_str(),
         )?;
@@ -7113,7 +7250,7 @@ pub struct GetSubnetArgs {
     pub zone: Option<String>,
     /// The subnet to return.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: String,
 }
@@ -7126,12 +7263,14 @@ async fn get_subnet(
     names
         .learn(
             &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+            &["network"],
             "subnet",
             Some(args.subnet.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+            &["network"],
             "subnet",
             args.subnet.as_str(),
         )?;
@@ -7162,9 +7301,6 @@ pub struct ListSubnetsArgs {
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
     /// The most subnets to return; the server clamps it, and 0 means its
     /// default.
     ///
@@ -7178,36 +7314,24 @@ pub struct ListSubnetsArgs {
     pub page_token: Option<String>,
     /// Only the subnets of this VPC, when set.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`; not an id.
+    #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: Option<String>,
 }
 async fn list_subnets(
     ctx: &Context<'_>,
     args: ListSubnetsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[
-                ("project", args.project.as_deref()),
-                ("zone", args.zone.as_deref()),
-                ("region", args.region.as_deref()),
-            ],
-        );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            args.vpc.as_deref(),
-        )?;
+    let names = ctx
+        .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-                    "vpc",
-                    v,
-                )?
+            reference(
+                &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+                &["network"],
+                "--vpc",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -7319,15 +7443,12 @@ pub struct CreateSubnetArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
     /// The VPC the subnet is part of, in the same project and in the zone's
     /// region. For now a VPC lives in one zone of its region: a subnet in
     /// another zone is refused with `FAILED_PRECONDITION`.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`; not an id.
+    #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: String,
     /// Whether a launch that creates its network interface in the subnet,
     /// as the GraphQL API's `launchInstance` does, gives that interface a
@@ -7361,27 +7482,15 @@ async fn create_subnet(
     ctx: &Context<'_>,
     args: CreateSubnetArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[
-                ("project", args.project.as_deref()),
-                ("zone", args.zone.as_deref()),
-                ("region", args.region.as_deref()),
-            ],
-        );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            Some(args.vpc.as_str()),
-        )?;
+    let names = ctx
+        .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
     let parent = names.name("projects/{project}/zones/{zone}")?;
-    let vpc = names
-        .reference(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            args.vpc.as_str(),
-        )?;
+    let vpc = reference(
+        &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+        &["network"],
+        "--vpc",
+        args.vpc.as_str(),
+    )?;
     let subnet = ::origincloud_network::v1beta1::Subnet {
         vpc,
         auto_assign_public_ip: args.auto_assign_public_ip.unwrap_or_default(),
@@ -7431,7 +7540,7 @@ pub struct UpdateSubnetArgs {
     pub zone: Option<String>,
     /// The subnet to change.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: String,
     /// Whether a launch that creates its network interface in the subnet,
@@ -7476,12 +7585,14 @@ async fn update_subnet(
     names
         .learn(
             &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+            &["network"],
             "subnet",
             Some(args.subnet.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+            &["network"],
             "subnet",
             args.subnet.as_str(),
         )?;
@@ -7536,7 +7647,7 @@ pub struct DeleteSubnetArgs {
     pub zone: Option<String>,
     /// The subnet to delete.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
     #[arg(long = "subnet", value_name = "SUBNET")]
     pub subnet: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -7558,12 +7669,14 @@ async fn delete_subnet(
     names
         .learn(
             &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+            &["network"],
             "subnet",
             Some(args.subnet.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/subnets/{subnet}"],
+            &["network"],
             "subnet",
             args.subnet.as_str(),
         )?;
@@ -7612,7 +7725,7 @@ pub struct GetVpcArgs {
     pub region: Option<String>,
     /// The VPC to return.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
     #[arg(long = "vpc", value_name = "VPC")]
     pub vpc: String,
 }
@@ -7627,12 +7740,14 @@ async fn get_vpc(
     names
         .learn(
             &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            &["network"],
             "vpc",
             Some(args.vpc.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            &["network"],
             "vpc",
             args.vpc.as_str(),
         )?;
@@ -7832,7 +7947,7 @@ pub struct UpdateVpcArgs {
     pub region: Option<String>,
     /// The vpc to change.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
     #[arg(long = "vpc", value_name = "VPC")]
     pub vpc: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -7863,12 +7978,14 @@ async fn update_vpc(
     names
         .learn(
             &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            &["network"],
             "vpc",
             Some(args.vpc.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            &["network"],
             "vpc",
             args.vpc.as_str(),
         )?;
@@ -7919,7 +8036,7 @@ pub struct DeleteVpcArgs {
     pub region: Option<String>,
     /// The VPC to delete.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
     #[arg(long = "vpc", value_name = "VPC")]
     pub vpc: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -7943,12 +8060,14 @@ async fn delete_vpc(
     names
         .learn(
             &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            &["network"],
             "vpc",
             Some(args.vpc.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+            &["network"],
             "vpc",
             args.vpc.as_str(),
         )?;
@@ -7997,7 +8116,7 @@ pub struct GetOperationArgs {
     pub zone: Option<String>,
     /// The operation.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/operations/{operation}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/operations/{operation}`, or its relative name, `projects/{project}/zones/{zone}/operations/{operation}`.
     #[arg(long = "operation", value_name = "OPERATION")]
     pub operation: String,
 }
@@ -8010,12 +8129,14 @@ async fn get_operation(
     names
         .learn(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
+            &["network"],
             "operation",
             Some(args.operation.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
+            &["network"],
             "operation",
             args.operation.as_str(),
         )?;
@@ -8050,7 +8171,7 @@ pub struct WaitOperationArgs {
     pub zone: Option<String>,
     /// The operation.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/operations/{operation}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/operations/{operation}`, or its relative name, `projects/{project}/zones/{zone}/operations/{operation}`.
     #[arg(long = "operation", value_name = "OPERATION")]
     pub operation: String,
     /// How long to wait for the operation, such as `30s` or `5m`. Without it, the command waits as long as the operation takes. When it passes first, the command prints the operation as it is and exits with status 1.
@@ -8066,12 +8187,14 @@ async fn wait_operation(
     names
         .learn(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
+            &["network"],
             "operation",
             Some(args.operation.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
+            &["network"],
             "operation",
             args.operation.as_str(),
         )?;
