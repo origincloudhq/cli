@@ -1079,7 +1079,7 @@ pub struct CreateInstanceArgs {
     pub boot_volume: Option<Keyed<::origincloud_compute::v1beta1::BootVolume>>,
     #[arg(
         long = "boot-volume-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--boot-volume`.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. Instead of `--boot-volume`.",
         help = "Boot volume as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_compute::v1beta1::BootVolume>(

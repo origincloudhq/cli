@@ -909,6 +909,50 @@ mod tests {
         assert!(!delete.contains("deleted_name"), "{code}");
     }
 
+    /// The help of a message's JSON flag names the flags an id in it is
+    /// completed with: the parts of the referenced pattern but its own.
+    #[test]
+    fn json_help_names_the_flags_that_complete_a_name() {
+        let source = r#"
+            syntax = "proto3";
+            package origincloud.docs.v1;
+            import "google/api/annotations.proto";
+            import "google/api/resource.proto";
+            // Documents.
+            service DocumentService {
+              // Accepts versions.
+              rpc AcceptVersions(AcceptVersionsRequest) returns (AcceptVersionsRequest) {
+                option (google.api.http) = {post: "/v1/versions:accept" body: "*"};
+              }
+            }
+            message Version {
+              option (google.api.resource) = {
+                type: "docs.origincloudapis.eu/Version"
+                pattern: "documents/{document}/versions/{version}"
+              };
+              string name = 1;
+            }
+            message Accepted {
+              string version = 1 [(google.api.resource_reference).type = "docs.origincloudapis.eu/Version"];
+              string note = 2;
+            }
+            message AcceptVersionsRequest { repeated Accepted versions = 1; }
+        "#;
+        let dir = api("docs/v1/docs.proto", source);
+        let files = generated(&[dir.path()]).unwrap();
+        let code = file(&files, "docs.rs");
+        assert!(
+            code.contains("is completed with `--document`, as in its KEY=VALUE form"),
+            "{code}"
+        );
+        assert!(!code.contains("`--project`"), "{code}");
+        let scratch = file(&generated(&[&scratch()]).unwrap(), "scratch.rs");
+        assert!(
+            scratch.contains("is completed with `--project` and `--zone`, as in"),
+            "{scratch}"
+        );
+    }
+
     const CHOICES: &str = r#"
         syntax = "proto3";
         package origincloud.choices.v1;

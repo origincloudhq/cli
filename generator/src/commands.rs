@@ -3952,16 +3952,36 @@ fn json_doc(comment: &str, n: &Nested, keyed_long: &str, repeated: bool) -> Stri
          definitions name them; `@FILE` reads it from a file. Each field and value is checked \
          before anything is sent, at any depth."
     ));
-    // Only a message naming a resource has a name to complete.
-    let names = n.keys.iter().any(|k| {
-        matches!(&k.kind, Kind2::Reference(_))
-            || matches!(&k.kind, Kind2::Optional(kind) if matches!(**kind, Kind2::Reference(_)))
-    });
-    if names {
-        doc.push_str(
-            " A resource name in a field of the message itself is completed with `--project` and \
-             `--zone`, as in its KEY=VALUE form; one nested deeper must be whole.",
-        );
+    // Only a message naming a resource has a name to complete, with the
+    // flags of its parts but its own.
+    let mut parts: Vec<String> = Vec::new();
+    for key in &n.keys {
+        let resource = match &key.kind {
+            Kind2::Reference(r) => r,
+            Kind2::Optional(kind) => match &**kind {
+                Kind2::Reference(r) => r,
+                _ => continue,
+            },
+            _ => continue,
+        };
+        let leaf = leaf_of(&resource.pattern);
+        for var in variables(&resource.pattern) {
+            let flag = format!("`--{}`", var.to_kebab_case());
+            if var != leaf && !parts.contains(&flag) {
+                parts.push(flag);
+            }
+        }
+    }
+    if !parts.is_empty() {
+        let with = match parts.split_last() {
+            Some((last, [])) => last.clone(),
+            Some((last, rest)) => format!("{} and {last}", rest.join(", ")),
+            None => unreachable!("parts isn't empty"),
+        };
+        doc.push_str(&format!(
+            " A resource name in a field of the message itself is completed with {with}, as in \
+             its KEY=VALUE form; one nested deeper must be whole."
+        ));
     }
     if n.parser.is_some() {
         doc.push_str(&format!(" Instead of `--{keyed_long}`."));
