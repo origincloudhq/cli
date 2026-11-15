@@ -141,6 +141,12 @@ pub enum Commands {
         long_about = "Returns the caller's own profile. Any other user is `NOT_FOUND`; a service account caller is refused with `BAD_REQUEST`, having no profile."
     )]
     GetUser(GetUserArgs),
+    #[command(
+        name = "lookup-user",
+        about = "Looks up the user whose account has verified an email address, and answers them with their `name`: their full name is `//iam.origincloudapis.eu/` followed by it, which is how a role binding names them as a member",
+        long_about = "Looks up the user whose account has verified an email address, and answers them with their `name`: their full name is `//iam.origincloudapis.eu/` followed by it, which is how a role binding names them as a member. Needs `iam.role.assign` on `--organization`, the permission a binding of the user needs anyway. Refused with `NOT_FOUND` when no enabled account has verified the address, and with `CONFLICT` when more than one has. The answer leaves `givenName` and `familyName` empty: only the user reads those."
+    )]
+    LookupUser(LookupUserArgs),
 }
 /// Runs `command`.
 pub async fn run(
@@ -179,6 +185,7 @@ pub async fn run(
         }
         Commands::DeleteServiceAccount(args) => delete_service_account(ctx, args).await,
         Commands::GetUser(args) => get_user(ctx, args).await,
+        Commands::LookupUser(args) => lookup_user(ctx, args).await,
     }
 }
 /// The endpoint the group's calls go to, which also serves its operations.
@@ -1502,4 +1509,52 @@ async fn call_get_user(
     ::origincloud_core::Error,
 > {
     ::origincloud_iam::v1beta1::UserClient::new(client.sdk()).get_user(request).await
+}
+/// The flags of `lookup-user`.
+#[derive(clap::Args, Debug)]
+pub struct LookupUserArgs {
+    /// The email address the user's account has verified, matched exactly,
+    /// case aside.
+    #[arg(long = "email")]
+    pub email: String,
+    /// The organization the caller looks the user up for, where it needs
+    /// `iam.role.assign`: `organizations/{organization}`, or its full name.
+    ///
+    /// Its id, or its whole name, `organizations/{organization}`.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    pub organization: String,
+}
+async fn lookup_user(
+    ctx: &Context<'_>,
+    args: LookupUserArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx.names(&[]);
+    names
+        .learn(
+            &["organizations/{organization}"],
+            "organization",
+            Some(args.organization.as_str()),
+        )?;
+    let organization = names
+        .reference(
+            &["organizations/{organization}"],
+            "organization",
+            args.organization.as_str(),
+        )?;
+    let request = ::origincloud_iam::v1beta1::LookupUserRequest {
+        email: args.email.clone(),
+        organization,
+    };
+    let client = ctx.client()?;
+    let response = call_lookup_user(&client, request).await.map_err(api_error)?;
+    json(&response, "origincloud.iam.v1beta1.User")
+}
+async fn call_lookup_user(
+    client: &ReadClient,
+    request: ::origincloud_iam::v1beta1::LookupUserRequest,
+) -> ::core::result::Result<
+    ::origincloud_iam::v1beta1::User,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_iam::v1beta1::UserClient::new(client.sdk()).lookup_user(request).await
 }
