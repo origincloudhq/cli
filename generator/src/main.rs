@@ -765,6 +765,10 @@ mod tests {
                 "repeated bool flags = 2;",
                 "the list flags is a list of bool",
             ),
+            (
+                "repeated bytes blobs = 2;",
+                "the list blobs is a list of bytes",
+            ),
         ] {
             let source = format!(
                 r#"
@@ -799,6 +803,154 @@ mod tests {
             assert!(err.contains(why), "{why}: {err}");
             assert!(err.contains("[[exclude]]"), "{err}");
         }
+    }
+
+    /// A `bytes` field is `--{field}-file`, read byte for byte, wherever a
+    /// field is a flag: in a request, a create's and an update's resource,
+    /// and a oneof, with explicit presence or without. `[[from_file]]` is
+    /// for strings, so it fails generation for one.
+    #[test]
+    fn a_bytes_field_is_read_from_a_file() {
+        let files = generated(&[&scratch()]).unwrap();
+        let code = file(&files, "scratch.rs");
+        let flat: String = code.split_whitespace().collect();
+        for expected in [
+            // Required, with explicit presence, and a oneof's member.
+            "#[arg(long = \"data-file\", value_name = \"PATH\")] pub data_file: String,",
+            "data: read_bytes_file(&args.data_file)?,",
+            "salt: args.salt_file.as_deref().map(read_bytes_file).transpose()?,",
+            ".args([\"label_text\", \"label_bytes_file\"])",
+            "One of `--label-text`, `--label-bytes-file`: give at most one.",
+            "else if let Some(value) = args.label_bytes_file.as_deref().map(read_bytes_file).transpose()?",
+            // A create's resource.
+            "certificate: args.certificate_file.as_deref().map(read_bytes_file).transpose()?.unwrap_or_default(),",
+            "banner: args.banner_file.as_deref().map(read_bytes_file).transpose()?,",
+            // An update's: set and named in the mask when given, unset by
+            // `--no-banner`.
+            "{ firewall.certificate = value; paths.push(\"certificate\".to_owned()); }",
+            "if args.no_banner || args.banner_file.is_some() { firewall.banner = args.banner_file.as_deref().map(read_bytes_file).transpose()?; paths.push(\"banner\".to_owned()); }",
+            "#[arg(long = \"no-banner\", conflicts_with = \"banner_file\")]",
+            "byte for byte. Left as it is when not given. `--no-banner` unsets it.",
+        ] {
+            let wanted: String = expected.split_whitespace().collect();
+            assert!(flat.contains(&wanted), "no {expected:?} in:\n{code}");
+        }
+
+        let policy: policy::Policy = toml::from_str(
+            r#"
+            [[from_file]]
+            service = "scratch"
+            method = "SignFirewallData"
+            field = "data"
+            why = "the test reads it from a file twice"
+            "#,
+        )
+        .unwrap();
+        let err = generated_with(&[&scratch()], &policy)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains(
+                "origincloud.scratch.v1.FirewallService.SignFirewallData: \
+                 origincloud.scratch.v1.SignFirewallDataRequest.data is read from a file \
+                 ([[from_file]]), but isn't a string"
+            ),
+            "{err}"
+        );
+    }
+
+    /// A method answering with a file, `google.api.HttpBody`, has no
+    /// command yet, and generation fails naming it.
+    #[test]
+    fn a_method_answering_with_a_file_fails_generation() {
+        let source = r#"
+            syntax = "proto3";
+            package origincloud.files.v1;
+            import "google/api/annotations.proto";
+            import "google/api/httpbody.proto";
+            // Files.
+            service FileService {
+              // Downloads a file.
+              rpc DownloadFile(DownloadFileRequest) returns (google.api.HttpBody) {
+                option (google.api.http) = {get: "/v1/{name=files/*}:download"};
+              }
+            }
+            message DownloadFileRequest { string name = 1; }
+        "#;
+        let dir = api("files/v1/files.proto", source);
+        let err = generated(&[dir.path()]).unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "origincloud.files.v1.FileService.DownloadFile: it answers with a file \
+                 (google.api.HttpBody), which no command can print yet"
+            ),
+            "{err}"
+        );
+    }
+
+    /// A delete answering with the resource it deleted, which an
+    /// `Undelete{Resource}` restores (a soft delete), prints the resource
+    /// and says what restores it; one answering with nothing says the
+    /// resource can't be restored.
+    #[test]
+    fn a_soft_delete_prints_the_resource_and_names_its_undelete() {
+        let files = generated(&[&scratch()]).unwrap();
+        let code = file(&files, "scratch.rs");
+        let flat: String = code.split_whitespace().collect();
+        let delete = &flat[flat.find("asyncfndelete_firewall(").unwrap()..];
+        let delete = &delete[..delete.find("asyncfncall_delete_firewall(").unwrap()];
+        for expected in [
+            "consequence: \"`undelete-firewall` restores it until it is purged.\"",
+            "json(&response, \"origincloud.scratch.v1.Firewall\")",
+        ] {
+            let wanted: String = expected.split_whitespace().collect();
+            assert!(delete.contains(&wanted), "no {expected:?} in:\n{code}");
+        }
+        assert!(!delete.contains("deleted_name"), "{code}");
+    }
+
+    /// The help of a message's JSON flag names the flags an id in it is
+    /// completed with: the parts of the referenced pattern but its own.
+    #[test]
+    fn json_help_names_the_flags_that_complete_a_name() {
+        let source = r#"
+            syntax = "proto3";
+            package origincloud.docs.v1;
+            import "google/api/annotations.proto";
+            import "google/api/resource.proto";
+            // Documents.
+            service DocumentService {
+              // Accepts versions.
+              rpc AcceptVersions(AcceptVersionsRequest) returns (AcceptVersionsRequest) {
+                option (google.api.http) = {post: "/v1/versions:accept" body: "*"};
+              }
+            }
+            message Version {
+              option (google.api.resource) = {
+                type: "docs.origincloudapis.eu/Version"
+                pattern: "documents/{document}/versions/{version}"
+              };
+              string name = 1;
+            }
+            message Accepted {
+              string version = 1 [(google.api.resource_reference).type = "docs.origincloudapis.eu/Version"];
+              string note = 2;
+            }
+            message AcceptVersionsRequest { repeated Accepted versions = 1; }
+        "#;
+        let dir = api("docs/v1/docs.proto", source);
+        let files = generated(&[dir.path()]).unwrap();
+        let code = file(&files, "docs.rs");
+        assert!(
+            code.contains("is completed with `--document`, as in its KEY=VALUE form"),
+            "{code}"
+        );
+        assert!(!code.contains("`--project`"), "{code}");
+        let scratch = file(&generated(&[&scratch()]).unwrap(), "scratch.rs");
+        assert!(
+            scratch.contains("is completed with `--project` and `--zone`, as in"),
+            "{scratch}"
+        );
     }
 
     const CHOICES: &str = r#"

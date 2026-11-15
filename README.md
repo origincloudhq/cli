@@ -165,7 +165,9 @@ sending anything.
 
 Irreversible commands (every delete, and growing a volume with
 `origin pvs update-volume --size-gib`) refuse to run without `--yes` and say
-what they would have done; the refusal happens before any request.
+what they would have done; the refusal happens before any request. A delete
+whose service can restore what it deleted until it is purged says which
+command restores it, and prints the deleted resource.
 
 `origin compute create-key-pair` without `--public-key` prints the private
 key it generates as `privateKey`, which the API returns this once, and says
@@ -242,6 +244,11 @@ every method of the API, with the API's own descriptions as help:
   `--flag false`; left out, one the API doesn't require is `false`. A
   duration is given as `30s`, `2m` or `1m30s`, a time as RFC 3339, such as
   `2026-11-01T12:00:00Z`.
+- **Binary data.** A field holding bytes is its flag with `-file`, such as
+  `--plaintext-file secret.txt`, which takes a path, or `-` for standard
+  input, and sends the file's content byte for byte, with nothing to encode.
+  A response's bytes are in the JSON the command prints in base64, as in
+  any of the API's JSON: `jq -r .plaintext | base64 -d` turns one back.
 - **Tags.** `--tag KEY=VALUE`, repeated for more. On an update, `--tag`
   replaces all of a resource's tags, and `--no-tags` removes them all; the two
   exclude each other, so the tags are only emptied when you say so. To set or
@@ -324,7 +331,7 @@ every method of the API, with the API's own descriptions as help:
   one page needs `--zone`. An empty list prints
   as `[]`.
 - **Output.** The API's JSON: the resource as the API returns it, with its
-  fields in camel case, such as `sizeGib`.
+  fields in camel case, such as `sizeGib`, and bytes in base64.
 
 - **Credentials.** The login session, or, when they are set, the variables
   every Origin Cloud SDK reads: `ORIGINCLOUD_ACCESS_TOKEN`, or

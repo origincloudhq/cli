@@ -476,7 +476,14 @@ fn signature<'a>(code: &'a str, name: &str) -> &'a str {
 fn deletes_and_one_way_changes_need_the_confirmed_client() {
     let table = table();
     let mut checked = 0;
-    for rpc in rpcs() {
+    // A method the table leaves without a command has no wrapper to check.
+    let commanded = rpcs().into_iter().filter(|rpc| {
+        !table
+            .no_command
+            .iter()
+            .any(|n| n.service == rpc.service && n.method == rpc.method)
+    });
+    for rpc in commanded {
         for (name, _) in &rpc.commands {
             let code = generated(name);
             let snake = rpc.method.to_snake_case();

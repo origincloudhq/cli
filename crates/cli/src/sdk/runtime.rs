@@ -722,11 +722,8 @@ pub fn waiting(ctx: &Context<'_>, operation: &origincloud_core::longrunning::Ope
 /// the content of the file at `path`, or of standard input for `-`, without
 /// its final newline.
 pub fn read_value_file(path: &str) -> anyhow::Result<String> {
-    let mut text = if path == "-" {
-        std::io::read_to_string(std::io::stdin()).context("reading standard input")?
-    } else {
-        std::fs::read_to_string(path).with_context(|| format!("reading {path}"))?
-    };
+    let mut text = String::from_utf8(read_bytes_file(path)?)
+        .map_err(|_| anyhow!("reading {}: it isn't UTF-8 text", source_name(path)))?;
     if text.ends_with('\n') {
         text.pop();
         if text.ends_with('\r') {
@@ -734,6 +731,28 @@ pub fn read_value_file(path: &str) -> anyhow::Result<String> {
         }
     }
     Ok(text)
+}
+
+/// The value of a `bytes` field (`--{field}-file`): the content of the file
+/// at `path`, or of standard input for `-`, byte for byte.
+pub fn read_bytes_file(path: &str) -> anyhow::Result<Vec<u8>> {
+    if path == "-" {
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut std::io::stdin(), &mut bytes)
+            .context("reading standard input")?;
+        Ok(bytes)
+    } else {
+        std::fs::read(path).with_context(|| format!("reading {path}"))
+    }
+}
+
+/// What a file path names in a message: the file, or standard input for `-`.
+fn source_name(path: &str) -> &str {
+    if path == "-" {
+        "standard input"
+    } else {
+        path
+    }
 }
 
 /// Says `notice` on standard error when `value`, a field of the response
@@ -801,6 +820,29 @@ mod tests {
 
     const VOLUME: &str = "projects/{project}/zones/{zone}/volumes/{volume}";
     const ZONE: &str = "projects/{project}/zones/{zone}";
+
+    /// A bytes field's file is read byte for byte; a string's is text, its
+    /// final newline dropped, and a file that isn't UTF-8 is refused.
+    #[test]
+    fn a_file_is_read_as_bytes_or_as_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = dir.path().join("text");
+        std::fs::write(&text, "token\r\n").unwrap();
+        let text = text.to_str().unwrap();
+        assert_eq!(read_value_file(text).unwrap(), "token");
+        assert_eq!(read_bytes_file(text).unwrap(), b"token\r\n");
+
+        let binary = dir.path().join("binary");
+        std::fs::write(&binary, b"\xff\x00\n").unwrap();
+        let binary = binary.to_str().unwrap();
+        assert_eq!(read_bytes_file(binary).unwrap(), b"\xff\x00\n");
+        let refused = read_value_file(binary).unwrap_err().to_string();
+        assert!(refused.contains("isn't UTF-8 text"), "{refused}");
+
+        let missing = dir.path().join("missing");
+        let refused = read_bytes_file(missing.to_str().unwrap()).unwrap_err();
+        assert!(refused.to_string().contains("missing"), "{refused}");
+    }
 
     #[test]
     fn a_name_is_made_of_its_flags_and_the_profile() {

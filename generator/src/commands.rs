@@ -61,6 +61,8 @@ pub(crate) const EMPTY: &str = "google.protobuf.Empty";
 pub(crate) const FIELD_MASK: &str = "google.protobuf.FieldMask";
 pub(crate) const DURATION: &str = "google.protobuf.Duration";
 const TIMESTAMP: &str = "google.protobuf.Timestamp";
+/// What a method answering with a file rather than JSON answers with.
+const HTTP_BODY: &str = "google.api.HttpBody";
 
 /// The service whose package holds every service's operation methods:
 /// `origincloud.longrunning.{version}`. Each service serves them at its own
@@ -326,7 +328,8 @@ pub fn generate(
         "#[allow(unused_imports)]\n\
          use crate::sdk::runtime::{\n\
              api_error, deadline_after, deleted, duration, json, list_json, names_any, pace, passed,\n\
-             read_value_file, shown_once, success, tags, wait, wait_for, waited, waiting, zones,\n\
+             read_bytes_file, read_value_file, shown_once, success, tags, wait, wait_for, waited,\n\
+             waiting, zones,\n\
              ConfirmedClient,\n\
              Context, Listing, ReadClient, OPERATION,\n\
          };\n\
@@ -1103,6 +1106,19 @@ enum Kind2 {
     /// A repeated nested message: `--{singular} KEY=VALUE,...`, repeated,
     /// and `--{field}-json`.
     Messages(Nested),
+    /// `bytes`, as `--{field}-file PATH`: the file's content, byte for byte.
+    Bytes,
+}
+
+impl Kind2 {
+    /// Whether it is `bytes`, with explicit presence or without.
+    fn is_bytes(&self) -> bool {
+        match self {
+            Kind2::Bytes => true,
+            Kind2::Optional(inner) => inner.is_bytes(),
+            _ => false,
+        }
+    }
 }
 
 /// An element of a repeated scalar field.
@@ -1199,7 +1215,7 @@ fn kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
         )),
         // Explicit presence (proto3 `optional`).
         Some(_) => match kind_of(cx, field)? {
-            k @ (Kind2::Scalar(_) | Kind2::Bool | Kind2::Enum(..)) => {
+            k @ (Kind2::Scalar(_) | Kind2::Bool | Kind2::Enum(..) | Kind2::Bytes) => {
                 Ok(Kind2::Optional(Box::new(k)))
             }
             // Already set or unset.
@@ -1260,6 +1276,7 @@ fn kind_of(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
             let (path, values) = enum_kind(&e)?;
             Kind2::Enum(path, values)
         }
+        Kind::Bytes => Kind2::Bytes,
         other => Kind2::Scalar(
             scalar_type(&other)
                 .ok_or_else(|| format!("the field {} is a {other:?}", field.name()))?,
@@ -1634,6 +1651,11 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     if m.is_client_streaming() || m.is_server_streaming() {
         return Err("streaming methods aren't supported".to_owned());
     }
+    if m.output().full_name() == HTTP_BODY {
+        return Err(format!(
+            "it answers with a file ({HTTP_BODY}), which no command can print yet"
+        ));
+    }
     let request = m.input();
     let result = operation_result(cx.pool, m);
     // Only the operation methods answer with an operation they didn't
@@ -1714,6 +1736,9 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                 b.vocabulary
                     .insert("name".to_owned(), leaf_of(&r.pattern).to_kebab_case());
             }
+        } else if cx.policy.read_from_file(cx.own, m.name(), field.name()) {
+            b.vocabulary
+                .insert(field.name().to_owned(), file_long(&field));
         } else if field.name() != "parent" && field.name() != "update_mask" {
             b.vocabulary
                 .insert(field.name().to_owned(), flag_name(cx, &field));
@@ -1940,7 +1965,13 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         }
         let unordered = behaviors(cx.pool, &field).contains(&UNORDERED_LIST);
         let expr = if cx.policy.read_from_file(cx.own, m.name(), &name) {
-            from_file(&mut b, &field, &k, required, &doc)?
+            if !matches!(k, Kind2::Scalar("String")) {
+                return Err(format!(
+                    "{} is read from a file ([[from_file]]), but isn't a string",
+                    field.full_name()
+                ));
+            }
+            file_flag(&mut b, &field, &k, required, &doc)?
         } else {
             value(&mut b, &field, &k, required, unordered, &doc)?
         };
@@ -2045,13 +2076,26 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         let (singular, target_expr) = target
             .clone()
             .ok_or_else(|| "a delete without a resource name".to_owned())?;
+        // A delete answering with nothing says what it deleted, by name; one
+        // answering with the resource (a soft delete) prints it.
+        let says_deleted = match &result {
+            _ if waits => false,
+            Some(r) => r.full_name() == EMPTY,
+            None => list.is_none() && response.full_name() == EMPTY,
+        };
         let _ = writeln!(
             call,
-            "let confirmed = confirm::require(args.confirmation, confirm::Destructive {{ verb: \"delete\", what: {:?}, target: &{target_expr}, consequence: \"It can't be restored.\" }})?;\n\
-             let deleted_name = {target_expr}.clone();\n\
+            "let confirmed = confirm::require(args.confirmation, confirm::Destructive {{ verb: \"delete\", what: {:?}, target: &{target_expr}, consequence: {:?} }})?;\n\
+             {}\
              let client = ctx.confirmed_client(confirmed)?;\n\
              let response = call_{handler}(&client, request).await.map_err(api_error)?;",
-            what(&singular)
+            what(&singular),
+            delete_consequence(m),
+            if says_deleted {
+                format!("let deleted_name = {target_expr}.clone();\n")
+            } else {
+                String::new()
+            }
         );
     } else if !one_way.is_empty() {
         let (singular, target_expr) = target
@@ -2445,6 +2489,21 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     })
 }
 
+/// What a delete's refusal without `--yes` says can't be undone: that the
+/// resource can't be restored, unless the service restores it
+/// (`Undelete{Resource}`, a soft delete), which it names.
+fn delete_consequence(m: &MethodDescriptor) -> String {
+    let resource = m.name().strip_prefix("Delete").unwrap_or_default();
+    let undelete = format!("Undelete{resource}");
+    match m.parent_service().methods().find(|u| u.name() == undelete) {
+        Some(u) => format!(
+            "`{}` restores it until it is purged.",
+            u.name().to_kebab_case()
+        ),
+        None => "It can't be restored.".to_owned(),
+    }
+}
+
 /// Records a one-way field the command sets, and says so in its flag's help.
 fn one_way_use(
     b: &mut Build,
@@ -2456,9 +2515,10 @@ fn one_way_use(
     if matches!(
         k,
         Kind2::Map | Kind2::List(_) | Kind2::Message(_) | Kind2::Messages(_)
-    ) {
+    ) || k.is_bytes()
+    {
         return Err(format!(
-            "the one-way field {} is a map or a list, which isn't supported",
+            "the one-way field {} is a map, a list or bytes, which isn't supported",
             field.name()
         ));
     }
@@ -2506,42 +2566,72 @@ fn init(field: &str, expr: &str) -> String {
     }
 }
 
-/// How a flag's value of Rust type `ty` is taken from the arguments: cloned
-/// unless it is `Copy`.
-/// The flag of a string field read from a file (`commands.toml`'s
-/// `from_file`), `--{field}-file`, which takes a path or `-` for standard
-/// input, and the expression of its value.
-fn from_file(
+/// The flag of a field read from a file, `--{field}-file`, which takes a
+/// path or `-` for standard input, and the expression of its value: a
+/// string's (`commands.toml`'s `from_file`) is the file's text without its
+/// final newline, a `bytes` field's the file's content, byte for byte.
+fn file_flag(
     b: &mut Build,
     field: &FieldDescriptor,
     k: &Kind2,
     required: bool,
     doc: &str,
 ) -> Result<String, String> {
-    if !matches!(k, Kind2::Scalar("String")) {
-        return Err(format!(
-            "{} is read from a file, but isn't a string",
-            field.full_name()
-        ));
-    }
-    let fid = format!("{}_file", ident(field.name()));
+    let fid = file_ident(field);
+    let read = if k.is_bytes() {
+        "read_bytes_file"
+    } else {
+        "read_value_file"
+    };
+    let presence = matches!(k, Kind2::Optional(_));
     b.add_flag(Flag {
         ident: fid.clone(),
-        long: format!("{}-file", field.name().to_kebab_case()),
+        long: file_long(field),
         doc: format!(
-            "{doc}\n\nRead from the file at the path, or from standard input with `-`, without \
-             its final newline."
+            "{doc}\n\n{}{}",
+            read_from(k.is_bytes()),
+            if presence {
+                " Unset when not given."
+            } else {
+                ""
+            }
         ),
         ty: if required { "String" } else { "Option<String>" }.to_owned(),
         attrs: vec!["value_name = \"PATH\"".to_owned()],
     })?;
-    Ok(if required {
-        format!("read_value_file(&args.{fid})?")
-    } else {
-        format!("args.{fid}.as_deref().map(read_value_file).transpose()?.unwrap_or_default()")
+    Ok(match (required, presence) {
+        (true, false) => format!("{read}(&args.{fid})?"),
+        (true, true) => format!("Some({read}(&args.{fid})?)"),
+        (false, true) => format!("args.{fid}.as_deref().map({read}).transpose()?"),
+        (false, false) => {
+            format!("args.{fid}.as_deref().map({read}).transpose()?.unwrap_or_default()")
+        }
     })
 }
 
+/// What the help of a `--{field}-file` flag says of its value: a `bytes`
+/// field's or a string's.
+fn read_from(bytes: bool) -> &'static str {
+    if bytes {
+        "Read from the file at the path, or from standard input with `-`, byte for byte."
+    } else {
+        "Read from the file at the path, or from standard input with `-`, without its final \
+         newline."
+    }
+}
+
+/// The Rust name of a field's `--{field}-file` flag.
+fn file_ident(field: &FieldDescriptor) -> String {
+    format!("{}_file", ident(field.name()))
+}
+
+/// A field's `--{field}-file` flag, without its dashes.
+fn file_long(field: &FieldDescriptor) -> String {
+    format!("{}-file", field.name().to_kebab_case())
+}
+
+/// How a flag's value of Rust type `ty` is taken from the arguments: cloned
+/// unless it is `Copy`.
 fn clone_of(ty: &str) -> &'static str {
     if ty == "String" {
         ".clone()"
@@ -2573,6 +2663,8 @@ fn resource_of(cx: &Cx<'_>, message: &MessageDescriptor) -> Option<Resource> {
 fn flag_name(cx: &Cx<'_>, field: &FieldDescriptor) -> String {
     if json_flag_alone(cx, field) {
         format!("{}-json", field.name().to_kebab_case())
+    } else if field.kind() == Kind::Bytes && !field.is_list() {
+        file_long(field)
     } else if field.is_map() || field.is_list() {
         singular(field.name()).to_kebab_case()
     } else {
@@ -2657,6 +2749,8 @@ fn value(
     };
     let long = field.name().to_kebab_case();
     Ok(match k {
+        Kind2::Bytes => file_flag(b, field, k, required, doc)?,
+        Kind2::Optional(inner) if inner.is_bytes() => file_flag(b, field, k, required, doc)?,
         Kind2::Scalar(ty) => {
             b.add_flag(Flag {
                 ident: fid.clone(),
@@ -2872,6 +2966,10 @@ fn update_field(
     let set = |expr: &str| format!("{body}.{fid} = {expr}; paths.push({name:?}.to_owned());");
     let kept = "\n\nLeft as it is when not given.";
     Ok(match k {
+        Kind2::Bytes => update_bytes(b, field, k, body, required, comment)?,
+        Kind2::Optional(inner) if inner.is_bytes() => {
+            update_bytes(b, field, k, body, required, comment)?
+        }
         Kind2::Scalar(ty) => {
             b.add_flag(Flag {
                 ident: fid.clone(),
@@ -3073,6 +3171,68 @@ fn update_field(
     })
 }
 
+/// Adds the `--{field}-file` flag of a `bytes` field an update may change,
+/// and `--no-{field}` for one with explicit presence the API doesn't
+/// require, and returns the statement that sets it on the resource `body`
+/// and adds it to the mask when given.
+fn update_bytes(
+    b: &mut Build,
+    field: &FieldDescriptor,
+    k: &Kind2,
+    body: &str,
+    required: bool,
+    comment: &str,
+) -> Result<String, String> {
+    let name = field.name();
+    let long = name.to_kebab_case();
+    let set = |expr: &str| {
+        format!(
+            "{body}.{} = {expr}; paths.push({name:?}.to_owned());",
+            ident(name)
+        )
+    };
+    let file = file_ident(field);
+    let presence = matches!(k, Kind2::Optional(_));
+    let unset = presence && !required;
+    b.add_flag(Flag {
+        ident: file.clone(),
+        long: file_long(field),
+        doc: format!(
+            "{comment}\n\n{} Left as it is when not given.{}",
+            read_from(true),
+            if unset {
+                format!(" `--no-{long}` unsets it.")
+            } else {
+                String::new()
+            }
+        ),
+        ty: "Option<String>".to_owned(),
+        attrs: vec!["value_name = \"PATH\"".to_owned()],
+    })?;
+    b.update_ids.push(arg_id(&file).to_owned());
+    let read = format!("args.{file}.as_deref().map(read_bytes_file).transpose()?");
+    if !unset {
+        let value = if presence { "Some(value)" } else { "value" };
+        return Ok(format!("if let Some(value) = {read} {{ {} }}", set(value)));
+    }
+    let none = format!("no_{}", name.to_snake_case());
+    b.add_flag(Flag {
+        ident: none.clone(),
+        long: format!("no-{long}"),
+        doc: format!(
+            "Unsets `--{}`; the API's default applies.",
+            file_long(field)
+        ),
+        ty: "bool".to_owned(),
+        attrs: vec![format!("conflicts_with = {:?}", arg_id(&file))],
+    })?;
+    b.update_ids.push(none.clone());
+    Ok(format!(
+        "if args.{none} || args.{file}.is_some() {{ {} }}",
+        set(&read)
+    ))
+}
+
 /// The fields of a message's Rust struct: its fields outside a oneof, and
 /// one per oneof, which holds whichever of its members is set.
 fn struct_fields(message: &MessageDescriptor) -> usize {
@@ -3199,6 +3359,18 @@ fn oneof_flags(
                 simple(b, ty, attrs)?;
                 ids.push(arg_id(&fid).to_owned());
                 expr
+            }
+            Kind2::Bytes => {
+                let file = file_ident(m);
+                b.add_flag(Flag {
+                    ident: file.clone(),
+                    long: file_long(m),
+                    doc: format!("{}\n\n{}{note}", docs_of(&doc), read_from(true)),
+                    ty: "Option<String>".to_owned(),
+                    attrs: vec!["value_name = \"PATH\"".to_owned()],
+                })?;
+                ids.push(arg_id(&file).to_owned());
+                format!("args.{file}.as_deref().map(read_bytes_file).transpose()?")
             }
             Kind2::Duration => {
                 simple(
@@ -3780,16 +3952,36 @@ fn json_doc(comment: &str, n: &Nested, keyed_long: &str, repeated: bool) -> Stri
          definitions name them; `@FILE` reads it from a file. Each field and value is checked \
          before anything is sent, at any depth."
     ));
-    // Only a message naming a resource has a name to complete.
-    let names = n.keys.iter().any(|k| {
-        matches!(&k.kind, Kind2::Reference(_))
-            || matches!(&k.kind, Kind2::Optional(kind) if matches!(**kind, Kind2::Reference(_)))
-    });
-    if names {
-        doc.push_str(
-            " A resource name in a field of the message itself is completed with `--project` and \
-             `--zone`, as in its KEY=VALUE form; one nested deeper must be whole.",
-        );
+    // Only a message naming a resource has a name to complete, with the
+    // flags of its parts but its own.
+    let mut parts: Vec<String> = Vec::new();
+    for key in &n.keys {
+        let resource = match &key.kind {
+            Kind2::Reference(r) => r,
+            Kind2::Optional(kind) => match &**kind {
+                Kind2::Reference(r) => r,
+                _ => continue,
+            },
+            _ => continue,
+        };
+        let leaf = leaf_of(&resource.pattern);
+        for var in variables(&resource.pattern) {
+            let flag = format!("`--{}`", var.to_kebab_case());
+            if var != leaf && !parts.contains(&flag) {
+                parts.push(flag);
+            }
+        }
+    }
+    if !parts.is_empty() {
+        let with = match parts.split_last() {
+            Some((last, [])) => last.clone(),
+            Some((last, rest)) => format!("{} and {last}", rest.join(", ")),
+            None => unreachable!("parts isn't empty"),
+        };
+        doc.push_str(&format!(
+            " A resource name in a field of the message itself is completed with {with}, as in \
+             its KEY=VALUE form; one nested deeper must be whole."
+        ));
     }
     if n.parser.is_some() {
         doc.push_str(&format!(" Instead of `--{keyed_long}`."));
