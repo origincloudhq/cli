@@ -47,8 +47,8 @@ pub enum Commands {
     DeleteHostedZone(DeleteHostedZoneArgs),
     #[command(
         name = "verify-hosted-zone",
-        about = "Checks a public zone's challenge now, instead of waiting for the platform's next check, and returns the zone as it is then, with the check's outcome in `challenge.last_check`",
-        long_about = "Checks a public zone's challenge now, instead of waiting for the platform's next check, and returns the zone as it is then, with the check's outcome in `challenge.last_check`. A pending zone whose token answers becomes `ACTIVE`, and so does a suspended one while its name is free; otherwise the zone stays as it was. A call within 30 seconds of the zone's last check answers with that check's outcome and asks the name's DNS nothing. Refused with `NOT_FOUND` once a pending zone's window has ended, which deleted it, and with `SERVICE_UNAVAILABLE`, retryable, when the name's DNS didn't answer in time or too many checks are under way. A private zone has no challenge, and is refused with `BAD_REQUEST`. Checking an active zone changes nothing, so a client may repeat the call."
+        about = "Checks a public zone's proof of control now, instead of waiting for the platform's next check, and returns the zone as it is then, with the check's outcome in `challenge.last_check`",
+        long_about = "Checks a public zone's proof of control now, instead of waiting for the platform's next check, and returns the zone as it is then, with the check's outcome in `challenge.last_check`. A pending zone that proves control becomes `ACTIVE`, and so does a suspended one while its name is free; otherwise the zone stays as it was. A call within 30 seconds of the zone's last check answers with that check's outcome and asks the name's DNS nothing. Refused with `NOT_FOUND` once a pending zone's window has ended, which deleted it, and with `SERVICE_UNAVAILABLE`, retryable, when the name's DNS didn't answer in time or too many checks are under way. A private zone has no challenge, and is refused with `BAD_REQUEST`. Checking an active zone changes nothing, so a client may repeat the call; `NOT_FOUND` for one means its proof is lost, and the daily checks suspend it unless the proof comes back."
     )]
     VerifyHostedZone(VerifyHostedZoneArgs),
     #[command(
@@ -285,7 +285,10 @@ pub struct CreateHostedZoneArgs {
     pub project: Option<String>,
     /// The domain, such as `example.com`, without the final dot; answered in
     /// lowercase. A public zone's has at least two labels and at most 235
-    /// characters, so its challenge name fits. A private zone's may have one
+    /// characters, so its challenge name fits, and isn't a special-use domain
+    /// or below one, as none is delegated on the internet: `test`,
+    /// `localhost`, `invalid`, `example`, `local`, `onion`, `alt`, `internal`
+    /// and `home.arpa`. A private zone's may have one
     /// label, but isn't `internal` or a name below it, which answer each
     /// instance's own name. Neither is one of the platform's own domains or a
     /// name below one.
