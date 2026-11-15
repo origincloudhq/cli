@@ -147,16 +147,22 @@ set, and empties an optional oneof with `--no-{oneof}`. A oneof inside a nested 
 refuses two of its members. A field the generator can't make a flag of,
 such as a map other than `map<string, string>` or an optional resource
 name, fails generation, naming the method and the field: nothing is left
-out silently.
+out silently. So does a method answering with a file (`google.api.HttpBody`)
+rather than JSON, which no command prints yet.
+
+Every delete needs `--yes`. A delete answering with nothing says it deleted
+the resource and that it can't be restored; one answering with the
+resource, whose service has an `Undelete{Resource}` (AIP-164's soft
+delete), prints the resource and names that command as what restores it.
 
 The published API doesn't have such fields yet, so the tests use a service
 of their own, `testing/scratch/`: a firewall whose rules are a repeated
 nested message, with repeated scalars and references, a list whose order the
 API doesn't keep, a nested message, timestamps, a struct, optional fields,
 oneofs of the request, of the resource and of a nested message, `bytes`
-fields of the request and of the resource, and a message nested two levels
-deep, with enums, maps, lists and references of its own; the networks it
-references have two name patterns.
+fields of the request and of the resource, a soft delete, and a message
+nested two levels deep, with enums, maps, lists and references of its own;
+the networks it references have two name patterns.
 `scripts/generate.sh` generates its SDK crate's code with the Rust SDK's own
 generator, at the commit `Cargo.lock` pins, into
 `testing/scratch/sdk/src/generated/`, the crate's manifest from the one that

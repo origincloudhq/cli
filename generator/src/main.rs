@@ -859,6 +859,56 @@ mod tests {
         );
     }
 
+    /// A method answering with a file, `google.api.HttpBody`, has no
+    /// command yet, and generation fails naming it.
+    #[test]
+    fn a_method_answering_with_a_file_fails_generation() {
+        let source = r#"
+            syntax = "proto3";
+            package origincloud.files.v1;
+            import "google/api/annotations.proto";
+            import "google/api/httpbody.proto";
+            // Files.
+            service FileService {
+              // Downloads a file.
+              rpc DownloadFile(DownloadFileRequest) returns (google.api.HttpBody) {
+                option (google.api.http) = {get: "/v1/{name=files/*}:download"};
+              }
+            }
+            message DownloadFileRequest { string name = 1; }
+        "#;
+        let dir = api("files/v1/files.proto", source);
+        let err = generated(&[dir.path()]).unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "origincloud.files.v1.FileService.DownloadFile: it answers with a file \
+                 (google.api.HttpBody), which no command can print yet"
+            ),
+            "{err}"
+        );
+    }
+
+    /// A delete answering with the resource it deleted, which an
+    /// `Undelete{Resource}` restores (a soft delete), prints the resource
+    /// and says what restores it; one answering with nothing says the
+    /// resource can't be restored.
+    #[test]
+    fn a_soft_delete_prints_the_resource_and_names_its_undelete() {
+        let files = generated(&[&scratch()]).unwrap();
+        let code = file(&files, "scratch.rs");
+        let flat: String = code.split_whitespace().collect();
+        let delete = &flat[flat.find("asyncfndelete_firewall(").unwrap()..];
+        let delete = &delete[..delete.find("asyncfncall_delete_firewall(").unwrap()];
+        for expected in [
+            "consequence: \"`undelete-firewall` restores it until it is purged.\"",
+            "json(&response, \"origincloud.scratch.v1.Firewall\")",
+        ] {
+            let wanted: String = expected.split_whitespace().collect();
+            assert!(delete.contains(&wanted), "no {expected:?} in:\n{code}");
+        }
+        assert!(!delete.contains("deleted_name"), "{code}");
+    }
+
     const CHOICES: &str = r#"
         syntax = "proto3";
         package origincloud.choices.v1;

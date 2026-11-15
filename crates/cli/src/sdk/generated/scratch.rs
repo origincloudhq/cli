@@ -34,6 +34,18 @@ pub enum Commands {
     )]
     UpdateFirewall(UpdateFirewallArgs),
     #[command(
+        name = "delete-firewall",
+        about = "Deletes a firewall, which UndeleteFirewall restores until it is purged",
+        long_about = "Deletes a firewall, which UndeleteFirewall restores until it is purged."
+    )]
+    DeleteFirewall(DeleteFirewallArgs),
+    #[command(
+        name = "undelete-firewall",
+        about = "Restores a deleted firewall",
+        long_about = "Restores a deleted firewall."
+    )]
+    UndeleteFirewall(UndeleteFirewallArgs),
+    #[command(
         name = "sign-firewall-data",
         about = "Signs data with a firewall's key",
         long_about = "Signs data with a firewall's key."
@@ -61,6 +73,8 @@ pub async fn run(
         Commands::GetFirewall(args) => get_firewall(ctx, args).await,
         Commands::CreateFirewall(args) => create_firewall(ctx, args).await,
         Commands::UpdateFirewall(args) => update_firewall(ctx, args).await,
+        Commands::DeleteFirewall(args) => delete_firewall(ctx, args).await,
+        Commands::UndeleteFirewall(args) => undelete_firewall(ctx, args).await,
         Commands::SignFirewallData(args) => sign_firewall_data(ctx, args).await,
         Commands::ListFirewallPolicies(args) => list_firewall_policies(ctx, args).await,
         Commands::ListNetworks(args) => list_networks(ctx, args).await,
@@ -1033,6 +1047,119 @@ async fn call_update_firewall(
 > {
     ::origincloud_scratch::v1::FirewallClient::new(client.sdk())
         .update_firewall(request)
+        .await
+}
+/// The flags of `delete-firewall`.
+#[derive(clap::Args, Debug)]
+pub struct DeleteFirewallArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
+    #[arg(long = "zone", value_name = "ZONE")]
+    pub zone: Option<String>,
+    /// The firewall to delete.
+    ///
+    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
+    #[arg(long = "firewall", value_name = "FIREWALL")]
+    pub firewall: String,
+    #[command(flatten)]
+    pub confirmation: confirm::Confirmation,
+}
+async fn delete_firewall(
+    ctx: &Context<'_>,
+    args: DeleteFirewallArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names
+        .learn(
+            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            "firewall",
+            Some(args.firewall.as_str()),
+        )?;
+    let name = names
+        .reference(
+            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            "firewall",
+            args.firewall.as_str(),
+        )?;
+    let request = ::origincloud_scratch::v1::DeleteFirewallRequest {
+        name,
+    };
+    let confirmed = confirm::require(
+        args.confirmation,
+        confirm::Destructive {
+            verb: "delete",
+            what: "firewall",
+            target: &request.name,
+            consequence: "`undelete-firewall` restores it until it is purged.",
+        },
+    )?;
+    let client = ctx.confirmed_client(confirmed)?;
+    let response = call_delete_firewall(&client, request).await.map_err(api_error)?;
+    json(&response, "origincloud.scratch.v1.Firewall")
+}
+async fn call_delete_firewall(
+    client: &ConfirmedClient,
+    request: ::origincloud_scratch::v1::DeleteFirewallRequest,
+) -> ::core::result::Result<
+    ::origincloud_scratch::v1::Firewall,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_scratch::v1::FirewallClient::new(client.sdk())
+        .delete_firewall(request)
+        .await
+}
+/// The flags of `undelete-firewall`.
+#[derive(clap::Args, Debug)]
+pub struct UndeleteFirewallArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
+    #[arg(long = "zone", value_name = "ZONE")]
+    pub zone: Option<String>,
+    /// The firewall to restore.
+    ///
+    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
+    #[arg(long = "firewall", value_name = "FIREWALL")]
+    pub firewall: String,
+}
+async fn undelete_firewall(
+    ctx: &Context<'_>,
+    args: UndeleteFirewallArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names
+        .learn(
+            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            "firewall",
+            Some(args.firewall.as_str()),
+        )?;
+    let name = names
+        .reference(
+            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            "firewall",
+            args.firewall.as_str(),
+        )?;
+    let request = ::origincloud_scratch::v1::UndeleteFirewallRequest {
+        name,
+    };
+    let client = ctx.client()?;
+    let response = call_undelete_firewall(&client, request).await.map_err(api_error)?;
+    json(&response, "origincloud.scratch.v1.Firewall")
+}
+async fn call_undelete_firewall(
+    client: &ReadClient,
+    request: ::origincloud_scratch::v1::UndeleteFirewallRequest,
+) -> ::core::result::Result<
+    ::origincloud_scratch::v1::Firewall,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_scratch::v1::FirewallClient::new(client.sdk())
+        .undelete_firewall(request)
         .await
 }
 /// The flags of `sign-firewall-data`.

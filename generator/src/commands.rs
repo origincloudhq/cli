@@ -61,6 +61,8 @@ pub(crate) const EMPTY: &str = "google.protobuf.Empty";
 pub(crate) const FIELD_MASK: &str = "google.protobuf.FieldMask";
 pub(crate) const DURATION: &str = "google.protobuf.Duration";
 const TIMESTAMP: &str = "google.protobuf.Timestamp";
+/// What a method answering with a file rather than JSON answers with.
+const HTTP_BODY: &str = "google.api.HttpBody";
 
 /// The service whose package holds every service's operation methods:
 /// `origincloud.longrunning.{version}`. Each service serves them at its own
@@ -1649,6 +1651,11 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     if m.is_client_streaming() || m.is_server_streaming() {
         return Err("streaming methods aren't supported".to_owned());
     }
+    if m.output().full_name() == HTTP_BODY {
+        return Err(format!(
+            "it answers with a file ({HTTP_BODY}), which no command can print yet"
+        ));
+    }
     let request = m.input();
     let result = operation_result(cx.pool, m);
     // Only the operation methods answer with an operation they didn't
@@ -2069,13 +2076,26 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         let (singular, target_expr) = target
             .clone()
             .ok_or_else(|| "a delete without a resource name".to_owned())?;
+        // A delete answering with nothing says what it deleted, by name; one
+        // answering with the resource (a soft delete) prints it.
+        let says_deleted = match &result {
+            _ if waits => false,
+            Some(r) => r.full_name() == EMPTY,
+            None => list.is_none() && response.full_name() == EMPTY,
+        };
         let _ = writeln!(
             call,
-            "let confirmed = confirm::require(args.confirmation, confirm::Destructive {{ verb: \"delete\", what: {:?}, target: &{target_expr}, consequence: \"It can't be restored.\" }})?;\n\
-             let deleted_name = {target_expr}.clone();\n\
+            "let confirmed = confirm::require(args.confirmation, confirm::Destructive {{ verb: \"delete\", what: {:?}, target: &{target_expr}, consequence: {:?} }})?;\n\
+             {}\
              let client = ctx.confirmed_client(confirmed)?;\n\
              let response = call_{handler}(&client, request).await.map_err(api_error)?;",
-            what(&singular)
+            what(&singular),
+            delete_consequence(m),
+            if says_deleted {
+                format!("let deleted_name = {target_expr}.clone();\n")
+            } else {
+                String::new()
+            }
         );
     } else if !one_way.is_empty() {
         let (singular, target_expr) = target
@@ -2467,6 +2487,21 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         code,
         lists_zones: zonal_parent.is_some(),
     })
+}
+
+/// What a delete's refusal without `--yes` says can't be undone: that the
+/// resource can't be restored, unless the service restores it
+/// (`Undelete{Resource}`, a soft delete), which it names.
+fn delete_consequence(m: &MethodDescriptor) -> String {
+    let resource = m.name().strip_prefix("Delete").unwrap_or_default();
+    let undelete = format!("Undelete{resource}");
+    match m.parent_service().methods().find(|u| u.name() == undelete) {
+        Some(u) => format!(
+            "`{}` restores it until it is purged.",
+            u.name().to_kebab_case()
+        ),
+        None => "It can't be restored.".to_owned(),
+    }
 }
 
 /// Records a one-way field the command sets, and says so in its flag's help.

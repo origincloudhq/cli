@@ -165,7 +165,9 @@ sending anything.
 
 Irreversible commands (every delete, and growing a volume with
 `origin pvs update-volume --size-gib`) refuse to run without `--yes` and say
-what they would have done; the refusal happens before any request.
+what they would have done; the refusal happens before any request. A delete
+whose service can restore what it deleted until it is purged says which
+command restores it, and prints the deleted resource.
 
 `origin compute create-key-pair` without `--public-key` prints the private
 key it generates as `privateKey`, which the API returns this once, and says

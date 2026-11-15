@@ -1451,3 +1451,31 @@ fn the_help_of_a_bytes_field() {
         "{banner}"
     );
 }
+
+/// A soft delete, one the service's `Undelete{Resource}` restores, needs
+/// `--yes` like any delete, says what restores it, and prints the deleted
+/// resource as the API answers it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_soft_delete_says_what_restores_it() {
+    let server = recording(|_: &Received| {
+        Response::json(r#"{"name":"projects/p/zones/z/firewalls/f","ports":[443]}"#)
+    })
+    .await;
+    let delete = [&["delete-firewall"][..], &FIREWALL].concat();
+    let refused = failure(&scratch(&server, &delete).await);
+    assert!(
+        refused.contains("`undelete-firewall` restores it until it is purged."),
+        "{refused}"
+    );
+    assert!(server.requests().is_empty(), "{:?}", server.requests());
+
+    let output = scratch(&server, &[&delete[..], &["--yes"]].concat()).await;
+    assert_eq!(
+        success(&output),
+        json!({"name": "projects/p/zones/z/firewalls/f", "ports": [443]})
+    );
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1, "{requests:?}");
+    assert_eq!(requests[0].method, "DELETE");
+    assert_eq!(requests[0].path, "/v1/projects/p/zones/z/firewalls/f");
+}

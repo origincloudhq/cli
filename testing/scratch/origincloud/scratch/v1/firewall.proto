@@ -5,7 +5,7 @@ syntax = "proto3";
 // API's: repeated scalars and references, a list whose order isn't kept, a
 // nested message, a repeated nested message, a message nested two levels
 // deep, fields with explicit presence (proto3 `optional`), oneofs and
-// bytes; and lists beyond a zone's: one of a top-level collection, and one
+// bytes; a delete that keeps the resource to restore (a soft delete); and lists beyond a zone's: one of a top-level collection, and one
 // filtering on a field rather than a parent, with a reference to a type no
 // package declares.
 package origincloud.scratch.v1;
@@ -45,6 +45,21 @@ service FirewallService {
       body: "firewall"
     };
     option (google.api.method_signature) = "firewall,update_mask";
+  }
+
+  // Deletes a firewall, which UndeleteFirewall restores until it is purged.
+  rpc DeleteFirewall(DeleteFirewallRequest) returns (Firewall) {
+    option (google.api.http) = {delete: "/v1/{name=projects/*/zones/*/firewalls/*}"};
+    option (google.api.method_signature) = "name";
+  }
+
+  // Restores a deleted firewall.
+  rpc UndeleteFirewall(UndeleteFirewallRequest) returns (Firewall) {
+    option (google.api.http) = {
+      post: "/v1/{name=projects/*/zones/*/firewalls/*}:undelete"
+      body: "*"
+    };
+    option (google.api.method_signature) = "name";
   }
 
   // Signs data with a firewall's key.
@@ -292,6 +307,24 @@ message UpdateFirewallRequest {
 
   // The fields to change.
   google.protobuf.FieldMask update_mask = 2;
+}
+
+// The request for DeleteFirewall.
+message DeleteFirewallRequest {
+  // The firewall to delete.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "scratch.origincloudapis.eu/Firewall"
+  ];
+}
+
+// The request for UndeleteFirewall.
+message UndeleteFirewallRequest {
+  // The firewall to restore.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "scratch.origincloudapis.eu/Firewall"
+  ];
 }
 
 // The request for SignFirewallData.
