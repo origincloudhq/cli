@@ -236,7 +236,8 @@ v2     ERROR    16         gp1
 }
 
 /// Role bindings, the caller's own among them (`organizations/-`), are
-/// listed by member and role, a role by its id rather than its whole name.
+/// listed by member and role, a role and a project by their ids rather than
+/// their whole names.
 #[tokio::test(flavor = "multi_thread")]
 async fn role_bindings_are_listed_by_member_and_role() {
     const BINDINGS: &str = r#"{"roleBindings":[
@@ -254,9 +255,9 @@ async fn role_bindings_are_listed_by_member_and_role() {
     assert_eq!(
         text(&table.stdout),
         "\
-NAME   MEMBER                 ROLE     PROJECT       CREATE TIME
+NAME   MEMBER                 ROLE     PROJECT   CREATE TIME
 rb-1   user:ada@example.com   owner
-rb-2   serviceAccount:sa-1    viewer   projects/p1
+rb-2   serviceAccount:sa-1    viewer   p1
 "
     );
     assert_eq!(

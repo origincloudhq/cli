@@ -52,6 +52,18 @@ pub(crate) static IAM: Group = Group {
     regional: false,
     service: iam::service,
 };
+/// `origin kms`.
+#[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
+pub mod kms {
+    include!("kms.rs");
+}
+/// What the runtime knows of `origin kms`.
+pub(crate) static KMS: Group = Group {
+    name: "kms",
+    endpoint_variable: "ORIGINCLOUD_KMS_ENDPOINT",
+    regional: true,
+    service: kms::service,
+};
 /// `origin location`.
 #[allow(clippy::enum_variant_names, clippy::large_enum_variant)]
 pub mod location {
@@ -158,6 +170,7 @@ pub(crate) static GROUPS: &[&Group] = &[
     &COMPUTE,
     &DNS,
     &IAM,
+    &KMS,
     &LOCATION,
     &NETWORK,
     &OBSERVABILITY,
@@ -174,6 +187,7 @@ pub(crate) static GROUPS: &[&Group] = &[
     &COMPUTE,
     &DNS,
     &IAM,
+    &KMS,
     &LOCATION,
     &NETWORK,
     &OBSERVABILITY,
@@ -211,6 +225,12 @@ pub enum ServiceCommands {
         long_about = "Identity and access management: role bindings, service accounts, roles, permissions, your user and the audit log.\n\nRole bindings, service accounts and the audit log are an organization's (`--organization`); roles, permissions and your user are the same in every organization. A role binding's member is `user:{email}` or `serviceAccount:{service_account}`; `origin iam list-role-bindings --organization -` lists the bindings you hold, in every organization."
     )]
     Iam(IamCli),
+    #[command(
+        name = "kms",
+        about = "Key management: encryption and signing keys whose material never leaves the platform, their versions and public keys, and the grants that let a platform host use one",
+        long_about = "Key management: encryption and signing keys whose material never leaves the platform, their versions and public keys, and the grants that let a platform host use one.\n\nKeys are a project's in a region (`--project`, `--region`), never a zone's: every zone of the region serves them. `encrypt`, `decrypt` and `sign` read their data from a file (`--plaintext-file`, `--ciphertext-file`, `--data-file`; `-` for standard input), byte for byte, and print the API's JSON, whose bytes are base64."
+    )]
+    Kms(KmsCli),
     #[command(
         name = "location",
         about = "The platform's regions and zones, and which services each zone offers",
@@ -320,6 +340,21 @@ pub struct IamCli {
     pub endpoint: Option<String>,
     #[command(subcommand)]
     pub command: iam::Commands,
+}
+/// `origin kms`: its options, and the command.
+#[derive(clap::Args, Debug)]
+pub struct KmsCli {
+    /// Base URL to send the calls to, such as a test server's, instead of the service's own host: `https://kms.origincloudapis.eu`, or `https://kms.{region}.origincloudapis.eu` when the profile names a `region`. It must be `https://`, or `http://` to this machine (`localhost`, `127.0.0.1`, `[::1]`).
+    #[arg(
+        long,
+        value_name = "URL",
+        env = "ORIGINCLOUD_KMS_ENDPOINT",
+        global = true,
+        help_heading = "Global options"
+    )]
+    pub endpoint: Option<String>,
+    #[command(subcommand)]
+    pub command: kms::Commands,
 }
 /// `origin location`: its options, and the command.
 #[derive(clap::Args, Debug)]
@@ -463,6 +498,10 @@ pub async fn run(
         ServiceCommands::Iam(cli) => {
             let ctx = Context::new(profile, &IAM, cli.endpoint.as_deref())?;
             iam::run(&ctx, cli.command).await
+        }
+        ServiceCommands::Kms(cli) => {
+            let ctx = Context::new(profile, &KMS, cli.endpoint.as_deref())?;
+            kms::run(&ctx, cli.command).await
         }
         ServiceCommands::Location(cli) => {
             let ctx = Context::new(profile, &LOCATION, cli.endpoint.as_deref())?;

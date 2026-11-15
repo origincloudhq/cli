@@ -96,7 +96,7 @@ pub enum Commands {
     #[command(
         name = "create-role-binding",
         about = "Grants a role to a member",
-        long_about = "Grants a role to a member. Needs `iam.role.assign` on the organization, for a project binding as well, and every permission of the role at the binding's scope: a permission held on the organization counts for any scope, one held on a project only for that project. Refused with `NOT_FOUND` when no account has `--member`'s address as its verified email: nothing is held for an address until its account exists. Refused with `CONFLICT` when the member already holds the role at that scope, and with `BAD_REQUEST` when the member is a deleted service account."
+        long_about = "Grants a role to a member. Needs `iam.role.assign` on the organization, for a project binding as well, and every permission of the role at the binding's scope: a permission held on the organization counts for any scope, one held on a project only for that project. Refused with `NOT_FOUND` when `--member` names a user without an enabled account, a service account of another organization, or an address no enabled account has verified: nothing is held for an address until its account exists. Refused with `CONFLICT` when the member already holds the role at that scope, and with `BAD_REQUEST` when the member is a deleted service account, names no service agent the platform has, or is a service agent and the role isn't one its service needs."
     )]
     CreateRoleBinding(CreateRoleBindingArgs),
     #[command(
@@ -242,11 +242,13 @@ pub struct ListAuditLogEntriesArgs {
     pub organization: Option<String>,
     /// Only the entries of changes limited to this project,
     /// `projects/{project}`. Every entry when empty.
-    #[arg(long = "project")]
+    ///
+    /// Its id, or its whole name, `projects/{project}`.
+    #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// Only the entries of changes made by this member's account,
-    /// `user:{email}` or `serviceAccount:{service_account}`. Every actor's
-    /// when empty.
+    /// Only the entries of changes made by this member, named by its full
+    /// name as a role binding's member is, or as an entry's `--actor` shows it.
+    /// Every actor's when empty.
     #[arg(long = "actor")]
     pub actor: Option<String>,
     /// Only the entries of this action, such as `iam.role.assign`. Every
@@ -269,11 +271,16 @@ async fn list_audit_log_entries(
     ctx: &Context<'_>,
     args: ListAuditLogEntriesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("organization", args.organization.as_deref())]);
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names.learn(&["projects/{project}"], "project", args.project.as_deref())?;
     let parent = names.name("organizations/{organization}")?;
+    let project = match args.project.as_deref() {
+        Some(v) => names.reference(&["projects/{project}"], "project", v)?,
+        None => String::new(),
+    };
     let request = ::origincloud_iam::v1beta1::ListAuditLogEntriesRequest {
         parent,
-        project: args.project.clone().unwrap_or_default(),
+        project,
         actor: args.actor.clone().unwrap_or_default(),
         action: args.action.clone().unwrap_or_default(),
         page_size: args.page_size.unwrap_or_default(),
@@ -881,13 +888,16 @@ pub struct ListRoleBindingsArgs {
     /// The `{organization}` part of the resource names the command builds.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
-    /// Only the bindings of this member, `user:{email}` or
-    /// `serviceAccount:{service_account}`. Every member's when empty.
+    /// Only the bindings of this member, by its full name, such as
+    /// `//iam.origincloudapis.eu/users/{user}`, or as a binding's `--member`
+    /// shows it. Every member's when empty.
     #[arg(long = "member")]
     pub member: Option<String>,
     /// Only the bindings limited to this project, `projects/{project}`. Every
     /// binding, organization-wide or not, when empty.
-    #[arg(long = "project")]
+    ///
+    /// Its id, or its whole name, `projects/{project}`.
+    #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The most bindings to return; the server clamps it, and 0 means its
     /// default.
@@ -905,12 +915,17 @@ async fn list_role_bindings(
     ctx: &Context<'_>,
     args: ListRoleBindingsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("organization", args.organization.as_deref())]);
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names.learn(&["projects/{project}"], "project", args.project.as_deref())?;
     let parent = names.name("organizations/{organization}")?;
+    let project = match args.project.as_deref() {
+        Some(v) => names.reference(&["projects/{project}"], "project", v)?,
+        None => String::new(),
+    };
     let request = ::origincloud_iam::v1beta1::ListRoleBindingsRequest {
         parent,
         member: args.member.clone().unwrap_or_default(),
-        project: args.project.clone().unwrap_or_default(),
+        project,
         page_size: args.page_size.unwrap_or_default(),
         page_token: args.page_token.clone().unwrap_or_default(),
     };
@@ -972,10 +987,12 @@ pub struct CreateRoleBindingArgs {
     /// The `{organization}` part of the resource names the command builds.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
-    /// Who holds the role: `user:{email}` or
-    /// `serviceAccount:{service_account}`. A user is shown with their
-    /// account's current verified address, as `userId:{user}` when it has
-    /// none, or as `deleted:user:{user}` once the account is gone.
+    /// Who holds the role: given as a member's full name, such as
+    /// `//iam.origincloudapis.eu/users/{user}`, or in the form shown here.
+    /// Shown as `user:{email}`, `serviceAccount:{service_account}` or
+    /// `serviceAgent:{service_agent}`: a user with their account's current
+    /// verified address, as `userId:{user}` when it has none, or as
+    /// `deleted:user:{user}` once the account is gone.
     #[arg(long = "member")]
     pub member: String,
     /// The role granted, `roles/{role}`.
@@ -986,7 +1003,9 @@ pub struct CreateRoleBindingArgs {
     /// The project the binding is limited to, `projects/{project}`, one of
     /// the organization's. Empty for a binding on the whole organization,
     /// which covers every project in it.
-    #[arg(long = "project")]
+    ///
+    /// Its id, or its whole name, `projects/{project}`.
+    #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// A UUID. A repeat of the request with the same `--request-id` within a
     /// day returns the binding the first request created, as it is now,
@@ -1000,12 +1019,17 @@ async fn create_role_binding(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
     names.learn(&["roles/{role}"], "role", Some(args.role.as_str()))?;
+    names.learn(&["projects/{project}"], "project", args.project.as_deref())?;
     let parent = names.name("organizations/{organization}")?;
     let role = names.reference(&["roles/{role}"], "role", args.role.as_str())?;
+    let project = match args.project.as_deref() {
+        Some(v) => names.reference(&["projects/{project}"], "project", v)?,
+        None => String::new(),
+    };
     let role_binding = ::origincloud_iam::v1beta1::RoleBinding {
         member: args.member.clone(),
         role,
-        project: args.project.clone().unwrap_or_default(),
+        project,
         ..::core::default::Default::default()
     };
     let request = ::origincloud_iam::v1beta1::CreateRoleBindingRequest {

@@ -3450,16 +3450,24 @@ impl FirewallClient {
     pub fn service(&self) -> &::origincloud_core::Service {
         &self.service
     }
+    /// The same client, whose calls are sent as `options` says instead of as the [`Client`](origincloud_core::Client)'s settings do, such as a mutation that must not be sent twice: `.with_options(CallOptions::new().max_attempts(1))`. See [`CallOptions`](origincloud_core::CallOptions).
+    pub fn with_options(&self, options: ::origincloud_core::CallOptions) -> Self {
+        Self {
+            service: self.service.with_options(options),
+        }
+    }
     /// Returns a firewall.
     pub async fn get_firewall(
         &self,
-        request: GetFirewallRequest,
+        mut request: GetFirewallRequest,
     ) -> ::core::result::Result<Firewall, ::origincloud_core::Error> {
+        let n0 = self.service.relative_name("name", &request.name, &["scratch"])?;
         let p0 = ::origincloud_core::path_value(
             "name",
-            &request.name,
+            &n0,
             "projects/*/zones/*/firewalls/*",
         )?;
+        request.name = n0;
         let query = ::origincloud_core::query(&request, &["name"])?;
         let call = ::origincloud_core::Request::new(
                 ::origincloud_core::Method::GET,
@@ -3472,13 +3480,11 @@ impl FirewallClient {
     /// Creates a firewall.
     pub async fn create_firewall(
         &self,
-        request: CreateFirewallRequest,
+        mut request: CreateFirewallRequest,
     ) -> ::core::result::Result<Firewall, ::origincloud_core::Error> {
-        let p0 = ::origincloud_core::path_value(
-            "parent",
-            &request.parent,
-            "projects/*/zones/*",
-        )?;
+        let n0 = self.service.relative_name("parent", &request.parent, &["scratch"])?;
+        let p0 = ::origincloud_core::path_value("parent", &n0, "projects/*/zones/*")?;
+        request.parent = n0;
         let body = ::origincloud_core::json_body(
             request.firewall.as_ref().unwrap_or(&::core::default::Default::default()),
         )?;
@@ -3494,13 +3500,23 @@ impl FirewallClient {
     /// Changes a firewall's rules, ports, networks, aliases, logging or tags.
     pub async fn update_firewall(
         &self,
-        request: UpdateFirewallRequest,
+        mut request: UpdateFirewallRequest,
     ) -> ::core::result::Result<Firewall, ::origincloud_core::Error> {
+        let n0 = self
+            .service
+            .relative_name(
+                "firewall.name",
+                request.firewall.as_ref().map_or("", |m| m.name.as_str()),
+                &["scratch"],
+            )?;
         let p0 = ::origincloud_core::path_value(
             "firewall.name",
-            request.firewall.as_ref().map_or("", |m| m.name.as_str()),
+            &n0,
             "projects/*/zones/*/firewalls/*",
         )?;
+        if let Some(m) = request.firewall.as_mut() {
+            m.name = n0;
+        }
         let body = ::origincloud_core::json_body(
             request.firewall.as_ref().unwrap_or(&::core::default::Default::default()),
         )?;
@@ -3516,13 +3532,15 @@ impl FirewallClient {
     /// Deletes a firewall, which UndeleteFirewall restores until it is purged.
     pub async fn delete_firewall(
         &self,
-        request: DeleteFirewallRequest,
+        mut request: DeleteFirewallRequest,
     ) -> ::core::result::Result<Firewall, ::origincloud_core::Error> {
+        let n0 = self.service.relative_name("name", &request.name, &["scratch"])?;
         let p0 = ::origincloud_core::path_value(
             "name",
-            &request.name,
+            &n0,
             "projects/*/zones/*/firewalls/*",
         )?;
+        request.name = n0;
         let query = ::origincloud_core::query(&request, &["name"])?;
         let call = ::origincloud_core::Request::new(
                 ::origincloud_core::Method::DELETE,
@@ -3534,13 +3552,15 @@ impl FirewallClient {
     /// Restores a deleted firewall.
     pub async fn undelete_firewall(
         &self,
-        request: UndeleteFirewallRequest,
+        mut request: UndeleteFirewallRequest,
     ) -> ::core::result::Result<Firewall, ::origincloud_core::Error> {
+        let n0 = self.service.relative_name("name", &request.name, &["scratch"])?;
         let p0 = ::origincloud_core::path_value(
             "name",
-            &request.name,
+            &n0,
             "projects/*/zones/*/firewalls/*",
         )?;
+        request.name = n0;
         let body = ::origincloud_core::json_body(&request)?;
         let call = ::origincloud_core::Request::new(
                 ::origincloud_core::Method::POST,
@@ -3552,13 +3572,15 @@ impl FirewallClient {
     /// Signs data with a firewall's key.
     pub async fn sign_firewall_data(
         &self,
-        request: SignFirewallDataRequest,
+        mut request: SignFirewallDataRequest,
     ) -> ::core::result::Result<SignFirewallDataResponse, ::origincloud_core::Error> {
+        let n0 = self.service.relative_name("name", &request.name, &["scratch"])?;
         let p0 = ::origincloud_core::path_value(
             "name",
-            &request.name,
+            &n0,
             "projects/*/zones/*/firewalls/*",
         )?;
+        request.name = n0;
         let body = ::origincloud_core::json_body(&request)?;
         let call = ::origincloud_core::Request::new(
                 ::origincloud_core::Method::POST,

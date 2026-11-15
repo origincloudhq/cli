@@ -91,6 +91,16 @@ charged to. Access to billing is granted apart from access to projects: \
 an organization's owner doesn't hold it by default."""
 
 [[service]]
+name = "kms"
+about = "Key management: encryption and signing keys whose material never leaves the platform, their versions and public keys, and the grants that let a platform host use one"
+details = """
+Keys are a project's in a region (`--project`, `--region`), never a \
+zone's: every zone of the region serves them. `encrypt`, `decrypt` and \
+`sign` read their data from a file (`--plaintext-file`, `--ciphertext-file`, \
+`--data-file`; `-` for standard input), byte for byte, and print the \
+API's JSON, whose bytes are base64."""
+
+[[service]]
 name = "support"
 about = "Support: cases, each a conversation with Origin Cloud support about a question or a problem, and their messages"
 details = """
@@ -383,6 +393,11 @@ why = "Invitations aren't in the API: revoke a pending invitation in the console
 # service = "pvs"
 # method = "ExampleMethod"
 # why = "Why the CLI doesn't offer it."
+
+[[no_command]]
+service = "billing"
+method = "DownloadLegalDocumentVersion"
+why = "It answers with the PDF itself, which no command prints yet; `origin billing get-legal-document-version` returns the version's text, and its `pdfUri`."
 
 # Fields left out of a method's command, because the method doesn't take
 # them although its request message has them.
