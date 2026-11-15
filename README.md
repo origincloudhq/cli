@@ -243,11 +243,15 @@ every method of the API, with the API's own descriptions as help:
     name. A part without a default, such as `--instance`, is required
     unless a whole name given to another flag has it.
   - **A reference** to another resource, such as `--source-snapshot`,
-    `--storage-class` or `--key-pair`, takes a whole name only, which is
-    sent as given: it is never completed from `--project` or `--zone`, and
-    may name another project's resource. An id is refused, with the full
-    name's form: `--storage-class //pvs.origincloudapis.eu/storageClasses/gp1`
-    or `--storage-class storageClasses/gp1`. Where a reference takes more
+    `--storage-class` or `--key-pair`, takes a whole name only, and is
+    always sent as a full name: a full name as given, a relative name with
+    the host of the referenced resource's service put in front
+    (`storageClasses/gp1` is sent as
+    `//pvs.origincloudapis.eu/storageClasses/gp1`), in a flag, a key or
+    JSON at any depth. It is never completed from `--project` or `--zone`,
+    and may name another project's resource. An id is refused, with the
+    full name's form. A reference to types of several services takes its
+    full name alone, a relative name not saying whose it is. Where a reference takes more
     than one form of name, its help names each: `--image` of
     `origin compute create-instance` takes one of the project's own images,
     `projects/{project}/zones/{zone}/images/{image}`, or a public one,

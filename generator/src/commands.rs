@@ -1704,16 +1704,37 @@ fn target_doc(comment: &str, resource: &Resource, leaf: &str) -> String {
     with_comment(comment, format!("{id}, or {}.", whole_forms(resource)))
 }
 
-/// The help of a flag referring to a resource of `resource`'s type: a whole
-/// name, never an id, sent as given.
+/// The help of a flag referring to a resource of `resource`'s type: a full
+/// name, sent as given, or a relative name, sent as its full name; never an
+/// id. A field referring to types of several services takes a full name
+/// alone, a relative one not saying whose it is.
 fn reference_doc(comment: &str, resource: &Resource) -> String {
+    if resource.services.len() > 1 {
+        let hosts: Vec<String> = resource
+            .services
+            .iter()
+            .map(|s| format!("`{s}.origincloudapis.eu`"))
+            .collect();
+        return with_comment(
+            comment,
+            format!(
+                "Its full name, on {}, `//{{host}}/{{name}}`, such as `{}`; not a relative name or \
+                 an id.",
+                hosts.join(" or "),
+                full_form(&resource.services[0], &resource.pattern)
+            ),
+        );
+    }
     let forms = whole_forms(resource);
     let mut chars = forms.chars();
     let forms = match chars.next() {
         Some(first) => first.to_uppercase().chain(chars).collect::<String>(),
         None => forms,
     };
-    with_comment(comment, format!("{forms}; not an id."))
+    with_comment(
+        comment,
+        format!("{forms}, which is sent as its full name; not an id."),
+    )
 }
 
 fn with_comment(comment: &str, how: String) -> String {
@@ -4036,7 +4057,7 @@ fn json_doc(comment: &str, n: &Nested, keyed_long: &str, repeated: bool) -> Stri
     if names {
         doc.push_str(
             " A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a \
-             relative one, never an id, as in its KEY=VALUE form.",
+             relative one, which is sent as its full name, never an id, as in its KEY=VALUE form.",
         );
     }
     if n.parser.is_some() {

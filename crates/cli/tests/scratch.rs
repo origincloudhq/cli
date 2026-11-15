@@ -88,13 +88,13 @@ async fn a_create_sends_nested_and_repeated_fields() {
                 {"protocol": "TCP", "port": 443, "cidr": "0.0.0.0/0"},
                 {
                     "protocol": "UDP",
-                    "network": "projects/p/zones/z/networks/n-1",
+                    "network": "//scratch.origincloudapis.eu/projects/p/zones/z/networks/n-1",
                     "idleTimeout": "90s",
                     "allow": true
                 }
             ],
             "ports": [80, 443],
-            "networks": ["projects/p/zones/z/networks/n-1", "projects/p/zones/z/networks/n-2"],
+            "networks": ["//scratch.origincloudapis.eu/projects/p/zones/z/networks/n-1", "//scratch.origincloudapis.eu/projects/p/zones/z/networks/n-2"],
             "aliases": ["b", "a"],
             "logging": {"enabled": true, "samplePercent": 10},
             "tags": {"team": "web"}
@@ -351,7 +351,7 @@ async fn an_update_replaces_whole_fields() {
     assert_eq!(mask(&requests[4]), ["networks"]);
     assert_eq!(
         body(&requests[4])["networks"],
-        json!(["projects/p/zones/z/networks/n-3"])
+        json!(["//scratch.origincloudapis.eu/projects/p/zones/z/networks/n-3"])
     );
 
     // Setting and emptying one field, both forms of one field, emptying a
@@ -510,8 +510,8 @@ async fn a_json_value_is_checked_value_by_value() {
 }
 
 /// A resource name in a nested value, a key or JSON at any depth, is a
-/// whole name sent as given, of another project too; an id is refused, as
-/// it is in a flag, before anything is sent.
+/// whole name sent as its full name, of another project too; an id is
+/// refused, as it is in a flag, before anything is sent.
 #[tokio::test(flavor = "multi_thread")]
 async fn resource_names_in_nested_values_are_whole() {
     let server = recording(echo).await;
@@ -535,13 +535,13 @@ async fn resource_names_in_nested_values_are_whole() {
         body(&server.requests()[0])["rules"],
         json!([{
             "protocol": "TCP",
-            "network": "projects/q/zones/z/networks/n-1",
-            "match": {"network": "projects/p/zones/z/networks/n-2"}
+            "network": "//scratch.origincloudapis.eu/projects/q/zones/z/networks/n-1",
+            "match": {"network": "//scratch.origincloudapis.eu/projects/p/zones/z/networks/n-2"}
         }])
     );
     assert_eq!(
         body(&server.requests()[1])["rules"],
-        json!([{"protocol": "TCP", "network": "projects/q/zones/z/networks/n-1"}])
+        json!([{"protocol": "TCP", "network": "//scratch.origincloudapis.eu/projects/q/zones/z/networks/n-1"}])
     );
 
     for (rules, says) in [
@@ -581,8 +581,8 @@ async fn resource_names_in_nested_values_are_whole() {
 /// A reference whose resource has several name patterns, as the scratch
 /// network has, takes a whole name of each wherever it is given: a
 /// repeatable flag, a oneof's member, a key and a JSON value, each sent as
-/// given, whatever `--zone` says. An id may hold dots in a whole name; an
-/// id alone is refused.
+/// its full name, whatever `--zone` says. An id may hold dots in a whole
+/// name; an id alone is refused.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
     let server = recording(echo).await;
@@ -612,24 +612,27 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
     assert_eq!(
         sent["networks"],
         json!([
-            "zones/z2/networks/shared-1",
-            "projects/p/zones/z/networks/n.2"
+            "//scratch.origincloudapis.eu/zones/z2/networks/shared-1",
+            "//scratch.origincloudapis.eu/projects/p/zones/z/networks/n.2"
         ])
     );
     assert_eq!(
         sent["rules"],
         json!([
-            {"protocol": "TCP", "network": "zones/z/networks/shared.2"},
-            {"protocol": "UDP", "network": "projects/p/zones/z/networks/n.3"}
+            {"protocol": "TCP", "network": "//scratch.origincloudapis.eu/zones/z/networks/shared.2"},
+            {"protocol": "UDP", "network": "//scratch.origincloudapis.eu/projects/p/zones/z/networks/n.3"}
         ])
     );
-    assert_eq!(sent["mirrorNetwork"], "zones/z/networks/m.1");
+    assert_eq!(
+        sent["mirrorNetwork"],
+        "//scratch.origincloudapis.eu/zones/z/networks/m.1"
+    );
 
     let rules = r#"[{"protocol": "TCP", "network": "zones/z/networks/s.1"}]"#;
     success(&scratch(&server, &[&CREATE[..], &["--rules-json", rules]].concat()).await);
     assert_eq!(
         body(&server.requests()[1])["rules"],
-        json!([{"protocol": "TCP", "network": "zones/z/networks/s.1"}])
+        json!([{"protocol": "TCP", "network": "//scratch.origincloudapis.eu/zones/z/networks/s.1"}])
     );
 
     // An update, whose firewall's name is learned from a whole name.
@@ -650,7 +653,7 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
     assert_eq!(update.path, "/v1/projects/p/zones/z/firewalls/f.1");
     assert_eq!(
         body(update)["networks"],
-        json!(["zones/z/networks/shared-1"])
+        json!(["//scratch.origincloudapis.eu/zones/z/networks/shared-1"])
     );
 
     // An id, a name of neither form, or one with a part that could leave
@@ -1026,7 +1029,7 @@ async fn a_oneof_is_one_flag_of_its_members() {
     let requests = server.requests();
     assert_eq!(
         body(&requests[0])["mirrorNetwork"],
-        "projects/p/zones/z/networks/n-1"
+        "//scratch.origincloudapis.eu/projects/p/zones/z/networks/n-1"
     );
     assert_eq!(body(&requests[1])["mirrorAddress"], "10.0.0.9:4789");
     assert_eq!(requests[1].query_values("notifyEmail"), ["ops@example.com"]);
@@ -1197,8 +1200,8 @@ async fn a_top_level_list_pages_through_every_page() {
 }
 
 /// A list filtering on a field rather than a parent takes it as a flag, a
-/// whole resource name sent as given; a reference to a type no package
-/// declares is sent whole too.
+/// whole resource name sent as its full name; a reference to a type no
+/// package declares is sent whole, as given.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_filtered_list_sends_its_filters() {
     let server =
@@ -1226,7 +1229,9 @@ async fn a_filtered_list_sends_its_filters() {
     assert_eq!(requests[0].path, "/v1/networks");
     let query = &requests[0].query;
     assert!(
-        query.contains("firewall=projects%2Fp%2Fzones%2Fz%2Ffirewalls%2Ff"),
+        query.contains(
+            "firewall=%2F%2Fscratch.origincloudapis.eu%2Fprojects%2Fp%2Fzones%2Fz%2Ffirewalls%2Ff"
+        ),
         "{query}"
     );
     assert!(query.contains("owner=people%2Fada"), "{query}");

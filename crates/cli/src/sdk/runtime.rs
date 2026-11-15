@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context as _};
 use origincloud_core::credentials::{Credentials, TokenFuture};
-use origincloud_core::names::{FullName, DOMAIN};
+use origincloud_core::names::{FullName, FullNameError, DOMAIN, RESOURCE_SERVICES};
 use origincloud_core::{Client, Operation};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -347,6 +347,17 @@ fn relative_name<'v>(
     if !value.starts_with("//") {
         return Ok(value.contains('/').then_some(value));
     }
+    if cfg!(feature = "test-services") {
+        // A test service's full name, which the SDK lists no host for, in
+        // the form `full_name` gives it.
+        if let Some(relative) = services
+            .iter()
+            .filter(|s| !RESOURCE_SERVICES.contains(s))
+            .find_map(|s| value.strip_prefix(&format!("//{s}.{DOMAIN}/")))
+        {
+            return Ok(Some(relative));
+        }
+    }
     let name = FullName::parse(value).map_err(|e| anyhow!("{source}: {e}"))?;
     if !services.contains(&name.service()) {
         bail!(
@@ -360,9 +371,9 @@ fn relative_name<'v>(
 
 /// The name a reference flag or key, `source`, sends for `value`: a full
 /// name of the resource, on the host of a service of `services` (those of
-/// the type it refers to), with a relative name of one of `patterns`, or a
-/// relative name of one of them, each sent as given. An id is refused:
-/// only the command's own target is made of parts.
+/// the type it refers to), with a relative name of one of `patterns`, sent
+/// as given; or a relative name of one of them, sent as its full name. An
+/// id is refused: only the command's own target is made of parts.
 pub fn reference(
     patterns: &[&str],
     services: &[&str],
@@ -377,7 +388,62 @@ pub fn reference(
         bail!("{source}: {value:?} is an id; give the resource's full name{example}")
     };
     parse_any(patterns, relative).map_err(|e| anyhow!("{source}: {e}"))?;
-    Ok(value.to_owned())
+    sent_as_full_name(services, source, value, relative, patterns)
+}
+
+/// The full name a reference, `value`, is sent as: itself when it is one,
+/// or its relative name, `relative`, on the host of the referenced type's
+/// service. A relative name is refused when the field refers to types of
+/// several services, whose host it doesn't say; `patterns`, when given,
+/// make the refusal's example.
+fn sent_as_full_name(
+    services: &[&str],
+    source: &str,
+    value: &str,
+    relative: &str,
+    patterns: &[&str],
+) -> anyhow::Result<String> {
+    if value.starts_with("//") {
+        return Ok(value.to_owned());
+    }
+    match services {
+        [service] => full_name(service, relative).map_err(|e| anyhow!("{source}: {e}")),
+        _ => {
+            let example = match patterns.first() {
+                Some(pattern) => format!(", such as //{}.{DOMAIN}/{pattern}", services[0]),
+                None => String::new(),
+            };
+            bail!(
+                "{source}: {value:?} is a relative name, and {source} takes a name on {}, which \
+                 it doesn't say; give its full name{example}",
+                hosts(services)
+            )
+        }
+    }
+}
+
+/// `//{service}.origincloudapis.eu/{relative}`, as the SDK's [`FullName`]
+/// builds it. A test service, which the SDK lists no host for, is given its
+/// full name in the same form.
+fn full_name(service: &str, relative: &str) -> Result<String, String> {
+    match FullName::from_relative(service, relative) {
+        Ok(name) => Ok(name.to_string()),
+        Err(FullNameError::UnknownService { .. }) if cfg!(feature = "test-services") => {
+            Ok(format!("//{service}.{DOMAIN}/{relative}"))
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// The name a reference at `source` in a JSON value sends for `value`, the
+/// field referring to a type of `service`: a full name of it, as given, or
+/// a relative name, as its full name.
+pub(crate) fn json_reference(service: &str, source: &str, value: &str) -> Result<String, String> {
+    let services = [service];
+    let relative = relative_name(&services, source, value)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("{source}: {value:?} is an id; give the resource's full name"))?;
+    sent_as_full_name(&services, source, value, relative, &[]).map_err(|e| e.to_string())
 }
 
 impl Names {
@@ -1148,9 +1214,14 @@ mod tests {
             "//compute.origincloudapis.eu/instanceTypes/gp1.core.2",
             "instanceTypes/a..b",
         ] {
+            let full = if value.starts_with("//") {
+                value.to_owned()
+            } else {
+                format!("//compute.origincloudapis.eu/{value}")
+            };
             assert_eq!(
                 reference(&[INSTANCE_TYPE], &["compute"], "--instance-type", value).unwrap(),
-                value
+                full
             );
         }
         for (value, name) in [
@@ -1185,16 +1256,15 @@ mod tests {
         }
     }
 
-    /// A reference is a whole name, sent as given: full, on the referenced
-    /// type's host, or relative, of another project too. An id is refused,
-    /// whatever `--project` and `--zone` say, naming the full form.
+    /// A reference is a whole name, sent as a full name: full, on the
+    /// referenced type's host, as given, or relative, with that host put in
+    /// front, of another project too. An id is refused, whatever
+    /// `--project` and `--zone` say, naming the full form.
     #[test]
-    fn a_reference_is_a_whole_name_sent_as_given() {
-        for value in [
-            "//pvs.origincloudapis.eu/projects/other/zones/z/volumes/v",
-            "projects/other/zones/z/volumes/v",
-        ] {
-            assert_eq!(reference(&[VOLUME], PVS, "--volume", value).unwrap(), value);
+    fn a_reference_is_a_whole_name_sent_as_a_full_name() {
+        let full = "//pvs.origincloudapis.eu/projects/other/zones/z/volumes/v";
+        for value in [full, "projects/other/zones/z/volumes/v"] {
+            assert_eq!(reference(&[VOLUME], PVS, "--volume", value).unwrap(), full);
         }
         let err = reference(&[VOLUME], PVS, "--volume", "v")
             .unwrap_err()
@@ -1228,14 +1298,23 @@ mod tests {
     /// name of each, and its refusal names them all.
     #[test]
     fn a_reference_takes_a_whole_name_of_each_pattern() {
-        for value in [
-            "zones/z/images/img-1",
-            "projects/p/zones/z/images/img-1",
-            "//compute.origincloudapis.eu/zones/z/images/img-1",
+        for (value, sent) in [
+            (
+                "zones/z/images/img-1",
+                "//compute.origincloudapis.eu/zones/z/images/img-1",
+            ),
+            (
+                "projects/p/zones/z/images/img-1",
+                "//compute.origincloudapis.eu/projects/p/zones/z/images/img-1",
+            ),
+            (
+                "//compute.origincloudapis.eu/zones/z/images/img-1",
+                "//compute.origincloudapis.eu/zones/z/images/img-1",
+            ),
         ] {
             assert_eq!(
                 reference(&IMAGE, &["compute"], "--image", value).unwrap(),
-                value
+                sent
             );
         }
         for bad in [
@@ -1255,6 +1334,37 @@ mod tests {
                 "{bad}: {err}"
             );
         }
+    }
+
+    /// A reference to types of several services takes a full name of any
+    /// of them, as given; a relative name, which doesn't say whose it is,
+    /// is refused, naming the hosts and an example.
+    #[test]
+    fn an_ambiguous_relative_reference_is_refused() {
+        const SERVICES: &[&str] = &["pvs", "compute"];
+        let full = "//compute.origincloudapis.eu/projects/p/zones/z/volumes/v";
+        assert_eq!(
+            reference(&[VOLUME], SERVICES, "--disk", full).unwrap(),
+            full
+        );
+        let err = reference(
+            &[VOLUME],
+            SERVICES,
+            "--disk",
+            "projects/p/zones/z/volumes/v",
+        )
+        .unwrap_err()
+        .to_string();
+        assert_eq!(
+            err,
+            "--disk: \"projects/p/zones/z/volumes/v\" is a relative name, and --disk takes a name \
+             on pvs.origincloudapis.eu or compute.origincloudapis.eu, which it doesn't say; give \
+             its full name, such as //pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}"
+        );
+        assert_eq!(
+            json_reference("pvs", "[0].volume", "projects/p/zones/z/volumes/v").unwrap(),
+            "//pvs.origincloudapis.eu/projects/p/zones/z/volumes/v"
+        );
     }
 
     const RULE_PARENT: &str = "projects/{project}/regions/{region}/securityGroups/{security_group}";

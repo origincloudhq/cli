@@ -253,7 +253,7 @@ pub struct ListAuditLogEntriesArgs {
     /// Only the entries of changes limited to this project,
     /// `projects/{project}`. Every entry when empty.
     ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`; not an id.
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`, which is sent as its full name; not an id.
     #[arg(long = "project", value_name = "NAME")]
     pub project: Option<String>,
     /// Only the entries of changes made by this member, named by its full
@@ -939,7 +939,7 @@ pub struct ListRoleBindingsArgs {
     /// Only the bindings limited to this project, `projects/{project}`. Every
     /// binding, organization-wide or not, when empty.
     ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`; not an id.
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`, which is sent as its full name; not an id.
     #[arg(long = "project", value_name = "NAME")]
     pub project: Option<String>,
     /// The most bindings to return; the server clamps it, and 0 means its
@@ -1041,14 +1041,14 @@ pub struct CreateRoleBindingArgs {
     pub member: String,
     /// The role granted, `roles/{role}`.
     ///
-    /// Its full name, `//iam.origincloudapis.eu/roles/{role}`, or its relative name, `roles/{role}`; not an id.
+    /// Its full name, `//iam.origincloudapis.eu/roles/{role}`, or its relative name, `roles/{role}`, which is sent as its full name; not an id.
     #[arg(long = "role", value_name = "NAME")]
     pub role: String,
     /// The project the binding is limited to, `projects/{project}`, one of
     /// the organization's. Empty for a binding on the whole organization,
     /// which covers every project in it.
     ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`; not an id.
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`, which is sent as its full name; not an id.
     #[arg(long = "project", value_name = "NAME")]
     pub project: Option<String>,
     /// A UUID. A repeat of the request with the same `--request-id` within a
@@ -1565,7 +1565,7 @@ pub struct LookupUserArgs {
     /// The organization the caller looks the user up for, where it needs
     /// `iam.role.assign`: `organizations/{organization}`, or its full name.
     ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`; not an id.
+    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`, which is sent as its full name; not an id.
     #[arg(long = "organization", value_name = "NAME")]
     pub organization: String,
 }

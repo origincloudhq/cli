@@ -110,14 +110,19 @@ take ids, completed from those flags and the profile (`runtime.rs`'s
 `Names`); a whole name given to one fills in the other parts, and the
 request's path is the relative name. A reference to another resource, in a
 flag, a key or JSON at any depth, is never made of parts (`runtime.rs`'s
-`reference`): it is a whole name, sent as given, and an id is refused with
-the full name's form. A reference whose resource declares several patterns
+`reference`, `nested.rs`'s `full_names`): it is a whole name, sent as a
+full name, as the API requires of a reference: a full name as given, a
+relative one with its type's service's host put in front
+(`FullName::from_relative`), refused when the field refers to types of
+several services; an id is refused with the full name's form. A reference whose resource declares several patterns
 (`google.api.resource`'s `pattern` list) takes a whole name of each, its
 help naming them all.
 
 The tests' scratch service isn't one of the platform's, so its full names
-aren't (`FullName` knows the platform's services only): its tests use
-relative names, and full names are tested through the published services.
+aren't (`FullName` knows the platform's services only): its tests give
+relative names, which, with the `test-services` feature alone, are sent as
+`//scratch.origincloudapis.eu/…` in the same form, and full names given
+are tested through the published services.
 
 A duration or a timestamp is a flag of its own form (`30s`, RFC 3339). A
 `bytes` field is `--{field}-file`, taking a path or `-` for standard input,
