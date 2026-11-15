@@ -394,6 +394,11 @@ why = "Invitations aren't in the API: revoke a pending invitation in the console
 # method = "ExampleMethod"
 # why = "Why the CLI doesn't offer it."
 
+[[no_command]]
+service = "billing"
+method = "DownloadLegalDocumentVersion"
+why = "It answers with the PDF itself, which no command prints yet; `origin billing get-legal-document-version` returns the version's text, and its `pdfUri`."
+
 # Fields left out of a method's command, because the method doesn't take
 # them although its request message has them.
 [[exclude]]
