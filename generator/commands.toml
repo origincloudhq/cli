@@ -91,6 +91,16 @@ charged to. Access to billing is granted apart from access to projects: \
 an organization's owner doesn't hold it by default."""
 
 [[service]]
+name = "kms"
+about = "Key management: encryption and signing keys whose material never leaves the platform, their versions and public keys, and the grants that let a platform host use one"
+details = """
+Keys are a project's in a region (`--project`, `--region`), never a \
+zone's: every zone of the region serves them. `encrypt`, `decrypt` and \
+`sign` read their data from a file (`--plaintext-file`, `--ciphertext-file`, \
+`--data-file`; `-` for standard input), byte for byte, and print the \
+API's JSON, whose bytes are base64."""
+
+[[service]]
 name = "support"
 about = "Support: cases, each a conversation with Origin Cloud support about a question or a problem, and their messages"
 details = """

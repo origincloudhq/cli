@@ -1527,6 +1527,7 @@ dependencies = [
  "origincloud-core",
  "origincloud-dns",
  "origincloud-iam",
+ "origincloud-kms",
  "origincloud-location",
  "origincloud-mcp",
  "origincloud-network",
