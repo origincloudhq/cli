@@ -765,6 +765,10 @@ mod tests {
                 "repeated bool flags = 2;",
                 "the list flags is a list of bool",
             ),
+            (
+                "repeated bytes blobs = 2;",
+                "the list blobs is a list of bytes",
+            ),
         ] {
             let source = format!(
                 r#"
@@ -799,6 +803,60 @@ mod tests {
             assert!(err.contains(why), "{why}: {err}");
             assert!(err.contains("[[exclude]]"), "{err}");
         }
+    }
+
+    /// A `bytes` field is `--{field}-file`, read byte for byte, wherever a
+    /// field is a flag: in a request, a create's and an update's resource,
+    /// and a oneof, with explicit presence or without. `[[from_file]]` is
+    /// for strings, so it fails generation for one.
+    #[test]
+    fn a_bytes_field_is_read_from_a_file() {
+        let files = generated(&[&scratch()]).unwrap();
+        let code = file(&files, "scratch.rs");
+        let flat: String = code.split_whitespace().collect();
+        for expected in [
+            // Required, with explicit presence, and a oneof's member.
+            "#[arg(long = \"data-file\", value_name = \"PATH\")] pub data_file: String,",
+            "data: read_bytes_file(&args.data_file)?,",
+            "salt: args.salt_file.as_deref().map(read_bytes_file).transpose()?,",
+            ".args([\"label_text\", \"label_bytes_file\"])",
+            "One of `--label-text`, `--label-bytes-file`: give at most one.",
+            "else if let Some(value) = args.label_bytes_file.as_deref().map(read_bytes_file).transpose()?",
+            // A create's resource.
+            "certificate: args.certificate_file.as_deref().map(read_bytes_file).transpose()?.unwrap_or_default(),",
+            "banner: args.banner_file.as_deref().map(read_bytes_file).transpose()?,",
+            // An update's: set and named in the mask when given, unset by
+            // `--no-banner`.
+            "{ firewall.certificate = value; paths.push(\"certificate\".to_owned()); }",
+            "if args.no_banner || args.banner_file.is_some() { firewall.banner = args.banner_file.as_deref().map(read_bytes_file).transpose()?; paths.push(\"banner\".to_owned()); }",
+            "#[arg(long = \"no-banner\", conflicts_with = \"banner_file\")]",
+            "byte for byte. Left as it is when not given. `--no-banner` unsets it.",
+        ] {
+            let wanted: String = expected.split_whitespace().collect();
+            assert!(flat.contains(&wanted), "no {expected:?} in:\n{code}");
+        }
+
+        let policy: policy::Policy = toml::from_str(
+            r#"
+            [[from_file]]
+            service = "scratch"
+            method = "SignFirewallData"
+            field = "data"
+            why = "the test reads it from a file twice"
+            "#,
+        )
+        .unwrap();
+        let err = generated_with(&[&scratch()], &policy)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains(
+                "origincloud.scratch.v1.FirewallService.SignFirewallData: \
+                 origincloud.scratch.v1.SignFirewallDataRequest.data is read from a file \
+                 ([[from_file]]), but isn't a string"
+            ),
+            "{err}"
+        );
     }
 
     const CHOICES: &str = r#"

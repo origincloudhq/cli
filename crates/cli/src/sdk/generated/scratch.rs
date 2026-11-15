@@ -4,8 +4,8 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_value_file, shown_once, success, tags, wait, wait_for, waited, waiting,
-    zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, shown_once, success, tags, wait, wait_for,
+    waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -34,6 +34,12 @@ pub enum Commands {
     )]
     UpdateFirewall(UpdateFirewallArgs),
     #[command(
+        name = "sign-firewall-data",
+        about = "Signs data with a firewall's key",
+        long_about = "Signs data with a firewall's key."
+    )]
+    SignFirewallData(SignFirewallDataArgs),
+    #[command(
         name = "list-firewall-policies",
         about = "Lists every firewall policy",
         long_about = "Lists every firewall policy."
@@ -55,6 +61,7 @@ pub async fn run(
         Commands::GetFirewall(args) => get_firewall(ctx, args).await,
         Commands::CreateFirewall(args) => create_firewall(ctx, args).await,
         Commands::UpdateFirewall(args) => update_firewall(ctx, args).await,
+        Commands::SignFirewallData(args) => sign_firewall_data(ctx, args).await,
         Commands::ListFirewallPolicies(args) => list_firewall_policies(ctx, args).await,
         Commands::ListNetworks(args) => list_networks(ctx, args).await,
     }
@@ -275,6 +282,16 @@ pub struct CreateFirewallArgs {
         )
     )]
     pub mirror_log_json: Option<JsonArg<::origincloud_scratch::v1::Logging>>,
+    /// The certificate the firewall presents, in DER.
+    ///
+    /// Read from the file at the path, or from standard input with `-`, byte for byte.
+    #[arg(long = "certificate-file", value_name = "PATH")]
+    pub certificate_file: Option<String>,
+    /// What the firewall answers a denied connection with; nothing when unset.
+    ///
+    /// Read from the file at the path, or from standard input with `-`, byte for byte. Unset when not given.
+    #[arg(long = "banner-file", value_name = "PATH")]
+    pub banner_file: Option<String>,
     /// An email address.
     ///
     /// One of `--notify-email`, `--notify-after-seconds`: give exactly one.
@@ -429,6 +446,13 @@ async fn create_firewall(
             .map(|v| v as i32),
         note: args.note.clone(),
         mirror,
+        certificate: args
+            .certificate_file
+            .as_deref()
+            .map(read_bytes_file)
+            .transpose()?
+            .unwrap_or_default(),
+        banner: args.banner_file.as_deref().map(read_bytes_file).transpose()?,
         ..::core::default::Default::default()
     };
     #[allow(clippy::manual_map)]
@@ -506,7 +530,10 @@ async fn call_create_firewall(
             "mirror_address",
             "mirror_log",
             "mirror_log_json",
-            "no_mirror"]
+            "no_mirror",
+            "certificate_file",
+            "banner_file",
+            "no_banner"]
         )
     )
 )]
@@ -705,6 +732,19 @@ pub struct UpdateFirewallArgs {
     /// Set none of `--mirror-network`, `--mirror-address`, `--mirror-log`: the update empties the choice.
     #[arg(long = "no-mirror")]
     pub no_mirror: bool,
+    /// The certificate the firewall presents, in DER.
+    ///
+    /// Read from the file at the path, or from standard input with `-`, byte for byte. Left as it is when not given.
+    #[arg(long = "certificate-file", value_name = "PATH")]
+    pub certificate_file: Option<String>,
+    /// What the firewall answers a denied connection with; nothing when unset.
+    ///
+    /// Read from the file at the path, or from standard input with `-`, byte for byte. Left as it is when not given. `--no-banner` unsets it.
+    #[arg(long = "banner-file", value_name = "PATH")]
+    pub banner_file: Option<String>,
+    /// Unsets `--banner-file`; the API's default applies.
+    #[arg(long = "no-banner", conflicts_with = "banner_file")]
+    pub no_banner: bool,
 }
 async fn update_firewall(
     ctx: &Context<'_>,
@@ -961,6 +1001,19 @@ async fn update_firewall(
         paths.push("mirror_address".to_owned());
         paths.push("mirror_log".to_owned());
     }
+    if let Some(value) = args
+        .certificate_file
+        .as_deref()
+        .map(read_bytes_file)
+        .transpose()?
+    {
+        firewall.certificate = value;
+        paths.push("certificate".to_owned());
+    }
+    if args.no_banner || args.banner_file.is_some() {
+        firewall.banner = args.banner_file.as_deref().map(read_bytes_file).transpose()?;
+        paths.push("banner".to_owned());
+    }
     let request = ::origincloud_scratch::v1::UpdateFirewallRequest {
         firewall: Some(firewall),
         update_mask: Some(::origincloud_core::protobuf::FieldMask {
@@ -980,6 +1033,110 @@ async fn call_update_firewall(
 > {
     ::origincloud_scratch::v1::FirewallClient::new(client.sdk())
         .update_firewall(request)
+        .await
+}
+/// The flags of `sign-firewall-data`.
+#[derive(clap::Args, Debug)]
+#[command(
+    group(
+        clap::ArgGroup::new(
+            "label"
+        ).multiple(false).args(["label_text", "label_bytes_file"])
+    )
+)]
+pub struct SignFirewallDataArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
+    #[arg(long = "zone", value_name = "ZONE")]
+    pub zone: Option<String>,
+    /// The firewall whose key signs.
+    ///
+    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
+    #[arg(long = "firewall", value_name = "FIREWALL")]
+    pub firewall: String,
+    /// The data to sign.
+    ///
+    /// Read from the file at the path, or from standard input with `-`, byte for byte.
+    #[arg(long = "data-file", value_name = "PATH")]
+    pub data_file: String,
+    /// A salt mixed into the signature; none when unset.
+    ///
+    /// Read from the file at the path, or from standard input with `-`, byte for byte. Unset when not given.
+    #[arg(long = "salt-file", value_name = "PATH")]
+    pub salt_file: Option<String>,
+    /// The label as text.
+    ///
+    /// One of `--label-text`, `--label-bytes-file`: give at most one.
+    #[arg(long = "label-text")]
+    pub label_text: Option<String>,
+    /// The label as bytes.
+    ///
+    /// Read from the file at the path, or from standard input with `-`, byte for byte.
+    ///
+    /// One of `--label-text`, `--label-bytes-file`: give at most one.
+    #[arg(long = "label-bytes-file", value_name = "PATH")]
+    pub label_bytes_file: Option<String>,
+}
+async fn sign_firewall_data(
+    ctx: &Context<'_>,
+    args: SignFirewallDataArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names
+        .learn(
+            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            "firewall",
+            Some(args.firewall.as_str()),
+        )?;
+    let name = names
+        .reference(
+            &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
+            "firewall",
+            args.firewall.as_str(),
+        )?;
+    #[allow(clippy::manual_map)]
+    let label = if let Some(value) = args.label_text.clone() {
+        Some(
+            ::origincloud_scratch::v1::sign_firewall_data_request::Label::LabelText(
+                value,
+            ),
+        )
+    } else if let Some(value) = args
+        .label_bytes_file
+        .as_deref()
+        .map(read_bytes_file)
+        .transpose()?
+    {
+        Some(
+            ::origincloud_scratch::v1::sign_firewall_data_request::Label::LabelBytes(
+                value,
+            ),
+        )
+    } else {
+        None
+    };
+    let request = ::origincloud_scratch::v1::SignFirewallDataRequest {
+        name,
+        data: read_bytes_file(&args.data_file)?,
+        salt: args.salt_file.as_deref().map(read_bytes_file).transpose()?,
+        label,
+    };
+    let client = ctx.client()?;
+    let response = call_sign_firewall_data(&client, request).await.map_err(api_error)?;
+    json(&response, "origincloud.scratch.v1.SignFirewallDataResponse")
+}
+async fn call_sign_firewall_data(
+    client: &ReadClient,
+    request: ::origincloud_scratch::v1::SignFirewallDataRequest,
+) -> ::core::result::Result<
+    ::origincloud_scratch::v1::SignFirewallDataResponse,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_scratch::v1::FirewallClient::new(client.sdk())
+        .sign_firewall_data(request)
         .await
 }
 /// The flags of `list-firewall-policies`.

@@ -1222,3 +1222,232 @@ async fn a_filtered_list_sends_its_filters() {
     );
     assert!(query.contains("owner=people%2Fada"), "{query}");
 }
+
+/// The proto JSON mapping of `bytes`: standard base64.
+fn base64(bytes: &[u8]) -> String {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
+/// Bytes no text reading would keep: invalid UTF-8, a NUL, and a final
+/// newline.
+const RAW: &[u8] = b"\xff\xfe\x00signed\r\n";
+
+/// A `bytes` field is `--{field}-file`, read byte for byte from the file or
+/// from standard input with `-`, and sent as the proto JSON mapping says, in
+/// base64; one with explicit presence is left out when not given, and a
+/// oneof's member is one of the oneof's flags. A response's bytes are printed
+/// as the API's JSON has them.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_bytes_field_is_read_from_a_file_byte_for_byte() {
+    const SIGNED: &str = r#"{"signature":"c2lnbmF0dXJl"}"#;
+    let server = recording(|_: &Received| Response::json(SIGNED)).await;
+    let data = server.home.path().join("data");
+    std::fs::write(&data, RAW).unwrap();
+    let data = data.to_str().unwrap();
+    let sign = |extra: &[&'static str]| {
+        [
+            &["sign-firewall-data", "--project", "p", "--zone", "z"][..],
+            &["--firewall", "f", "--data-file"],
+            extra,
+        ]
+        .concat()
+    };
+
+    let output = scratch(&server, &[&sign(&[])[..], &[data]].concat()).await;
+    assert_eq!(success(&output), json!({"signature": "c2lnbmF0dXJl"}));
+    let output = server
+        .run_with_stdin(
+            "scratch",
+            &[
+                &sign(&[])[..],
+                &[data, "--salt-file", "-", "--label-bytes-file", data],
+            ]
+            .concat(),
+            b"salt\n",
+        )
+        .await;
+    success(&output);
+    let output = server
+        .run_with_stdin("scratch", &[&sign(&[])[..], &["-"]].concat(), RAW)
+        .await;
+    success(&output);
+
+    let requests = server.requests();
+    assert_eq!(requests.len(), 3, "{requests:?}");
+    for r in &requests {
+        assert_eq!(r.method, "POST");
+        assert_eq!(r.path, "/v1/projects/p/zones/z/firewalls/f:signData");
+    }
+    const NAME: &str = "projects/p/zones/z/firewalls/f";
+    assert_eq!(
+        body(&requests[0]),
+        json!({"name": NAME, "data": base64(RAW)})
+    );
+    assert_eq!(
+        body(&requests[1]),
+        json!({"name": NAME, "data": base64(RAW), "salt": base64(b"salt\n"), "labelBytes": base64(RAW)})
+    );
+    assert_eq!(
+        body(&requests[2]),
+        json!({"name": NAME, "data": base64(RAW)})
+    );
+
+    // An empty file is sent as such where the field has explicit presence.
+    let empty = server.home.path().join("empty");
+    std::fs::write(&empty, b"").unwrap();
+    let output = scratch(
+        &server,
+        &[
+            &sign(&[])[..],
+            &[data, "--salt-file", empty.to_str().unwrap()],
+        ]
+        .concat(),
+    )
+    .await;
+    success(&output);
+    assert_eq!(body(&server.requests()[3])["salt"], "");
+
+    // A missing file fails before anything is sent; so do two members of
+    // the oneof, and no data at all.
+    let missing = server.home.path().join("no-such-file");
+    let output = scratch(
+        &server,
+        &[&sign(&[])[..], &[missing.to_str().unwrap()]].concat(),
+    )
+    .await;
+    assert!(failure(&output).contains("no-such-file"), "{output:?}");
+    refused(
+        &server,
+        &[
+            &sign(&[])[..],
+            &[data, "--label-text", "x", "--label-bytes-file", data],
+        ]
+        .concat(),
+        "cannot be used with",
+    )
+    .await;
+    refused(
+        &server,
+        &[
+            "sign-firewall-data",
+            "--project",
+            "p",
+            "--zone",
+            "z",
+            "--firewall",
+            "f",
+        ],
+        "--data-file",
+    )
+    .await;
+    assert_eq!(server.requests().len(), 4);
+}
+
+/// A resource's `bytes` field is `--{field}-file` in a create and in an
+/// update, which names it in the mask; `--no-{field}` unsets one with
+/// explicit presence.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_resources_bytes_field_is_set_from_a_file() {
+    let server = recording(echo).await;
+    let certificate = server.home.path().join("certificate.der");
+    std::fs::write(&certificate, RAW).unwrap();
+    let certificate = certificate.to_str().unwrap();
+
+    let output = scratch(
+        &server,
+        &[
+            &CREATE[..],
+            &["--rule", "protocol=TCP", "--certificate-file", certificate],
+        ]
+        .concat(),
+    )
+    .await;
+    // The API's JSON, as the server answered it.
+    assert_eq!(success(&output)["certificate"], base64(RAW));
+    let created = body(&server.requests()[0]);
+    assert_eq!(created["certificate"], base64(RAW));
+    assert!(created.get("banner").is_none(), "{created}");
+
+    let update = |extra: &[&'static str]| [&["update-firewall"][..], &FIREWALL, extra].concat();
+    success(
+        &scratch(
+            &server,
+            &[
+                &update(&[])[..],
+                &[
+                    "--certificate-file",
+                    certificate,
+                    "--banner-file",
+                    certificate,
+                ],
+            ]
+            .concat(),
+        )
+        .await,
+    );
+    success(&scratch(&server, &update(&["--no-banner"])).await);
+    let requests = server.requests();
+    let mask = |r: &Received| {
+        let mut paths: Vec<String> = r
+            .query_values("updateMask")
+            .iter()
+            .flat_map(|v| v.split(',').map(str::to_owned).collect::<Vec<_>>())
+            .collect();
+        paths.sort();
+        paths
+    };
+    assert_eq!(mask(&requests[1]), ["banner", "certificate"]);
+    assert_eq!(body(&requests[1])["certificate"], base64(RAW));
+    assert_eq!(body(&requests[1])["banner"], base64(RAW));
+    assert_eq!(mask(&requests[2]), ["banner"]);
+    assert!(body(&requests[2]).get("banner").is_none(), "{requests:?}");
+
+    refused(
+        &server,
+        &[
+            &update(&[])[..],
+            &["--banner-file", certificate, "--no-banner"],
+        ]
+        .concat(),
+        "cannot be used with",
+    )
+    .await;
+    assert_eq!(server.requests().len(), 3);
+}
+
+/// A `bytes` field's help says where its flag reads from, and how; an
+/// update's, that it is left as it is, and how to unset it.
+#[test]
+fn the_help_of_a_bytes_field() {
+    let root = origincloud_cli::command();
+    let group = root.find_subcommand("scratch").unwrap();
+    let help = |command: &str, flag: &str| -> String {
+        let arg = group
+            .find_subcommand(command)
+            .unwrap()
+            .get_arguments()
+            .find(|a| a.get_long() == Some(flag))
+            .unwrap_or_else(|| panic!("{command} has no --{flag}"));
+        assert_eq!(
+            arg.get_value_names().map(|v| v.to_vec()),
+            Some(vec!["PATH".into()]),
+            "{command} --{flag}"
+        );
+        arg.get_long_help()
+            .or(arg.get_help())
+            .map(ToString::to_string)
+            .unwrap_or_default()
+    };
+    let reads = "or from standard input with `-`, byte for byte.";
+    assert!(help("sign-firewall-data", "data-file").contains(reads));
+    assert!(help("sign-firewall-data", "salt-file").contains("Unset when not given."));
+    assert!(help("sign-firewall-data", "label-bytes-file")
+        .contains("One of `--label-text`, `--label-bytes-file`"));
+    assert!(help("create-firewall", "certificate-file").contains(reads));
+    let banner = help("update-firewall", "banner-file");
+    assert!(
+        banner.contains("Left as it is when not given. `--no-banner` unsets it."),
+        "{banner}"
+    );
+}

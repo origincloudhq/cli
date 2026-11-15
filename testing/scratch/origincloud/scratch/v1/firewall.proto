@@ -4,10 +4,10 @@ syntax = "proto3";
 // the kinds of fields the generator turns into flags beyond the published
 // API's: repeated scalars and references, a list whose order isn't kept, a
 // nested message, a repeated nested message, a message nested two levels
-// deep, fields with explicit presence (proto3 `optional`), and oneofs; and
-// lists beyond a zone's: one of a top-level collection, and one filtering on
-// a field rather than a parent, with a reference to a type no package
-// declares.
+// deep, fields with explicit presence (proto3 `optional`), oneofs and
+// bytes; and lists beyond a zone's: one of a top-level collection, and one
+// filtering on a field rather than a parent, with a reference to a type no
+// package declares.
 package origincloud.scratch.v1;
 
 import "google/api/annotations.proto";
@@ -45,6 +45,15 @@ service FirewallService {
       body: "firewall"
     };
     option (google.api.method_signature) = "firewall,update_mask";
+  }
+
+  // Signs data with a firewall's key.
+  rpc SignFirewallData(SignFirewallDataRequest) returns (SignFirewallDataResponse) {
+    option (google.api.http) = {
+      post: "/v1/{name=projects/*/zones/*/firewalls/*}:signData"
+      body: "*"
+    };
+    option (google.api.method_signature) = "name,data";
   }
 
   // Lists every firewall policy.
@@ -123,6 +132,12 @@ message Firewall {
     // A log that receives them.
     Logging mirror_log = 17;
   }
+
+  // The certificate the firewall presents, in DER.
+  bytes certificate = 18;
+
+  // What the firewall answers a denied connection with; nothing when unset.
+  optional bytes banner = 19;
 }
 
 // A network a firewall can guard: one of the project's own, or one the
@@ -277,6 +292,36 @@ message UpdateFirewallRequest {
 
   // The fields to change.
   google.protobuf.FieldMask update_mask = 2;
+}
+
+// The request for SignFirewallData.
+message SignFirewallDataRequest {
+  // The firewall whose key signs.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "scratch.origincloudapis.eu/Firewall"
+  ];
+
+  // The data to sign.
+  bytes data = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A salt mixed into the signature; none when unset.
+  optional bytes salt = 3;
+
+  // A label the signature carries, at most one.
+  oneof label {
+    // The label as text.
+    string label_text = 4;
+
+    // The label as bytes.
+    bytes label_bytes = 5;
+  }
+}
+
+// The response for SignFirewallData.
+message SignFirewallDataResponse {
+  // The signature.
+  bytes signature = 1;
 }
 
 // The request for ListFirewallPolicies.

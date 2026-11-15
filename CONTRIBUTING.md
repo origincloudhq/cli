@@ -101,7 +101,13 @@ reference whose resource declares several patterns (`google.api.resource`'s
 `pattern` list) takes a whole name of each, its help naming them all; an id
 completes to the first.
 
-A duration or a timestamp is a flag of its own form (`30s`, RFC 3339). Any
+A duration or a timestamp is a flag of its own form (`30s`, RFC 3339). A
+`bytes` field is `--{field}-file`, taking a path or `-` for standard input,
+whose content is sent byte for byte (`runtime.rs`'s `read_bytes_file`),
+wherever a field is a flag: in a request, a create's or an update's
+resource, a oneof, with explicit presence or without; the response's bytes
+are printed in base64, as the API's JSON has them. In a nested message, a
+`bytes` field is set through the JSON form, in base64. Any
 other field holding a message is a flag taking comma-separated `KEY=VALUE`
 pairs, one per field of the message that a flag could set on its own (a
 number, a string, a boolean, an enum, a duration, a timestamp, a resource
@@ -147,9 +153,10 @@ The published API doesn't have such fields yet, so the tests use a service
 of their own, `testing/scratch/`: a firewall whose rules are a repeated
 nested message, with repeated scalars and references, a list whose order the
 API doesn't keep, a nested message, timestamps, a struct, optional fields,
-oneofs of the request, of the resource and of a nested message, and a
-message nested two levels deep, with enums, maps, lists and references of
-its own; the networks it references have two name patterns.
+oneofs of the request, of the resource and of a nested message, `bytes`
+fields of the request and of the resource, and a message nested two levels
+deep, with enums, maps, lists and references of its own; the networks it
+references have two name patterns.
 `scripts/generate.sh` generates its SDK crate's code with the Rust SDK's own
 generator, at the commit `Cargo.lock` pins, into
 `testing/scratch/sdk/src/generated/`, the crate's manifest from the one that
@@ -187,7 +194,8 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   from standard input with `-`, rather than from the command line, where a
   credential would be in the shell's history and in every process listing:
   its flag is `--{field}-file`, and the value is the file's content without
-  its final newline. Generation fails for a field that isn't a string;
+  its final newline. Generation fails for a field that isn't a string: a
+  `bytes` field is read from a file without an entry;
 - `[[also_names]]` names a reference field, by its full name
   (`origincloud.compute.v1beta1.Instance.image`), that takes the names of
   another resource type too (`compute.origincloudapis.eu/PublicImage`),
