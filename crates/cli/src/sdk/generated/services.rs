@@ -222,7 +222,7 @@ pub enum ServiceCommands {
     #[command(
         name = "iam",
         about = "Identity and access management: role bindings, service accounts, roles, permissions, your user and the audit log",
-        long_about = "Identity and access management: role bindings, service accounts, roles, permissions, your user and the audit log.\n\nRole bindings, service accounts and the audit log are an organization's (`--organization`); roles, permissions and your user are the same in every organization. A role binding's member is `user:{email}` or `serviceAccount:{service_account}`; `origin iam list-role-bindings --organization -` lists the bindings you hold, in every organization."
+        long_about = "Identity and access management: role bindings, service accounts, roles, permissions, your user and the audit log.\n\nRole bindings, service accounts and the audit log are an organization's (`--organization`); roles, permissions and your user are the same in every organization. A role binding's member is a full name: a user's `//iam.origincloudapis.eu/users/{user}`, which `origin iam lookup-user` finds from a verified email address, or a service account's `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`. `origin iam list-role-bindings --organization -` lists the bindings you hold, in every organization."
     )]
     Iam(IamCli),
     #[command(
