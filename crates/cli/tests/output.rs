@@ -196,7 +196,7 @@ async fn colour_is_only_where_it_is_asked_for_off_a_terminal() {
 
 const VOLUMES: &str = r#"{"volumes":[
     {"name":"projects/p/zones/z/volumes/v1","sizeGib":8,"state":"IN_USE",
-     "storageClass":"storageClasses/gp1","urn":"urn:v1","tags":{"env":"prod"}},
+     "storageClass":"storageClasses/gp1","tags":{"env":"prod"}},
     {"name":"projects/p/zones/z/volumes/v2","sizeGib":16,"state":"ERROR",
      "storageClass":"storageClasses/gp1","stateReason":"no capacity"}]}"#;
 
@@ -221,12 +221,13 @@ v2     ERROR    16         gp1
     let wide = server.pvs(&[&args[..], &["-o", "wide"]].concat()).await;
     let wide = text(&wide.stdout);
     let header = wide.lines().next().unwrap();
+    // The view's columns first, then the fields the default leaves out.
     assert!(
-        header.starts_with("NAME   STATE    SIZE GIB   STORAGE CLASS   RESIZE STATE   URN"),
+        header.starts_with("NAME   STATE    SIZE GIB   STORAGE CLASS   RESIZE STATE   "),
         "{header}"
     );
     assert!(
-        header.contains("STATE REASON") && header.contains("TAGS"),
+        header.contains("STATE REASON") && header.contains("CREATOR") && header.contains("TAGS"),
         "{header}"
     );
     assert!(
