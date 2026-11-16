@@ -1,6 +1,9 @@
+pub(crate) mod agents;
 pub(crate) mod command_tree;
 pub(crate) mod completion;
 pub mod config;
+pub(crate) mod files;
 pub mod id;
 pub mod mcp;
+pub(crate) mod skill;
 pub(crate) mod tag_args;

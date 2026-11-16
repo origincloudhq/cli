@@ -54,13 +54,13 @@ async fn a_create_sends_nested_and_repeated_fields() {
             "--rule",
             "protocol=TCP,port=443,cidr=0.0.0.0/0",
             "--rule",
-            "protocol=UDP,network=n-1,idle_timeout=1m30s,allow=true",
+            "protocol=UDP,network=projects/p/zones/z/networks/n-1,idle_timeout=1m30s,allow=true",
             "--port",
             "80",
             "--port",
             "443",
             "--network",
-            "n-1",
+            "projects/p/zones/z/networks/n-1",
             "--network",
             "projects/p/zones/z/networks/n-2",
             "--alias",
@@ -88,13 +88,13 @@ async fn a_create_sends_nested_and_repeated_fields() {
                 {"protocol": "TCP", "port": 443, "cidr": "0.0.0.0/0"},
                 {
                     "protocol": "UDP",
-                    "network": "projects/p/zones/z/networks/n-1",
+                    "network": "//scratch.origincloudapis.eu/projects/p/zones/z/networks/n-1",
                     "idleTimeout": "90s",
                     "allow": true
                 }
             ],
             "ports": [80, 443],
-            "networks": ["projects/p/zones/z/networks/n-1", "projects/p/zones/z/networks/n-2"],
+            "networks": ["//scratch.origincloudapis.eu/projects/p/zones/z/networks/n-1", "//scratch.origincloudapis.eu/projects/p/zones/z/networks/n-2"],
             "aliases": ["b", "a"],
             "logging": {"enabled": true, "samplePercent": 10},
             "tags": {"team": "web"}
@@ -315,7 +315,7 @@ async fn an_update_replaces_whole_fields() {
         update(&["--logging", "sample_percent=5"]),
         update(&["--no-metadata", "--no-ports", "--no-logging"]),
         update(&["--rules-json", "[]", "--alias", "x"]),
-        update(&["--network", "n-3"]),
+        update(&["--network", "projects/p/zones/z/networks/n-3"]),
     ] {
         success(&scratch(&server, &args).await);
     }
@@ -351,7 +351,7 @@ async fn an_update_replaces_whole_fields() {
     assert_eq!(mask(&requests[4]), ["networks"]);
     assert_eq!(
         body(&requests[4])["networks"],
-        json!(["projects/p/zones/z/networks/n-3"])
+        json!(["//scratch.origincloudapis.eu/projects/p/zones/z/networks/n-3"])
     );
 
     // Setting and emptying one field, both forms of one field, emptying a
@@ -509,60 +509,80 @@ async fn a_json_value_is_checked_value_by_value() {
     );
 }
 
-/// A resource name in a field of the JSON's message itself is completed
-/// with `--project` and `--zone`, as in the KEY=VALUE form; one nested
-/// deeper must be whole. A whole name, in either form, must agree with
-/// `--project` and `--zone`.
+/// A resource name in a nested value, a key or JSON at any depth, is a
+/// whole name sent as its full name, of another project too; an id is
+/// refused, as it is in a flag, before anything is sent.
 #[tokio::test(flavor = "multi_thread")]
-async fn resource_names_in_nested_values_are_completed_or_whole() {
+async fn resource_names_in_nested_values_are_whole() {
     let server = recording(echo).await;
-    let rules = r#"[{"protocol": "TCP", "network": "n-1", "match": {"network": "projects/p/zones/z/networks/n-2"}}]"#;
+    let rules = r#"[{"protocol": "TCP", "network": "projects/q/zones/z/networks/n-1", "match": {"network": "projects/p/zones/z/networks/n-2"}}]"#;
     success(&scratch(&server, &[&CREATE[..], &["--rules-json", rules]].concat()).await);
+    success(
+        &scratch(
+            &server,
+            &[
+                &CREATE[..],
+                &[
+                    "--rule",
+                    "protocol=TCP,network=projects/q/zones/z/networks/n-1",
+                ],
+            ]
+            .concat(),
+        )
+        .await,
+    );
     assert_eq!(
         body(&server.requests()[0])["rules"],
         json!([{
             "protocol": "TCP",
-            "network": "projects/p/zones/z/networks/n-1",
-            "match": {"network": "projects/p/zones/z/networks/n-2"}
+            "network": "//scratch.origincloudapis.eu/projects/q/zones/z/networks/n-1",
+            "match": {"network": "//scratch.origincloudapis.eu/projects/p/zones/z/networks/n-2"}
         }])
     );
+    assert_eq!(
+        body(&server.requests()[1])["rules"],
+        json!([{"protocol": "TCP", "network": "//scratch.origincloudapis.eu/projects/q/zones/z/networks/n-1"}])
+    );
 
-    refused(
-        &server,
-        &[
-            &CREATE[..],
-            &[
-                "--rules-json",
-                r#"[{"protocol": "TCP", "match": {"network": "n-2"}}]"#,
-            ],
-        ]
-        .concat(),
-        r#"[0].match.network: "n-2" is an id; give the resource's whole name here"#,
-    )
-    .await;
-    for args in [
-        &[
-            "--rule",
-            "protocol=TCP,network=projects/q/zones/z/networks/n",
-        ][..],
-        &[
-            "--rules-json",
-            r#"[{"protocol": "TCP", "network": "projects/q/zones/z/networks/n"}]"#,
-        ],
+    for (rules, says) in [
+        (
+            r#"[{"protocol": "TCP", "network": "n-1"}]"#,
+            r#"[0].network: "n-1" is an id; give the resource's full name"#,
+        ),
+        (
+            r#"[{"protocol": "TCP", "match": {"network": "n-2"}}]"#,
+            r#"[0].match.network: "n-2" is an id; give the resource's full name"#,
+        ),
     ] {
-        let description = failure(&scratch(&server, &[&CREATE[..], args].concat()).await);
-        assert!(
-            description.contains("--project p differs from the project of --rule network"),
-            "{args:?}: {description}"
-        );
+        refused(
+            &server,
+            &[&CREATE[..], &["--rules-json", rules]].concat(),
+            says,
+        )
+        .await;
     }
-    assert_eq!(server.requests().len(), 1);
+    let description = failure(
+        &scratch(
+            &server,
+            &[&CREATE[..], &["--rule", "protocol=TCP,network=n-1"]].concat(),
+        )
+        .await,
+    );
+    assert!(
+        description.starts_with(
+            "--rule network: \"n-1\" is an id; give the resource's full name, such as \
+             //scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}"
+        ),
+        "{description}"
+    );
+    assert_eq!(server.requests().len(), 2);
 }
 
 /// A reference whose resource has several name patterns, as the scratch
 /// network has, takes a whole name of each wherever it is given: a
-/// repeatable flag, a oneof's member, a key and a JSON value; an id
-/// completes to the first. An id may hold dots, bare or in a whole name.
+/// repeatable flag, a oneof's member, a key and a JSON value, each sent as
+/// its full name, whatever `--zone` says. An id may hold dots in a whole
+/// name; an id alone is refused.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
     let server = recording(echo).await;
@@ -575,11 +595,9 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
                     "--rule",
                     "protocol=TCP,network=zones/z/networks/shared.2",
                     "--rule",
-                    "protocol=UDP,network=n.3",
+                    "protocol=UDP,network=projects/p/zones/z/networks/n.3",
                     "--network",
-                    "zones/z/networks/shared-1",
-                    "--network",
-                    "n.1",
+                    "zones/z2/networks/shared-1",
                     "--network",
                     "projects/p/zones/z/networks/n.2",
                     "--mirror-network",
@@ -594,28 +612,30 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
     assert_eq!(
         sent["networks"],
         json!([
-            "zones/z/networks/shared-1",
-            "projects/p/zones/z/networks/n.1",
-            "projects/p/zones/z/networks/n.2"
+            "//scratch.origincloudapis.eu/zones/z2/networks/shared-1",
+            "//scratch.origincloudapis.eu/projects/p/zones/z/networks/n.2"
         ])
     );
     assert_eq!(
         sent["rules"],
         json!([
-            {"protocol": "TCP", "network": "zones/z/networks/shared.2"},
-            {"protocol": "UDP", "network": "projects/p/zones/z/networks/n.3"}
+            {"protocol": "TCP", "network": "//scratch.origincloudapis.eu/zones/z/networks/shared.2"},
+            {"protocol": "UDP", "network": "//scratch.origincloudapis.eu/projects/p/zones/z/networks/n.3"}
         ])
     );
-    assert_eq!(sent["mirrorNetwork"], "zones/z/networks/m.1");
+    assert_eq!(
+        sent["mirrorNetwork"],
+        "//scratch.origincloudapis.eu/zones/z/networks/m.1"
+    );
 
     let rules = r#"[{"protocol": "TCP", "network": "zones/z/networks/s.1"}]"#;
     success(&scratch(&server, &[&CREATE[..], &["--rules-json", rules]].concat()).await);
     assert_eq!(
         body(&server.requests()[1])["rules"],
-        json!([{"protocol": "TCP", "network": "zones/z/networks/s.1"}])
+        json!([{"protocol": "TCP", "network": "//scratch.origincloudapis.eu/zones/z/networks/s.1"}])
     );
 
-    // An update, whose firewall's name is learned from a whole name too.
+    // An update, whose firewall's name is learned from a whole name.
     success(
         &scratch(
             &server,
@@ -633,23 +653,16 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
     assert_eq!(update.path, "/v1/projects/p/zones/z/firewalls/f.1");
     assert_eq!(
         body(update)["networks"],
-        json!(["zones/z/networks/shared-1"])
+        json!(["//scratch.origincloudapis.eu/zones/z/networks/shared-1"])
     );
 
-    // A whole name of either form must agree with --zone, and one of
-    // neither form, or with a part that could leave its place, is refused.
+    // An id, a name of neither form, or one with a part that could leave
+    // its place, is refused.
     for (args, says) in [
+        (&["--network", "n.1"][..], "--network: \"n.1\" is an id"),
         (
-            &["--network", "zones/z2/networks/s"][..],
-            "--zone z differs from the zone of --network zones/z2/networks/s",
-        ),
-        (
-            &["--mirror-network", "zones/z2/networks/s"],
-            "--zone z differs from the zone of --mirror-network",
-        ),
-        (
-            &["--rule", "protocol=TCP,network=zones/z2/networks/s"],
-            "--zone z differs from the zone of --rule network",
+            &["--mirror-network", "m-1"],
+            "--mirror-network: \"m-1\" is an id",
         ),
         (
             &["--network", "networks/s"],
@@ -660,19 +673,20 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
             &["--network", "zones/z/networks/.."],
             "isn't a name of the form",
         ),
-        (&["--network", ".."], "isn't an id"),
+        (&["--network", ".."], "is an id"),
     ] {
-        let rule: &[&str] = if args[0] == "--rule" {
-            &[]
-        } else {
-            &["--rule", "protocol=TCP"]
-        };
-        let description = failure(&scratch(&server, &[&CREATE[..], args, rule].concat()).await);
+        let description = failure(
+            &scratch(
+                &server,
+                &[&CREATE[..], args, &["--rule", "protocol=TCP"]].concat(),
+            )
+            .await,
+        );
         assert!(description.contains(says), "{args:?}: {description}");
     }
     assert_eq!(server.requests().len(), 3);
 
-    // The help names both forms.
+    // The help names both forms, full and relative.
     let help = origincloud_cli::command()
         .find_subcommand("scratch")
         .and_then(|g| g.find_subcommand("create-firewall"))
@@ -682,13 +696,15 @@ async fn a_reference_takes_a_whole_name_of_each_pattern_and_dotted_ids() {
         .and_then(|a| a.get_long_help().or(a.get_help()))
         .map(|h| h.to_string())
         .unwrap();
-    assert!(
-        help.contains(
-            "`projects/{project}/zones/{zone}/networks/{network}` or \
-             `zones/{zone}/networks/{network}`"
-        ),
-        "{help}"
-    );
+    for form in [
+        "full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` \
+         or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`",
+        "relative name, `projects/{project}/zones/{zone}/networks/{network}` or \
+         `zones/{zone}/networks/{network}`",
+        "not an id",
+    ] {
+        assert!(help.contains(form), "{form}: {help}");
+    }
 }
 
 /// A key is a field's name with `_` or `-`; a timestamp, as a flag or a
@@ -984,7 +1000,7 @@ async fn a_oneof_is_one_flag_of_its_members() {
     for extra in [
         &[
             "--mirror-network",
-            "n-1",
+            "projects/p/zones/z/networks/n-1",
             "--notify-email",
             "ops@example.com",
         ][..],
@@ -1013,7 +1029,7 @@ async fn a_oneof_is_one_flag_of_its_members() {
     let requests = server.requests();
     assert_eq!(
         body(&requests[0])["mirrorNetwork"],
-        "projects/p/zones/z/networks/n-1"
+        "//scratch.origincloudapis.eu/projects/p/zones/z/networks/n-1"
     );
     assert_eq!(body(&requests[1])["mirrorAddress"], "10.0.0.9:4789");
     assert_eq!(requests[1].query_values("notifyEmail"), ["ops@example.com"]);
@@ -1183,9 +1199,9 @@ async fn a_top_level_list_pages_through_every_page() {
         .all(|r| r.method == "GET" && r.path == "/v1/firewallPolicies"));
 }
 
-/// A list filtering on a field rather than a parent takes it as a flag,
-/// a resource name completed from its parts; a reference to a type no
-/// package declares is sent whole.
+/// A list filtering on a field rather than a parent takes it as a flag, a
+/// whole resource name sent as its full name; a reference to a type no
+/// package declares is sent whole, as given.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_filtered_list_sends_its_filters() {
     let server =
@@ -1196,12 +1212,8 @@ async fn a_filtered_list_sends_its_filters() {
             &server,
             &[
                 "list-networks",
-                "--project",
-                "p",
-                "--zone",
-                "z",
                 "--firewall",
-                "f",
+                "projects/p/zones/z/firewalls/f",
                 "--owner",
                 "people/ada",
             ],
@@ -1217,8 +1229,267 @@ async fn a_filtered_list_sends_its_filters() {
     assert_eq!(requests[0].path, "/v1/networks");
     let query = &requests[0].query;
     assert!(
-        query.contains("firewall=projects%2Fp%2Fzones%2Fz%2Ffirewalls%2Ff"),
+        query.contains(
+            "firewall=%2F%2Fscratch.origincloudapis.eu%2Fprojects%2Fp%2Fzones%2Fz%2Ffirewalls%2Ff"
+        ),
         "{query}"
     );
     assert!(query.contains("owner=people%2Fada"), "{query}");
+}
+
+/// The proto JSON mapping of `bytes`: standard base64.
+fn base64(bytes: &[u8]) -> String {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
+/// Bytes no text reading would keep: invalid UTF-8, a NUL, and a final
+/// newline.
+const RAW: &[u8] = b"\xff\xfe\x00signed\r\n";
+
+/// A `bytes` field is `--{field}-file`, read byte for byte from the file or
+/// from standard input with `-`, and sent as the proto JSON mapping says, in
+/// base64; one with explicit presence is left out when not given, and a
+/// oneof's member is one of the oneof's flags. A response's bytes are printed
+/// as the API's JSON has them.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_bytes_field_is_read_from_a_file_byte_for_byte() {
+    const SIGNED: &str = r#"{"signature":"c2lnbmF0dXJl"}"#;
+    let server = recording(|_: &Received| Response::json(SIGNED)).await;
+    let data = server.home.path().join("data");
+    std::fs::write(&data, RAW).unwrap();
+    let data = data.to_str().unwrap();
+    let sign = |extra: &[&'static str]| {
+        [
+            &["sign-firewall-data", "--project", "p", "--zone", "z"][..],
+            &["--firewall", "f", "--data-file"],
+            extra,
+        ]
+        .concat()
+    };
+
+    let output = scratch(&server, &[&sign(&[])[..], &[data]].concat()).await;
+    assert_eq!(success(&output), json!({"signature": "c2lnbmF0dXJl"}));
+    let output = server
+        .run_with_stdin(
+            "scratch",
+            &[
+                &sign(&[])[..],
+                &[data, "--salt-file", "-", "--label-bytes-file", data],
+            ]
+            .concat(),
+            b"salt\n",
+        )
+        .await;
+    success(&output);
+    let output = server
+        .run_with_stdin("scratch", &[&sign(&[])[..], &["-"]].concat(), RAW)
+        .await;
+    success(&output);
+
+    let requests = server.requests();
+    assert_eq!(requests.len(), 3, "{requests:?}");
+    for r in &requests {
+        assert_eq!(r.method, "POST");
+        assert_eq!(r.path, "/v1/projects/p/zones/z/firewalls/f:signData");
+    }
+    const NAME: &str = "projects/p/zones/z/firewalls/f";
+    assert_eq!(
+        body(&requests[0]),
+        json!({"name": NAME, "data": base64(RAW)})
+    );
+    assert_eq!(
+        body(&requests[1]),
+        json!({"name": NAME, "data": base64(RAW), "salt": base64(b"salt\n"), "labelBytes": base64(RAW)})
+    );
+    assert_eq!(
+        body(&requests[2]),
+        json!({"name": NAME, "data": base64(RAW)})
+    );
+
+    // An empty file is sent as such where the field has explicit presence.
+    let empty = server.home.path().join("empty");
+    std::fs::write(&empty, b"").unwrap();
+    let output = scratch(
+        &server,
+        &[
+            &sign(&[])[..],
+            &[data, "--salt-file", empty.to_str().unwrap()],
+        ]
+        .concat(),
+    )
+    .await;
+    success(&output);
+    assert_eq!(body(&server.requests()[3])["salt"], "");
+
+    // A missing file fails before anything is sent; so do two members of
+    // the oneof, and no data at all.
+    let missing = server.home.path().join("no-such-file");
+    let output = scratch(
+        &server,
+        &[&sign(&[])[..], &[missing.to_str().unwrap()]].concat(),
+    )
+    .await;
+    assert!(failure(&output).contains("no-such-file"), "{output:?}");
+    refused(
+        &server,
+        &[
+            &sign(&[])[..],
+            &[data, "--label-text", "x", "--label-bytes-file", data],
+        ]
+        .concat(),
+        "cannot be used with",
+    )
+    .await;
+    refused(
+        &server,
+        &[
+            "sign-firewall-data",
+            "--project",
+            "p",
+            "--zone",
+            "z",
+            "--firewall",
+            "f",
+        ],
+        "--data-file",
+    )
+    .await;
+    assert_eq!(server.requests().len(), 4);
+}
+
+/// A resource's `bytes` field is `--{field}-file` in a create and in an
+/// update, which names it in the mask; `--no-{field}` unsets one with
+/// explicit presence.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_resources_bytes_field_is_set_from_a_file() {
+    let server = recording(echo).await;
+    let certificate = server.home.path().join("certificate.der");
+    std::fs::write(&certificate, RAW).unwrap();
+    let certificate = certificate.to_str().unwrap();
+
+    let output = scratch(
+        &server,
+        &[
+            &CREATE[..],
+            &["--rule", "protocol=TCP", "--certificate-file", certificate],
+        ]
+        .concat(),
+    )
+    .await;
+    // The API's JSON, as the server answered it.
+    assert_eq!(success(&output)["certificate"], base64(RAW));
+    let created = body(&server.requests()[0]);
+    assert_eq!(created["certificate"], base64(RAW));
+    assert!(created.get("banner").is_none(), "{created}");
+
+    let update = |extra: &[&'static str]| [&["update-firewall"][..], &FIREWALL, extra].concat();
+    success(
+        &scratch(
+            &server,
+            &[
+                &update(&[])[..],
+                &[
+                    "--certificate-file",
+                    certificate,
+                    "--banner-file",
+                    certificate,
+                ],
+            ]
+            .concat(),
+        )
+        .await,
+    );
+    success(&scratch(&server, &update(&["--no-banner"])).await);
+    let requests = server.requests();
+    let mask = |r: &Received| {
+        let mut paths: Vec<String> = r
+            .query_values("updateMask")
+            .iter()
+            .flat_map(|v| v.split(',').map(str::to_owned).collect::<Vec<_>>())
+            .collect();
+        paths.sort();
+        paths
+    };
+    assert_eq!(mask(&requests[1]), ["banner", "certificate"]);
+    assert_eq!(body(&requests[1])["certificate"], base64(RAW));
+    assert_eq!(body(&requests[1])["banner"], base64(RAW));
+    assert_eq!(mask(&requests[2]), ["banner"]);
+    assert!(body(&requests[2]).get("banner").is_none(), "{requests:?}");
+
+    refused(
+        &server,
+        &[
+            &update(&[])[..],
+            &["--banner-file", certificate, "--no-banner"],
+        ]
+        .concat(),
+        "cannot be used with",
+    )
+    .await;
+    assert_eq!(server.requests().len(), 3);
+}
+
+/// A `bytes` field's help says where its flag reads from, and how; an
+/// update's, that it is left as it is, and how to unset it.
+#[test]
+fn the_help_of_a_bytes_field() {
+    let root = origincloud_cli::command();
+    let group = root.find_subcommand("scratch").unwrap();
+    let help = |command: &str, flag: &str| -> String {
+        let arg = group
+            .find_subcommand(command)
+            .unwrap()
+            .get_arguments()
+            .find(|a| a.get_long() == Some(flag))
+            .unwrap_or_else(|| panic!("{command} has no --{flag}"));
+        assert_eq!(
+            arg.get_value_names().map(|v| v.to_vec()),
+            Some(vec!["PATH".into()]),
+            "{command} --{flag}"
+        );
+        arg.get_long_help()
+            .or(arg.get_help())
+            .map(ToString::to_string)
+            .unwrap_or_default()
+    };
+    let reads = "or from standard input with `-`, byte for byte.";
+    assert!(help("sign-firewall-data", "data-file").contains(reads));
+    assert!(help("sign-firewall-data", "salt-file").contains("Unset when not given."));
+    assert!(help("sign-firewall-data", "label-bytes-file")
+        .contains("One of `--label-text`, `--label-bytes-file`"));
+    assert!(help("create-firewall", "certificate-file").contains(reads));
+    let banner = help("update-firewall", "banner-file");
+    assert!(
+        banner.contains("Left as it is when not given. `--no-banner` unsets it."),
+        "{banner}"
+    );
+}
+
+/// A soft delete, one the service's `Undelete{Resource}` restores, needs
+/// `--yes` like any delete, says what restores it, and prints the deleted
+/// resource as the API answers it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_soft_delete_says_what_restores_it() {
+    let server = recording(|_: &Received| {
+        Response::json(r#"{"name":"projects/p/zones/z/firewalls/f","ports":[443]}"#)
+    })
+    .await;
+    let delete = [&["delete-firewall"][..], &FIREWALL].concat();
+    let refused = failure(&scratch(&server, &delete).await);
+    assert!(
+        refused.contains("`undelete-firewall` restores it until it is purged."),
+        "{refused}"
+    );
+    assert!(server.requests().is_empty(), "{:?}", server.requests());
+
+    let output = scratch(&server, &[&delete[..], &["--yes"]].concat()).await;
+    assert_eq!(
+        success(&output),
+        json!({"name": "projects/p/zones/z/firewalls/f", "ports": [443]})
+    );
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1, "{requests:?}");
+    assert_eq!(requests[0].method, "DELETE");
+    assert_eq!(requests[0].path, "/v1/projects/p/zones/z/firewalls/f");
 }

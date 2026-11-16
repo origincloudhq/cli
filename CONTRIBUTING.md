@@ -38,6 +38,27 @@ time on it. CI must pass: the checks below, run on every pull request.
   their table are in that repository; the CLI pins it at a commit built on
   the same SDK commit as its own commands, which `scripts/update.sh` keeps
   and `scripts/generate.sh --check` checks.
+  `origin mcp install` and `uninstall` add that server to the coding
+  agents of the table in `src/handler/agents.rs`, and remove it, with
+  the agent's own command or by editing its file (`config_file.rs`): an
+  agent is a row of the table, plus a format adapter when it brings a
+  format of its own. The commands' help, the README's table of agents (a
+  test checks it is the table's) and the tests read it. The edits are
+  tested against golden files in `crates/cli/tests/agent-config/`;
+  `UPDATE_GOLDEN=1 cargo test` writes those and the README's tables anew,
+  for review in the diff.
+- `origin skill install`, `list` and `update` (`src/handler/skill/`)
+  install the agent skills of
+  [origincloudhq/skills](https://github.com/origincloudhq/skills) into the
+  skill directories of the same table's agents (its `skills` field). The
+  skills are those of the commit `SKILLS_REVISION` names: `scripts/generate.sh`
+  copies them, without their `evals/`, into `crates/cli/skills/`, which
+  `crates/cli/build.rs` embeds, and `--check` checks the copy;
+  `scripts/update.sh` moves the pin to the head of origincloudhq/skills'
+  main. Never edit the copy: a change to a skill is a change in
+  origincloudhq/skills. An installed copy's `SKILL.md` carries its version
+  and digest in its `metadata` (`src/handler/skill/marker.rs`), which tell
+  `origin`'s copies from anyone else's.
 - `origin __commands` (`src/handler/command_tree.rs`) prints the command
   tree as JSON, which each release attaches as `commands.json` for tools
   that name the CLI's commands and flags (README). It isn't a command of
@@ -75,12 +96,41 @@ it.
 A resource name is checked as the SDK checks the names it sends
 (`origincloud_core::path_value`), never against an alphabet of the CLI's:
 each id is one segment, not empty, `.` or `..`, and without `/`, and
-anything else, such as the dots of `gp1.core.2`, is the API's to judge. A
-reference whose resource declares several patterns (`google.api.resource`'s
-`pattern` list) takes a whole name of each, its help naming them all; an id
-completes to the first.
+anything else, such as the dots of `gp1.core.2`, is the API's to judge.
 
-A duration or a timestamp is a flag of its own form (`30s`, RFC 3339). Any
+Every flag naming a resource takes its full name (AIP-122),
+`//{service}.origincloudapis.eu/{relative}`, parsed with the SDK's
+`origincloud_core::names::FullName`, whose host must be the service of the
+type the field refers to (the domain of its `google.api.resource_reference`
+type, `pvs` for `pvs.origincloudapis.eu/Volume`), and its relative name
+too. The command's own target (`name`, or the resource of an update) and
+its parents' flags (`--instance` of a volume attachment, any part of the
+pattern but `--project`, `--zone`, `--region` and `--organization`) also
+take ids, completed from those flags and the profile (`runtime.rs`'s
+`Names`); a whole name given to one fills in the other parts, and the
+request's path is the relative name. A reference to another resource, in a
+flag, a key or JSON at any depth, is never made of parts (`runtime.rs`'s
+`reference`, `nested.rs`'s `full_names`): it is a whole name, sent as a
+full name, as the API requires of a reference: a full name as given, a
+relative one with its type's service's host put in front
+(`FullName::from_relative`), refused when the field refers to types of
+several services; an id is refused with the full name's form. A reference whose resource declares several patterns
+(`google.api.resource`'s `pattern` list) takes a whole name of each, its
+help naming them all.
+
+The tests' scratch service isn't one of the platform's, so its full names
+aren't (`FullName` knows the platform's services only): its tests give
+relative names, which, with the `test-services` feature alone, are sent as
+`//scratch.origincloudapis.eu/…` in the same form, and full names given
+are tested through the published services.
+
+A duration or a timestamp is a flag of its own form (`30s`, RFC 3339). A
+`bytes` field is `--{field}-file`, taking a path or `-` for standard input,
+whose content is sent byte for byte (`runtime.rs`'s `read_bytes_file`),
+wherever a field is a flag: in a request, a create's or an update's
+resource, a oneof, with explicit presence or without; the response's bytes
+are printed in base64, as the API's JSON has them. In a nested message, a
+`bytes` field is set through the JSON form, in base64. Any
 other field holding a message is a flag taking comma-separated `KEY=VALUE`
 pairs, one per field of the message that a flag could set on its own (a
 number, a string, a boolean, an enum, a duration, a timestamp, a resource
@@ -120,15 +170,22 @@ set, and empties an optional oneof with `--no-{oneof}`. A oneof inside a nested 
 refuses two of its members. A field the generator can't make a flag of,
 such as a map other than `map<string, string>` or an optional resource
 name, fails generation, naming the method and the field: nothing is left
-out silently.
+out silently. So does a method answering with a file (`google.api.HttpBody`)
+rather than JSON, which no command prints yet.
+
+Every delete needs `--yes`. A delete answering with nothing says it deleted
+the resource and that it can't be restored; one answering with the
+resource, whose service has an `Undelete{Resource}` (AIP-164's soft
+delete), prints the resource and names that command as what restores it.
 
 The published API doesn't have such fields yet, so the tests use a service
 of their own, `testing/scratch/`: a firewall whose rules are a repeated
 nested message, with repeated scalars and references, a list whose order the
 API doesn't keep, a nested message, timestamps, a struct, optional fields,
-oneofs of the request, of the resource and of a nested message, and a
-message nested two levels deep, with enums, maps, lists and references of
-its own; the networks it references have two name patterns.
+oneofs of the request, of the resource and of a nested message, `bytes`
+fields of the request and of the resource, a soft delete, and a message
+nested two levels deep, with enums, maps, lists and references of its own;
+the networks it references have two name patterns.
 `scripts/generate.sh` generates its SDK crate's code with the Rust SDK's own
 generator, at the commit `Cargo.lock` pins, into
 `testing/scratch/sdk/src/generated/`, the crate's manifest from the one that
@@ -157,10 +214,6 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   nor an entry here, which is what keeps the CLI at parity with the API;
 - `[[exclude]]` leaves a field out of a method's command, when the method
   doesn't take it although its request message has it, with the reason;
-- `[[one_way]]` marks a change that can't be undone, with the refusal's verb
-  and consequence: a command setting that field requires `--yes`, like every
-  delete. The generated code reaches the SDK's method only through a wrapper
-  that takes the client `--yes` makes;
 - `[[shown_once]]` names a field of a method's response holding a secret
   the API returns in that response alone, such as `CreateKeyPair`'s
   `private_key`: the command prints the response as any other, and its
@@ -170,13 +223,14 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   from standard input with `-`, rather than from the command line, where a
   credential would be in the shell's history and in every process listing:
   its flag is `--{field}-file`, and the value is the file's content without
-  its final newline. Generation fails for a field that isn't a string;
+  its final newline. Generation fails for a field that isn't a string: a
+  `bytes` field is read from a file without an entry;
 - `[[also_names]]` names a reference field, by its full name
   (`origincloud.compute.v1beta1.Instance.image`), that takes the names of
   another resource type too (`compute.origincloudapis.eu/PublicImage`),
   which its `google.api.resource_reference`, naming one type, can't say:
-  its flag, key or JSON value takes a whole name of either, and an id still
-  completes to the declared type's pattern. Generation fails when the
+  its flag, key or JSON value takes a whole name of either, full on that
+  type's service's host or relative. Generation fails when the
   field isn't a reference to a type the API declares, or the other type
   isn't one;
 - `[[view]]` names the columns of the `table` a list of a message is
@@ -186,6 +240,20 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   but its `urn`, its `creator` and its maps, and `wide` adds those after a
   view's. Generation and the coverage test fail for a view of a message or
   a field the API doesn't have.
+
+The changes that can't be undone, such as growing a volume, aren't in
+`commands.toml`: their one list is `[[one_way]]` in origincloudhq/mcp's
+`generator/tools.toml`, which the MCP tools and the agent skills read too.
+`scripts/generate.sh` hands the generator that table at the commit
+`Cargo.lock` pins for `origincloud-mcp`, and copies it to
+`crates/cli/src/sdk/generated/mcp-tools.toml` for the tests. Each entry
+names the field, the refusal's verb and the consequence: a command setting
+that field requires `--yes`, like every delete, and without it refuses
+before sending anything ("refusing to grow volume …"). The generated code
+reaches the SDK's method only through a wrapper that takes the client
+`--yes` makes. A new one-way change is added there, and reaches the CLI
+with `scripts/update.sh`; `commands.toml` refuses a `[[one_way]]` of its
+own.
 
 The human output formats (`crates/cli/src/output/`) are made from the
 JSON a command prints, with what the API's descriptors, `api.binpb`, say
@@ -211,8 +279,9 @@ generated files.
 
 The regeneration workflow (`.github/workflows/regenerate.yml`) moves the CLI
 to the newest origincloudhq/mcp, the SDK commit that is built on, and the API
-revision it was generated from, when origincloudhq/mcp's main moves, and
-daily, and opens a pull request when that changes anything. Once its CI
+revision it was generated from, and the skills to the newest
+origincloudhq/skills, when origincloudhq/mcp's or origincloudhq/skills' main
+moves, and daily, and opens a pull request when that changes anything. Once its CI
 passes, `merge-regeneration.yml` merges it, unless someone added commits to
 it, which then wait for review; the merge uses a GitHub App's token (the
 variable `REGENERATE_APP_ID` and the secret `REGENERATE_APP_PRIVATE_KEY`),
@@ -252,7 +321,7 @@ required `organization`) page through the request as its flags make it; a
 client-chosen id (AIP-133, `CreateProject`'s `project_id`) is a flag like any
 request field, required when the API requires it. A reference to a resource
 type the API doesn't declare, such as one of a package not published yet, is
-a string flag taking the whole name.
+a string flag taking the whole name, unchecked.
 
 ### A service replacing a hand-written group
 
@@ -306,7 +375,7 @@ you need.
 ```sh
 scripts/generate.sh            # generate the commands of every service again
 scripts/generate.sh --check    # check the checked-in commands are what the API generates
-scripts/update.sh              # move to the newest SDK and its API revision, and generate
+scripts/update.sh              # move to the newest SDK, its API revision and the newest skills, and generate
 cargo fmt --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace

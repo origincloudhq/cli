@@ -81,11 +81,15 @@ pub fn json_arg<T: DeserializeOwned>(value: &str, message: &str) -> Result<JsonA
     if !own_form {
         match &mut json {
             serde_json::Value::Array(items) => {
-                for item in items {
+                for (i, item) in items.iter_mut().enumerate() {
                     drop_nulls(item, &descriptor);
+                    full_names(item, &descriptor, &format!("[{i}]"))?;
                 }
             }
-            other => drop_nulls(other, &descriptor),
+            other => {
+                drop_nulls(other, &descriptor);
+                full_names(other, &descriptor, "")?;
+            }
         }
     }
     serde_json::from_value(json)
@@ -128,6 +132,92 @@ fn has_behavior(field: &FieldDescriptor, behavior: i32) -> bool {
         Value::List(values) => values.iter().any(|v| v.as_enum_number() == Some(behavior)),
         _ => false,
     }
+}
+
+/// The service of the type `field` refers to, by its
+/// `google.api.resource_reference`'s `type`: `pvs` for
+/// `pvs.origincloudapis.eu/Volume`. `None` for a field that isn't a
+/// reference, or that refers to any type (`*`).
+fn referenced_service(field: &FieldDescriptor) -> Option<String> {
+    let ext = field
+        .parent_pool()
+        .get_extension_by_name("google.api.resource_reference")?;
+    let options = field.options();
+    if !options.has_extension(&ext) {
+        return None;
+    }
+    let reference = options.get_extension(&ext);
+    let t = reference.as_message()?.get_field_by_name("type")?;
+    let t = t.as_str()?;
+    let service = t.split_once('.')?.0;
+    (!service.is_empty() && t != "*").then(|| service.to_owned())
+}
+
+/// Sends every resource name in `value`, a message of `message`'s type, at
+/// any depth, as its full name: a relative one is given the host of its
+/// field's type's service, as a reference flag's is.
+fn full_names(
+    value: &mut serde_json::Value,
+    message: &MessageDescriptor,
+    path: &str,
+) -> Result<(), String> {
+    let serde_json::Value::Object(object) = value else {
+        return Ok(());
+    };
+    for (key, v) in object.iter_mut() {
+        let Some(field) = field_of(message, key) else {
+            continue;
+        };
+        let here = join(path, key);
+        match field.kind() {
+            Kind::String => {
+                let Some(service) = referenced_service(&field) else {
+                    continue;
+                };
+                let convert = |s: &mut serde_json::Value, at: &str| -> Result<(), String> {
+                    if let serde_json::Value::String(name) = s {
+                        if !name.is_empty() {
+                            *name = super::runtime::json_reference(&service, at, name)?;
+                        }
+                    }
+                    Ok(())
+                };
+                match v {
+                    serde_json::Value::Array(items) => {
+                        for (i, item) in items.iter_mut().enumerate() {
+                            convert(item, &format!("{here}[{i}]"))?;
+                        }
+                    }
+                    other => convert(other, &here)?,
+                }
+            }
+            Kind::Message(inner)
+                if !field.is_map() && inner.package_name() != "google.protobuf" =>
+            {
+                match v {
+                    serde_json::Value::Array(items) => {
+                        for (i, item) in items.iter_mut().enumerate() {
+                            full_names(item, &inner, &format!("{here}[{i}]"))?;
+                        }
+                    }
+                    other => full_names(other, &inner, &here)?,
+                }
+            }
+            Kind::Message(inner) if field.is_map() => {
+                if let (Kind::Message(entry), serde_json::Value::Object(entries)) =
+                    (inner.map_entry_value_field().kind(), &mut *v)
+                {
+                    if entry.package_name() != "google.protobuf" {
+                        for (k, e) in entries.iter_mut() {
+                            full_names(e, &entry, &format!("{here}[{k:?}]"))?;
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 /// Whether `field` holds a resource name, by its `google.api.resource_reference`.
@@ -253,7 +343,7 @@ fn check_field(
         };
         let value_field = entry.map_entry_value_field();
         for (k, v) in entries {
-            check_value(v, &value_field, &format!("{here}[{k:?}]"), depth + 1, false)?;
+            check_value(v, &value_field, &format!("{here}[{k:?}]"), depth + 1)?;
         }
         return Ok(());
     }
@@ -262,7 +352,7 @@ fn check_field(
             return Err(format!("{here}: {value} isn't a list"));
         };
         for (i, item) in items.iter().enumerate() {
-            check_value(item, field, &format!("{here}[{i}]"), depth, true)?;
+            check_value(item, field, &format!("{here}[{i}]"), depth)?;
         }
         if has_behavior(field, UNORDERED_LIST) {
             for (i, item) in items.iter().enumerate() {
@@ -275,16 +365,15 @@ fn check_field(
         }
         return Ok(());
     }
-    check_value(value, field, here, depth, false)
+    check_value(value, field, here, depth)
 }
 
-/// Checks one value of `field`'s type: an element, for a list.
+/// Checks one value of `field`'s type, or an element of it, for a list.
 fn check_value(
     value: &serde_json::Value,
     field: &FieldDescriptor,
     here: &str,
     depth: usize,
-    element: bool,
 ) -> Result<(), String> {
     use serde_json::Value as J;
     match field.kind() {
@@ -335,14 +424,11 @@ fn check_value(
         },
         Kind::String => match value {
             J::String(s) => {
-                // A resource name a flag's own keys don't give, which nothing
-                // completes: a singular one of the flag's message is
-                // completed with `--project` and `--zone`, any other must be
-                // whole.
-                let completed = depth == 0 && !element;
-                if is_reference(field) && !completed && !s.is_empty() && !s.contains('/') {
+                // A resource name is never completed from parts: it is a
+                // full name, or a relative one, at any depth.
+                if is_reference(field) && !s.is_empty() && !s.contains('/') {
                     Err(format!(
-                        "{here}: {s:?} is an id; give the resource's whole name here"
+                        "{here}: {s:?} is an id; give the resource's full name, //{{service}}.origincloudapis.eu/{{name}}"
                     ))
                 } else {
                     Ok(())
@@ -778,7 +864,35 @@ mod tests {
         }
         // A value of an enum, by its name or its number.
         assert!(json_arg::<Volume>(r#"{"state": "AVAILABLE"}"#, volume).is_ok());
-        assert!(json_arg::<Volume>(r#"{"sourceSnapshot": "snap-1"}"#, volume).is_ok());
+        // A resource name is whole, full or relative, never an id.
+        // A relative one is sent as its full name, on its type's service's
+        // host; a full one as given.
+        for whole in [
+            r#"{"sourceSnapshot": "projects/p/zones/z/snapshots/snap-1"}"#,
+            r#"{"sourceSnapshot": "//pvs.origincloudapis.eu/projects/p/zones/z/snapshots/snap-1"}"#,
+        ] {
+            let read = json_arg::<Volume>(whole, volume).unwrap();
+            assert_eq!(
+                read.0.source_snapshot,
+                "//pvs.origincloudapis.eu/projects/p/zones/z/snapshots/snap-1",
+                "{whole}"
+            );
+        }
+        let refused = json_arg::<Volume>(
+            r#"{"sourceSnapshot": "//compute.origincloudapis.eu/projects/p/zones/z/snapshots/snap-1"}"#,
+            volume,
+        )
+        .unwrap_err();
+        assert!(
+            refused.contains("is a name on compute.origincloudapis.eu, but sourceSnapshot takes a name on pvs.origincloudapis.eu"),
+            "{refused}"
+        );
+        let refused = json_arg::<Volume>(r#"{"sourceSnapshot": "snap-1"}"#, volume).unwrap_err();
+        assert!(
+            refused
+                .starts_with("sourceSnapshot: \"snap-1\" is an id; give the resource's full name"),
+            "{refused}"
+        );
         assert!(json_arg::<Volume>("@/no/such/file", volume)
             .unwrap_err()
             .starts_with("reading"));

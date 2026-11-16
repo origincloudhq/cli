@@ -18,6 +18,10 @@ use prost_reflect::{DescriptorPool, DynamicMessage, MessageDescriptor, MethodDes
 /// keeps them current.
 pub const DESCRIPTORS: &[u8] = include_bytes!("../../src/sdk/generated/api.binpb");
 pub const TABLE: &str = include_str!("../../../../generator/commands.toml");
+/// origincloudhq/mcp's table at the commit `Cargo.lock` pins, as
+/// `scripts/generate.sh` copied it: its `[[one_way]]` list is the one list
+/// of the changes that can't be undone, which need `--yes`.
+pub const MCP_TABLE: &str = include_str!("../../src/sdk/generated/mcp-tools.toml");
 
 /// The service whose package holds the operation methods, which are
 /// commands of every group whose methods answer with operations.
@@ -170,8 +174,8 @@ pub async fn recording(
 }
 
 impl Recording {
-    /// Runs `origin {group}` with `args` against the server, with `env` set.
-    pub async fn run_with(&self, group: &str, args: &[&str], env: &[(&str, &str)]) -> Output {
+    /// `origin {group}` with `args` against the server, with `env` set.
+    fn command(&self, group: &str, args: &[&str], env: &[(&str, &str)]) -> std::process::Command {
         let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_origin"));
         command
             .arg(group)
@@ -184,9 +188,36 @@ impl Recording {
         for (name, value) in env {
             command.env(name, value);
         }
+        command
+    }
+
+    /// Runs `origin {group}` with `args` against the server, with `env` set.
+    pub async fn run_with(&self, group: &str, args: &[&str], env: &[(&str, &str)]) -> Output {
+        let mut command = self.command(group, args, env);
         tokio::task::spawn_blocking(move || command.output().expect("origin runs"))
             .await
             .unwrap()
+    }
+
+    /// Runs `origin {group}` with `args` against the server, with `input`
+    /// on its standard input.
+    pub async fn run_with_stdin(&self, group: &str, args: &[&str], input: &[u8]) -> Output {
+        use std::io::Write as _;
+        use std::process::Stdio;
+        let mut command = self.command(group, args, &[]);
+        let input = input.to_vec();
+        tokio::task::spawn_blocking(move || {
+            let mut child = command
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .expect("origin runs");
+            child.stdin.take().unwrap().write_all(&input).unwrap();
+            child.wait_with_output().expect("origin runs")
+        })
+        .await
+        .unwrap()
     }
 
     pub async fn run(&self, group: &str, args: &[&str]) -> Output {

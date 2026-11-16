@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_value_file, shown_once, success, tags, wait, wait_for, waited, waiting,
-    zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -160,7 +161,7 @@ pub struct GetSnapshotArgs {
     pub zone: Option<String>,
     /// The snapshot to return.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`, or its relative name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`.
     #[arg(long = "snapshot", value_name = "SNAPSHOT")]
     pub snapshot: String,
 }
@@ -173,12 +174,14 @@ async fn get_snapshot(
     names
         .learn(
             &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            &["pvs"],
             "snapshot",
             Some(args.snapshot.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            &["pvs"],
             "snapshot",
             args.snapshot.as_str(),
         )?;
@@ -334,8 +337,8 @@ pub struct CreateSnapshotArgs {
     pub zone: Option<String>,
     /// The volume copied, in the same project and zone.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/volumes/{volume}`.
-    #[arg(long = "source-volume", value_name = "VOLUME")]
+    /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`, which is sent as its full name; not an id.
+    #[arg(long = "source-volume", value_name = "NAME")]
     pub source_volume: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
@@ -355,21 +358,15 @@ async fn create_snapshot(
     ctx: &Context<'_>,
     args: CreateSnapshotArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
-    names
-        .learn(
-            &["projects/{project}/zones/{zone}/volumes/{volume}"],
-            "source-volume",
-            Some(args.source_volume.as_str()),
-        )?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
-    let source_volume = names
-        .reference(
-            &["projects/{project}/zones/{zone}/volumes/{volume}"],
-            "source-volume",
-            args.source_volume.as_str(),
-        )?;
+    let source_volume = reference(
+        &["projects/{project}/zones/{zone}/volumes/{volume}"],
+        &["pvs"],
+        "--source-volume",
+        args.source_volume.as_str(),
+    )?;
     let snapshot = ::origincloud_pvs::v1beta1::Snapshot {
         source_volume,
         tags: tags(&args.tag),
@@ -418,7 +415,7 @@ pub struct UpdateSnapshotArgs {
     pub zone: Option<String>,
     /// The snapshot to change.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`, or its relative name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`.
     #[arg(long = "snapshot", value_name = "SNAPSHOT")]
     pub snapshot: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -440,12 +437,14 @@ async fn update_snapshot(
     names
         .learn(
             &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            &["pvs"],
             "snapshot",
             Some(args.snapshot.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            &["pvs"],
             "snapshot",
             args.snapshot.as_str(),
         )?;
@@ -490,7 +489,7 @@ pub struct DeleteSnapshotArgs {
     pub zone: Option<String>,
     /// The snapshot to delete.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`, or its relative name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`.
     #[arg(long = "snapshot", value_name = "SNAPSHOT")]
     pub snapshot: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -512,12 +511,14 @@ async fn delete_snapshot(
     names
         .learn(
             &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            &["pvs"],
             "snapshot",
             Some(args.snapshot.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            &["pvs"],
             "snapshot",
             args.snapshot.as_str(),
         )?;
@@ -566,7 +567,7 @@ pub struct ProtectSnapshotArgs {
     pub zone: Option<String>,
     /// The snapshot to protect; it must be `COMPLETED`.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`, or its relative name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`.
     #[arg(long = "snapshot", value_name = "SNAPSHOT")]
     pub snapshot: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -586,12 +587,14 @@ async fn protect_snapshot(
     names
         .learn(
             &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            &["pvs"],
             "snapshot",
             Some(args.snapshot.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            &["pvs"],
             "snapshot",
             args.snapshot.as_str(),
         )?;
@@ -631,7 +634,7 @@ pub struct UnprotectSnapshotArgs {
     /// The snapshot to unprotect; it must be `COMPLETED`, or `ERROR` so that
     /// it can then be deleted.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`, or its relative name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`.
     #[arg(long = "snapshot", value_name = "SNAPSHOT")]
     pub snapshot: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -651,12 +654,14 @@ async fn unprotect_snapshot(
     names
         .learn(
             &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            &["pvs"],
             "snapshot",
             Some(args.snapshot.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+            &["pvs"],
             "snapshot",
             args.snapshot.as_str(),
         )?;
@@ -689,7 +694,7 @@ async fn call_unprotect_snapshot(
 pub struct GetStorageClassArgs {
     /// The class to return, `storageClasses/{storage_class}`.
     ///
-    /// Its id, or its whole name, `storageClasses/{storage_class}`.
+    /// Its id, or its full name, `//pvs.origincloudapis.eu/storageClasses/{storage_class}`, or its relative name, `storageClasses/{storage_class}`.
     #[arg(long = "storage-class", value_name = "STORAGE_CLASS")]
     pub storage_class: String,
 }
@@ -701,12 +706,14 @@ async fn get_storage_class(
     names
         .learn(
             &["storageClasses/{storage_class}"],
+            &["pvs"],
             "storage-class",
             Some(args.storage_class.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["storageClasses/{storage_class}"],
+            &["pvs"],
             "storage-class",
             args.storage_class.as_str(),
         )?;
@@ -780,7 +787,7 @@ pub struct GetVolumeArgs {
     pub zone: Option<String>,
     /// The volume to return.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/volumes/{volume}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`.
     #[arg(long = "volume", value_name = "VOLUME")]
     pub volume: String,
 }
@@ -793,12 +800,14 @@ async fn get_volume(
     names
         .learn(
             &["projects/{project}/zones/{zone}/volumes/{volume}"],
+            &["pvs"],
             "volume",
             Some(args.volume.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/volumes/{volume}"],
+            &["pvs"],
             "volume",
             args.volume.as_str(),
         )?;
@@ -945,15 +954,15 @@ pub struct CreateVolumeArgs {
     /// The storage class, `storageClasses/{storage_class}`. The default class
     /// when left empty.
     ///
-    /// Its id, or its whole name, `storageClasses/{storage_class}`.
-    #[arg(long = "storage-class", value_name = "STORAGE_CLASS")]
+    /// Its full name, `//pvs.origincloudapis.eu/storageClasses/{storage_class}`, or its relative name, `storageClasses/{storage_class}`, which is sent as its full name; not an id.
+    #[arg(long = "storage-class", value_name = "NAME")]
     pub storage_class: Option<String>,
     /// The snapshot the volume was created from, in the same project and
     /// zone; empty for an empty volume. The volume is at least the snapshot's
     /// size.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`.
-    #[arg(long = "source-snapshot", value_name = "SNAPSHOT")]
+    /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`, or its relative name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`, which is sent as its full name; not an id.
+    #[arg(long = "source-snapshot", value_name = "NAME")]
     pub source_snapshot: Option<String>,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
@@ -973,35 +982,28 @@ async fn create_volume(
     ctx: &Context<'_>,
     args: CreateVolumeArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
-    names
-        .learn(
-            &["storageClasses/{storage_class}"],
-            "storage-class",
-            args.storage_class.as_deref(),
-        )?;
-    names
-        .learn(
-            &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
-            "source-snapshot",
-            args.source_snapshot.as_deref(),
-        )?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let storage_class = match args.storage_class.as_deref() {
         Some(v) => {
-            names.reference(&["storageClasses/{storage_class}"], "storage-class", v)?
+            reference(
+                &["storageClasses/{storage_class}"],
+                &["pvs"],
+                "--storage-class",
+                v,
+            )?
         }
         None => String::new(),
     };
     let source_snapshot = match args.source_snapshot.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
-                    "source-snapshot",
-                    v,
-                )?
+            reference(
+                &["projects/{project}/zones/{zone}/snapshots/{snapshot}"],
+                &["pvs"],
+                "--source-snapshot",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -1053,8 +1055,8 @@ pub struct ImportVolumeArgs {
     /// The storage class, `storageClasses/{storage_class}`. The default class
     /// when left empty.
     ///
-    /// Its id, or its whole name, `storageClasses/{storage_class}`.
-    #[arg(long = "storage-class", value_name = "STORAGE_CLASS")]
+    /// Its full name, `//pvs.origincloudapis.eu/storageClasses/{storage_class}`, or its relative name, `storageClasses/{storage_class}`, which is sent as its full name; not an id.
+    #[arg(long = "storage-class", value_name = "NAME")]
     pub storage_class: Option<String>,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
@@ -1078,18 +1080,17 @@ async fn import_volume(
     ctx: &Context<'_>,
     args: ImportVolumeArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
+    let names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
-    names
-        .learn(
-            &["storageClasses/{storage_class}"],
-            "storage-class",
-            args.storage_class.as_deref(),
-        )?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let storage_class = match args.storage_class.as_deref() {
         Some(v) => {
-            names.reference(&["storageClasses/{storage_class}"], "storage-class", v)?
+            reference(
+                &["storageClasses/{storage_class}"],
+                &["pvs"],
+                "--storage-class",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -1143,7 +1144,7 @@ pub struct UpdateVolumeArgs {
     pub zone: Option<String>,
     /// The volume to change.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/volumes/{volume}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`.
     #[arg(long = "volume", value_name = "VOLUME")]
     pub volume: String,
     /// The size in GiB, at least 1. Growing it resizes the volume; it never
@@ -1182,12 +1183,14 @@ async fn update_volume(
     names
         .learn(
             &["projects/{project}/zones/{zone}/volumes/{volume}"],
+            &["pvs"],
             "volume",
             Some(args.volume.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/volumes/{volume}"],
+            &["pvs"],
             "volume",
             args.volume.as_str(),
         )?;
@@ -1286,7 +1289,7 @@ pub struct DeleteVolumeArgs {
     pub zone: Option<String>,
     /// The volume to delete.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/volumes/{volume}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`.
     #[arg(long = "volume", value_name = "VOLUME")]
     pub volume: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -1308,12 +1311,14 @@ async fn delete_volume(
     names
         .learn(
             &["projects/{project}/zones/{zone}/volumes/{volume}"],
+            &["pvs"],
             "volume",
             Some(args.volume.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/volumes/{volume}"],
+            &["pvs"],
             "volume",
             args.volume.as_str(),
         )?;
@@ -1362,7 +1367,7 @@ pub struct GetOperationArgs {
     pub zone: Option<String>,
     /// The operation.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/operations/{operation}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/operations/{operation}`, or its relative name, `projects/{project}/zones/{zone}/operations/{operation}`.
     #[arg(long = "operation", value_name = "OPERATION")]
     pub operation: String,
 }
@@ -1375,12 +1380,14 @@ async fn get_operation(
     names
         .learn(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
+            &["pvs"],
             "operation",
             Some(args.operation.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
+            &["pvs"],
             "operation",
             args.operation.as_str(),
         )?;
@@ -1415,7 +1422,7 @@ pub struct WaitOperationArgs {
     pub zone: Option<String>,
     /// The operation.
     ///
-    /// Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/operations/{operation}`.
+    /// Its id, completed with `--project` and `--zone`, or its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/operations/{operation}`, or its relative name, `projects/{project}/zones/{zone}/operations/{operation}`.
     #[arg(long = "operation", value_name = "OPERATION")]
     pub operation: String,
     /// How long to wait for the operation, such as `30s` or `5m`. Without it, the command waits as long as the operation takes. When it passes first, the command prints the operation as it is and exits with status 1.
@@ -1431,12 +1438,14 @@ async fn wait_operation(
     names
         .learn(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
+            &["pvs"],
             "operation",
             Some(args.operation.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
+            &["pvs"],
             "operation",
             args.operation.as_str(),
         )?;

@@ -13,7 +13,7 @@
 # replacing one under another name ([[replacement]] below), fails generation
 # until that group is retired in the same change, as CONTRIBUTING.md says,
 # as `iam` was. The coverage test checks this list is the CLI's.
-hand_written = ["completion", "config", "id", "mcp", "version"]
+hand_written = ["completion", "config", "id", "mcp", "skill", "version"]
 
 # A service replacing a hand-written group under another name. It is written
 # before the API has the service, so that generation fails as soon as a
@@ -30,24 +30,34 @@ service = "resourcemanager"
 name = "pvs"
 about = "Persistent volume service: volumes, snapshots and storage classes"
 details = """
-Resource names are given as their parts (`--project`, `--zone`, `--volume`), \
-or the resource's flag takes a whole name; `--project` and `--zone` default \
-to the profile's `default-project` and `default-zone`."""
+A volume or snapshot a command acts on is given by its id (`--volume`), \
+with `--project` and `--zone`, or by its full name, \
+`//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`; \
+`--project` and `--zone` default to the profile's `default-project` and \
+`default-zone`. A reference, such as `--storage-class` or \
+`--source-snapshot`, takes a full or relative name, never an id."""
 
 [[service]]
 name = "compute"
 about = "Compute service: instances, images, key pairs, volume attachments, and the instance types and image families on offer"
 details = """
-Resource names are given as their parts (`--project`, `--zone`, `--instance`), \
-or the resource's flag takes a whole name; `--project` and `--zone` default \
-to the profile's `default-project` and `default-zone`."""
+A resource a command acts on is given by its id (`--instance`), with \
+`--project` and `--zone`, or by its full name, \
+`//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`; \
+`--project` and `--zone` default to the profile's `default-project` and \
+`default-zone`. A reference, such as `--image`, `--key-pair` or a volume \
+attachment's `--volume` (`//pvs.origincloudapis.eu/…`), takes a full or \
+relative name, never an id."""
 
 [[service]]
 name = "network"
 about = "Network service: VPCs, subnets, route tables, ACLs, security groups, gateways, floating IPs, network interfaces and DNS policies"
 details = """
-Resource names are given as their parts (`--project`, `--region` or \
-`--zone`, `--vpc`), or the resource's flag takes a whole name. VPCs, route \
+A resource a command acts on, and its parents, are given by their ids \
+(`--project`, `--region` or `--zone`, `--vpc`), or by their full names, \
+`//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; \
+a reference to another resource, such as `--peer-security-group`, takes a \
+full or relative name, never an id. VPCs, route \
 tables, ACLs, security groups, internet gateways and DNS policies are \
 regional (`--region`); subnets, network interfaces, floating IPs and NAT \
 gateways are zonal (`--zone`). `--project`, `--zone` and `--region` \
@@ -64,8 +74,8 @@ name = "dns"
 about = "DNS: hosted zones, public or private, their record sets, and the VPCs a private zone is attached to"
 details = """
 Hosted zones are a project's (`--project`), the same in every region; \
-`--hosted-zone` names one, while `--zone` is an availability zone, that of \
-a Floating IP an alias answers with. A public zone answers on the internet \
+`--hosted-zone` names one, and an alias's Floating IP is named by its full \
+name, `//network.origincloudapis.eu/…`. A public zone answers on the internet \
 once its name is delegated to the name servers `get-hosted-zone` shows, and \
 becomes `ACTIVE` once the TXT record its challenge names answers where the \
 name is hosted now (`verify-hosted-zone` checks it at once). A private zone \
@@ -91,6 +101,16 @@ charged to. Access to billing is granted apart from access to projects: \
 an organization's owner doesn't hold it by default."""
 
 [[service]]
+name = "kms"
+about = "Key management: encryption and signing keys whose material never leaves the platform, their versions and public keys, and the grants that let a platform host use one"
+details = """
+Keys are a project's in a region (`--project`, `--region`), never a \
+zone's: every zone of the region serves them. `encrypt`, `decrypt` and \
+`sign` read their data from a file (`--plaintext-file`, `--ciphertext-file`, \
+`--data-file`; `-` for standard input), byte for byte, and print the \
+API's JSON, whose bytes are base64."""
+
+[[service]]
 name = "support"
 about = "Support: cases, each a conversation with Origin Cloud support about a question or a problem, and their messages"
 details = """
@@ -100,8 +120,8 @@ when it was opened."""
 
 # A reference field that also takes the names of another resource type than
 # the one its definition declares: a `google.api.resource_reference` names
-# one type only. Its flag (or key) then takes a whole name of either type; an
-# id still completes to the declared type's pattern, which its help says. The
+# one type only. Its flag (or key) then takes a whole name of either type,
+# full or relative, which its help says. The
 # entry names the field by its full name, wherever it appears, and the other
 # type; generation fails, and so does the coverage test, when the field isn't
 # a reference to a type the API declares, or the type isn't one.
@@ -384,6 +404,11 @@ why = "Invitations aren't in the API: revoke a pending invitation in the console
 # method = "ExampleMethod"
 # why = "Why the CLI doesn't offer it."
 
+[[no_command]]
+service = "billing"
+method = "DownloadLegalDocumentVersion"
+why = "It answers with the PDF itself, which no command prints yet; `origin billing get-legal-document-version` returns the version's text, and its `pdfUri`."
+
 # Fields left out of a method's command, because the method doesn't take
 # them although its request message has them.
 [[exclude]]
@@ -392,15 +417,11 @@ method = "ImportVolume"
 field = "volume.source_snapshot"
 why = "An import's content is the downloaded image: it takes a size, a storage class and tags."
 
-# Changes that can't be undone. A command that sets one of these fields
-# requires `--yes`, like a delete, and refuses before sending anything
-# without it. Every delete requires `--yes` anyway, without an entry here.
-[[one_way]]
-service = "pvs"
-method = "UpdateVolume"
-field = "volume.size_gib"
-verb = "grow"
-consequence = "A volume never shrinks back, and its larger size is charged."
+# Changes that can't be undone aren't listed here: the one list of them is
+# `[[one_way]]` in origincloudhq/mcp's generator/tools.toml, at the commit
+# Cargo.lock pins, which scripts/generate.sh hands the generator. A command
+# that sets one of those fields requires `--yes`, like a delete, and refuses
+# before sending anything without it.
 
 # A field of a method's response holding a secret the API returns in that
 # response alone, such as a generated private key. The command prints the

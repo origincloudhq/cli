@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_value_file, shown_once, success, tags, wait, wait_for, waited, waiting,
-    zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -47,8 +48,8 @@ pub enum Commands {
     DeleteHostedZone(DeleteHostedZoneArgs),
     #[command(
         name = "verify-hosted-zone",
-        about = "Checks a public zone's challenge now, instead of waiting for the platform's next check, and returns the zone as it is then, with the check's outcome in `challenge.last_check`",
-        long_about = "Checks a public zone's challenge now, instead of waiting for the platform's next check, and returns the zone as it is then, with the check's outcome in `challenge.last_check`. A pending zone whose token answers becomes `ACTIVE`, and so does a suspended one while its name is free; otherwise the zone stays as it was. A call within 30 seconds of the zone's last check answers with that check's outcome and asks the name's DNS nothing. Refused with `NOT_FOUND` once a pending zone's window has ended, which deleted it, and with `SERVICE_UNAVAILABLE`, retryable, when the name's DNS didn't answer in time or too many checks are under way. A private zone has no challenge, and is refused with `BAD_REQUEST`. Checking an active zone changes nothing, so a client may repeat the call."
+        about = "Checks a public zone's proof of control now, instead of waiting for the platform's next check, and returns the zone as it is then, with the check's outcome in `challenge.last_check`",
+        long_about = "Checks a public zone's proof of control now, instead of waiting for the platform's next check, and returns the zone as it is then, with the check's outcome in `challenge.last_check`. A pending zone that proves control becomes `ACTIVE`, and so does a suspended one while its name is free; otherwise the zone stays as it was. A call within 30 seconds of the zone's last check answers with that check's outcome and asks the name's DNS nothing. Refused with `NOT_FOUND` once a pending zone's window has ended, which deleted it, and with `SERVICE_UNAVAILABLE`, retryable, when the name's DNS didn't answer in time or too many checks are under way. A private zone has no challenge, and is refused with `BAD_REQUEST`. Checking an active zone changes nothing, so a client may repeat the call; `NOT_FOUND` for one means its proof is lost, and the daily checks suspend it unless the proof comes back."
     )]
     VerifyHostedZone(VerifyHostedZoneArgs),
     #[command(
@@ -152,7 +153,7 @@ pub struct GetHostedZoneArgs {
     pub project: Option<String>,
     /// The zone to return.
     ///
-    /// Its id, completed with `--project`, or its whole name, `projects/{project}/hostedZones/{hosted_zone}`.
+    /// Its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE")]
     pub hosted_zone: String,
 }
@@ -164,12 +165,14 @@ async fn get_hosted_zone(
     names
         .learn(
             &["projects/{project}/hostedZones/{hosted_zone}"],
+            &["dns"],
             "hosted-zone",
             Some(args.hosted_zone.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/hostedZones/{hosted_zone}"],
+            &["dns"],
             "hosted-zone",
             args.hosted_zone.as_str(),
         )?;
@@ -285,7 +288,10 @@ pub struct CreateHostedZoneArgs {
     pub project: Option<String>,
     /// The domain, such as `example.com`, without the final dot; answered in
     /// lowercase. A public zone's has at least two labels and at most 235
-    /// characters, so its challenge name fits. A private zone's may have one
+    /// characters, so its challenge name fits, and isn't a special-use domain
+    /// or below one, as none is delegated on the internet: `test`,
+    /// `localhost`, `invalid`, `example`, `local`, `onion`, `alt`, `internal`
+    /// and `home.arpa`. A private zone's may have one
     /// label, but isn't `internal` or a name below it, which answer each
     /// instance's own name. Neither is one of the platform's own domains or a
     /// name below one.
@@ -355,7 +361,7 @@ pub struct UpdateHostedZoneArgs {
     pub project: Option<String>,
     /// The hosted zone to change.
     ///
-    /// Its id, completed with `--project`, or its whole name, `projects/{project}/hostedZones/{hosted_zone}`.
+    /// Its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE")]
     pub hosted_zone: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -380,12 +386,14 @@ async fn update_hosted_zone(
     names
         .learn(
             &["projects/{project}/hostedZones/{hosted_zone}"],
+            &["dns"],
             "hosted-zone",
             Some(args.hosted_zone.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/hostedZones/{hosted_zone}"],
+            &["dns"],
             "hosted-zone",
             args.hosted_zone.as_str(),
         )?;
@@ -428,7 +436,7 @@ pub struct DeleteHostedZoneArgs {
     pub project: Option<String>,
     /// The zone to delete.
     ///
-    /// Its id, completed with `--project`, or its whole name, `projects/{project}/hostedZones/{hosted_zone}`.
+    /// Its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE")]
     pub hosted_zone: String,
     /// A UUID; a repeat with the same id within a day succeeds as the first
@@ -446,12 +454,14 @@ async fn delete_hosted_zone(
     names
         .learn(
             &["projects/{project}/hostedZones/{hosted_zone}"],
+            &["dns"],
             "hosted-zone",
             Some(args.hosted_zone.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/hostedZones/{hosted_zone}"],
+            &["dns"],
             "hosted-zone",
             args.hosted_zone.as_str(),
         )?;
@@ -493,7 +503,7 @@ pub struct VerifyHostedZoneArgs {
     pub project: Option<String>,
     /// The public zone to verify.
     ///
-    /// Its id, completed with `--project`, or its whole name, `projects/{project}/hostedZones/{hosted_zone}`.
+    /// Its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE")]
     pub hosted_zone: String,
 }
@@ -505,12 +515,14 @@ async fn verify_hosted_zone(
     names
         .learn(
             &["projects/{project}/hostedZones/{hosted_zone}"],
+            &["dns"],
             "hosted-zone",
             Some(args.hosted_zone.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/hostedZones/{hosted_zone}"],
+            &["dns"],
             "hosted-zone",
             args.hosted_zone.as_str(),
         )?;
@@ -538,12 +550,12 @@ pub struct GetRecordSetArgs {
     /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{hosted_zone}` part of the resource names the command builds. Needed unless `--record-set` is given a whole name, which has it.
+    /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`. Needed unless `--record-set` is given a whole name, which has it.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE")]
     pub hosted_zone: Option<String>,
     /// The record set to return.
     ///
-    /// Its id, completed with `--project` and `--hosted-zone`, or its whole name, `projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`.
+    /// Its id, completed with `--project` and `--hosted-zone`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`.
     #[arg(long = "record-set", value_name = "RECORD_SET")]
     pub record_set: String,
 }
@@ -559,14 +571,22 @@ async fn get_record_set(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/hostedZones/{hosted_zone}",
+            &["dns"],
+            "hosted_zone",
+        )?;
+    names
         .learn(
             &["projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}"],
+            &["dns"],
             "record-set",
             Some(args.record_set.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}"],
+            &["dns"],
             "record-set",
             args.record_set.as_str(),
         )?;
@@ -594,7 +614,7 @@ pub struct ListRecordSetsArgs {
     /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{hosted_zone}` part of the resource names the command builds.
+    /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE", required = true)]
     pub hosted_zone: Option<String>,
     /// The most record sets to return; the server clamps it, and 0 means its
@@ -629,13 +649,19 @@ async fn list_record_sets(
     ctx: &Context<'_>,
     args: ListRecordSetsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("project", args.project.as_deref()),
                 ("hosted_zone", args.hosted_zone.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "projects/{project}/hostedZones/{hosted_zone}",
+            &["dns"],
+            "hosted_zone",
+        )?;
     let parent = names.name("projects/{project}/hostedZones/{hosted_zone}")?;
     let request = ::origincloud_dns::v1beta1::ListRecordSetsRequest {
         parent,
@@ -727,12 +753,9 @@ pub struct CreateRecordSetArgs {
     /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{hosted_zone}` part of the resource names the command builds.
+    /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE", required = true)]
     pub hosted_zone: Option<String>,
-    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
-    #[arg(long = "zone", value_name = "ZONE")]
-    pub zone: Option<String>,
     /// The name the records answer for: the zone's `--dns-name` or a name below
     /// it, written in full, such as `www.example.com`, without the final dot;
     /// answered in lowercase. Labels may hold `_` (`_dmarc.example.com`), and
@@ -770,7 +793,7 @@ pub struct CreateRecordSetArgs {
     pub basic_json: Option<JsonArg<::origincloud_dns::v1beta1::BasicRecordData>>,
     #[arg(
         long = "alias",
-        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.\n\nA value with a comma in it goes through `--alias-json` too.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
+        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, which is sent as its full name; not an id.\n\nA value with a comma in it goes through `--alias-json` too.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
         help = "The address of a platform resource, followed as it changes, as KEY=VALUE pairs; sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_alias_record_data(text, "--alias-json"),
@@ -779,7 +802,7 @@ pub struct CreateRecordSetArgs {
     pub alias: Option<Keyed<::origincloud_dns::v1beta1::AliasRecordData>>,
     #[arg(
         long = "alias-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--alias`.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, which is sent as its full name, never an id, as in its KEY=VALUE form. Instead of `--alias`.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
         help = "Alias as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_dns::v1beta1::AliasRecordData>(
@@ -803,27 +826,14 @@ async fn create_record_set(
             &[
                 ("project", args.project.as_deref()),
                 ("hosted_zone", args.hosted_zone.as_deref()),
-                ("zone", args.zone.as_deref()),
             ],
         );
-    if let Some(keyed) = &args.alias {
-        let item = &keyed.value;
-        names
-            .learn(
-                &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
-                "alias floating_ip",
-                Some(item.floating_ip.as_str()),
-            )?;
-    }
-    if let Some(json) = &args.alias_json {
-        let item = &json.0;
-        names
-            .learn(
-                &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
-                "alias floating_ip",
-                Some(item.floating_ip.as_str()),
-            )?;
-    }
+    names
+        .learn_part(
+            "projects/{project}/hostedZones/{hosted_zone}",
+            &["dns"],
+            "hosted_zone",
+        )?;
     let parent = names.name("projects/{project}/hostedZones/{hosted_zone}")?;
     let basic = match args.basic_json {
         Some(json) => Some(json.0),
@@ -835,12 +845,12 @@ async fn create_record_set(
     };
     if let Some(item) = &mut alias {
         if !item.floating_ip.is_empty() {
-            item.floating_ip = names
-                .reference(
-                    &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
-                    "alias floating_ip",
-                    item.floating_ip.as_str(),
-                )?;
+            item.floating_ip = reference(
+                &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+                &["network"],
+                "--alias floating_ip",
+                item.floating_ip.as_str(),
+            )?;
         }
     }
     #[allow(clippy::manual_map)]
@@ -901,15 +911,12 @@ pub struct UpdateRecordSetArgs {
     /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{hosted_zone}` part of the resource names the command builds. Needed unless `--record-set` is given a whole name, which has it.
+    /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`. Needed unless `--record-set` is given a whole name, which has it.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE")]
     pub hosted_zone: Option<String>,
-    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
-    #[arg(long = "zone", value_name = "ZONE")]
-    pub zone: Option<String>,
     /// The record set to change.
     ///
-    /// Its id, completed with `--project` and `--hosted-zone`, or its whole name, `projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`.
+    /// Its id, completed with `--project` and `--hosted-zone`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`.
     #[arg(long = "record-set", value_name = "RECORD_SET")]
     pub record_set: String,
     /// How long resolvers may keep the answer, from 30 seconds to 7 days, in
@@ -933,7 +940,7 @@ pub struct UpdateRecordSetArgs {
     pub basic_json: Option<JsonArg<::origincloud_dns::v1beta1::BasicRecordData>>,
     #[arg(
         long = "alias",
-        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its id, completed with `--project` and `--zone`, or its whole name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.\n\nA value with a comma in it goes through `--alias-json` too.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
+        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, which is sent as its full name; not an id.\n\nA value with a comma in it goes through `--alias-json` too.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
         help = "The address of a platform resource, followed as it changes, as KEY=VALUE pairs; replaced whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_alias_record_data(text, "--alias-json"),
@@ -942,7 +949,7 @@ pub struct UpdateRecordSetArgs {
     pub alias: Option<Keyed<::origincloud_dns::v1beta1::AliasRecordData>>,
     #[arg(
         long = "alias-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in a field of the message itself is completed with `--project` and `--zone`, as in its KEY=VALUE form; one nested deeper must be whole. Instead of `--alias`.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, which is sent as its full name, never an id, as in its KEY=VALUE form. Instead of `--alias`.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
         help = "Alias as JSON; replaced whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_dns::v1beta1::AliasRecordData>(
@@ -965,36 +972,25 @@ async fn update_record_set(
             &[
                 ("project", args.project.as_deref()),
                 ("hosted_zone", args.hosted_zone.as_deref()),
-                ("zone", args.zone.as_deref()),
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/hostedZones/{hosted_zone}",
+            &["dns"],
+            "hosted_zone",
+        )?;
+    names
         .learn(
             &["projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}"],
+            &["dns"],
             "record-set",
             Some(args.record_set.as_str()),
         )?;
-    if let Some(keyed) = &args.alias {
-        let item = &keyed.value;
-        names
-            .learn(
-                &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
-                "alias floating_ip",
-                Some(item.floating_ip.as_str()),
-            )?;
-    }
-    if let Some(json) = &args.alias_json {
-        let item = &json.0;
-        names
-            .learn(
-                &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
-                "alias floating_ip",
-                Some(item.floating_ip.as_str()),
-            )?;
-    }
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}"],
+            &["dns"],
             "record-set",
             args.record_set.as_str(),
         )?;
@@ -1029,12 +1025,12 @@ async fn update_record_set(
     };
     if let Some(item) = &mut alias {
         if !item.floating_ip.is_empty() {
-            item.floating_ip = names
-                .reference(
-                    &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
-                    "alias floating_ip",
-                    item.floating_ip.as_str(),
-                )?;
+            item.floating_ip = reference(
+                &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
+                &["network"],
+                "--alias floating_ip",
+                item.floating_ip.as_str(),
+            )?;
         }
     }
     if let Some(value) = basic {
@@ -1078,12 +1074,12 @@ pub struct DeleteRecordSetArgs {
     /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{hosted_zone}` part of the resource names the command builds. Needed unless `--record-set` is given a whole name, which has it.
+    /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`. Needed unless `--record-set` is given a whole name, which has it.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE")]
     pub hosted_zone: Option<String>,
     /// The record set to delete.
     ///
-    /// Its id, completed with `--project` and `--hosted-zone`, or its whole name, `projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`.
+    /// Its id, completed with `--project` and `--hosted-zone`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`.
     #[arg(long = "record-set", value_name = "RECORD_SET")]
     pub record_set: String,
     /// A UUID; a repeat with the same id within a day succeeds as the first
@@ -1105,14 +1101,22 @@ async fn delete_record_set(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/hostedZones/{hosted_zone}",
+            &["dns"],
+            "hosted_zone",
+        )?;
+    names
         .learn(
             &["projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}"],
+            &["dns"],
             "record-set",
             Some(args.record_set.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}"],
+            &["dns"],
             "record-set",
             args.record_set.as_str(),
         )?;
@@ -1152,15 +1156,15 @@ pub struct BatchChangeRecordSetsArgs {
     /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{hosted_zone}` part of the resource names the command builds. Needed unless `--deletion` is given a whole name, which has it.
-    #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE")]
+    /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
+    #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE", required = true)]
     pub hosted_zone: Option<String>,
     /// The record sets to delete, by name.
     ///
-    /// Each by its id, completed with `--project` and `--hosted-zone`, or its whole name, `projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`.
+    /// Each by its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`, which is sent as its full name; not an id.
     ///
     /// Repeat for more.
-    #[arg(long = "deletion", value_name = "RECORD_SET")]
+    #[arg(long = "deletion", value_name = "NAME")]
     pub deletion: Vec<String>,
     #[arg(
         long = "updates-json",
@@ -1201,30 +1205,22 @@ async fn batch_change_record_sets(
                 ("hosted_zone", args.hosted_zone.as_deref()),
             ],
         );
-    for value in &args.deletion {
-        names
-            .learn(
-                &[
-                    "projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}",
-                ],
-                "deletion",
-                Some(value.as_str()),
-            )?;
-    }
+    names
+        .learn_part(
+            "projects/{project}/hostedZones/{hosted_zone}",
+            &["dns"],
+            "hosted_zone",
+        )?;
     let parent = names.name("projects/{project}/hostedZones/{hosted_zone}")?;
     let deletions = args
         .deletion
         .iter()
-        .map(|v| {
-            names
-                .reference(
-                    &[
-                        "projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}",
-                    ],
-                    "deletion",
-                    v.as_str(),
-                )
-        })
+        .map(|v| reference(
+            &["projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}"],
+            &["dns"],
+            "--deletion",
+            v.as_str(),
+        ))
         .collect::<anyhow::Result<Vec<String>>>()?;
     let updates = match args.updates_json {
         Some(json) => json.0,
@@ -1264,12 +1260,12 @@ pub struct GetVpcAttachmentArgs {
     /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{hosted_zone}` part of the resource names the command builds. Needed unless `--vpc-attachment` is given a whole name, which has it.
+    /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`. Needed unless `--vpc-attachment` is given a whole name, which has it.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE")]
     pub hosted_zone: Option<String>,
     /// The attachment to return.
     ///
-    /// Its id, completed with `--project` and `--hosted-zone`, or its whole name, `projects/{project}/hostedZones/{hosted_zone}/vpcAttachments/{vpc_attachment}`.
+    /// Its id, completed with `--project` and `--hosted-zone`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}/vpcAttachments/{vpc_attachment}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}/vpcAttachments/{vpc_attachment}`.
     #[arg(long = "vpc-attachment", value_name = "VPC_ATTACHMENT")]
     pub vpc_attachment: String,
 }
@@ -1285,18 +1281,26 @@ async fn get_vpc_attachment(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/hostedZones/{hosted_zone}",
+            &["dns"],
+            "hosted_zone",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/hostedZones/{hosted_zone}/vpcAttachments/{vpc_attachment}",
             ],
+            &["dns"],
             "vpc-attachment",
             Some(args.vpc_attachment.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/hostedZones/{hosted_zone}/vpcAttachments/{vpc_attachment}",
             ],
+            &["dns"],
             "vpc-attachment",
             args.vpc_attachment.as_str(),
         )?;
@@ -1324,12 +1328,9 @@ pub struct ListVpcAttachmentsArgs {
     /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{hosted_zone}` part of the resource names the command builds.
+    /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE", required = true)]
     pub hosted_zone: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
     /// The most attachments to return; the server clamps it, and 0 means its
     /// default.
     ///
@@ -1343,8 +1344,8 @@ pub struct ListVpcAttachmentsArgs {
     pub page_token: Option<String>,
     /// Only the attachments to this VPC; every VPC's when left empty.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: Option<String>,
 }
 async fn list_vpc_attachments(
@@ -1356,24 +1357,23 @@ async fn list_vpc_attachments(
             &[
                 ("project", args.project.as_deref()),
                 ("hosted_zone", args.hosted_zone.as_deref()),
-                ("region", args.region.as_deref()),
             ],
         );
     names
-        .learn(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            args.vpc.as_deref(),
+        .learn_part(
+            "projects/{project}/hostedZones/{hosted_zone}",
+            &["dns"],
+            "hosted_zone",
         )?;
     let parent = names.name("projects/{project}/hostedZones/{hosted_zone}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-                    "vpc",
-                    v,
-                )?
+            reference(
+                &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+                &["network"],
+                "--vpc",
+                v,
+            )?
         }
         None => String::new(),
     };
@@ -1441,16 +1441,13 @@ pub struct CreateVpcAttachmentArgs {
     /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{hosted_zone}` part of the resource names the command builds.
+    /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE", required = true)]
     pub hosted_zone: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
     /// The VPC the zone answers in, in the zone's project.
     ///
-    /// Its id, completed with `--project` and `--region`, or its whole name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC")]
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: String,
     /// A UUID; a repeat with the same id within a day returns the attachment
     /// the first request created, as it is now, instead of being refused as a
@@ -1467,22 +1464,21 @@ async fn create_vpc_attachment(
             &[
                 ("project", args.project.as_deref()),
                 ("hosted_zone", args.hosted_zone.as_deref()),
-                ("region", args.region.as_deref()),
             ],
         );
     names
-        .learn(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            Some(args.vpc.as_str()),
+        .learn_part(
+            "projects/{project}/hostedZones/{hosted_zone}",
+            &["dns"],
+            "hosted_zone",
         )?;
     let parent = names.name("projects/{project}/hostedZones/{hosted_zone}")?;
-    let vpc = names
-        .reference(
-            &["projects/{project}/regions/{region}/vpcs/{vpc}"],
-            "vpc",
-            args.vpc.as_str(),
-        )?;
+    let vpc = reference(
+        &["projects/{project}/regions/{region}/vpcs/{vpc}"],
+        &["network"],
+        "--vpc",
+        args.vpc.as_str(),
+    )?;
     let vpc_attachment = ::origincloud_dns::v1beta1::VpcAttachment {
         vpc,
         ..::core::default::Default::default()
@@ -1515,12 +1511,12 @@ pub struct DeleteVpcAttachmentArgs {
     /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
-    /// The `{hosted_zone}` part of the resource names the command builds. Needed unless `--vpc-attachment` is given a whole name, which has it.
+    /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`. Needed unless `--vpc-attachment` is given a whole name, which has it.
     #[arg(long = "hosted-zone", value_name = "HOSTED_ZONE")]
     pub hosted_zone: Option<String>,
     /// The attachment to delete.
     ///
-    /// Its id, completed with `--project` and `--hosted-zone`, or its whole name, `projects/{project}/hostedZones/{hosted_zone}/vpcAttachments/{vpc_attachment}`.
+    /// Its id, completed with `--project` and `--hosted-zone`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}/vpcAttachments/{vpc_attachment}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}/vpcAttachments/{vpc_attachment}`.
     #[arg(long = "vpc-attachment", value_name = "VPC_ATTACHMENT")]
     pub vpc_attachment: String,
     /// A UUID; a repeat with the same id within a day succeeds as the first
@@ -1542,18 +1538,26 @@ async fn delete_vpc_attachment(
             ],
         );
     names
+        .learn_part(
+            "projects/{project}/hostedZones/{hosted_zone}",
+            &["dns"],
+            "hosted_zone",
+        )?;
+    names
         .learn(
             &[
                 "projects/{project}/hostedZones/{hosted_zone}/vpcAttachments/{vpc_attachment}",
             ],
+            &["dns"],
             "vpc-attachment",
             Some(args.vpc_attachment.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &[
                 "projects/{project}/hostedZones/{hosted_zone}/vpcAttachments/{vpc_attachment}",
             ],
+            &["dns"],
             "vpc-attachment",
             args.vpc_attachment.as_str(),
         )?;

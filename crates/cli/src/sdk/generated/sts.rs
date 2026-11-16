@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_value_file, shown_once, success, tags, wait, wait_for, waited, waiting,
-    zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -40,9 +41,6 @@ pub(crate) fn service(
 /// The flags of `assume-service-account`.
 #[derive(clap::Args, Debug)]
 pub struct AssumeServiceAccountArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
-    #[arg(long = "organization", value_name = "ORGANIZATION")]
-    pub organization: Option<String>,
     /// The OIDC token, a JWT its issuer signed, such as a CI job's.
     ///
     /// Read from the file at the path, or from standard input with `-`, without its final newline.
@@ -53,8 +51,8 @@ pub struct AssumeServiceAccountArgs {
     /// its federated credentials are considered. Without it, any service
     /// account's credential that trusts the token is.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/serviceAccounts/{service_account}`.
-    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
+    /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`, which is sent as its full name; not an id.
+    #[arg(long = "service-account", value_name = "NAME")]
     pub service_account: Option<String>,
     /// How long the access token lives: from 60 seconds to 1 hour, 15 minutes
     /// when unset.
@@ -67,21 +65,14 @@ async fn assume_service_account(
     ctx: &Context<'_>,
     args: AssumeServiceAccountArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
-    names
-        .learn(
-            &["organizations/{organization}/serviceAccounts/{service_account}"],
-            "service-account",
-            args.service_account.as_deref(),
-        )?;
     let service_account = match args.service_account.as_deref() {
         Some(v) => {
-            names
-                .reference(
-                    &["organizations/{organization}/serviceAccounts/{service_account}"],
-                    "service-account",
-                    v,
-                )?
+            reference(
+                &["organizations/{organization}/serviceAccounts/{service_account}"],
+                &["iam"],
+                "--service-account",
+                v,
+            )?
         }
         None => String::new(),
     };

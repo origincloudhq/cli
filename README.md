@@ -116,7 +116,7 @@ origin config profile
 | `output-format` | `ORIGINCLOUD_OUTPUT_FORMAT` | `table`, `wide`, `json` or `name` (see [Output](#output)); `--output` (`-o`) overrides it. |
 | `default-project` | `ORIGINCLOUD_PROJECT` | `--project` of the generated commands, such as `origin pvs`'s, when not given. |
 | `default-zone` | `ORIGINCLOUD_ZONE` | `--zone` of the generated commands, when not given; not of the lists, which list every zone without `--zone`. |
-| `region` | `ORIGINCLOUD_REGION` | The region the generated commands work in: the `--region` of the `network` commands' regional resources, when not given, and the front door the `compute`, `network`, `pvs` and `observability` commands call, such as `pvs.{region}.origincloudapis.eu`. Without it, the region of the default zone (`eu-central1` for `eu-central1-az1`); without either, `--region` must be given, and the calls go to the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource. The `location`, `resourcemanager`, `iam`, `billing`, `support`, `dns` and `sts` commands always call their regionless host. |
+| `region` | `ORIGINCLOUD_REGION` | The region the generated commands work in: the `--region` of the `network` commands' regional resources and of the `kms` commands, when not given, and the front door the `compute`, `network`, `pvs`, `observability` and `kms` commands call, such as `pvs.{region}.origincloudapis.eu`. Without it, the region of the default zone (`eu-central1` for `eu-central1-az1`); without either, `--region` must be given, and the calls go to the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource. The `location`, `resourcemanager`, `iam`, `billing`, `support`, `dns` and `sts` commands always call their regionless host. |
 
 As in the AWS CLI, a flag comes first, then the environment variable, then
 the profile's value: an environment variable overrides the profile while a
@@ -165,7 +165,9 @@ sending anything.
 
 Irreversible commands (every delete, and growing a volume with
 `origin pvs update-volume --size-gib`) refuse to run without `--yes` and say
-what they would have done; the refusal happens before any request.
+what they would have done; the refusal happens before any request. A delete
+whose service can restore what it deleted until it is purged says which
+command restores it, and prints the deleted resource.
 
 `origin compute create-key-pair` without `--public-key` prints the private
 key it generates as `privateKey`, which the API returns this once, and says
@@ -203,6 +205,9 @@ A group per service of the API:
   provider's token, such as a CI job's OIDC token, into the access token of
   a service account whose federated credential trusts it
   (`assume-service-account --oidc-token-file`). It needs no login.
+- `origin kms`: encryption and signing keys, kept by the platform, and
+  their versions and public keys; encrypting, decrypting, signing and data
+  keys; and the grants that let a platform host use a key.
 
 Their commands are generated from the API definitions in
 [origincloudhq/api](https://github.com/origincloudhq/api) and call the
@@ -212,28 +217,45 @@ every method of the API, with the API's own descriptions as help:
 - **Command names.** The service's name, then the method's name in kebab
   case: `CreateVolume` is `origin pvs create-volume`, `ListZones` is
   `origin location list-zones`.
-- **Resource names.** A resource is named by its parts, each an id, such as
-  `vol-123` or `gp1.core.2`: anything but empty, `.` or `..`, and without
-  `/`. `--project` and
-  `--zone` are shared by every name a command builds, and default to the
-  profile's `default-project` and `default-zone`; a regional resource of
-  `origin network`, such as a VPC, takes `--region` instead of `--zone`,
-  which defaults to the profile's `region`, or the region of its
-  `default-zone`; the resource's own id is the
-  flag named after it (`--volume vol-123`, `--zone eu-central1-az1` for
-  `origin location get-zone`), or after the field for a reference
-  (`--source-snapshot snapshot-123`, `--storage-class gp1`). That flag also
-  takes a whole name, such as
-  `--volume projects/my-project-123/zones/eu-central1-az1/volumes/vol-123`,
-  whose project and zone then fill in the others: the `name` of a listed
-  volume can be passed straight on. Where a flag takes more than one form
-  of name, its help names each, and an id is the first: `--image` of
-  `origin compute create-instance` takes one of the project's own images,
-  `projects/{project}/zones/{zone}/images/{image}`, which its id
-  completes to, or a public one, `zones/{zone}/images/{image}`. A part of a parent's name without a
-  default, such as `--instance` of `origin compute
-  create-volume-attachment`, is required, unless a whole name given to
-  another flag has it.
+- **Resource names.** A resource is named by its full name,
+  `//{service}.origincloudapis.eu/{relative name}`, such as
+  `//pvs.origincloudapis.eu/projects/my-project-123/zones/eu-central1-az1/volumes/vol-123`,
+  and every flag naming a resource takes it. Its host is that of the
+  service the resource belongs to, which may be another than the
+  command's: `origin compute create-volume-attachment --volume` takes a
+  volume's, `//pvs.origincloudapis.eu/…`, and a name on any other host is
+  refused before anything is sent. The relative name, the full name
+  without `//{host}/` (`projects/…/volumes/vol-123`, a resource's `name`
+  as the API prints it), is taken too.
+  - **The resource a command acts on**, and its parents, can also be built
+    from their ids, each anything but empty, `.` or `..`, and without `/`,
+    such as `vol-123` or `gp1.core.2`: the flag named after the resource
+    (`--volume vol-123`, `--zone eu-central1-az1` for
+    `origin location get-zone`), or after a parent (`--instance` of
+    `origin compute create-volume-attachment`, `--security-group` of
+    `origin network create-security-group-rule`). `--project` and `--zone`
+    are shared by every name a command builds, and default to the profile's
+    `default-project` and `default-zone`; a regional resource, such as a
+    VPC, takes `--region` instead of `--zone`, which defaults to the
+    profile's `region`, or the region of its `default-zone`. A whole name
+    given to one of these flags fills in the other parts, which must agree
+    with any given (`--zone`); the request's path is always the relative
+    name. A part without a default, such as `--instance`, is required
+    unless a whole name given to another flag has it.
+  - **A reference** to another resource, such as `--source-snapshot`,
+    `--storage-class` or `--key-pair`, takes a whole name only, and is
+    always sent as a full name: a full name as given, a relative name with
+    the host of the referenced resource's service put in front
+    (`storageClasses/gp1` is sent as
+    `//pvs.origincloudapis.eu/storageClasses/gp1`), in a flag, a key or
+    JSON at any depth. It is never completed from `--project` or `--zone`,
+    and may name another project's resource. An id is refused, with the
+    full name's form. A reference to types of several services takes its
+    full name alone, a relative name not saying whose it is. Where a reference takes more
+    than one form of name, its help names each: `--image` of
+    `origin compute create-instance` takes one of the project's own images,
+    `projects/{project}/zones/{zone}/images/{image}`, or a public one,
+    `zones/{zone}/images/{image}`.
 - **Other flags.** Each other field of the request, and of the volume or
   snapshot it carries, is the flag of its name in kebab case: `size_gib` is
   `--size-gib`. Output-only fields aren't flags, and neither is a field the
@@ -242,6 +264,11 @@ every method of the API, with the API's own descriptions as help:
   `--flag false`; left out, one the API doesn't require is `false`. A
   duration is given as `30s`, `2m` or `1m30s`, a time as RFC 3339, such as
   `2026-11-01T12:00:00Z`.
+- **Binary data.** A field holding bytes is its flag with `-file`, such as
+  `--plaintext-file secret.txt`, which takes a path, or `-` for standard
+  input, and sends the file's content byte for byte, with nothing to encode.
+  A response's bytes are in the JSON the command prints in base64, as in
+  any of the API's JSON: `jq -r .plaintext | base64 -d` turns one back.
 - **Tags.** `--tag KEY=VALUE`, repeated for more. On an update, `--tag`
   replaces all of a resource's tags, and `--no-tags` removes them all; the two
   exclude each other, so the tags are only emptied when you say so. To set or
@@ -270,8 +297,8 @@ every method of the API, with the API's own descriptions as help:
   ```
 
   Each key is typed and checked like a flag of its own (an enum's values, a
-  number, `true` or `false`, a duration, a time, a resource name by its id or
-  whole name), a required key must be given, and the flag's help lists the
+  number, `true` or `false`, a duration, a time, a resource name by its full
+  or relative name), a required key must be given, and the flag's help lists the
   keys. Every such field also has a `-json` flag taking the field as the
   API's JSON, or `@FILE` to read it from a file, for what pairs can't say: a
   value with a comma, or a message nested deeper. Its fields are named as the
@@ -279,9 +306,8 @@ every method of the API, with the API's own descriptions as help:
   Before anything is sent it is checked at every depth, each refusal naming
   its path: a field the message doesn't have, a key given twice, a value of
   the wrong type, an enum value that isn't one, an element given twice where
-  the API keeps each once. A resource name in a field of the message itself
-  is completed with `--project` and `--zone`, as in the pairs; one nested
-  deeper must be whole:
+  the API keeps each once. A resource name in it, at any depth, is a full or
+  relative name, never an id:
 
   ```sh
   --rules-json '[{"protocol": "TCP", "match": {"headers": [{"name": "x-env", "value": "prod"}]}}]'
@@ -324,7 +350,7 @@ every method of the API, with the API's own descriptions as help:
   one page needs `--zone`. An empty list prints
   as `[]`.
 - **Output.** The API's JSON: the resource as the API returns it, with its
-  fields in camel case, such as `sizeGib`.
+  fields in camel case, such as `sizeGib`, and bytes in base64.
 
 - **Credentials.** The login session, or, when they are set, the variables
   every Origin Cloud SDK reads: `ORIGINCLOUD_ACCESS_TOKEN`, or
@@ -371,6 +397,65 @@ or, for a client configured in JSON:
 { "mcpServers": { "origincloud": { "command": "origin", "args": ["mcp", "serve"] } } }
 ```
 
+### Adding it to a coding agent: `origin mcp install`
+
+`origin mcp install` adds that entry to a coding agent's MCP servers, and
+`origin mcp uninstall` removes it again:
+
+```sh
+origin mcp install --agent claude-code                    # for every project, with every tool
+origin mcp install --agent codex,cursor --read-only       # only the tools that change nothing
+origin mcp install --agent github-copilot --scope project --toolsets pvs,location
+origin mcp install --agent cursor --print                 # print the entry, change nothing
+origin mcp uninstall --agent claude-code
+```
+
+- **Agents.** `--agent` takes the agents of the table below, separated by
+  commas. On a terminal without it, `origin mcp install` offers the agents
+  it finds on the machine; without a terminal, `--agent` is required.
+- **Scope.** `--scope user` (the default) is the agent's own
+  configuration, for every project; `--scope project` is the project in
+  the current directory, in a file that is usually committed with it.
+- **The entry.** Named `origincloud` (`--name` names it otherwise), it
+  starts `origin mcp serve` with `--toolsets` and `--read-only` as given,
+  and with `--config` when `origin --config FILE mcp install` named one. It
+  holds no credentials, nor anything else from the login or the
+  environment: `origin mcp serve` uses the login and the profile as the
+  other commands do, so a project's file can be committed.
+- **How.** Where the agent has a command for it (`claude mcp add`, `codex
+  mcp add`, `gemini mcp add`) and it is on `PATH`, `origin mcp install`
+  runs that, so that the agent writes its own file; then it checks the
+  entry is in the file the table names. Otherwise it edits the file: the
+  entry alone, keeping the other servers and settings, their order, and
+  the comments where the format has them, after copying the file to
+  `FILE.origin.bak`. Running it again updates the entry; a file that
+  doesn't parse, or an entry of the name that doesn't start `origin mcp
+  serve`, is left as it is, and the command fails.
+- **`PATH`.** An entry names `origin`, for the agent to find on its `PATH`;
+  Claude Desktop, started from a desktop launcher without your shell's
+  `PATH`, gets the binary's absolute path instead, as any agent does with
+  `--absolute-path`.
+- **`--print`** prints the entry as the agent's file would hold it, or in
+  the `mcpServers` form most other MCP clients read without `--agent`, and
+  changes nothing.
+
+The agents, and where each keeps its servers (`origin mcp install --help`
+lists the same):
+
+<!-- agents: generated from crates/cli/src/handler/agents.rs -->
+| `--agent` | Agent | User scope | Project scope | Format | Added with |
+|---|---|---|---|---|---|
+| `claude-code` | Claude Code | `~/.claude.json`, or `$CLAUDE_CONFIG_DIR/.claude.json` | `.mcp.json` | JSON, `mcpServers` | `claude mcp add` when `claude` is on PATH, else the file |
+| `codex` | OpenAI Codex | `~/.codex/config.toml`, or `$CODEX_HOME/config.toml` | `.codex/config.toml` | TOML, `mcp_servers` | `codex mcp add` (user scope) when `codex` is on PATH, else the file |
+| `cursor` | Cursor | `~/.cursor/mcp.json` | `.cursor/mcp.json` | JSON, `mcpServers` | the file |
+| `gemini-cli` | Gemini CLI | `~/.gemini/settings.json` | `.gemini/settings.json` | JSON with comments, `mcpServers` | `gemini mcp add` when `gemini` is on PATH, else the file |
+| `github-copilot` | GitHub Copilot (VS Code, Copilot CLI) | `~/.copilot/mcp-config.json`, or `$COPILOT_HOME/mcp-config.json` | `.mcp.json` | JSON, `mcpServers` | the file |
+| `claude-desktop` | Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS), `~/.config/Claude/claude_desktop_config.json` (Linux) | – | JSON, `mcpServers`; absolute path of `origin` | the file |
+<!-- /agents -->
+
+Restart the agent, or start a new session, for it to start the server. Claude
+Code and GitHub Copilot share a project's `.mcp.json`, and with it the entry.
+
 - **Tools.** A tool per method of the API, generated like the commands:
   `pvs_create_volume`, `location_list_zones`, and each service's
   `_get_operation` and `_wait_operation`. Each takes the method's request in
@@ -395,6 +480,66 @@ or, for a client configured in JSON:
 
 The tools are the library [origincloudhq/mcp](https://github.com/origincloudhq/mcp),
 which a server on the network can serve as well.
+
+## Agent skills: `origin skill install`
+
+The [agent skills](https://agentskills.io) of
+[origincloudhq/skills](https://github.com/origincloudhq/skills) teach a coding
+agent to use Origin Cloud: `origin` for this CLI, `origincloud-terraform` and
+`origincloud-sdk`. `origin` carries them, from the origincloudhq/skills commit
+`SKILLS_REVISION` names, so the `origin` skill describes the commands of the
+`origin` you have, and installing needs no network access:
+
+```sh
+origin skill install --agent claude-code                  # the origin skill, for every project
+origin skill install --all --agent codex,cursor --scope project
+origin skill install origincloud-terraform --dir ./skills # a directory of your own
+origin skill list                                         # what is installed where, in which version
+origin skill update                                       # bring the installed copies to this version
+```
+
+- **Agents and scope.** `--agent` takes the agents of the table below,
+  separated by commas; on a terminal without it, `origin skill install`
+  offers the agents it finds on the machine, and without a terminal,
+  `--agent` (or `--dir`) is required. `--scope user` (the default) is the
+  agent's own skill directory; `--scope project` the project in the current
+  directory, where the agents that read `.agents/skills` share one copy.
+- **The copy.** Each skill is a directory, `SKILL.md` and its references,
+  written beside the old one and renamed over it. Its `SKILL.md` gets two
+  keys in its frontmatter's `metadata`: `origin-skills-revision`, the
+  origincloudhq/skills commit, and `origin-skills-digest`, the digest of the
+  skill's files. They say which version it is, and that no one changed it
+  since `origin` wrote it.
+- **Someone else's.** A skill's directory `origin` didn't install, such as
+  one `gh skill install` did, or one changed since, is left as it is, and
+  nothing is installed, unless `--force` is given; `origin skill update`
+  skips it. The agent's other skills are never touched. A skill directory
+  kept as a symbolic link stays one, and its target is written.
+- **Versions.** `origin skill list` shows each skill's version and every
+  copy: `current`, `outdated`, `modified`, or `unmanaged`, a copy `origin`
+  didn't install. After an upgrade of `origin`, the first command run on a
+  terminal says which copies are outdated, once, on standard error, and
+  never in `json` output.
+
+The skills are in the repository too, for other tools:
+`gh skill install origincloudhq/skills origin --agent claude-code --scope
+user` installs the same skill, with GitHub CLI's own keys in place of
+`origin`'s, and `gh skill update` updates it.
+
+The agents, and the directories they read skills from (`origin skill install
+--help` lists the same):
+
+<!-- skill-agents: generated from crates/cli/src/handler/agents.rs -->
+| `--agent` | Agent | User scope | Project scope |
+|---|---|---|---|
+| `claude-code` | Claude Code | `~/.claude/skills`, or `$CLAUDE_CONFIG_DIR/skills` | `.claude/skills` |
+| `codex` | OpenAI Codex | `~/.agents/skills` | `.agents/skills`, shared |
+| `cursor` | Cursor | `~/.cursor/skills` | `.agents/skills`, shared |
+| `gemini-cli` | Gemini CLI | `~/.gemini/skills` | `.agents/skills`, shared |
+| `github-copilot` | GitHub Copilot (VS Code, Copilot CLI) | `~/.copilot/skills`, or `$COPILOT_HOME/skills` | `.agents/skills`, shared |
+<!-- /skill-agents -->
+
+Start a new session of the agent for it to find a new skill.
 
 ## The command tree, for tools
 

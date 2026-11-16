@@ -9,7 +9,7 @@ use std::process::Output;
 
 use common::{
     extension, failure, methods, pattern_of_message, pattern_of_type, pool, recording, stdout,
-    whole_name, OPERATIONS, TABLE,
+    whole_name, MCP_TABLE, OPERATIONS,
 };
 use fake_server::{Received, Response};
 use heck::ToKebabCase;
@@ -34,6 +34,8 @@ struct OneWay {
     service: String,
     method: String,
     field: String,
+    verb: String,
+    consequence: String,
 }
 
 /// Every delete of every group without `--yes`, its resource given by its
@@ -86,12 +88,12 @@ async fn every_delete_requires_yes() {
     );
 }
 
-/// Every one-way change the generator's table names, without `--yes`, is
+/// Every one-way change origincloudhq/mcp's table names, without `--yes`, is
 /// refused before any request, naming the resource and the change.
 #[tokio::test(flavor = "multi_thread")]
 async fn every_one_way_change_requires_yes() {
     let pool = pool();
-    let table: Table = toml::from_str(TABLE).unwrap();
+    let table: Table = toml::from_str(MCP_TABLE).unwrap();
     let server = recording(answering(UPDATED)).await;
     assert!(!table.one_way.is_empty());
     for entry in &table.one_way {
@@ -130,7 +132,11 @@ async fn every_one_way_change_requires_yes() {
             )
             .await;
         let description = failure(&output);
-        assert!(description.starts_with("refusing to "), "{description}");
+        assert!(
+            description.starts_with(&format!("refusing to {} ", entry.verb)),
+            "{description}"
+        );
+        assert!(description.contains(&entry.consequence), "{description}");
         assert!(
             description.contains(&format!("{name} ({change})")),
             "{description}"

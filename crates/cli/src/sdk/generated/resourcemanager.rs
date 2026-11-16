@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_value_file, shown_once, success, tags, wait, wait_for, waited, waiting,
-    zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -128,7 +129,7 @@ pub(crate) fn service(
 pub struct GetOrganizationArgs {
     /// The organization to return.
     ///
-    /// Its id, or its whole name, `organizations/{organization}`.
+    /// Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: String,
 }
@@ -140,12 +141,14 @@ async fn get_organization(
     names
         .learn(
             &["organizations/{organization}"],
+            &["resourcemanager"],
             "organization",
             Some(args.organization.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}"],
+            &["resourcemanager"],
             "organization",
             args.organization.as_str(),
         )?;
@@ -292,7 +295,7 @@ async fn call_create_organization(
 pub struct UpdateOrganizationArgs {
     /// The organization to change.
     ///
-    /// Its id, or its whole name, `organizations/{organization}`.
+    /// Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: String,
     /// The name the console shows, typically the company's name. Not empty.
@@ -309,12 +312,14 @@ async fn update_organization(
     names
         .learn(
             &["organizations/{organization}"],
+            &["resourcemanager"],
             "organization",
             Some(args.organization.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}"],
+            &["resourcemanager"],
             "organization",
             args.organization.as_str(),
         )?;
@@ -353,7 +358,7 @@ async fn call_update_organization(
 pub struct DeleteOrganizationArgs {
     /// The organization to delete.
     ///
-    /// Its id, or its whole name, `organizations/{organization}`.
+    /// Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: String,
     #[command(flatten)]
@@ -367,12 +372,14 @@ async fn delete_organization(
     names
         .learn(
             &["organizations/{organization}"],
+            &["resourcemanager"],
             "organization",
             Some(args.organization.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}"],
+            &["resourcemanager"],
             "organization",
             args.organization.as_str(),
         )?;
@@ -410,7 +417,7 @@ async fn call_delete_organization(
 pub struct GetOrganizationQuotaArgs {
     /// The quota to return, `organizations/{organization}/quota`.
     ///
-    /// Its id, or its whole name, `organizations/{organization}/quota`.
+    /// Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}/quota`, or its relative name, `organizations/{organization}/quota`.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: String,
 }
@@ -422,12 +429,14 @@ async fn get_organization_quota(
     names
         .learn(
             &["organizations/{organization}/quota"],
+            &["resourcemanager"],
             "organization",
             Some(args.organization.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/quota"],
+            &["resourcemanager"],
             "organization",
             args.organization.as_str(),
         )?;
@@ -456,7 +465,7 @@ async fn call_get_organization_quota(
 pub struct GetProjectArgs {
     /// The project to return.
     ///
-    /// Its id, or its whole name, `projects/{project}`.
+    /// Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: String,
 }
@@ -465,9 +474,20 @@ async fn get_project(
     args: GetProjectArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn(&["projects/{project}"], "project", Some(args.project.as_str()))?;
+    names
+        .learn(
+            &["projects/{project}"],
+            &["resourcemanager"],
+            "project",
+            Some(args.project.as_str()),
+        )?;
     let name = names
-        .reference(&["projects/{project}"], "project", args.project.as_str())?;
+        .target(
+            &["projects/{project}"],
+            &["resourcemanager"],
+            "project",
+            args.project.as_str(),
+        )?;
     let request = ::origincloud_resourcemanager::v1beta1::GetProjectRequest {
         name,
     };
@@ -491,8 +511,8 @@ async fn call_get_project(
 pub struct ListProjectsArgs {
     /// The organization whose projects to list, `organizations/{organization}`.
     ///
-    /// Its id, or its whole name, `organizations/{organization}`.
-    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`, which is sent as its full name; not an id.
+    #[arg(long = "organization", value_name = "NAME")]
     pub organization: String,
     /// The most projects to return; the server clamps it, and 0 means its
     /// default.
@@ -510,19 +530,12 @@ async fn list_projects(
     ctx: &Context<'_>,
     args: ListProjectsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[]);
-    names
-        .learn(
-            &["organizations/{organization}"],
-            "organization",
-            Some(args.organization.as_str()),
-        )?;
-    let organization = names
-        .reference(
-            &["organizations/{organization}"],
-            "organization",
-            args.organization.as_str(),
-        )?;
+    let organization = reference(
+        &["organizations/{organization}"],
+        &["resourcemanager"],
+        "--organization",
+        args.organization.as_str(),
+    )?;
     let request = ::origincloud_resourcemanager::v1beta1::ListProjectsRequest {
         organization,
         page_size: args.page_size.unwrap_or_default(),
@@ -585,8 +598,8 @@ async fn call_list_projects(
 pub struct CreateProjectArgs {
     /// The organization the project belongs to, `organizations/{organization}`.
     ///
-    /// Its id, or its whole name, `organizations/{organization}`.
-    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`, which is sent as its full name; not an id.
+    #[arg(long = "organization", value_name = "NAME")]
     pub organization: String,
     /// The name the console shows. Not empty.
     #[arg(long = "display-name")]
@@ -605,19 +618,12 @@ async fn create_project(
     ctx: &Context<'_>,
     args: CreateProjectArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[]);
-    names
-        .learn(
-            &["organizations/{organization}"],
-            "organization",
-            Some(args.organization.as_str()),
-        )?;
-    let organization = names
-        .reference(
-            &["organizations/{organization}"],
-            "organization",
-            args.organization.as_str(),
-        )?;
+    let organization = reference(
+        &["organizations/{organization}"],
+        &["resourcemanager"],
+        "--organization",
+        args.organization.as_str(),
+    )?;
     let project = ::origincloud_resourcemanager::v1beta1::Project {
         organization,
         display_name: args.display_name.clone(),
@@ -655,7 +661,7 @@ async fn call_create_project(
 pub struct UpdateProjectArgs {
     /// The project to change.
     ///
-    /// Its id, or its whole name, `projects/{project}`.
+    /// Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: String,
     /// The name the console shows. Not empty.
@@ -669,9 +675,20 @@ async fn update_project(
     args: UpdateProjectArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn(&["projects/{project}"], "project", Some(args.project.as_str()))?;
+    names
+        .learn(
+            &["projects/{project}"],
+            &["resourcemanager"],
+            "project",
+            Some(args.project.as_str()),
+        )?;
     let name = names
-        .reference(&["projects/{project}"], "project", args.project.as_str())?;
+        .target(
+            &["projects/{project}"],
+            &["resourcemanager"],
+            "project",
+            args.project.as_str(),
+        )?;
     let mut project = ::origincloud_resourcemanager::v1beta1::Project {
         name: name.clone(),
         ..::core::default::Default::default()
@@ -707,7 +724,7 @@ async fn call_update_project(
 pub struct DeleteProjectArgs {
     /// The project to delete.
     ///
-    /// Its id, or its whole name, `projects/{project}`.
+    /// Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: String,
     #[command(flatten)]
@@ -718,9 +735,20 @@ async fn delete_project(
     args: DeleteProjectArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn(&["projects/{project}"], "project", Some(args.project.as_str()))?;
+    names
+        .learn(
+            &["projects/{project}"],
+            &["resourcemanager"],
+            "project",
+            Some(args.project.as_str()),
+        )?;
     let name = names
-        .reference(&["projects/{project}"], "project", args.project.as_str())?;
+        .target(
+            &["projects/{project}"],
+            &["resourcemanager"],
+            "project",
+            args.project.as_str(),
+        )?;
     let request = ::origincloud_resourcemanager::v1beta1::DeleteProjectRequest {
         name,
     };
@@ -755,7 +783,7 @@ async fn call_delete_project(
 pub struct GetProjectQuotaArgs {
     /// The quota to return, `projects/{project}/quota`.
     ///
-    /// Its id, or its whole name, `projects/{project}/quota`.
+    /// Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}/quota`, or its relative name, `projects/{project}/quota`.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: String,
 }
@@ -764,9 +792,20 @@ async fn get_project_quota(
     args: GetProjectQuotaArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn(&["projects/{project}/quota"], "project", Some(args.project.as_str()))?;
+    names
+        .learn(
+            &["projects/{project}/quota"],
+            &["resourcemanager"],
+            "project",
+            Some(args.project.as_str()),
+        )?;
     let name = names
-        .reference(&["projects/{project}/quota"], "project", args.project.as_str())?;
+        .target(
+            &["projects/{project}/quota"],
+            &["resourcemanager"],
+            "project",
+            args.project.as_str(),
+        )?;
     let request = ::origincloud_resourcemanager::v1beta1::GetProjectQuotaRequest {
         name,
     };
@@ -816,7 +855,7 @@ async fn call_get_project_quota(
 pub struct UpdateProjectQuotaArgs {
     /// The project quota to change.
     ///
-    /// Its id, or its whole name, `projects/{project}/quota`.
+    /// Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}/quota`, or its relative name, `projects/{project}/quota`.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: String,
     /// The most instances that aren't terminated; unset means no budget. Each
@@ -886,9 +925,20 @@ async fn update_project_quota(
     args: UpdateProjectQuotaArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn(&["projects/{project}/quota"], "project", Some(args.project.as_str()))?;
+    names
+        .learn(
+            &["projects/{project}/quota"],
+            &["resourcemanager"],
+            "project",
+            Some(args.project.as_str()),
+        )?;
     let name = names
-        .reference(&["projects/{project}/quota"], "project", args.project.as_str())?;
+        .target(
+            &["projects/{project}/quota"],
+            &["resourcemanager"],
+            "project",
+            args.project.as_str(),
+        )?;
     let mut project_quota = ::origincloud_resourcemanager::v1beta1::ProjectQuota {
         name: name.clone(),
         ..::core::default::Default::default()

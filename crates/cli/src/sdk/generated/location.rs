@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_value_file, shown_once, success, tags, wait, wait_for, waited, waiting,
-    zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -63,7 +64,7 @@ pub(crate) fn service(
 pub struct GetRegionArgs {
     /// The region to return, `regions/{region}`.
     ///
-    /// Its id, or its whole name, `regions/{region}`.
+    /// Its id, or its full name, `//location.origincloudapis.eu/regions/{region}`, or its relative name, `regions/{region}`.
     #[arg(long = "region", value_name = "REGION")]
     pub region: String,
 }
@@ -72,8 +73,15 @@ async fn get_region(
     args: GetRegionArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn(&["regions/{region}"], "region", Some(args.region.as_str()))?;
-    let name = names.reference(&["regions/{region}"], "region", args.region.as_str())?;
+    names
+        .learn(
+            &["regions/{region}"],
+            &["location"],
+            "region",
+            Some(args.region.as_str()),
+        )?;
+    let name = names
+        .target(&["regions/{region}"], &["location"], "region", args.region.as_str())?;
     let request = ::origincloud_location::v1beta1::GetRegionRequest {
         name,
     };
@@ -131,7 +139,7 @@ async fn call_list_regions(
 pub struct GetZoneArgs {
     /// The zone to return, `zones/{zone}`.
     ///
-    /// Its id, or its whole name, `zones/{zone}`.
+    /// Its id, or its full name, `//location.origincloudapis.eu/zones/{zone}`, or its relative name, `zones/{zone}`.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: String,
 }
@@ -140,8 +148,9 @@ async fn get_zone(
     args: GetZoneArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[]);
-    names.learn(&["zones/{zone}"], "zone", Some(args.zone.as_str()))?;
-    let name = names.reference(&["zones/{zone}"], "zone", args.zone.as_str())?;
+    names.learn(&["zones/{zone}"], &["location"], "zone", Some(args.zone.as_str()))?;
+    let name = names
+        .target(&["zones/{zone}"], &["location"], "zone", args.zone.as_str())?;
     let request = ::origincloud_location::v1beta1::GetZoneRequest {
         name,
     };

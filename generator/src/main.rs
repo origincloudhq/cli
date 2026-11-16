@@ -2,14 +2,16 @@
 //! definitions (origincloudhq/api), one per service:
 //!
 //! ```text
-//! origincloud-cli-generator <api-dir> <sdk-dir> <out-dir> [<test-api-dir>]
+//! origincloud-cli-generator <api-dir> <sdk-dir> <mcp-table> <out-dir> [<test-api-dir>]
 //! ```
 //!
 //! `<api-dir>` is a checkout of the API; its dependencies are downloaded at
 //! the commits its `buf.lock` pins. `<sdk-dir>` is a checkout of the Rust
 //! SDK generated from it, whose clients say which services answer at a
 //! region's host (`client.service("pvs", true)`) and which only at their
-//! regionless one. `<test-api-dir>` holds definitions of services that
+//! regionless one. `<mcp-table>` is origincloudhq/mcp's
+//! `generator/tools.toml`, whose `[[one_way]]` list is the one list of the
+//! changes that can't be undone, which need `--yes`. `<test-api-dir>` holds definitions of services that
 //! exist only in this repository's tests (`testing/scratch`): their groups
 //! are generated beside the others, compiled only with the CLI's
 //! `test-services` feature, and left out of `api.binpb`. The files are written to `<out-dir>`, at
@@ -63,11 +65,13 @@ const OUT_DIR: &str = "crates/cli/src/sdk/generated";
 
 fn main() -> Result<()> {
     let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
-    let (api, sdk, out, test_api) = match args.as_slice() {
-        [api, sdk, out] => (api, sdk, out, None),
-        [api, sdk, out, test] => (api, sdk, out, Some(test)),
+    let (api, sdk, mcp_table, out, test_api) = match args.as_slice() {
+        [api, sdk, mcp_table, out] => (api, sdk, mcp_table, out, None),
+        [api, sdk, mcp_table, out, test] => (api, sdk, mcp_table, out, Some(test)),
         _ => {
-            bail!("usage: origincloud-cli-generator <api-dir> <sdk-dir> <out-dir> [<test-api-dir>]")
+            bail!(
+                "usage: origincloud-cli-generator <api-dir> <sdk-dir> <mcp-table> <out-dir> [<test-api-dir>]"
+            )
         }
     };
 
@@ -76,8 +80,10 @@ fn main() -> Result<()> {
     roots.extend(test_api.map(PathBuf::as_path));
     let compiled = compile(&roots, dependencies)?;
     let regional = regional_services(sdk)?;
-    let policy =
-        policy::Policy::load(&Path::new(env!("CARGO_MANIFEST_DIR")).join("commands.toml"))?;
+    let policy = policy::Policy::load(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("commands.toml"),
+        mcp_table,
+    )?;
     let files = generate(&compiled, &regional, &policy)?;
     for (path, content) in &files {
         let path = out.join(path);
@@ -121,6 +127,17 @@ fn generate(
         if !named {
             eprintln!(
                 "warning: commands.toml names {service} {method} {field}, which the API doesn't have"
+            );
+        }
+    }
+    for (service, method, field) in policy.one_way_entries() {
+        let named = packages
+            .get(service)
+            .is_some_and(|package| names_a_field(pool, package, method, field));
+        if !named {
+            eprintln!(
+                "warning: origincloudhq/mcp's tools.toml has the one-way change {service} {method} \
+                 {field}, which the API doesn't have"
             );
         }
     }
@@ -641,7 +658,7 @@ mod tests {
             "pub expire_time: Option<::origincloud_core::protobuf::Timestamp>,",
             "required_keys(&pairs, &[\"protocol\"])?;",
             // The resource name a key gives is completed.
-            "\"rule network\", item.network.as_str()",
+            "\"--rule network\", item.network.as_str()",
             // Repeated scalars and references.
             "pub port: Vec<i32>,",
             "pub network: Vec<String>,",
@@ -748,6 +765,10 @@ mod tests {
                 "repeated bool flags = 2;",
                 "the list flags is a list of bool",
             ),
+            (
+                "repeated bytes blobs = 2;",
+                "the list blobs is a list of bytes",
+            ),
         ] {
             let source = format!(
                 r#"
@@ -782,6 +803,209 @@ mod tests {
             assert!(err.contains(why), "{why}: {err}");
             assert!(err.contains("[[exclude]]"), "{err}");
         }
+    }
+
+    /// A `bytes` field is `--{field}-file`, read byte for byte, wherever a
+    /// field is a flag: in a request, a create's and an update's resource,
+    /// and a oneof, with explicit presence or without. `[[from_file]]` is
+    /// for strings, so it fails generation for one.
+    #[test]
+    fn a_bytes_field_is_read_from_a_file() {
+        let files = generated(&[&scratch()]).unwrap();
+        let code = file(&files, "scratch.rs");
+        let flat: String = code.split_whitespace().collect();
+        for expected in [
+            // Required, with explicit presence, and a oneof's member.
+            "#[arg(long = \"data-file\", value_name = \"PATH\")] pub data_file: String,",
+            "data: read_bytes_file(&args.data_file)?,",
+            "salt: args.salt_file.as_deref().map(read_bytes_file).transpose()?,",
+            ".args([\"label_text\", \"label_bytes_file\"])",
+            "One of `--label-text`, `--label-bytes-file`: give at most one.",
+            "else if let Some(value) = args.label_bytes_file.as_deref().map(read_bytes_file).transpose()?",
+            // A create's resource.
+            "certificate: args.certificate_file.as_deref().map(read_bytes_file).transpose()?.unwrap_or_default(),",
+            "banner: args.banner_file.as_deref().map(read_bytes_file).transpose()?,",
+            // An update's: set and named in the mask when given, unset by
+            // `--no-banner`.
+            "{ firewall.certificate = value; paths.push(\"certificate\".to_owned()); }",
+            "if args.no_banner || args.banner_file.is_some() { firewall.banner = args.banner_file.as_deref().map(read_bytes_file).transpose()?; paths.push(\"banner\".to_owned()); }",
+            "#[arg(long = \"no-banner\", conflicts_with = \"banner_file\")]",
+            "byte for byte. Left as it is when not given. `--no-banner` unsets it.",
+        ] {
+            let wanted: String = expected.split_whitespace().collect();
+            assert!(flat.contains(&wanted), "no {expected:?} in:\n{code}");
+        }
+
+        let policy: policy::Policy = toml::from_str(
+            r#"
+            [[from_file]]
+            service = "scratch"
+            method = "SignFirewallData"
+            field = "data"
+            why = "the test reads it from a file twice"
+            "#,
+        )
+        .unwrap();
+        let err = generated_with(&[&scratch()], &policy)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains(
+                "origincloud.scratch.v1.FirewallService.SignFirewallData: \
+                 origincloud.scratch.v1.SignFirewallDataRequest.data is read from a file \
+                 ([[from_file]]), but isn't a string"
+            ),
+            "{err}"
+        );
+    }
+
+    /// A method answering with a file, `google.api.HttpBody`, has no
+    /// command yet, and generation fails naming it.
+    #[test]
+    fn a_method_answering_with_a_file_fails_generation() {
+        let source = r#"
+            syntax = "proto3";
+            package origincloud.files.v1;
+            import "google/api/annotations.proto";
+            import "google/api/httpbody.proto";
+            // Files.
+            service FileService {
+              // Downloads a file.
+              rpc DownloadFile(DownloadFileRequest) returns (google.api.HttpBody) {
+                option (google.api.http) = {get: "/v1/{name=files/*}:download"};
+              }
+            }
+            message DownloadFileRequest { string name = 1; }
+        "#;
+        let dir = api("files/v1/files.proto", source);
+        let err = generated(&[dir.path()]).unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "origincloud.files.v1.FileService.DownloadFile: it answers with a file \
+                 (google.api.HttpBody), which no command can print yet"
+            ),
+            "{err}"
+        );
+    }
+
+    /// A delete answering with the resource it deleted, which an
+    /// `Undelete{Resource}` restores (a soft delete), prints the resource
+    /// and says what restores it; one answering with nothing says the
+    /// resource can't be restored.
+    #[test]
+    fn a_soft_delete_prints_the_resource_and_names_its_undelete() {
+        let files = generated(&[&scratch()]).unwrap();
+        let code = file(&files, "scratch.rs");
+        let flat: String = code.split_whitespace().collect();
+        let delete = &flat[flat.find("asyncfndelete_firewall(").unwrap()..];
+        let delete = &delete[..delete.find("asyncfncall_delete_firewall(").unwrap()];
+        for expected in [
+            "consequence: \"`undelete-firewall` restores it until it is purged.\"",
+            "json(&response, \"origincloud.scratch.v1.Firewall\")",
+        ] {
+            let wanted: String = expected.split_whitespace().collect();
+            assert!(delete.contains(&wanted), "no {expected:?} in:\n{code}");
+        }
+        assert!(!delete.contains("deleted_name"), "{code}");
+    }
+
+    /// The help of a message's JSON flag says a resource name in it is a
+    /// whole name, never an id completed from the command's flags.
+    #[test]
+    fn json_help_says_a_name_in_it_is_whole() {
+        let source = r#"
+            syntax = "proto3";
+            package origincloud.docs.v1;
+            import "google/api/annotations.proto";
+            import "google/api/resource.proto";
+            // Documents.
+            service DocumentService {
+              // Accepts versions.
+              rpc AcceptVersions(AcceptVersionsRequest) returns (AcceptVersionsRequest) {
+                option (google.api.http) = {post: "/v1/versions:accept" body: "*"};
+              }
+            }
+            message Version {
+              option (google.api.resource) = {
+                type: "docs.origincloudapis.eu/Version"
+                pattern: "documents/{document}/versions/{version}"
+              };
+              string name = 1;
+            }
+            message Accepted {
+              string version = 1 [(google.api.resource_reference).type = "docs.origincloudapis.eu/Version"];
+              string note = 2;
+            }
+            message AcceptVersionsRequest { repeated Accepted versions = 1; }
+        "#;
+        let dir = api("docs/v1/docs.proto", source);
+        let files = generated(&[dir.path()]).unwrap();
+        let code = file(&files, "docs.rs");
+        let whole = "A resource name in it is a full name, \
+                     `//{service}.origincloudapis.eu/{name}`, or a relative one, which is sent as \
+                     its full name, never an id";
+        assert!(code.contains(whole), "{code}");
+        assert!(!code.contains("completed with"), "{code}");
+        assert!(!code.contains("`--document`"), "{code}");
+    }
+
+    /// The command's own target takes its id, completed from the name-part
+    /// flags, or a whole name of its own service, sent as its relative name;
+    /// a parent's flag, such as a rule's `--group`, takes its id or a whole
+    /// name too, which gives the parts before it. `--project` stays an id.
+    #[test]
+    fn a_target_and_its_parents_take_whole_names() {
+        let source = r#"
+            syntax = "proto3";
+            package origincloud.walls.v1;
+            import "google/api/annotations.proto";
+            import "google/api/field_behavior.proto";
+            import "google/api/resource.proto";
+            // Walls.
+            service WallService {
+              // Returns a rule.
+              rpc GetRule(GetRuleRequest) returns (Rule) {
+                option (google.api.http) = {get: "/v1/{name=projects/*/groups/*/rules/*}"};
+              }
+              // Lists a group's rules.
+              rpc ListRules(ListRulesRequest) returns (ListRulesResponse) {
+                option (google.api.http) = {get: "/v1/{parent=projects/*/groups/*}/rules"};
+              }
+            }
+            message Rule {
+              option (google.api.resource) = { type: "walls.origincloudapis.eu/Rule" pattern: "projects/{project}/groups/{group}/rules/{rule}" };
+              string name = 1;
+            }
+            message GetRuleRequest {
+              string name = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).type = "walls.origincloudapis.eu/Rule"];
+            }
+            message ListRulesRequest {
+              string parent = 1 [(google.api.field_behavior) = REQUIRED, (google.api.resource_reference).child_type = "walls.origincloudapis.eu/Rule"];
+              int32 page_size = 2;
+              string page_token = 3;
+            }
+            message ListRulesResponse { repeated Rule rules = 1; string next_page_token = 2; }
+        "#;
+        let dir = api("walls/v1/walls.proto", source);
+        let code = file(&generated(&[dir.path()]).unwrap(), "walls.rs");
+        let flat: String = code.split_whitespace().collect();
+        for expected in [
+            r#"names.learn_part("projects/{project}/groups/{group}", &["walls"], "group")?;"#,
+            r#".learn(&["projects/{project}/groups/{group}/rules/{rule}"], &["walls"], "rule", Some(args.rule.as_str())"#,
+            r#".target(&["projects/{project}/groups/{group}/rules/{rule}"], &["walls"], "rule", args.rule.as_str()"#,
+            "The group: its id, completed with `--project`, or its full name, \
+             `//walls.origincloudapis.eu/projects/{project}/groups/{group}`, or its relative name, \
+             `projects/{project}/groups/{group}`.",
+            "Its id, completed with `--project` and `--group`, or its full name, \
+             `//walls.origincloudapis.eu/projects/{project}/groups/{group}/rules/{rule}`",
+        ] {
+            let wanted: String = expected.split_whitespace().collect();
+            assert!(flat.contains(&wanted), "no {expected:?} in:\n{code}");
+        }
+        assert!(
+            !flat.contains(r#"learn_part("projects/{project}""#),
+            "{code}"
+        );
     }
 
     const CHOICES: &str = r#"
@@ -983,10 +1207,10 @@ mod tests {
             orgs.contains("request.page_token=page.next_page_token;"),
             "{orgs}"
         );
-        // A required filter is a required flag, completed as a name.
+        // A required filter is a required flag, a whole name.
         let folders = between("pubstructListFoldersArgs", "asyncfnlist_folders");
         assert!(
-            folders.contains("#[arg(long=\"org\",value_name=\"ORG\")]puborg:String,"),
+            folders.contains("#[arg(long=\"org\",value_name=\"NAME\")]puborg:String,"),
             "{folders}"
         );
         assert!(
@@ -1057,9 +1281,9 @@ mod tests {
     }
 
     /// A reference whose resource declares several name patterns takes a
-    /// whole name of each, and an id completes to the first; so does a field
-    /// `[[also_names]]` gives another type's patterns, and its help names
-    /// every form.
+    /// whole name of each, full on its type's host or relative, and no id;
+    /// so does a field `[[also_names]]` gives another type's patterns, and
+    /// its help names every form.
     #[test]
     fn a_reference_takes_a_whole_name_of_every_pattern() {
         let dir = api("shelf/v1/shelf.proto", SHELF);
@@ -1070,10 +1294,12 @@ mod tests {
 
         let code = flat(&generated(&[dir.path()]).unwrap());
         for expected in [
-            r#"names.learn(&["projects/{project}/books/{book}", "books/{book}"], "book", Some(args.book.as_str())"#,
-            r#"names.reference(&["projects/{project}/books/{book}", "books/{book}"], "book", args.book.as_str()"#,
-            "or its whole name, `projects/{project}/books/{book}` or `books/{book}`.",
-            r#"names.reference(&["projects/{project}/shelves/{shelf}"], "shelf", v"#,
+            r#"reference(&["projects/{project}/books/{book}", "books/{book}"], &["shelf"], "--book", args.book.as_str()"#,
+            "Its full name, `//shelf.origincloudapis.eu/projects/{project}/books/{book}` or \
+             `//shelf.origincloudapis.eu/books/{book}`, or its relative name, \
+             `projects/{project}/books/{book}` or `books/{book}`, which is sent as its full name; \
+             not an id.",
+            r#"reference(&["projects/{project}/shelves/{shelf}"], &["shelf"], "--shelf", v)"#,
         ] {
             assert!(
                 code.contains(&wanted(expected)),
@@ -1087,8 +1313,8 @@ mod tests {
         );
         let code = flat(&generated_with(&[dir.path()], &policy).unwrap());
         for expected in [
-            r#"names.reference(&["projects/{project}/shelves/{shelf}", "shelves/{shelf}"], "shelf", v"#,
-            "or its whole name, `projects/{project}/shelves/{shelf}` or `shelves/{shelf}`.",
+            r#"reference(&["projects/{project}/shelves/{shelf}", "shelves/{shelf}"], &["shelf"], "--shelf", v"#,
+            "or its relative name, `projects/{project}/shelves/{shelf}` or `shelves/{shelf}`, which is sent as its full name; not an id.",
         ] {
             assert!(
                 code.contains(&wanted(expected)),

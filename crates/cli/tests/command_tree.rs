@@ -99,14 +99,20 @@ fn visible(command: &clap::Command, path: Vec<String>, out: &mut Vec<Vec<String>
 /// The flags clap accepts on `origin {path}`, its groups' global ones
 /// included, but `origin`'s own and `--help` and `--version`.
 fn accepted(root: &clap::Command, path: &[String]) -> BTreeSet<String> {
-    let own: BTreeSet<&str> = root.get_arguments().map(|a| a.get_id().as_str()).collect();
+    // The ones clap propagates: a flag of a command's own may share an id
+    // with one of `origin`'s that stays on `origin`, such as `--version`.
+    let own: BTreeSet<&str> = root
+        .get_arguments()
+        .filter(|a| a.is_global_set())
+        .map(|a| a.get_id().as_str())
+        .collect();
     let mut command = root;
     for name in path {
         command = command.find_subcommand(name).unwrap();
     }
     command
         .get_arguments()
-        .filter(|a| !a.is_hide_set() && !own.contains(a.get_id().as_str()))
+        .filter(|a| !a.is_hide_set() && !(a.is_global_set() && own.contains(a.get_id().as_str())))
         .filter(|a| {
             !matches!(
                 a.get_action(),
@@ -147,6 +153,19 @@ fn it_lists_every_visible_command_and_its_flags() {
         "only {} commands: the tree isn't the CLI's",
         paths.len()
     );
+    for hand_written in [
+        &["mcp", "install"][..],
+        &["mcp", "uninstall"],
+        &["skill", "install"],
+        &["skill", "list"],
+        &["skill", "update"],
+    ] {
+        assert!(
+            paths.iter().any(|p| p == hand_written),
+            "origin {} isn't in the tree",
+            hand_written.join(" ")
+        );
+    }
 
     // Clap's own propagation: each command has its groups' global flags.
     let mut built = origincloud_cli::command();
@@ -217,6 +236,23 @@ fn it_lists_every_visible_command_and_its_flags() {
     let no_wait = flag("no-wait");
     assert!(no_wait.value_name.is_none() && no_wait.possible_values.is_empty());
     assert!(flag("endpoint").global);
+
+    let install = tree
+        .commands
+        .iter()
+        .find(|c| c.path == ["skill", "install"])
+        .unwrap();
+    let keys: BTreeSet<String> = install.args.iter().map(Arg::key).collect();
+    for key in ["NAME", "--all", "--agent", "--scope", "--dir", "--force"] {
+        assert!(keys.contains(key), "origin skill install has no {key}");
+    }
+    let agent = install
+        .args
+        .iter()
+        .find(|a| a.long.as_deref() == Some("agent"))
+        .unwrap();
+    assert!(agent.possible_values.iter().any(|v| v == "codex"));
+    assert!(!agent.possible_values.iter().any(|v| v == "claude-desktop"));
 }
 
 /// A generated command names the method it calls, the operation methods

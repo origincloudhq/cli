@@ -4,8 +4,9 @@
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
-    passed, read_value_file, shown_once, success, tags, wait, wait_for, waited, waiting,
-    zones, ConfirmedClient, Context, Listing, ReadClient, OPERATION,
+    passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
+    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
+    OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -94,7 +95,7 @@ pub struct GetCaseArgs {
     pub organization: Option<String>,
     /// The case to return.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/cases/{case}`.
+    /// Its id, completed with `--organization`, or its full name, `//support.origincloudapis.eu/organizations/{organization}/cases/{case}`, or its relative name, `organizations/{organization}/cases/{case}`.
     #[arg(long = "case", value_name = "CASE")]
     pub case: String,
 }
@@ -106,12 +107,14 @@ async fn get_case(
     names
         .learn(
             &["organizations/{organization}/cases/{case}"],
+            &["support"],
             "case",
             Some(args.case.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/cases/{case}"],
+            &["support"],
             "case",
             args.case.as_str(),
         )?;
@@ -233,8 +236,8 @@ pub struct CreateCaseArgs {
     /// The project the case is about, `projects/{project}`, one of the
     /// organization's. Empty for a case about the organization as a whole.
     ///
-    /// Its id, or its whole name, `projects/{project}`.
-    #[arg(long = "project", value_name = "PROJECT")]
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`, which is sent as its full name; not an id.
+    #[arg(long = "project", value_name = "NAME")]
     pub project: Option<String>,
     /// A one-line summary. Not empty.
     #[arg(long = "subject")]
@@ -256,11 +259,12 @@ async fn create_case(
     ctx: &Context<'_>,
     args: CreateCaseArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
-    names.learn(&["projects/{project}"], "project", args.project.as_deref())?;
+    let names = ctx.names(&[("organization", args.organization.as_deref())]);
     let parent = names.name("organizations/{organization}")?;
     let project = match args.project.as_deref() {
-        Some(v) => names.reference(&["projects/{project}"], "project", v)?,
+        Some(v) => {
+            reference(&["projects/{project}"], &["resourcemanager"], "--project", v)?
+        }
         None => String::new(),
     };
     let case = ::origincloud_support::v1beta1::Case {
@@ -298,7 +302,7 @@ pub struct CloseCaseArgs {
     pub organization: Option<String>,
     /// The case to close.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/cases/{case}`.
+    /// Its id, completed with `--organization`, or its full name, `//support.origincloudapis.eu/organizations/{organization}/cases/{case}`, or its relative name, `organizations/{organization}/cases/{case}`.
     #[arg(long = "case", value_name = "CASE")]
     pub case: String,
 }
@@ -310,12 +314,14 @@ async fn close_case(
     names
         .learn(
             &["organizations/{organization}/cases/{case}"],
+            &["support"],
             "case",
             Some(args.case.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/cases/{case}"],
+            &["support"],
             "case",
             args.case.as_str(),
         )?;
@@ -345,7 +351,7 @@ pub struct ReopenCaseArgs {
     pub organization: Option<String>,
     /// The case to open again.
     ///
-    /// Its id, completed with `--organization`, or its whole name, `organizations/{organization}/cases/{case}`.
+    /// Its id, completed with `--organization`, or its full name, `//support.origincloudapis.eu/organizations/{organization}/cases/{case}`, or its relative name, `organizations/{organization}/cases/{case}`.
     #[arg(long = "case", value_name = "CASE")]
     pub case: String,
 }
@@ -357,12 +363,14 @@ async fn reopen_case(
     names
         .learn(
             &["organizations/{organization}/cases/{case}"],
+            &["support"],
             "case",
             Some(args.case.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/cases/{case}"],
+            &["support"],
             "case",
             args.case.as_str(),
         )?;
@@ -387,15 +395,15 @@ async fn call_reopen_case(
 /// The flags of `get-case-message`.
 #[derive(clap::Args, Debug)]
 pub struct GetCaseMessageArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--message` is given a whole name, which has it.
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--case` or `--message` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
-    /// The `{case}` part of the resource names the command builds. Needed unless `--message` is given a whole name, which has it.
+    /// The case: its id, completed with `--organization`, or its full name, `//support.origincloudapis.eu/organizations/{organization}/cases/{case}`, or its relative name, `organizations/{organization}/cases/{case}`. Needed unless `--message` is given a whole name, which has it.
     #[arg(long = "case", value_name = "CASE")]
     pub case: Option<String>,
     /// The message to return.
     ///
-    /// Its id, completed with `--organization` and `--case`, or its whole name, `organizations/{organization}/cases/{case}/messages/{message}`.
+    /// Its id, completed with `--organization` and `--case`, or its full name, `//support.origincloudapis.eu/organizations/{organization}/cases/{case}/messages/{message}`, or its relative name, `organizations/{organization}/cases/{case}/messages/{message}`.
     #[arg(long = "message", value_name = "MESSAGE")]
     pub message: String,
 }
@@ -410,15 +418,18 @@ async fn get_case_message(
                 ("case", args.case.as_deref()),
             ],
         );
+    names.learn_part("organizations/{organization}/cases/{case}", &["support"], "case")?;
     names
         .learn(
             &["organizations/{organization}/cases/{case}/messages/{message}"],
+            &["support"],
             "message",
             Some(args.message.as_str()),
         )?;
     let name = names
-        .reference(
+        .target(
             &["organizations/{organization}/cases/{case}/messages/{message}"],
+            &["support"],
             "message",
             args.message.as_str(),
         )?;
@@ -443,10 +454,10 @@ async fn call_get_case_message(
 /// The flags of `list-case-messages`.
 #[derive(clap::Args, Debug)]
 pub struct ListCaseMessagesArgs {
-    /// The `{organization}` part of the resource names the command builds.
-    #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--case` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
-    /// The `{case}` part of the resource names the command builds.
+    /// The case: its id, completed with `--organization`, or its full name, `//support.origincloudapis.eu/organizations/{organization}/cases/{case}`, or its relative name, `organizations/{organization}/cases/{case}`.
     #[arg(long = "case", value_name = "CASE", required = true)]
     pub case: Option<String>,
     /// The most messages to return; the server clamps it, and 0 means its
@@ -465,13 +476,14 @@ async fn list_case_messages(
     ctx: &Context<'_>,
     args: ListCaseMessagesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("organization", args.organization.as_deref()),
                 ("case", args.case.as_deref()),
             ],
         );
+    names.learn_part("organizations/{organization}/cases/{case}", &["support"], "case")?;
     let parent = names.name("organizations/{organization}/cases/{case}")?;
     let request = ::origincloud_support::v1beta1::ListCaseMessagesRequest {
         parent,
@@ -533,10 +545,10 @@ async fn call_list_case_messages(
 /// The flags of `create-case-message`.
 #[derive(clap::Args, Debug)]
 pub struct CreateCaseMessageArgs {
-    /// The `{organization}` part of the resource names the command builds.
-    #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--case` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
-    /// The `{case}` part of the resource names the command builds.
+    /// The case: its id, completed with `--organization`, or its full name, `//support.origincloudapis.eu/organizations/{organization}/cases/{case}`, or its relative name, `organizations/{organization}/cases/{case}`.
     #[arg(long = "case", value_name = "CASE", required = true)]
     pub case: Option<String>,
     /// The message's text. Not empty.
@@ -551,13 +563,14 @@ async fn create_case_message(
     ctx: &Context<'_>,
     args: CreateCaseMessageArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[
                 ("organization", args.organization.as_deref()),
                 ("case", args.case.as_deref()),
             ],
         );
+    names.learn_part("organizations/{organization}/cases/{case}", &["support"], "case")?;
     let parent = names.name("organizations/{organization}/cases/{case}")?;
     let case_message = ::origincloud_support::v1beta1::CaseMessage {
         body: args.body.clone(),

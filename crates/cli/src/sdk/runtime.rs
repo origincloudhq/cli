@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context as _};
 use origincloud_core::credentials::{Credentials, TokenFuture};
+use origincloud_core::names::{FullName, FullNameError, DOMAIN, RESOURCE_SERVICES};
 use origincloud_core::{Client, Operation};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -288,9 +289,11 @@ pub async fn zones(ctx: &Context<'_>, service: &str) -> anyhow::Result<Vec<Strin
         .collect())
 }
 
-/// Resource names from their parts. A part comes from its flag
-/// (`--project`), else from a whole name given to another flag, else from
-/// the environment or the profile.
+/// Resource names from their parts, for the command's own target: a part
+/// comes from its flag (`--project`), else from a whole name given to the
+/// target's flag or to a parent's (`--security-group`), else from the
+/// environment or the profile. A reference to another resource is never
+/// made of parts: see [`reference`].
 #[derive(Clone)]
 pub struct Names {
     given: BTreeMap<String, String>,
@@ -321,6 +324,128 @@ fn checked(source: &str, value: &str) -> anyhow::Result<String> {
     }
 }
 
+/// The hosts of `services`, for a message: `pvs.origincloudapis.eu`, or
+/// several joined with "or".
+fn hosts(services: &[&str]) -> String {
+    let hosts: Vec<String> = services.iter().map(|s| format!("{s}.{DOMAIN}")).collect();
+    match hosts.as_slice() {
+        [first @ .., last] if !first.is_empty() => format!("{} or {last}", first.join(", ")),
+        _ => hosts.join(""),
+    }
+}
+
+/// The relative name `value`, given to `source`, names: a full name,
+/// `//{service}.origincloudapis.eu/{relative}`, of one of `services` (the
+/// services of the type the flag refers to), checked with the SDK's
+/// [`FullName`], or a relative name as it is. `None` for an id, which has
+/// no `/`.
+fn relative_name<'v>(
+    services: &[&str],
+    source: &str,
+    value: &'v str,
+) -> anyhow::Result<Option<&'v str>> {
+    if !value.starts_with("//") {
+        return Ok(value.contains('/').then_some(value));
+    }
+    if cfg!(feature = "test-services") {
+        // A test service's full name, which the SDK lists no host for, in
+        // the form `full_name` gives it.
+        if let Some(relative) = services
+            .iter()
+            .filter(|s| !RESOURCE_SERVICES.contains(s))
+            .find_map(|s| value.strip_prefix(&format!("//{s}.{DOMAIN}/")))
+        {
+            return Ok(Some(relative));
+        }
+    }
+    let name = FullName::parse(value).map_err(|e| anyhow!("{source}: {e}"))?;
+    if !services.contains(&name.service()) {
+        bail!(
+            "{source}: {value:?} is a name on {}, but {source} takes a name on {}",
+            name.host(),
+            hosts(services)
+        );
+    }
+    Ok(Some(&value[value.len() - name.relative().len()..]))
+}
+
+/// The name a reference flag or key, `source`, sends for `value`: a full
+/// name of the resource, on the host of a service of `services` (those of
+/// the type it refers to), with a relative name of one of `patterns`, sent
+/// as given; or a relative name of one of them, sent as its full name. An
+/// id is refused: only the command's own target is made of parts.
+pub fn reference(
+    patterns: &[&str],
+    services: &[&str],
+    source: &str,
+    value: &str,
+) -> anyhow::Result<String> {
+    let Some(relative) = relative_name(services, source, value)? else {
+        let example = match (services.first(), patterns.first()) {
+            (Some(service), Some(pattern)) => format!(", such as //{service}.{DOMAIN}/{pattern}"),
+            _ => String::new(),
+        };
+        bail!("{source}: {value:?} is an id; give the resource's full name{example}")
+    };
+    parse_any(patterns, relative).map_err(|e| anyhow!("{source}: {e}"))?;
+    sent_as_full_name(services, source, value, relative, patterns)
+}
+
+/// The full name a reference, `value`, is sent as: itself when it is one,
+/// or its relative name, `relative`, on the host of the referenced type's
+/// service. A relative name is refused when the field refers to types of
+/// several services, whose host it doesn't say; `patterns`, when given,
+/// make the refusal's example.
+fn sent_as_full_name(
+    services: &[&str],
+    source: &str,
+    value: &str,
+    relative: &str,
+    patterns: &[&str],
+) -> anyhow::Result<String> {
+    if value.starts_with("//") {
+        return Ok(value.to_owned());
+    }
+    match services {
+        [service] => full_name(service, relative).map_err(|e| anyhow!("{source}: {e}")),
+        _ => {
+            let example = match patterns.first() {
+                Some(pattern) => format!(", such as //{}.{DOMAIN}/{pattern}", services[0]),
+                None => String::new(),
+            };
+            bail!(
+                "{source}: {value:?} is a relative name, and {source} takes a name on {}, which \
+                 it doesn't say; give its full name{example}",
+                hosts(services)
+            )
+        }
+    }
+}
+
+/// `//{service}.origincloudapis.eu/{relative}`, as the SDK's [`FullName`]
+/// builds it. A test service, which the SDK lists no host for, is given its
+/// full name in the same form.
+fn full_name(service: &str, relative: &str) -> Result<String, String> {
+    match FullName::from_relative(service, relative) {
+        Ok(name) => Ok(name.to_string()),
+        Err(FullNameError::UnknownService { .. }) if cfg!(feature = "test-services") => {
+            Ok(format!("//{service}.{DOMAIN}/{relative}"))
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// The name a reference at `source` in a JSON value sends for `value`, the
+/// field referring to a type of `service`: a full name of it, as given, or
+/// a relative name, as its full name.
+pub(crate) fn json_reference(service: &str, source: &str, value: &str) -> Result<String, String> {
+    let services = [service];
+    let relative = relative_name(&services, source, value)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("{source}: {value:?} is an id; give the resource's full name"))?;
+    sent_as_full_name(&services, source, value, relative, &[]).map_err(|e| e.to_string())
+}
+
 impl Names {
     /// The names with the part `var` set to `value`, as if given by its flag.
     pub fn with_part(&self, var: &str, value: &str) -> Names {
@@ -335,37 +460,80 @@ impl Names {
         self.with_part(var, "placeholder").name(pattern).map(drop)
     }
 
-    /// Learns the parts of `value`, given to the flag `--{leaf_flag}`, when
-    /// it is a whole name of one of `patterns`, the name patterns of the
-    /// resource the flag refers to. A part that disagrees with its flag, or
-    /// with another whole name, is refused.
+    /// Learns the parts of `value`, given to the flag `--{leaf_flag}` of the
+    /// command's own target, when it is a whole name, full (on the host of
+    /// one of `services`) or relative, of one of `patterns`. A part that
+    /// disagrees with its flag, or with another whole name, is refused.
     pub fn learn(
         &mut self,
         patterns: &[&str],
+        services: &[&str],
         leaf_flag: &str,
         value: Option<&str>,
     ) -> anyhow::Result<()> {
-        let Some(value) = value.filter(|v| v.contains('/')) else {
+        let source = format!("--{leaf_flag}");
+        let Some(value) = value else {
+            return Ok(());
+        };
+        let Some(relative) = relative_name(services, &source, value)? else {
             return Ok(());
         };
         let (pattern, parts) =
-            parse_any(patterns, value).map_err(|e| anyhow!("--{leaf_flag}: {e}"))?;
-        for (var, part) in parts.into_iter().take(variables(pattern).len() - 1) {
+            parse_any(patterns, relative).map_err(|e| anyhow!("{source}: {e}"))?;
+        let parents = variables(pattern).len() - 1;
+        self.learn_parts(parts.into_iter().take(parents), &source, value)
+    }
+
+    /// Learns the parts of the whole name given to the flag of the part
+    /// `var`, a parent of the command's own target, such as
+    /// `--security-group` of a rule: full (on the host of one of
+    /// `services`) or relative, of `pattern`, which ends with `var`. The
+    /// part itself is then the name's last segment, its id. An id given to
+    /// the flag is left as it is.
+    pub fn learn_part(
+        &mut self,
+        pattern: &str,
+        services: &[&str],
+        var: &str,
+    ) -> anyhow::Result<()> {
+        let source = flag(var);
+        let Some(value) = self.given.get(var).cloned() else {
+            return Ok(());
+        };
+        let Some(relative) = relative_name(services, &source, &value)? else {
+            return Ok(());
+        };
+        let (_, mut parts) =
+            parse_any(&[pattern], relative).map_err(|e| anyhow!("{source}: {e}"))?;
+        let (_, id) = parts.pop().expect("a pattern ending with its part");
+        self.given.insert(var.to_owned(), id);
+        self.learn_parts(parts.into_iter(), &source, &value)
+    }
+
+    /// Records `parts`, from the whole name `value` given to `source`,
+    /// refusing one that disagrees with its flag or with another whole name.
+    fn learn_parts(
+        &mut self,
+        parts: impl Iterator<Item = (String, String)>,
+        source: &str,
+        value: &str,
+    ) -> anyhow::Result<()> {
+        for (var, part) in parts {
             if let Some(given) = self.given.get(var.as_str()) {
                 if *given != part {
                     bail!(
-                        "{} {given} differs from the {var} of --{leaf_flag} {value}",
+                        "{} {given} differs from the {var} of {source} {value}",
                         flag(&var)
                     );
                 }
             }
             if let Some((other, from)) = self.learned.get(&var) {
                 if *other != part {
-                    bail!("the {var} of --{leaf_flag} {value} differs from the {var} of {from}");
+                    bail!("the {var} of {source} {value} differs from the {var} of {from}");
                 }
             }
             self.learned
-                .insert(var, (part, format!("--{leaf_flag} {value}")));
+                .insert(var, (part, format!("{source} {value}")));
         }
         Ok(())
     }
@@ -375,23 +543,26 @@ impl Names {
         self.compose(pattern, None)
     }
 
-    /// The name `value`, given to `--{leaf_flag}`, names, of a resource with
-    /// `patterns`: a whole name of any of them, taken as it is once checked,
-    /// or the resource's id, completed into the first with the other parts'
-    /// flags.
-    pub fn reference(
+    /// The relative name of the command's own target `value`, given to
+    /// `--{leaf_flag}`, a resource with `patterns`: a whole name, full (on
+    /// the host of one of `services`) or relative, of any of them, once
+    /// checked, or its id, completed into the first with the other parts'
+    /// flags. A request's path is always the relative name.
+    pub fn target(
         &self,
         patterns: &[&str],
+        services: &[&str],
         leaf_flag: &str,
         value: &str,
     ) -> anyhow::Result<String> {
-        if value.contains('/') {
-            parse_any(patterns, value).map_err(|e| anyhow!("--{leaf_flag}: {e}"))?;
-            return Ok(value.to_owned());
+        let source = format!("--{leaf_flag}");
+        if let Some(relative) = relative_name(services, &source, value)? {
+            parse_any(patterns, relative).map_err(|e| anyhow!("{source}: {e}"))?;
+            return Ok(relative.to_owned());
         }
         let pattern = patterns
             .first()
-            .ok_or_else(|| anyhow!("--{leaf_flag}: its resource has no name pattern"))?;
+            .ok_or_else(|| anyhow!("{source}: its resource has no name pattern"))?;
         self.compose(pattern, Some((leaf_flag, value)))
     }
 
@@ -722,11 +893,8 @@ pub fn waiting(ctx: &Context<'_>, operation: &origincloud_core::longrunning::Ope
 /// the content of the file at `path`, or of standard input for `-`, without
 /// its final newline.
 pub fn read_value_file(path: &str) -> anyhow::Result<String> {
-    let mut text = if path == "-" {
-        std::io::read_to_string(std::io::stdin()).context("reading standard input")?
-    } else {
-        std::fs::read_to_string(path).with_context(|| format!("reading {path}"))?
-    };
+    let mut text = String::from_utf8(read_bytes_file(path)?)
+        .map_err(|_| anyhow!("reading {}: it isn't UTF-8 text", source_name(path)))?;
     if text.ends_with('\n') {
         text.pop();
         if text.ends_with('\r') {
@@ -734,6 +902,28 @@ pub fn read_value_file(path: &str) -> anyhow::Result<String> {
         }
     }
     Ok(text)
+}
+
+/// The value of a `bytes` field (`--{field}-file`): the content of the file
+/// at `path`, or of standard input for `-`, byte for byte.
+pub fn read_bytes_file(path: &str) -> anyhow::Result<Vec<u8>> {
+    if path == "-" {
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut std::io::stdin(), &mut bytes)
+            .context("reading standard input")?;
+        Ok(bytes)
+    } else {
+        std::fs::read(path).with_context(|| format!("reading {path}"))
+    }
+}
+
+/// What a file path names in a message: the file, or standard input for `-`.
+fn source_name(path: &str) -> &str {
+    if path == "-" {
+        "standard input"
+    } else {
+        path
+    }
 }
 
 /// Says `notice` on standard error when `value`, a field of the response
@@ -802,22 +992,42 @@ mod tests {
     const VOLUME: &str = "projects/{project}/zones/{zone}/volumes/{volume}";
     const ZONE: &str = "projects/{project}/zones/{zone}";
 
+    /// A bytes field's file is read byte for byte; a string's is text, its
+    /// final newline dropped, and a file that isn't UTF-8 is refused.
+    #[test]
+    fn a_file_is_read_as_bytes_or_as_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = dir.path().join("text");
+        std::fs::write(&text, "token\r\n").unwrap();
+        let text = text.to_str().unwrap();
+        assert_eq!(read_value_file(text).unwrap(), "token");
+        assert_eq!(read_bytes_file(text).unwrap(), b"token\r\n");
+
+        let binary = dir.path().join("binary");
+        std::fs::write(&binary, b"\xff\x00\n").unwrap();
+        let binary = binary.to_str().unwrap();
+        assert_eq!(read_bytes_file(binary).unwrap(), b"\xff\x00\n");
+        let refused = read_value_file(binary).unwrap_err().to_string();
+        assert!(refused.contains("isn't UTF-8 text"), "{refused}");
+
+        let missing = dir.path().join("missing");
+        let refused = read_bytes_file(missing.to_str().unwrap()).unwrap_err();
+        assert!(refused.to_string().contains("missing"), "{refused}");
+    }
+
+    const PVS: &[&str] = &["pvs"];
+
     #[test]
     fn a_name_is_made_of_its_flags_and_the_profile() {
         let n = names(&[("project", None), ("zone", Some("z1"))]);
         assert_eq!(
-            n.reference(&[VOLUME], "volume", "v1").unwrap(),
+            n.target(&[VOLUME], PVS, "volume", "v1").unwrap(),
             "projects/default-project/zones/z1/volumes/v1"
         );
         assert_eq!(n.name(ZONE).unwrap(), "projects/default-project/zones/z1");
         assert_eq!(
             n.with_part("zone", "z2").name(ZONE).unwrap(),
             "projects/default-project/zones/z2"
-        );
-        assert_eq!(
-            n.reference(&["storageClasses/{storage_class}"], "storage-class", "gp1")
-                .unwrap(),
-            "storageClasses/gp1"
         );
     }
 
@@ -881,31 +1091,65 @@ mod tests {
         );
     }
 
+    /// The command's own target takes its full name, sending its relative
+    /// name, or its relative name, and either fills in the other parts.
     #[test]
     fn a_whole_name_fills_in_the_other_parts() {
-        let mut n = names(&[("project", None), ("zone", None)]);
-        n.learn(
-            &[VOLUME],
-            "source-volume",
-            Some("projects/p/zones/z/volumes/v"),
-        )
-        .unwrap();
-        assert_eq!(n.name(ZONE).unwrap(), "projects/p/zones/z");
-        assert_eq!(
-            n.reference(&[VOLUME], "source-volume", "projects/p/zones/z/volumes/v")
-                .unwrap(),
-            "projects/p/zones/z/volumes/v"
-        );
+        for given in [
+            "projects/p/zones/z/volumes/v",
+            "//pvs.origincloudapis.eu/projects/p/zones/z/volumes/v",
+        ] {
+            let mut n = names(&[("project", None), ("zone", None)]);
+            n.learn(&[VOLUME], PVS, "volume", Some(given)).unwrap();
+            assert_eq!(n.name(ZONE).unwrap(), "projects/p/zones/z");
+            assert_eq!(
+                n.target(&[VOLUME], PVS, "volume", given).unwrap(),
+                "projects/p/zones/z/volumes/v"
+            );
+        }
     }
 
     #[test]
     fn a_whole_name_disagreeing_with_a_flag_is_refused() {
-        let mut n = names(&[("project", Some("other")), ("zone", None)]);
+        for given in [
+            "projects/p/zones/z/volumes/v",
+            "//pvs.origincloudapis.eu/projects/p/zones/z/volumes/v",
+        ] {
+            let mut n = names(&[("project", Some("other")), ("zone", None)]);
+            let err = n
+                .learn(&[VOLUME], PVS, "volume", Some(given))
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("--project other differs"), "{err}");
+        }
+    }
+
+    /// A full name of the target on another service's host, a front door's
+    /// or no service's is refused, naming the host it takes.
+    #[test]
+    fn a_full_name_on_another_host_is_refused() {
+        let mut n = names(&[("project", None), ("zone", None)]);
         let err = n
-            .learn(&[VOLUME], "volume", Some("projects/p/zones/z/volumes/v"))
+            .learn(
+                &[VOLUME],
+                PVS,
+                "volume",
+                Some("//compute.origincloudapis.eu/projects/p/zones/z/volumes/v"),
+            )
             .unwrap_err()
             .to_string();
-        assert!(err.contains("--project other differs"), "{err}");
+        assert!(
+            err.contains("is a name on compute.origincloudapis.eu, but --volume takes a name on pvs.origincloudapis.eu"),
+            "{err}"
+        );
+        for bad in [
+            "//pvs.eu-central1.origincloudapis.eu/projects/p/zones/z/volumes/v",
+            "//example.com/projects/p/zones/z/volumes/v",
+            "//pvs.origincloudapis.eu/v1beta1/projects/p/zones/z/volumes/v",
+        ] {
+            let err = n.target(&[VOLUME], PVS, "volume", bad).unwrap_err();
+            assert!(err.to_string().starts_with("--volume:"), "{bad}: {err}");
+        }
     }
 
     #[test]
@@ -919,8 +1163,10 @@ mod tests {
             "projects/../zones/z/volumes/v",
             "projects/p/zones/./volumes/v",
             "projects/p/zones/z/volumes/",
+            "//pvs.origincloudapis.eu/projects/p/zones/z/snapshots/s",
         ] {
-            assert!(n.reference(&[VOLUME], "volume", bad).is_err(), "{bad}");
+            assert!(n.target(&[VOLUME], PVS, "volume", bad).is_err(), "{bad}");
+            assert!(reference(&[VOLUME], PVS, "--volume", bad).is_err(), "{bad}");
         }
     }
 
@@ -931,7 +1177,7 @@ mod tests {
         let n = names(&[("zone", Some("z"))]);
         for bad in ["..", ".", ""] {
             let err = n
-                .reference(&[VOLUME], "volume", bad)
+                .target(&[VOLUME], PVS, "volume", bad)
                 .unwrap_err()
                 .to_string();
             assert!(err.starts_with("--volume:"), "{bad:?}: {err}");
@@ -959,33 +1205,33 @@ mod tests {
     const INSTANCE_TYPE: &str = "instanceTypes/{instance_type}";
 
     /// An id is what the SDK sends as one segment, whatever else it holds:
-    /// an instance type's dots, bare or in a whole name, and characters
-    /// the SDK escapes.
+    /// an instance type's dots, in a whole name, and a target's id.
     #[test]
     fn an_id_may_hold_dots() {
-        let mut n = names(&[("project", None), ("zone", Some("z"))]);
-        for (value, name) in [
-            ("gp1.core.2", "instanceTypes/gp1.core.2"),
-            ("instanceTypes/gp1.core.2", "instanceTypes/gp1.core.2"),
-            ("a..b", "instanceTypes/a..b"),
+        let n = names(&[("project", None), ("zone", Some("z"))]);
+        for value in [
+            "instanceTypes/gp1.core.2",
+            "//compute.origincloudapis.eu/instanceTypes/gp1.core.2",
+            "instanceTypes/a..b",
         ] {
-            n.learn(&[INSTANCE_TYPE], "instance-type", Some(value))
-                .unwrap();
+            let full = if value.starts_with("//") {
+                value.to_owned()
+            } else {
+                format!("//compute.origincloudapis.eu/{value}")
+            };
             assert_eq!(
-                n.reference(&[INSTANCE_TYPE], "instance-type", value)
-                    .unwrap(),
-                name
+                reference(&[INSTANCE_TYPE], &["compute"], "--instance-type", value).unwrap(),
+                full
             );
         }
         for (value, name) in [
             ("v.1", "projects/default-project/zones/z/volumes/v.1"),
-            ("v 1", "projects/default-project/zones/z/volumes/v 1"),
             (
                 "projects/p.1/zones/z.1/volumes/v.1",
                 "projects/p.1/zones/z.1/volumes/v.1",
             ),
         ] {
-            assert_eq!(n.reference(&[VOLUME], "volume", value).unwrap(), name);
+            assert_eq!(n.target(&[VOLUME], PVS, "volume", value).unwrap(), name);
         }
         assert_eq!(
             names(&[("project", Some("p.1")), ("zone", Some("z.1"))])
@@ -1000,12 +1246,46 @@ mod tests {
             "instanceTypes/gp1.core.2/x",
             "instancetypes/gp1.core.2",
         ] {
-            let err = n
-                .reference(&[INSTANCE_TYPE], "instance-type", bad)
+            let err = reference(&[INSTANCE_TYPE], &["compute"], "--instance-type", bad)
                 .unwrap_err()
                 .to_string();
-            assert!(err.contains("isn't a name of the form"), "{bad}: {err}");
+            assert!(
+                err.contains("isn't a name of the form") || err.contains("segment"),
+                "{bad}: {err}"
+            );
         }
+    }
+
+    /// A reference is a whole name, sent as a full name: full, on the
+    /// referenced type's host, as given, or relative, with that host put in
+    /// front, of another project too. An id is refused, whatever
+    /// `--project` and `--zone` say, naming the full form.
+    #[test]
+    fn a_reference_is_a_whole_name_sent_as_a_full_name() {
+        let full = "//pvs.origincloudapis.eu/projects/other/zones/z/volumes/v";
+        for value in [full, "projects/other/zones/z/volumes/v"] {
+            assert_eq!(reference(&[VOLUME], PVS, "--volume", value).unwrap(), full);
+        }
+        let err = reference(&[VOLUME], PVS, "--volume", "v")
+            .unwrap_err()
+            .to_string();
+        assert_eq!(
+            err,
+            "--volume: \"v\" is an id; give the resource's full name, such as \
+             //pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}"
+        );
+        let err = reference(
+            &[VOLUME],
+            PVS,
+            "--volume",
+            "//compute.origincloudapis.eu/projects/p/zones/z/volumes/v",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("is a name on compute.origincloudapis.eu, but --volume takes a name on pvs.origincloudapis.eu"),
+            "{err}"
+        );
     }
 
     /// An image: the project's own, or a public one.
@@ -1015,53 +1295,37 @@ mod tests {
     ];
 
     /// A reference whose resource has several name patterns takes a whole
-    /// name of each, learning its parts; an id completes to the first.
+    /// name of each, and its refusal names them all.
     #[test]
     fn a_reference_takes_a_whole_name_of_each_pattern() {
-        let mut n = names(&[("project", None), ("zone", None)]);
-        n.learn(&IMAGE, "image", Some("zones/z/images/img-1"))
-            .unwrap();
-        assert_eq!(n.name(ZONE).unwrap(), "projects/default-project/zones/z");
-        assert_eq!(
-            n.reference(&IMAGE, "image", "zones/z/images/img-1")
-                .unwrap(),
-            "zones/z/images/img-1"
-        );
-
-        let mut n = names(&[("project", None), ("zone", None)]);
-        n.learn(&IMAGE, "image", Some("projects/p/zones/z/images/img-1"))
-            .unwrap();
-        assert_eq!(n.name(ZONE).unwrap(), "projects/p/zones/z");
-        assert_eq!(
-            n.reference(&IMAGE, "image", "projects/p/zones/z/images/img-1")
-                .unwrap(),
-            "projects/p/zones/z/images/img-1"
-        );
-
-        // An id is the project's own image.
-        let n = names(&[("project", None), ("zone", Some("z"))]);
-        assert_eq!(
-            n.reference(&IMAGE, "image", "img-1").unwrap(),
-            "projects/default-project/zones/z/images/img-1"
-        );
-
-        // A public image's zone is checked against --zone too.
-        let mut n = names(&[("project", None), ("zone", Some("other"))]);
-        let err = n
-            .learn(&IMAGE, "image", Some("zones/z/images/img-1"))
-            .unwrap_err()
-            .to_string();
-        assert!(err.contains("--zone other differs"), "{err}");
-
-        // A name of neither form names both in its refusal.
-        let n = names(&[("zone", Some("z"))]);
+        for (value, sent) in [
+            (
+                "zones/z/images/img-1",
+                "//compute.origincloudapis.eu/zones/z/images/img-1",
+            ),
+            (
+                "projects/p/zones/z/images/img-1",
+                "//compute.origincloudapis.eu/projects/p/zones/z/images/img-1",
+            ),
+            (
+                "//compute.origincloudapis.eu/zones/z/images/img-1",
+                "//compute.origincloudapis.eu/zones/z/images/img-1",
+            ),
+        ] {
+            assert_eq!(
+                reference(&IMAGE, &["compute"], "--image", value).unwrap(),
+                sent
+            );
+        }
         for bad in [
             "images/img-1",
             "zones/z/images/..",
             "zones/../images/img-1",
             "projects/p/zones/z/snapshots/s",
         ] {
-            let err = n.reference(&IMAGE, "image", bad).unwrap_err().to_string();
+            let err = reference(&IMAGE, &["compute"], "--image", bad)
+                .unwrap_err()
+                .to_string();
             assert!(
                 err.contains(
                     "isn't a name of the form projects/{project}/zones/{zone}/images/{image} \
@@ -1070,6 +1334,95 @@ mod tests {
                 "{bad}: {err}"
             );
         }
+    }
+
+    /// A reference to types of several services takes a full name of any
+    /// of them, as given; a relative name, which doesn't say whose it is,
+    /// is refused, naming the hosts and an example.
+    #[test]
+    fn an_ambiguous_relative_reference_is_refused() {
+        const SERVICES: &[&str] = &["pvs", "compute"];
+        let full = "//compute.origincloudapis.eu/projects/p/zones/z/volumes/v";
+        assert_eq!(
+            reference(&[VOLUME], SERVICES, "--disk", full).unwrap(),
+            full
+        );
+        let err = reference(
+            &[VOLUME],
+            SERVICES,
+            "--disk",
+            "projects/p/zones/z/volumes/v",
+        )
+        .unwrap_err()
+        .to_string();
+        assert_eq!(
+            err,
+            "--disk: \"projects/p/zones/z/volumes/v\" is a relative name, and --disk takes a name \
+             on pvs.origincloudapis.eu or compute.origincloudapis.eu, which it doesn't say; give \
+             its full name, such as //pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}"
+        );
+        assert_eq!(
+            json_reference("pvs", "[0].volume", "projects/p/zones/z/volumes/v").unwrap(),
+            "//pvs.origincloudapis.eu/projects/p/zones/z/volumes/v"
+        );
+    }
+
+    const RULE_PARENT: &str = "projects/{project}/regions/{region}/securityGroups/{security_group}";
+
+    /// A parent's flag takes its id, or its whole name, full or relative,
+    /// which gives the parts before it; they are checked against their
+    /// flags.
+    #[test]
+    fn a_parents_flag_takes_a_whole_name() {
+        for given in [
+            "projects/p/regions/r/securityGroups/sg-1",
+            "//network.origincloudapis.eu/projects/p/regions/r/securityGroups/sg-1",
+        ] {
+            let mut n = names(&[
+                ("project", None),
+                ("region", None),
+                ("security_group", Some(given)),
+            ]);
+            n.learn_part(RULE_PARENT, &["network"], "security_group")
+                .unwrap();
+            assert_eq!(
+                n.name(RULE_PARENT).unwrap(),
+                "projects/p/regions/r/securityGroups/sg-1"
+            );
+        }
+        let mut n = names(&[
+            ("project", Some("p")),
+            ("region", Some("r")),
+            ("security_group", Some("sg-1")),
+        ]);
+        n.learn_part(RULE_PARENT, &["network"], "security_group")
+            .unwrap();
+        assert_eq!(
+            n.name(RULE_PARENT).unwrap(),
+            "projects/p/regions/r/securityGroups/sg-1"
+        );
+        let mut n = names(&[
+            ("project", Some("other")),
+            ("region", None),
+            (
+                "security_group",
+                Some("projects/p/regions/r/securityGroups/sg-1"),
+            ),
+        ]);
+        let err = n
+            .learn_part(RULE_PARENT, &["network"], "security_group")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("--project other differs"), "{err}");
+        let mut n = names(&[(
+            "security_group",
+            Some("//pvs.origincloudapis.eu/projects/p/regions/r/securityGroups/sg-1"),
+        )]);
+        let err = n
+            .learn_part(RULE_PARENT, &["network"], "security_group")
+            .unwrap_err()
+            .to_string();
+        assert!(err.starts_with("--security-group:"), "{err}");
     }
 
     #[test]

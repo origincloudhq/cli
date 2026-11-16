@@ -51,6 +51,12 @@ pub struct Firewall {
     /// A note of your own; none when unset.
     #[prost(string, optional, tag = "14")]
     pub note: ::core::option::Option<::prost::alloc::string::String>,
+    /// The certificate the firewall presents, in DER.
+    #[prost(bytes = "vec", tag = "18")]
+    pub certificate: ::prost::alloc::vec::Vec<u8>,
+    /// What the firewall answers a denied connection with; nothing when unset.
+    #[prost(bytes = "vec", optional, tag = "19")]
+    pub banner: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
     /// Where the firewall sends a copy of what it denies.
     #[prost(oneof = "firewall::Mirror", tags = "15, 16, 17")]
     pub mirror: ::core::option::Option<firewall::Mirror>,
@@ -265,6 +271,56 @@ pub struct UpdateFirewallRequest {
     /// The fields to change.
     #[prost(message, optional, tag = "2")]
     pub update_mask: ::core::option::Option<::origincloud_core::protobuf::FieldMask>,
+}
+/// The request for DeleteFirewall.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DeleteFirewallRequest {
+    /// The firewall to delete.
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+}
+/// The request for UndeleteFirewall.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct UndeleteFirewallRequest {
+    /// The firewall to restore.
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+}
+/// The request for SignFirewallData.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SignFirewallDataRequest {
+    /// The firewall whose key signs.
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    /// The data to sign.
+    #[prost(bytes = "vec", tag = "2")]
+    pub data: ::prost::alloc::vec::Vec<u8>,
+    /// A salt mixed into the signature; none when unset.
+    #[prost(bytes = "vec", optional, tag = "3")]
+    pub salt: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// A label the signature carries, at most one.
+    #[prost(oneof = "sign_firewall_data_request::Label", tags = "4, 5")]
+    pub label: ::core::option::Option<sign_firewall_data_request::Label>,
+}
+/// Nested message and enum types in `SignFirewallDataRequest`.
+pub mod sign_firewall_data_request {
+    /// A label the signature carries, at most one.
+    #[derive(Clone, PartialEq, Eq, Hash, ::prost::Oneof)]
+    pub enum Label {
+        /// The label as text.
+        #[prost(string, tag = "4")]
+        LabelText(::prost::alloc::string::String),
+        /// The label as bytes.
+        #[prost(bytes, tag = "5")]
+        LabelBytes(::prost::alloc::vec::Vec<u8>),
+    }
+}
+/// The response for SignFirewallData.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct SignFirewallDataResponse {
+    /// The signature.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 /// The request for ListFirewallPolicies.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -492,6 +548,114 @@ impl<'de> serde::Deserialize<'de> for CreateFirewallRequest {
             )
     }
 }
+impl serde::Serialize for DeleteFirewallRequest {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.name.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer
+            .serialize_struct("origincloud.scratch.v1.DeleteFirewallRequest", len)?;
+        if !self.name.is_empty() {
+            struct_ser.serialize_field("name", &self.name)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for DeleteFirewallRequest {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &["name"];
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Name,
+            __SkipField__,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(
+                deserializer: D,
+            ) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+                impl serde::de::Visitor<'_> for GeneratedVisitor {
+                    type Value = GeneratedField;
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", & FIELDS)
+                    }
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(
+                        self,
+                        value: &str,
+                    ) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "name" => Ok(GeneratedField::Name),
+                            _ => Ok(GeneratedField::__SkipField__),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = DeleteFirewallRequest;
+            fn expecting(
+                &self,
+                formatter: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                formatter
+                    .write_str("struct origincloud.scratch.v1.DeleteFirewallRequest")
+            }
+            fn visit_map<V>(
+                self,
+                mut map_: V,
+            ) -> std::result::Result<DeleteFirewallRequest, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                let mut name__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Name => {
+                            if name__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("name"));
+                            }
+                            name__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::__SkipField__ => {
+                            let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                Ok(DeleteFirewallRequest {
+                    name: name__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer
+            .deserialize_struct(
+                "origincloud.scratch.v1.DeleteFirewallRequest",
+                FIELDS,
+                GeneratedVisitor,
+            )
+    }
+}
 impl serde::Serialize for Firewall {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -540,6 +704,12 @@ impl serde::Serialize for Firewall {
             len += 1;
         }
         if self.note.is_some() {
+            len += 1;
+        }
+        if !self.certificate.is_empty() {
+            len += 1;
+        }
+        if self.banner.is_some() {
             len += 1;
         }
         if self.mirror.is_some() {
@@ -593,6 +763,24 @@ impl serde::Serialize for Firewall {
         if let Some(v) = self.note.as_ref() {
             struct_ser.serialize_field("note", v)?;
         }
+        if !self.certificate.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
+            struct_ser
+                .serialize_field(
+                    "certificate",
+                    pbjson::private::base64::encode(&self.certificate).as_str(),
+                )?;
+        }
+        if let Some(v) = self.banner.as_ref() {
+            #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
+            struct_ser
+                .serialize_field(
+                    "banner",
+                    pbjson::private::base64::encode(&v).as_str(),
+                )?;
+        }
         if let Some(v) = self.mirror.as_ref() {
             match v {
                 firewall::Mirror::MirrorNetwork(v) => {
@@ -634,6 +822,8 @@ impl<'de> serde::Deserialize<'de> for Firewall {
             "default_protocol",
             "defaultProtocol",
             "note",
+            "certificate",
+            "banner",
             "mirror_network",
             "mirrorNetwork",
             "mirror_address",
@@ -657,6 +847,8 @@ impl<'de> serde::Deserialize<'de> for Firewall {
             Strict,
             DefaultProtocol,
             Note,
+            Certificate,
+            Banner,
             MirrorNetwork,
             MirrorAddress,
             MirrorLog,
@@ -709,6 +901,8 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                                 Ok(GeneratedField::DefaultProtocol)
                             }
                             "note" => Ok(GeneratedField::Note),
+                            "certificate" => Ok(GeneratedField::Certificate),
+                            "banner" => Ok(GeneratedField::Banner),
                             "mirrorNetwork" | "mirror_network" => {
                                 Ok(GeneratedField::MirrorNetwork)
                             }
@@ -750,6 +944,8 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                 let mut strict__ = None;
                 let mut default_protocol__ = None;
                 let mut note__ = None;
+                let mut certificate__ = None;
+                let mut banner__ = None;
                 let mut mirror__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
@@ -859,6 +1055,30 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                             }
                             note__ = map_.next_value()?;
                         }
+                        GeneratedField::Certificate => {
+                            if certificate__.is_some() {
+                                return Err(
+                                    serde::de::Error::duplicate_field("certificate"),
+                                );
+                            }
+                            certificate__ = Some(
+                                map_
+                                    .next_value::<::pbjson::private::BytesDeserialize<_>>()?
+                                    .0,
+                            );
+                        }
+                        GeneratedField::Banner => {
+                            if banner__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("banner"));
+                            }
+                            banner__ = map_
+                                .next_value::<
+                                    ::std::option::Option<
+                                        ::pbjson::private::BytesDeserialize<_>,
+                                    >,
+                                >()?
+                                .map(|x| x.0);
+                        }
                         GeneratedField::MirrorNetwork => {
                             if mirror__.is_some() {
                                 return Err(
@@ -907,6 +1127,8 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                     strict: strict__,
                     default_protocol: default_protocol__,
                     note: note__,
+                    certificate: certificate__.unwrap_or_default(),
+                    banner: banner__,
                     mirror: mirror__,
                 })
             }
@@ -2642,6 +2864,448 @@ impl<'de> serde::Deserialize<'de> for rule::Protocol {
         deserializer.deserialize_any(GeneratedVisitor)
     }
 }
+impl serde::Serialize for SignFirewallDataRequest {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.name.is_empty() {
+            len += 1;
+        }
+        if !self.data.is_empty() {
+            len += 1;
+        }
+        if self.salt.is_some() {
+            len += 1;
+        }
+        if self.label.is_some() {
+            len += 1;
+        }
+        let mut struct_ser = serializer
+            .serialize_struct("origincloud.scratch.v1.SignFirewallDataRequest", len)?;
+        if !self.name.is_empty() {
+            struct_ser.serialize_field("name", &self.name)?;
+        }
+        if !self.data.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
+            struct_ser
+                .serialize_field(
+                    "data",
+                    pbjson::private::base64::encode(&self.data).as_str(),
+                )?;
+        }
+        if let Some(v) = self.salt.as_ref() {
+            #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
+            struct_ser
+                .serialize_field("salt", pbjson::private::base64::encode(&v).as_str())?;
+        }
+        if let Some(v) = self.label.as_ref() {
+            match v {
+                sign_firewall_data_request::Label::LabelText(v) => {
+                    struct_ser.serialize_field("labelText", v)?;
+                }
+                sign_firewall_data_request::Label::LabelBytes(v) => {
+                    #[allow(clippy::needless_borrow)]
+                    #[allow(clippy::needless_borrows_for_generic_args)]
+                    struct_ser
+                        .serialize_field(
+                            "labelBytes",
+                            pbjson::private::base64::encode(&v).as_str(),
+                        )?;
+                }
+            }
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for SignFirewallDataRequest {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &[
+            "name",
+            "data",
+            "salt",
+            "label_text",
+            "labelText",
+            "label_bytes",
+            "labelBytes",
+        ];
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Name,
+            Data,
+            Salt,
+            LabelText,
+            LabelBytes,
+            __SkipField__,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(
+                deserializer: D,
+            ) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+                impl serde::de::Visitor<'_> for GeneratedVisitor {
+                    type Value = GeneratedField;
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", & FIELDS)
+                    }
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(
+                        self,
+                        value: &str,
+                    ) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "name" => Ok(GeneratedField::Name),
+                            "data" => Ok(GeneratedField::Data),
+                            "salt" => Ok(GeneratedField::Salt),
+                            "labelText" | "label_text" => Ok(GeneratedField::LabelText),
+                            "labelBytes" | "label_bytes" => {
+                                Ok(GeneratedField::LabelBytes)
+                            }
+                            _ => Ok(GeneratedField::__SkipField__),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = SignFirewallDataRequest;
+            fn expecting(
+                &self,
+                formatter: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                formatter
+                    .write_str("struct origincloud.scratch.v1.SignFirewallDataRequest")
+            }
+            fn visit_map<V>(
+                self,
+                mut map_: V,
+            ) -> std::result::Result<SignFirewallDataRequest, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                let mut name__ = None;
+                let mut data__ = None;
+                let mut salt__ = None;
+                let mut label__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Name => {
+                            if name__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("name"));
+                            }
+                            name__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::Data => {
+                            if data__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("data"));
+                            }
+                            data__ = Some(
+                                map_
+                                    .next_value::<::pbjson::private::BytesDeserialize<_>>()?
+                                    .0,
+                            );
+                        }
+                        GeneratedField::Salt => {
+                            if salt__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("salt"));
+                            }
+                            salt__ = map_
+                                .next_value::<
+                                    ::std::option::Option<
+                                        ::pbjson::private::BytesDeserialize<_>,
+                                    >,
+                                >()?
+                                .map(|x| x.0);
+                        }
+                        GeneratedField::LabelText => {
+                            if label__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("labelText"));
+                            }
+                            label__ = map_
+                                .next_value::<::std::option::Option<_>>()?
+                                .map(sign_firewall_data_request::Label::LabelText);
+                        }
+                        GeneratedField::LabelBytes => {
+                            if label__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("labelBytes"));
+                            }
+                            label__ = map_
+                                .next_value::<
+                                    ::std::option::Option<
+                                        ::pbjson::private::BytesDeserialize<_>,
+                                    >,
+                                >()?
+                                .map(|x| sign_firewall_data_request::Label::LabelBytes(
+                                    x.0,
+                                ));
+                        }
+                        GeneratedField::__SkipField__ => {
+                            let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                Ok(SignFirewallDataRequest {
+                    name: name__.unwrap_or_default(),
+                    data: data__.unwrap_or_default(),
+                    salt: salt__,
+                    label: label__,
+                })
+            }
+        }
+        deserializer
+            .deserialize_struct(
+                "origincloud.scratch.v1.SignFirewallDataRequest",
+                FIELDS,
+                GeneratedVisitor,
+            )
+    }
+}
+impl serde::Serialize for SignFirewallDataResponse {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.signature.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer
+            .serialize_struct("origincloud.scratch.v1.SignFirewallDataResponse", len)?;
+        if !self.signature.is_empty() {
+            #[allow(clippy::needless_borrow)]
+            #[allow(clippy::needless_borrows_for_generic_args)]
+            struct_ser
+                .serialize_field(
+                    "signature",
+                    pbjson::private::base64::encode(&self.signature).as_str(),
+                )?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for SignFirewallDataResponse {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &["signature"];
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Signature,
+            __SkipField__,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(
+                deserializer: D,
+            ) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+                impl serde::de::Visitor<'_> for GeneratedVisitor {
+                    type Value = GeneratedField;
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", & FIELDS)
+                    }
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(
+                        self,
+                        value: &str,
+                    ) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "signature" => Ok(GeneratedField::Signature),
+                            _ => Ok(GeneratedField::__SkipField__),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = SignFirewallDataResponse;
+            fn expecting(
+                &self,
+                formatter: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                formatter
+                    .write_str("struct origincloud.scratch.v1.SignFirewallDataResponse")
+            }
+            fn visit_map<V>(
+                self,
+                mut map_: V,
+            ) -> std::result::Result<SignFirewallDataResponse, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                let mut signature__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Signature => {
+                            if signature__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("signature"));
+                            }
+                            signature__ = Some(
+                                map_
+                                    .next_value::<::pbjson::private::BytesDeserialize<_>>()?
+                                    .0,
+                            );
+                        }
+                        GeneratedField::__SkipField__ => {
+                            let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                Ok(SignFirewallDataResponse {
+                    signature: signature__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer
+            .deserialize_struct(
+                "origincloud.scratch.v1.SignFirewallDataResponse",
+                FIELDS,
+                GeneratedVisitor,
+            )
+    }
+}
+impl serde::Serialize for UndeleteFirewallRequest {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.name.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer
+            .serialize_struct("origincloud.scratch.v1.UndeleteFirewallRequest", len)?;
+        if !self.name.is_empty() {
+            struct_ser.serialize_field("name", &self.name)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for UndeleteFirewallRequest {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &["name"];
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Name,
+            __SkipField__,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(
+                deserializer: D,
+            ) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+                impl serde::de::Visitor<'_> for GeneratedVisitor {
+                    type Value = GeneratedField;
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", & FIELDS)
+                    }
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(
+                        self,
+                        value: &str,
+                    ) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "name" => Ok(GeneratedField::Name),
+                            _ => Ok(GeneratedField::__SkipField__),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = UndeleteFirewallRequest;
+            fn expecting(
+                &self,
+                formatter: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                formatter
+                    .write_str("struct origincloud.scratch.v1.UndeleteFirewallRequest")
+            }
+            fn visit_map<V>(
+                self,
+                mut map_: V,
+            ) -> std::result::Result<UndeleteFirewallRequest, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                let mut name__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Name => {
+                            if name__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("name"));
+                            }
+                            name__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::__SkipField__ => {
+                            let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                Ok(UndeleteFirewallRequest {
+                    name: name__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer
+            .deserialize_struct(
+                "origincloud.scratch.v1.UndeleteFirewallRequest",
+                FIELDS,
+                GeneratedVisitor,
+            )
+    }
+}
 impl serde::Serialize for UpdateFirewallRequest {
     #[allow(deprecated)]
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
@@ -2786,16 +3450,24 @@ impl FirewallClient {
     pub fn service(&self) -> &::origincloud_core::Service {
         &self.service
     }
+    /// The same client, whose calls are sent as `options` says instead of as the [`Client`](origincloud_core::Client)'s settings do, such as a mutation that must not be sent twice: `.with_options(CallOptions::new().max_attempts(1))`. See [`CallOptions`](origincloud_core::CallOptions).
+    pub fn with_options(&self, options: ::origincloud_core::CallOptions) -> Self {
+        Self {
+            service: self.service.with_options(options),
+        }
+    }
     /// Returns a firewall.
     pub async fn get_firewall(
         &self,
-        request: GetFirewallRequest,
+        mut request: GetFirewallRequest,
     ) -> ::core::result::Result<Firewall, ::origincloud_core::Error> {
+        let n0 = self.service.relative_name("name", &request.name, &["scratch"])?;
         let p0 = ::origincloud_core::path_value(
             "name",
-            &request.name,
+            &n0,
             "projects/*/zones/*/firewalls/*",
         )?;
+        request.name = n0;
         let query = ::origincloud_core::query(&request, &["name"])?;
         let call = ::origincloud_core::Request::new(
                 ::origincloud_core::Method::GET,
@@ -2808,13 +3480,11 @@ impl FirewallClient {
     /// Creates a firewall.
     pub async fn create_firewall(
         &self,
-        request: CreateFirewallRequest,
+        mut request: CreateFirewallRequest,
     ) -> ::core::result::Result<Firewall, ::origincloud_core::Error> {
-        let p0 = ::origincloud_core::path_value(
-            "parent",
-            &request.parent,
-            "projects/*/zones/*",
-        )?;
+        let n0 = self.service.relative_name("parent", &request.parent, &["scratch"])?;
+        let p0 = ::origincloud_core::path_value("parent", &n0, "projects/*/zones/*")?;
+        request.parent = n0;
         let body = ::origincloud_core::json_body(
             request.firewall.as_ref().unwrap_or(&::core::default::Default::default()),
         )?;
@@ -2830,13 +3500,23 @@ impl FirewallClient {
     /// Changes a firewall's rules, ports, networks, aliases, logging or tags.
     pub async fn update_firewall(
         &self,
-        request: UpdateFirewallRequest,
+        mut request: UpdateFirewallRequest,
     ) -> ::core::result::Result<Firewall, ::origincloud_core::Error> {
+        let n0 = self
+            .service
+            .relative_name(
+                "firewall.name",
+                request.firewall.as_ref().map_or("", |m| m.name.as_str()),
+                &["scratch"],
+            )?;
         let p0 = ::origincloud_core::path_value(
             "firewall.name",
-            request.firewall.as_ref().map_or("", |m| m.name.as_str()),
+            &n0,
             "projects/*/zones/*/firewalls/*",
         )?;
+        if let Some(m) = request.firewall.as_mut() {
+            m.name = n0;
+        }
         let body = ::origincloud_core::json_body(
             request.firewall.as_ref().unwrap_or(&::core::default::Default::default()),
         )?;
@@ -2847,6 +3527,66 @@ impl FirewallClient {
             )
             .with_body(body)
             .with_query(query);
+        self.service.call(call).await
+    }
+    /// Deletes a firewall, which UndeleteFirewall restores until it is purged.
+    pub async fn delete_firewall(
+        &self,
+        mut request: DeleteFirewallRequest,
+    ) -> ::core::result::Result<Firewall, ::origincloud_core::Error> {
+        let n0 = self.service.relative_name("name", &request.name, &["scratch"])?;
+        let p0 = ::origincloud_core::path_value(
+            "name",
+            &n0,
+            "projects/*/zones/*/firewalls/*",
+        )?;
+        request.name = n0;
+        let query = ::origincloud_core::query(&request, &["name"])?;
+        let call = ::origincloud_core::Request::new(
+                ::origincloud_core::Method::DELETE,
+                format!("/v1/{p0}"),
+            )
+            .with_query(query);
+        self.service.call(call).await
+    }
+    /// Restores a deleted firewall.
+    pub async fn undelete_firewall(
+        &self,
+        mut request: UndeleteFirewallRequest,
+    ) -> ::core::result::Result<Firewall, ::origincloud_core::Error> {
+        let n0 = self.service.relative_name("name", &request.name, &["scratch"])?;
+        let p0 = ::origincloud_core::path_value(
+            "name",
+            &n0,
+            "projects/*/zones/*/firewalls/*",
+        )?;
+        request.name = n0;
+        let body = ::origincloud_core::json_body(&request)?;
+        let call = ::origincloud_core::Request::new(
+                ::origincloud_core::Method::POST,
+                format!("/v1/{p0}:undelete"),
+            )
+            .with_body(body);
+        self.service.call(call).await
+    }
+    /// Signs data with a firewall's key.
+    pub async fn sign_firewall_data(
+        &self,
+        mut request: SignFirewallDataRequest,
+    ) -> ::core::result::Result<SignFirewallDataResponse, ::origincloud_core::Error> {
+        let n0 = self.service.relative_name("name", &request.name, &["scratch"])?;
+        let p0 = ::origincloud_core::path_value(
+            "name",
+            &n0,
+            "projects/*/zones/*/firewalls/*",
+        )?;
+        request.name = n0;
+        let body = ::origincloud_core::json_body(&request)?;
+        let call = ::origincloud_core::Request::new(
+                ::origincloud_core::Method::POST,
+                format!("/v1/{p0}:signData"),
+            )
+            .with_body(body);
         self.service.call(call).await
     }
     /// Lists every firewall policy.

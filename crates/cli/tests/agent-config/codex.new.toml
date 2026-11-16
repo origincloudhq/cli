@@ -1,0 +1,3 @@
+[mcp_servers.origincloud]
+command = "origin"
+args = ["mcp", "serve", "--toolsets", "pvs,location", "--read-only"]

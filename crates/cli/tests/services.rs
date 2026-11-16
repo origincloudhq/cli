@@ -171,7 +171,7 @@ async fn get_operation_reads_the_operation_no_wait_printed() {
                 "--size-gib",
                 "8",
                 "--storage-class",
-                "gp1",
+                "storageClasses/gp1",
                 "--no-wait",
             ])
             .await,
@@ -337,7 +337,7 @@ async fn wait_operation_fails_with_a_failed_operation() {
                 "--size-gib",
                 "8",
                 "--storage-class",
-                "gp1",
+                "storageClasses/gp1",
             ])
             .await,
     );
@@ -774,60 +774,54 @@ async fn a_refusal_s_metadata_the_message_doesn_t_name_is_said() {
     assert!(printed.get("requestId").is_none(), "{printed}");
 }
 
-/// `create-instance` reaches the server with an instance type, whose ids
-/// hold dots, and an image of either form: the project's own, completed
-/// from its id, or a public one, whose zone fills in `--zone`.
+/// `create-instance` builds its own parent from `--project` and `--zone`,
+/// and sends each reference as a full name: one given as given, on the
+/// host of the referenced type's service, a relative one with that host
+/// put in front, of another project too, and an instance type whose id
+/// holds dots. A reference's parts never fill in the instance's, nor are
+/// they checked against them.
 #[tokio::test(flavor = "multi_thread")]
-async fn create_instance_takes_dotted_types_and_public_images() {
+async fn create_instance_sends_references_as_full_names() {
     const LAUNCHING: &str = r#"{"name":"projects/p/zones/z/operations/op-1"}"#;
     let server = recording(|_| Response::json(LAUNCHING)).await;
-    let create = |instance_type: &'static str, image: &'static str, zone: Option<&'static str>| {
-        let mut args = vec![
+    let create = |instance_type: &'static str, image: &'static str, key_pair: &'static str| {
+        vec![
             "create-instance",
             "--project",
             "p",
+            "--zone",
+            "z",
             "--instance-type",
             instance_type,
             "--image",
             image,
             "--key-pair",
-            "k",
+            key_pair,
             "--network-interface",
-            "ni-1",
+            "//network.origincloudapis.eu/projects/p/zones/z/networkInterfaces/ni-1",
             "--no-wait",
-        ];
-        if let Some(zone) = zone {
-            args.extend(["--zone", zone]);
-        }
-        args
+        ]
     };
-    for (instance_type, image, zone, sent_image) in [
-        (
-            "gp1.core.2",
-            "zones/z/images/img-1",
-            None,
-            "zones/z/images/img-1",
-        ),
+    for (instance_type, image, key_pair) in [
         (
             "instanceTypes/gp1.core.2",
             "zones/z/images/img-1",
-            Some("z"),
-            "zones/z/images/img-1",
+            "projects/p/keyPairs/k",
         ),
         (
-            "gp1.core.2",
-            "img-1",
-            Some("z"),
-            "projects/p/zones/z/images/img-1",
+            "//compute.origincloudapis.eu/instanceTypes/gp1.core.2",
+            "//compute.origincloudapis.eu/projects/p/zones/z/images/img-1",
+            "//compute.origincloudapis.eu/projects/p/keyPairs/k",
         ),
+        // Another project's key pair, and a public image of another zone:
+        // the server decides whether they may be used.
         (
-            "gp1.core.2",
-            "projects/p/zones/z/images/img-1",
-            None,
-            "projects/p/zones/z/images/img-1",
+            "instanceTypes/gp1.core.2",
+            "//compute.origincloudapis.eu/zones/z2/images/img-1",
+            "//compute.origincloudapis.eu/projects/other/keyPairs/k",
         ),
     ] {
-        let args = create(instance_type, image, zone);
+        let args = create(instance_type, image, key_pair);
         let printed = success(&server.run("compute", &args).await);
         assert_eq!(printed, json(LAUNCHING), "{args:?}");
         let requests = server.requests();
@@ -838,50 +832,254 @@ async fn create_instance_takes_dotted_types_and_public_images() {
             "{args:?}"
         );
         let body: serde_json::Value = serde_json::from_slice(&sent.body).unwrap();
+        let full = |name: &str| {
+            if name.starts_with("//") {
+                name.to_owned()
+            } else {
+                format!("//compute.origincloudapis.eu/{name}")
+            }
+        };
         assert_eq!(
             body,
             serde_json::json!({
-                "instanceType": "instanceTypes/gp1.core.2",
-                "image": sent_image,
-                "keyPair": "projects/p/keyPairs/k",
-                "networkInterfaces": ["projects/p/zones/z/networkInterfaces/ni-1"],
+                "instanceType": full(instance_type),
+                "image": full(image),
+                "keyPair": full(key_pair),
+                "networkInterfaces": ["//network.origincloudapis.eu/projects/p/zones/z/networkInterfaces/ni-1"],
             }),
             "{args:?}"
         );
     }
 
-    // A public image in another zone than --zone, and names of neither
-    // form, are refused before any request.
+    // An id is refused where it used to be completed from `--project` and
+    // `--zone`, naming the full form; so is a full name on another
+    // service's host, naming the expected one, and a name of no form the
+    // type has. Nothing is sent.
     let before = server.requests().len();
-    for (image, refusal) in [
+    for (args, refusal) in [
         (
-            "zones/z2/images/img-1",
-            "--zone z differs from the zone of --image",
+            create("instanceTypes/gp1.core.2", "zones/z/images/img-1", "k"),
+            "--key-pair: \"k\" is an id; give the resource's full name, such as \
+             //compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}",
         ),
-        ("images/img-1", "isn't a name of the form"),
-        ("zones/z/images/..", "isn't a name of the form"),
-        ("..", "isn't an id"),
+        (
+            create("instanceTypes/gp1.core.2", "img-1", "projects/p/keyPairs/k"),
+            "--image: \"img-1\" is an id",
+        ),
+        (
+            create(
+                "gp1.core.2",
+                "zones/z/images/img-1",
+                "projects/p/keyPairs/k",
+            ),
+            "--instance-type: \"gp1.core.2\" is an id",
+        ),
+        (
+            create(
+                "instanceTypes/gp1.core.2",
+                "zones/z/images/img-1",
+                "//pvs.origincloudapis.eu/projects/p/keyPairs/k",
+            ),
+            "--key-pair: \"//pvs.origincloudapis.eu/projects/p/keyPairs/k\" is a name on \
+             pvs.origincloudapis.eu, but --key-pair takes a name on compute.origincloudapis.eu",
+        ),
+        (
+            create(
+                "instanceTypes/gp1.core.2",
+                "images/img-1",
+                "projects/p/keyPairs/k",
+            ),
+            "isn't a name of the form projects/{project}/zones/{zone}/images/{image} or \
+             zones/{zone}/images/{image}",
+        ),
+        (
+            create(
+                "instanceTypes/gp1.core.2/x",
+                "zones/z/images/img-1",
+                "projects/p/keyPairs/k",
+            ),
+            "isn't a name of the form instanceTypes/{instance_type}",
+        ),
     ] {
-        let description = failure(
+        let description = failure(&server.run("compute", &args).await);
+        assert!(description.contains(refusal), "{args:?}: {description}");
+    }
+    assert_eq!(server.requests().len(), before, "{:?}", server.requests());
+}
+
+/// A volume attachment names its instance, a parent, by its id or its whole
+/// name, which gives the project and zone, and a volume of another service
+/// by its full name, sent as given. A disagreeing `--zone` is refused,
+/// and a relative volume is sent as its full name.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_volume_attachment_takes_a_parent_and_another_services_volume() {
+    const ATTACHING: &str = r#"{"name":"projects/p/zones/z/operations/op-1"}"#;
+    let server = recording(|_| Response::json(ATTACHING)).await;
+    let volume = "//pvs.origincloudapis.eu/projects/p/zones/z/volumes/vol-1";
+    for instance in [
+        "//compute.origincloudapis.eu/projects/p/zones/z/instances/i-1",
+        "projects/p/zones/z/instances/i-1",
+    ] {
+        success(
             &server
-                .run("compute", &create("gp1.core.2", image, Some("z")))
+                .run(
+                    "compute",
+                    &[
+                        "create-volume-attachment",
+                        "--instance",
+                        instance,
+                        "--volume",
+                        volume,
+                        "--no-wait",
+                    ],
+                )
                 .await,
         );
-        assert!(description.contains(refusal), "{image}: {description}");
     }
-    let description = failure(
+    success(
         &server
             .run(
                 "compute",
-                &create("instanceTypes/gp1.core.2/x", "img-1", Some("z")),
+                &[
+                    "create-volume-attachment",
+                    "--project",
+                    "p",
+                    "--zone",
+                    "z",
+                    "--instance",
+                    "i-1",
+                    "--volume",
+                    "projects/p/zones/z/volumes/vol-1",
+                    "--no-wait",
+                ],
             )
             .await,
     );
+    let requests = server.requests();
+    assert_eq!(requests.len(), 3, "{requests:?}");
+    for sent in &requests {
+        assert_eq!(
+            sent.path,
+            "/v1beta1/projects/p/zones/z/instances/i-1/volumeAttachments"
+        );
+        let body: serde_json::Value = serde_json::from_slice(&sent.body).unwrap();
+        assert_eq!(body["volume"], volume);
+    }
+
+    for (args, refusal) in [
+        (
+            vec![
+                "create-volume-attachment",
+                "--zone",
+                "z2",
+                "--instance",
+                "projects/p/zones/z/instances/i-1",
+                "--volume",
+                volume,
+            ],
+            "--zone z2 differs from the zone of --instance projects/p/zones/z/instances/i-1",
+        ),
+        (
+            vec![
+                "create-volume-attachment",
+                "--instance",
+                "//pvs.origincloudapis.eu/projects/p/zones/z/instances/i-1",
+                "--volume",
+                volume,
+            ],
+            "--instance: \"//pvs.origincloudapis.eu/projects/p/zones/z/instances/i-1\" is a name \
+             on pvs.origincloudapis.eu, but --instance takes a name on compute.origincloudapis.eu",
+        ),
+        (
+            vec![
+                "create-volume-attachment",
+                "--project",
+                "p",
+                "--zone",
+                "z",
+                "--instance",
+                "i-1",
+                "--volume",
+                "vol-1",
+            ],
+            "--volume: \"vol-1\" is an id; give the resource's full name, such as \
+             //pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}",
+        ),
+    ] {
+        let description = failure(&server.run("compute", &args).await);
+        assert!(description.contains(refusal), "{args:?}: {description}");
+    }
+    assert_eq!(server.requests().len(), 3);
+}
+
+/// The command's own target takes its full name, and the request's path is
+/// its relative name; one of another service is refused.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_target_takes_its_full_name_and_sends_its_relative_name() {
+    const VOLUME: &str = r#"{"name":"projects/p/zones/z/volumes/v"}"#;
+    let server = recording(|_| Response::json(VOLUME)).await;
+    let output = server
+        .pvs(&[
+            "get-volume",
+            "--volume",
+            "//pvs.origincloudapis.eu/projects/p/zones/z/volumes/v",
+        ])
+        .await;
+    assert_eq!(success(&output), json(VOLUME));
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1, "{requests:?}");
+    assert_eq!(requests[0].path, "/v1beta1/projects/p/zones/z/volumes/v");
+
+    let description = failure(
+        &server
+            .pvs(&[
+                "get-volume",
+                "--volume",
+                "//compute.origincloudapis.eu/projects/p/zones/z/volumes/v",
+            ])
+            .await,
+    );
     assert!(
-        description.contains("isn't a name of the form instanceTypes/{instance_type}"),
+        description.contains("but --volume takes a name on pvs.origincloudapis.eu"),
         "{description}"
     );
-    assert_eq!(server.requests().len(), before, "{:?}", server.requests());
+    assert_eq!(server.requests().len(), 1);
+}
+
+/// A security group rule's parent, its security group, is given by its
+/// full name alone, with no `--project` or `--region`.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_parent_given_by_its_full_name_needs_no_other_flags() {
+    const CREATING: &str = r#"{"name":"projects/p/regions/r/operations/op-1"}"#;
+    let server = recording(|_| Response::json(CREATING)).await;
+    let peer = "//network.origincloudapis.eu/projects/other/regions/r/securityGroups/sg-2";
+    success(
+        &server
+            .run(
+                "network",
+                &[
+                    "create-security-group-rule",
+                    "--security-group",
+                    "//network.origincloudapis.eu/projects/p/regions/r/securityGroups/sg-1",
+                    "--direction",
+                    "INGRESS",
+                    "--protocol",
+                    "TCP",
+                    "--peer-security-group",
+                    peer,
+                    "--no-wait",
+                ],
+            )
+            .await,
+    );
+    let requests = server.requests();
+    assert_eq!(requests.len(), 1, "{requests:?}");
+    assert_eq!(
+        requests[0].path,
+        "/v1beta1/projects/p/regions/r/securityGroups/sg-1/rules"
+    );
+    let body: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+    assert_eq!(body["peerSecurityGroup"], peer);
 }
 
 /// `assume-service-account` reads the OIDC token from a file, never from
@@ -916,7 +1114,7 @@ async fn assume_service_account_reads_the_token_from_a_file() {
     assert_eq!(
         body,
         json(
-            r#"{"oidcToken":"job.token.value","serviceAccount":"organizations/o/serviceAccounts/s","lifetime":"600s"}"#
+            r#"{"oidcToken":"job.token.value","serviceAccount":"//iam.origincloudapis.eu/organizations/o/serviceAccounts/s","lifetime":"600s"}"#
         )
     );
 

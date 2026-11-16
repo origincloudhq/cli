@@ -63,7 +63,9 @@ iam revoke-role
 iam revoke-service-account
 id login
 id token
+mcp install
 mcp serve
+mcp uninstall
 network allocate-floating-ip
 network associate-floating-ip
 network associate-route-table
@@ -117,6 +119,9 @@ network update-route-table-routes
 network update-security-group-rules
 network update-subnet-acl
 network update-subnet-auto-assign-public-ip
+skill install
+skill list
+skill update
 storage remove-resource-tags
 storage set-resource-tags
 version

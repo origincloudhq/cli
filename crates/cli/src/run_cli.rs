@@ -1,7 +1,9 @@
+use std::io::IsTerminal;
 use std::process::exit;
 
 use crate::config::{ClientProfile, OutputFormat};
 use crate::handler;
+use crate::handler::mcp::McpCommands;
 use crate::output::{self, CommandResult, SerializableOutput, SerializationError};
 use crate::root_command::{Cli, Commands};
 use clap::Parser;
@@ -35,19 +37,43 @@ pub async fn run() -> ! {
         no_pager: cli.no_pager,
     };
 
+    // After an upgrade, once, a word on the agent skills it made outdated:
+    // on a terminal only, and never in `json`, nor beside the commands that
+    // are about the skills, or whose output is for a program.
+    let quiet = matches!(
+        cli.command,
+        None | Some(Commands::Skill(_))
+            | Some(Commands::Mcp(McpCommands::Serve(_)))
+            | Some(Commands::Completion { .. })
+    );
+    if !quiet
+        && output::format_for_stdout(profile.output_format) != OutputFormat::Json
+        && std::io::stdout().is_terminal()
+        && std::io::stderr().is_terminal()
+    {
+        handler::skill::notice();
+    }
+
     match cli.command {
         None => exit(0),
         Some(Commands::Id(id_cmd)) => {
             printing.exit_with(handler::id::run_identity_command(&profile, &api_url, id_cmd).await)
         }
         // The MCP session owns standard output: nothing is printed on it.
-        Some(Commands::Mcp(cmd)) => match handler::mcp::run_mcp_command(&profile, cmd).await {
-            Ok(()) => exit(0),
-            Err(err) => {
-                eprintln!("origin mcp: {err:#}");
-                exit(1);
+        Some(Commands::Mcp(McpCommands::Serve(args))) => {
+            match handler::mcp::run_mcp_command(&profile, args).await {
+                Ok(()) => exit(0),
+                Err(err) => {
+                    eprintln!("origin mcp: {err:#}");
+                    exit(1);
+                }
             }
-        },
+        }
+        Some(Commands::Mcp(cmd)) => printing.exit_with(handler::mcp::run_install_command(
+            cli.config.as_deref(),
+            cmd,
+        )),
+        Some(Commands::Skill(cmd)) => printing.exit_with(handler::skill::run_skill_command(cmd)),
         Some(Commands::Services(cmd)) => printing.exit_with(crate::sdk::run(&profile, cmd).await),
         Some(Commands::Config(cmd)) => printing.exit_with(
             handler::config::run_config_command(&profile, cli.config.as_deref(), cmd).await,

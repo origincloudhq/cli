@@ -4,6 +4,7 @@ use crate::config::OutputFormat;
 use crate::handler;
 use crate::handler::id::IdentityCommands;
 use crate::handler::mcp::McpCommands;
+use crate::handler::skill::SkillCommands;
 use crate::output::ColorWhen;
 use crate::sdk::ServiceCommands;
 use clap::{Parser, Subcommand};
@@ -63,9 +64,15 @@ pub(crate) enum Commands {
     #[command(subcommand)]
     Id(IdentityCommands),
 
-    /// Serve Origin Cloud's API to an AI agent over MCP.
+    /// Serve Origin Cloud's API to an AI agent over MCP, and add it to
+    /// coding agents.
     #[command(subcommand)]
     Mcp(McpCommands),
+
+    /// Install Origin Cloud's agent skills for coding agents, and keep them
+    /// current.
+    #[command(subcommand)]
+    Skill(SkillCommands),
 
     /// The groups generated from the API definitions, one per service, such
     /// as `location` and `pvs`.
