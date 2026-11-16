@@ -335,7 +335,7 @@ pub struct CreateSnapshotArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The volume copied, in the same project and zone.
+    /// The full name of the volume copied, in the same project and zone.
     ///
     /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`, or its relative name, `projects/{project}/zones/{zone}/volumes/{volume}`, which is sent as its full name; not an id.
     #[arg(long = "source-volume", value_name = "NAME")]
@@ -951,15 +951,16 @@ pub struct CreateVolumeArgs {
     /// shrinks.
     #[arg(long = "size-gib")]
     pub size_gib: i32,
-    /// The storage class, `storageClasses/{storage_class}`. The default class
-    /// when left empty.
+    /// The storage class by its full name,
+    /// `//pvs.origincloudapis.eu/storageClasses/{storage_class}`. The default
+    /// class when left empty.
     ///
     /// Its full name, `//pvs.origincloudapis.eu/storageClasses/{storage_class}`, or its relative name, `storageClasses/{storage_class}`, which is sent as its full name; not an id.
     #[arg(long = "storage-class", value_name = "NAME")]
     pub storage_class: Option<String>,
-    /// The snapshot the volume was created from, in the same project and
-    /// zone; empty for an empty volume. The volume is at least the snapshot's
-    /// size.
+    /// The full name of the snapshot the volume was created from, in the same
+    /// project and zone; empty for an empty volume. The volume is at least the
+    /// snapshot's size.
     ///
     /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`, or its relative name, `projects/{project}/zones/{zone}/snapshots/{snapshot}`, which is sent as its full name; not an id.
     #[arg(long = "source-snapshot", value_name = "NAME")]
@@ -1052,8 +1053,9 @@ pub struct ImportVolumeArgs {
     /// shrinks.
     #[arg(long = "size-gib")]
     pub size_gib: i32,
-    /// The storage class, `storageClasses/{storage_class}`. The default class
-    /// when left empty.
+    /// The storage class by its full name,
+    /// `//pvs.origincloudapis.eu/storageClasses/{storage_class}`. The default
+    /// class when left empty.
     ///
     /// Its full name, `//pvs.origincloudapis.eu/storageClasses/{storage_class}`, or its relative name, `storageClasses/{storage_class}`, which is sent as its full name; not an id.
     #[arg(long = "storage-class", value_name = "NAME")]

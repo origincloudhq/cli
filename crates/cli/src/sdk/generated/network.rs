@@ -739,7 +739,7 @@ pub struct ListAclsArgs {
     /// Without `--page-size` or `--page-token`, every page is listed.
     #[arg(long = "page-token")]
     pub page_token: Option<String>,
-    /// Only the ACLs of this VPC, when set.
+    /// Only the ACLs of this VPC, by its full name, when set.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
     #[arg(long = "vpc", value_name = "NAME")]
@@ -828,7 +828,8 @@ pub struct CreateAclArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The VPC the ACL belongs to, in the same project and region.
+    /// The full name of the VPC the ACL belongs to, in the same project and
+    /// region.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
     #[arg(long = "vpc", value_name = "NAME")]
@@ -1284,7 +1285,8 @@ pub struct CreateAclAssociationArgs {
     /// The subnet: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
     #[arg(long = "subnet", value_name = "SUBNET", required = true)]
     pub subnet: Option<String>,
-    /// The ACL that filters the subnet's traffic, in the subnet's VPC.
+    /// The full name of the ACL that filters the subnet's traffic, in the
+    /// subnet's VPC.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}`, or its relative name, `projects/{project}/regions/{region}/acls/{acl}`, which is sent as its full name; not an id.
     #[arg(long = "acl", value_name = "NAME")]
@@ -2534,7 +2536,8 @@ pub struct CreateDnsPolicyAssociationArgs {
     /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
     #[arg(long = "vpc", value_name = "VPC", required = true)]
     pub vpc: Option<String>,
-    /// The DNS policy the VPC relays through, in the VPC's project and region.
+    /// The full name of the DNS policy the VPC relays through, in the VPC's
+    /// project and region.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, or its relative name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, which is sent as its full name; not an id.
     #[arg(long = "dns-policy", value_name = "NAME")]
@@ -3333,7 +3336,8 @@ pub struct CreateFloatingIpAssociationArgs {
     /// The floating ip: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`.
     #[arg(long = "floating-ip", value_name = "FLOATING_IP", required = true)]
     pub floating_ip: Option<String>,
-    /// The network interface the address reaches, in the floating IP's project
+    /// The full name of the network interface the address reaches, in the
+    /// floating IP's project
     /// and zone.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, which is sent as its full name; not an id.
@@ -3578,7 +3582,7 @@ pub struct ListInternetGatewaysArgs {
     /// Without `--page-size` or `--page-token`, every page is listed.
     #[arg(long = "page-token")]
     pub page_token: Option<String>,
-    /// Only the gateway of this VPC, when set.
+    /// Only the gateway of this VPC, by its full name, when set.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
     #[arg(long = "vpc", value_name = "NAME")]
@@ -3673,7 +3677,8 @@ pub struct CreateInternetGatewayArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The VPC the gateway connects, in the same project and region.
+    /// The full name of the VPC the gateway connects, in the same project and
+    /// region.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
     #[arg(long = "vpc", value_name = "NAME")]
@@ -4092,12 +4097,14 @@ pub struct CreateNatGatewayArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The public subnet the gateway lives in, in the same project and zone.
+    /// The full name of the public subnet the gateway lives in, in the same
+    /// project and zone.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`, which is sent as its full name; not an id.
     #[arg(long = "subnet", value_name = "NAME")]
     pub subnet: String,
-    /// The floating IP instances behind the gateway appear as, in the same
+    /// The full name of the floating IP instances behind the gateway appear
+    /// as, in the same
     /// project and zone. It stays allocated when the gateway is deleted.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, which is sent as its full name; not an id.
@@ -4414,7 +4421,7 @@ pub struct ListNetworkInterfacesArgs {
     /// Without `--page-size` or `--page-token`, every page is listed. Either needs `--zone`.
     #[arg(long = "page-token")]
     pub page_token: Option<String>,
-    /// Only the interfaces in this subnet, when set.
+    /// Only the interfaces in this subnet, by its full name, when set.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`, which is sent as its full name; not an id.
     #[arg(long = "subnet", value_name = "NAME")]
@@ -4547,7 +4554,8 @@ pub struct CreateNetworkInterfaceArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The subnet the interface has its addresses in, in the same project
+    /// The full name of the subnet the interface has its addresses in, in the
+    /// same project
     /// and zone.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`, which is sent as its full name; not an id.
@@ -5012,12 +5020,14 @@ pub struct CreateRouteArgs {
     /// decides only where traffic to the internet goes.
     #[arg(long = "destination")]
     pub destination: String,
-    /// The internet gateway of the table's VPC to send the traffic to.
+    /// The full name of the internet gateway of the table's VPC to send the
+    /// traffic to.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/internetGateways/{internet_gateway}`, or its relative name, `projects/{project}/regions/{region}/internetGateways/{internet_gateway}`, which is sent as its full name; not an id.
     #[arg(long = "internet-gateway", value_name = "NAME")]
     pub internet_gateway: Option<String>,
-    /// The NAT gateway in the table's VPC to send the traffic to, for the
+    /// The full name of the NAT gateway in the table's VPC to send the traffic
+    /// to, for the
     /// IPv4 default route only: a NAT gateway translates IPv4 only. Named in
     /// the gateway's own zone; a name with another zone is refused with
     /// `INVALID_ARGUMENT`.
@@ -5280,7 +5290,7 @@ pub struct ListRouteTablesArgs {
     /// Without `--page-size` or `--page-token`, every page is listed.
     #[arg(long = "page-token")]
     pub page_token: Option<String>,
-    /// Only the route tables of this VPC, when set.
+    /// Only the route tables of this VPC, by its full name, when set.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
     #[arg(long = "vpc", value_name = "NAME")]
@@ -5373,7 +5383,8 @@ pub struct CreateRouteTableArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The VPC the table routes for, in the same project and region.
+    /// The full name of the VPC the table routes for, in the same project and
+    /// region.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
     #[arg(long = "vpc", value_name = "NAME")]
@@ -5831,7 +5842,7 @@ pub struct CreateRouteTableAssociationArgs {
     /// The subnet: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`.
     #[arg(long = "subnet", value_name = "SUBNET", required = true)]
     pub subnet: Option<String>,
-    /// The route table the subnet uses, in the subnet's VPC.
+    /// The full name of the route table the subnet uses, in the subnet's VPC.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}`, or its relative name, `projects/{project}/regions/{region}/routeTables/{route_table}`, which is sent as its full name; not an id.
     #[arg(long = "route-table", value_name = "NAME")]
@@ -6074,7 +6085,7 @@ pub struct ListSecurityGroupsArgs {
     /// Without `--page-size` or `--page-token`, every page is listed.
     #[arg(long = "page-token")]
     pub page_token: Option<String>,
-    /// Only the groups of this VPC, when set.
+    /// Only the groups of this VPC, by its full name, when set.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
     #[arg(long = "vpc", value_name = "NAME")]
@@ -6167,7 +6178,8 @@ pub struct CreateSecurityGroupArgs {
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
     #[arg(long = "region", value_name = "REGION")]
     pub region: Option<String>,
-    /// The VPC the group belongs to, in the same project and region.
+    /// The full name of the VPC the group belongs to, in the same project and
+    /// region.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
     #[arg(long = "vpc", value_name = "NAME")]
@@ -6642,7 +6654,7 @@ pub struct CreateSecurityGroupAssociationArgs {
     /// The network interface: its id, completed with `--project` and `--zone`, or its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`.
     #[arg(long = "network-interface", value_name = "NETWORK_INTERFACE", required = true)]
     pub network_interface: Option<String>,
-    /// The security group, in the interface's VPC.
+    /// The security group's full name, in the interface's VPC.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}`, which is sent as its full name; not an id.
     #[arg(long = "security-group", value_name = "NAME")]
@@ -7044,7 +7056,8 @@ pub struct CreateSecurityGroupRuleArgs {
     /// where sent traffic goes to.
     #[arg(long = "cidr-block")]
     pub cidr_block: Option<String>,
-    /// The peer as another security group of the same VPC: its members'
+    /// The peer as another security group of the same VPC, by its full name:
+    /// its members'
     /// addresses. The rule's own group is refused here with
     /// `INVALID_ARGUMENT`: it is `--same-group`.
     ///
@@ -7312,7 +7325,7 @@ pub struct ListSubnetsArgs {
     /// Without `--page-size` or `--page-token`, every page is listed. Either needs `--zone`.
     #[arg(long = "page-token")]
     pub page_token: Option<String>,
-    /// Only the subnets of this VPC, when set.
+    /// Only the subnets of this VPC, by its full name, when set.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
     #[arg(long = "vpc", value_name = "NAME")]
@@ -7443,7 +7456,8 @@ pub struct CreateSubnetArgs {
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
-    /// The VPC the subnet is part of, in the same project and in the zone's
+    /// The full name of the VPC the subnet is part of, in the same project and
+    /// in the zone's
     /// region. For now a VPC lives in one zone of its region: a subnet in
     /// another zone is refused with `FAILED_PRECONDITION`.
     ///

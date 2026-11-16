@@ -46,8 +46,8 @@ pub struct AssumeServiceAccountArgs {
     /// Read from the file at the path, or from standard input with `-`, without its final newline.
     #[arg(long = "oidc-token-file", value_name = "PATH")]
     pub oidc_token_file: String,
-    /// The service account to assume,
-    /// `organizations/{organization}/serviceAccounts/{service_account}`. Only
+    /// The full name of the service account to assume,
+    /// `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`. Only
     /// its federated credentials are considered. Without it, any service
     /// account's credential that trusts the token is.
     ///

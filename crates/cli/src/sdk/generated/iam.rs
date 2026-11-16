@@ -97,7 +97,7 @@ pub enum Commands {
     #[command(
         name = "create-role-binding",
         about = "Grants a role to a member",
-        long_about = "Grants a role to a member. Needs `iam.role.assign` on the organization, for a project binding as well, and every permission of the role at the binding's scope: a permission held on the organization counts for any scope, one held on a project only for that project. Refused with `NOT_FOUND` when `--member` names a user without an enabled account, a service account of another organization, or an address no enabled account has verified: nothing is held for an address until its account exists. Refused with `CONFLICT` when the member already holds the role at that scope, and with `BAD_REQUEST` when the member is a deleted service account, names no service agent the platform has, or is a service agent and the role isn't one its service needs."
+        long_about = "Grants a role to a member. Needs `iam.role.assign` on the organization, for a project binding as well, and every permission of the role at the binding's scope: a permission held on the organization counts for any scope, one held on a project only for that project. Refused with `NOT_FOUND` when `--member` names a user without an enabled account or a service account of another organization. Refused with `CONFLICT` when the member already holds the role at that scope, and with `BAD_REQUEST` when the member is a deleted service account, names no service agent the platform has, or is a service agent and the role isn't one its service needs."
     )]
     CreateRoleBinding(CreateRoleBindingArgs),
     #[command(
@@ -144,8 +144,8 @@ pub enum Commands {
     GetUser(GetUserArgs),
     #[command(
         name = "lookup-user",
-        about = "Looks up the user whose account has verified an email address, and answers them with their `name`: their full name is `//iam.origincloudapis.eu/` followed by it, which is how a role binding names them as a member",
-        long_about = "Looks up the user whose account has verified an email address, and answers them with their `name`: their full name is `//iam.origincloudapis.eu/` followed by it, which is how a role binding names them as a member. Needs `iam.role.assign` on `--organization`, the permission a binding of the user needs anyway. Refused with `NOT_FOUND` when no enabled account has verified the address, and with `CONFLICT` when more than one has. The answer leaves `givenName` and `familyName` empty: only the user reads those."
+        about = "Looks up the user whose account has verified an email address, and answers them with their `name` and their full name, `member`, which is how a role binding names them",
+        long_about = "Looks up the user whose account has verified an email address, and answers them with their `name` and their full name, `member`, which is how a role binding names them. Needs `iam.role.assign` on `--organization`, the permission a binding of the user needs anyway. Refused with `NOT_FOUND` when no enabled account has verified the address, and with `CONFLICT` when more than one has. The answer leaves `givenName` and `familyName` empty: only the user reads those."
     )]
     LookupUser(LookupUserArgs),
 }
@@ -250,15 +250,15 @@ pub struct ListAuditLogEntriesArgs {
     /// The `{organization}` part of the resource names the command builds.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
-    /// Only the entries of changes limited to this project,
-    /// `projects/{project}`. Every entry when empty.
+    /// Only the entries of changes limited to this project, by its full name,
+    /// `//resourcemanager.origincloudapis.eu/projects/{project}`. Every entry
+    /// when empty.
     ///
     /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`, which is sent as its full name; not an id.
     #[arg(long = "project", value_name = "NAME")]
     pub project: Option<String>,
-    /// Only the entries of changes made by this member, named by its full
-    /// name as a role binding's member is, or as an entry's `--actor` shows it.
-    /// Every actor's when empty.
+    /// Only the entries of changes made by this member, by its full name, as
+    /// a role binding's `member` names it. Every actor's when empty.
     #[arg(long = "actor")]
     pub actor: Option<String>,
     /// Only the entries of this action, such as `iam.role.assign`. Every
@@ -947,12 +947,12 @@ pub struct ListRoleBindingsArgs {
     /// The `{organization}` part of the resource names the command builds.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
-    /// Only the bindings of this member, by its full name, such as
-    /// `//iam.origincloudapis.eu/users/{user}`, or as a binding's `--member`
-    /// shows it. Every member's when empty.
+    /// Only the bindings of this member, by its full name, as a binding's
+    /// `--member` names it. Every member's when empty.
     #[arg(long = "member")]
     pub member: Option<String>,
-    /// Only the bindings limited to this project, `projects/{project}`. Every
+    /// Only the bindings limited to this project, by its full name,
+    /// `//resourcemanager.origincloudapis.eu/projects/{project}`. Every
     /// binding, organization-wide or not, when empty.
     ///
     /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`, which is sent as its full name; not an id.
@@ -1047,22 +1047,24 @@ pub struct CreateRoleBindingArgs {
     /// The `{organization}` part of the resource names the command builds.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
-    /// Who holds the role: given as a member's full name, such as
-    /// `//iam.origincloudapis.eu/users/{user}`, or in the form shown here.
-    /// Shown as `user:{email}`, `serviceAccount:{service_account}` or
-    /// `serviceAgent:{service_agent}`: a user with their account's current
-    /// verified address, as `userId:{user}` when it has none, or as
-    /// `deleted:user:{user}` once the account is gone.
+    /// The full name of who holds the role: a user,
+    /// `//iam.origincloudapis.eu/users/{user}`, one of the organization's
+    /// service accounts,
+    /// `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`,
+    /// or a platform service agent,
+    /// `//iam.origincloudapis.eu/serviceAgents/{service_agent}`.
     #[arg(long = "member")]
     pub member: String,
-    /// The role granted, `roles/{role}`.
+    /// The full name of the role granted,
+    /// `//iam.origincloudapis.eu/roles/{role}`.
     ///
     /// Its full name, `//iam.origincloudapis.eu/roles/{role}`, or its relative name, `roles/{role}`, which is sent as its full name; not an id.
     #[arg(long = "role", value_name = "NAME")]
     pub role: String,
-    /// The project the binding is limited to, `projects/{project}`, one of
-    /// the organization's. Empty for a binding on the whole organization,
-    /// which covers every project in it.
+    /// The full name of the project the binding is limited to, one of the
+    /// organization's: `//resourcemanager.origincloudapis.eu/projects/{project}`.
+    /// Empty for a binding on the whole organization, which covers every
+    /// project in it.
     ///
     /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`, which is sent as its full name; not an id.
     #[arg(long = "project", value_name = "NAME")]
@@ -1578,8 +1580,9 @@ pub struct LookupUserArgs {
     /// case aside.
     #[arg(long = "email")]
     pub email: String,
-    /// The organization the caller looks the user up for, where it needs
-    /// `iam.role.assign`: `organizations/{organization}`, or its full name.
+    /// The full name of the organization the caller looks the user up for,
+    /// where it needs `iam.role.assign`:
+    /// `//resourcemanager.origincloudapis.eu/organizations/{organization}`.
     ///
     /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`, which is sent as its full name; not an id.
     #[arg(long = "organization", value_name = "NAME")]
