@@ -568,6 +568,36 @@ message = "Permission"
 columns = ["name", "service", "resource_type", "action"]
 
 [[view]]
+service = "iam"
+message = "AuditLogEntry"
+columns = ["name", "occur_time", "actor", "action", "target", "outcome", "project"]
+
+[[view]]
+service = "iam"
+message = "FederatedCredential"
+columns = ["name", "display_name", "issuer", "state", "create_time"]
+
+[[view]]
 service = "dns"
 message = "RecordSet"
 columns = ["name", "dns_name", "type", "ttl", "basic.values", "alias.floating_ip"]
+
+[[view]]
+service = "dns"
+message = "HostedZone"
+columns = ["name", "dns_name", "visibility", "state", "create_time"]
+
+[[view]]
+service = "billing"
+message = "BillingAccount"
+columns = ["name", "display_name", "default_account", "invoice_email", "vat_id"]
+
+[[view]]
+service = "billing"
+message = "UsageRecord"
+columns = ["start_time", "end_time", "resource_kind", "resource_id", "metric", "quantity"]
+
+[[view]]
+service = "support"
+message = "Case"
+columns = ["name", "subject", "state", "project", "create_time", "update_time"]

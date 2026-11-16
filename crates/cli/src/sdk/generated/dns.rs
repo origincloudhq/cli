@@ -234,7 +234,7 @@ async fn list_hosted_zones(
             Listing {
                 field: "hostedZones",
                 item: Some("origincloud.dns.v1beta1.HostedZone"),
-                columns: &[],
+                columns: &["name", "dnsName", "visibility", "state", "createTime"],
                 parents: listed,
                 create: Some("origin dns create-hosted-zone"),
             },
@@ -260,7 +260,7 @@ async fn list_hosted_zones(
         Listing {
             field: "hostedZones",
             item: Some("origincloud.dns.v1beta1.HostedZone"),
-            columns: &[],
+            columns: &["name", "dnsName", "visibility", "state", "createTime"],
             parents: listed,
             create: Some("origin dns create-hosted-zone"),
         },

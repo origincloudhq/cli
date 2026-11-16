@@ -290,7 +290,15 @@ async fn list_audit_log_entries(
             Listing {
                 field: "auditLogEntries",
                 item: Some("origincloud.iam.v1beta1.AuditLogEntry"),
-                columns: &[],
+                columns: &[
+                    "name",
+                    "occurTime",
+                    "actor",
+                    "action",
+                    "target",
+                    "outcome",
+                    "project",
+                ],
                 parents: listed,
                 create: None,
             },
@@ -316,7 +324,15 @@ async fn list_audit_log_entries(
         Listing {
             field: "auditLogEntries",
             item: Some("origincloud.iam.v1beta1.AuditLogEntry"),
-            columns: &[],
+            columns: &[
+                "name",
+                "occurTime",
+                "actor",
+                "action",
+                "target",
+                "outcome",
+                "project",
+            ],
             parents: listed,
             create: None,
         },
@@ -453,7 +469,7 @@ async fn list_federated_credentials(
             Listing {
                 field: "federatedCredentials",
                 item: Some("origincloud.iam.v1beta1.FederatedCredential"),
-                columns: &[],
+                columns: &["name", "displayName", "issuer", "state", "createTime"],
                 parents: listed,
                 create: Some("origin iam create-federated-credential"),
             },
@@ -479,7 +495,7 @@ async fn list_federated_credentials(
         Listing {
             field: "federatedCredentials",
             item: Some("origincloud.iam.v1beta1.FederatedCredential"),
-            columns: &[],
+            columns: &["name", "displayName", "issuer", "state", "createTime"],
             parents: listed,
             create: Some("origin iam create-federated-credential"),
         },
