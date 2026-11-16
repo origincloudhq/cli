@@ -87,9 +87,12 @@ about = "Identity and access management: role bindings, service accounts, roles,
 details = """
 Role bindings, service accounts and the audit log are an organization's \
 (`--organization`); roles, permissions and your user are the same in every \
-organization. A role binding's member is `user:{email}` or \
-`serviceAccount:{service_account}`; `origin iam list-role-bindings \
---organization -` lists the bindings you hold, in every organization."""
+organization. A role binding's member is a full name: a user's \
+`//iam.origincloudapis.eu/users/{user}`, which `origin iam lookup-user` \
+finds from a verified email address, or a service account's \
+`//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`. \
+`origin iam list-role-bindings --organization -` lists the bindings you \
+hold, in every organization."""
 
 [[service]]
 name = "billing"
@@ -334,7 +337,7 @@ why = "Set tags with the resource's `origin network update-...` command and `--t
 [[retired]]
 group = "iam"
 command = "assign-role"
-why = "Use `origin iam create-role-binding --organization <id> --member user:<email> --role <role>`, or `--member serviceAccount:<id>` for a service account, and `--project projects/<id>` to limit it to one project; `origin iam list-roles` lists the roles."
+why = "Use `origin iam create-role-binding --organization <id> --member <member> --role <role>`, the member by its full name, `//iam.origincloudapis.eu/users/<id>` (`origin iam lookup-user` finds it from an email address) or `//iam.origincloudapis.eu/organizations/<id>/serviceAccounts/<id>`, and `--project projects/<id>` to limit it to one project; `origin iam list-roles` lists the roles."
 
 [[retired]]
 group = "iam"
@@ -359,12 +362,12 @@ why = "Use `origin iam list-role-bindings --organization -`: the bindings you ho
 [[retired]]
 group = "iam"
 command = "principal-grants"
-why = "Use `origin iam list-role-bindings --organization <id> --member <member>`, the member as `user:<email>` or `serviceAccount:<id>`."
+why = "Use `origin iam list-role-bindings --organization <id> --member <member>`, the member by its full name, `//iam.origincloudapis.eu/users/<id>` (`origin iam lookup-user` finds it from an email address) or `//iam.origincloudapis.eu/organizations/<id>/serviceAccounts/<id>`."
 
 [[retired]]
 group = "iam"
 command = "list-members"
-why = "Use `origin iam list-role-bindings --organization <id>`: each binding names its member, `user:<email>` or `serviceAccount:<id>`, and its role."
+why = "Use `origin iam list-role-bindings --organization <id>`: each binding names its member by its full name, and its role."
 
 [[retired]]
 group = "iam"
@@ -384,7 +387,7 @@ why = "Use `origin iam test-iam-permissions --resource organizations/<id> --perm
 [[retired]]
 group = "iam"
 command = "invite-member"
-why = "Invitations aren't in the API: invite people in the console. Someone who already has an account is given a role with `origin iam create-role-binding --member user:<email>`."
+why = "Invitations aren't in the API: invite people in the console. Someone who already has an account is given a role with `origin iam create-role-binding --member <member>`, the member from `origin iam lookup-user`."
 
 [[retired]]
 group = "iam"
@@ -475,7 +478,7 @@ why = "The OIDC token is a credential, and a CI job or a credential helper has i
 # fields' paths from the message, through messages and lists of them:
 # what tells one item from another, and what someone listing them looks
 # for first. Without a view, a table shows every field the message defines
-# that fits in a cell, but its urn, its creator and its maps; `wide` shows
+# that fits in a cell, but its creator and its maps; `wide` shows
 # all of those after a view's. Generation fails for a view naming a field
 # the message doesn't have, or one that doesn't fit in a cell.
 [[view]]
