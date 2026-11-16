@@ -420,7 +420,7 @@ async fn audit_log_entries_are_listed_by_time_actor_action_and_outcome() {
         "\
 NAME   OCCUR TIME   ACTOR                  ACTION                    TARGET                 OUTCOME     PROJECT
 e-1    3h ago       user:ada@example.com   iam.role.assign           user:bob@example.com   SUCCEEDED
-e-2    5d ago       serviceAccount:sa-1    compute.instance.create                          DENIED      projects/p1
+e-2    5d ago       serviceAccount:sa-1    compute.instance.create                          DENIED      p1
 "
     );
     assert!(wide.contains("DETAILS"), "{wide}");
@@ -534,7 +534,7 @@ async fn usage_is_listed_by_interval_resource_metric_and_quantity() {
         &[
             "query-project-usage",
             "--project",
-            "p",
+            "projects/p",
             "--start-time",
             "2026-11-01T00:00:00Z",
             "--end-time",
