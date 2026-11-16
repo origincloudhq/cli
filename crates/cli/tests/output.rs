@@ -372,3 +372,206 @@ async fn a_delete_says_what_it_deleted_and_json_says_success() {
     let json = server.pvs(&args).await;
     assert_eq!(stdout(&json), serde_json::json!({"code": "success"}));
 }
+
+/// An RFC 3339 time `hours` before now, which the table shows relative to
+/// now: `3h ago`, or `5d ago` for 120 hours.
+fn ago(hours: i64) -> String {
+    (chrono::Utc::now() - chrono::Duration::hours(hours))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
+/// The table `origin <group> <args> -o table` prints for `body`, and the
+/// header `-o wide` prints.
+async fn tables(body: String, group: &str, args: &[&str]) -> (String, String) {
+    let server = recording(move |_| Response::json(&body)).await;
+    let table = server.run(group, &[args, &["-o", "table"]].concat()).await;
+    let wide = server.run(group, &[args, &["-o", "wide"]].concat()).await;
+    let wide = text(&wide.stdout)
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .to_owned();
+    (text(&table.stdout), wide)
+}
+
+/// Audit log entries are listed by when, who, what, to what and how it
+/// went; the details are in `-o wide`.
+#[tokio::test(flavor = "multi_thread")]
+async fn audit_log_entries_are_listed_by_time_actor_action_and_outcome() {
+    let entries = format!(
+        r#"{{"auditLogEntries":[
+        {{"name":"organizations/o/auditLogEntries/e-1","actor":"user:ada@example.com",
+         "action":"iam.role.assign","target":"user:bob@example.com","outcome":"SUCCEEDED",
+         "occurTime":"{}","details":{{"role":"roles/viewer"}}}},
+        {{"name":"organizations/o/auditLogEntries/e-2","project":"projects/p1",
+         "actor":"serviceAccount:sa-1","action":"compute.instance.create",
+         "outcome":"DENIED","occurTime":"{}"}}]}}"#,
+        ago(3),
+        ago(120)
+    );
+    let (table, wide) = tables(
+        entries,
+        "iam",
+        &["list-audit-log-entries", "--organization", "o"],
+    )
+    .await;
+    assert_eq!(
+        table,
+        "\
+NAME   OCCUR TIME   ACTOR                  ACTION                    TARGET                 OUTCOME     PROJECT
+e-1    3h ago       user:ada@example.com   iam.role.assign           user:bob@example.com   SUCCEEDED
+e-2    5d ago       serviceAccount:sa-1    compute.instance.create                          DENIED      p1
+"
+    );
+    assert!(wide.contains("DETAILS"), "{wide}");
+}
+
+/// Federated credentials are listed by the issuer whose tokens they trust;
+/// the audience and conditions are in `-o wide`.
+#[tokio::test(flavor = "multi_thread")]
+async fn federated_credentials_are_listed_by_issuer_and_state() {
+    let credentials = format!(
+        r#"{{"federatedCredentials":[
+        {{"name":"organizations/o/serviceAccounts/sa-1/federatedCredentials/fc-1",
+         "displayName":"GitHub deploy","issuer":"https://token.actions.githubusercontent.com",
+         "audience":"https://sts.origincloudapis.eu","conditions":{{"repository_id":"42"}},
+         "state":"ACTIVE","creator":"user:ada@example.com","createTime":"{}"}}]}}"#,
+        ago(120)
+    );
+    let (table, wide) = tables(
+        credentials,
+        "iam",
+        &[
+            "list-federated-credentials",
+            "--organization",
+            "o",
+            "--service-account",
+            "sa-1",
+        ],
+    )
+    .await;
+    assert_eq!(
+        table,
+        "\
+NAME   DISPLAY NAME    ISSUER                                        STATE    CREATE TIME
+fc-1   GitHub deploy   https://token.actions.githubusercontent.com   ACTIVE   5d ago
+"
+    );
+    assert!(wide.contains("CONDITIONS"), "{wide}");
+}
+
+/// Hosted zones are listed by their domain, where they are answered and
+/// whether they are; the name servers and tags are in `-o wide`.
+#[tokio::test(flavor = "multi_thread")]
+async fn hosted_zones_are_listed_by_domain_visibility_and_state() {
+    let zones = format!(
+        r#"{{"hostedZones":[
+        {{"name":"projects/p/hostedZones/z-1","dnsName":"example.com","visibility":"PUBLIC",
+         "state":"ACTIVE","nameServers":["ns1.origincloud.eu","ns2.origincloud.eu"],
+         "challenge":{{"name":"_origin-challenge.example.com","value":"abc"}},
+         "createTime":"{}","tags":{{"env":"prod"}}}},
+        {{"name":"projects/p/hostedZones/z-2","dnsName":"corp","visibility":"PRIVATE",
+         "state":"ACTIVE","createTime":"{}"}}]}}"#,
+        ago(120),
+        ago(3)
+    );
+    let (table, wide) = tables(zones, "dns", &["list-hosted-zones", "--project", "p"]).await;
+    assert_eq!(
+        table,
+        "\
+NAME   DNS NAME      VISIBILITY   STATE    CREATE TIME
+z-1    example.com   PUBLIC       ACTIVE   5d ago
+z-2    corp          PRIVATE      ACTIVE   3h ago
+"
+    );
+    assert!(wide.contains("NAME SERVERS"), "{wide}");
+}
+
+/// Billing accounts are listed by name, whether they are the default and
+/// where invoices go; the contact person is in `-o wide`, and the address
+/// and payment method in the account's own fields (`get-billing-account`).
+#[tokio::test(flavor = "multi_thread")]
+async fn billing_accounts_are_listed_by_name_default_and_invoice_email() {
+    const ACCOUNTS: &str = r#"{"billingAccounts":[
+        {"name":"organizations/o/billingAccounts/ba-1","displayName":"default","defaultAccount":true,
+         "invoiceEmail":"billing@example.com","vatId":"DE123456789","contactPerson":"Ada Lovelace",
+         "billingAddress":{"street":"Hauptstr. 1","city":"Berlin","countryCode":"DE"},
+         "paymentMethod":{"invoice":{}}},
+        {"name":"organizations/o/billingAccounts/ba-2","displayName":"Research",
+         "invoiceEmail":"research@example.com"}]}"#;
+    let (table, wide) = tables(
+        ACCOUNTS.to_owned(),
+        "billing",
+        &["list-billing-accounts", "--organization", "o"],
+    )
+    .await;
+    assert_eq!(
+        table,
+        "\
+NAME   DISPLAY NAME   DEFAULT ACCOUNT   INVOICE EMAIL          VAT ID
+ba-1   default        true              billing@example.com    DE123456789
+ba-2   Research       false             research@example.com
+"
+    );
+    assert!(wide.contains("CONTACT PERSON"), "{wide}");
+}
+
+/// A project's usage is listed by interval, resource, metric and quantity;
+/// the product and billing account are in `-o wide`.
+#[tokio::test(flavor = "multi_thread")]
+async fn usage_is_listed_by_interval_resource_metric_and_quantity() {
+    let usage = format!(
+        r#"{{"usageRecords":[
+        {{"resourceKind":"compute.instance","resourceId":"i-1","metric":"running_seconds",
+         "productKey":"compute.gp1.core.2","quantity":"3600","startTime":"{}","endTime":"{}",
+         "billingAccount":"organizations/o/billingAccounts/ba-1"}}]}}"#,
+        ago(5),
+        ago(4)
+    );
+    let (table, wide) = tables(
+        usage,
+        "billing",
+        &[
+            "query-project-usage",
+            "--project",
+            "projects/p",
+            "--start-time",
+            "2026-11-01T00:00:00Z",
+            "--end-time",
+            "2026-12-01T00:00:00Z",
+        ],
+    )
+    .await;
+    assert_eq!(
+        table,
+        "\
+START TIME   END TIME   RESOURCE KIND      RESOURCE ID   METRIC            QUANTITY
+5h ago       4h ago     compute.instance   i-1           running_seconds   3600
+"
+    );
+    assert!(wide.contains("PRODUCT KEY"), "{wide}");
+}
+
+/// Support cases are listed by subject and state, with when they were
+/// opened and last changed; the description is in `-o wide`.
+#[tokio::test(flavor = "multi_thread")]
+async fn support_cases_are_listed_by_subject_state_and_when_they_changed() {
+    let cases = format!(
+        r#"{{"cases":[
+        {{"name":"organizations/o/cases/c-1","project":"projects/p1","subject":"Volume stuck attaching",
+         "description":"Since this morning the volume v1 stays ATTACHING.\nIt worked yesterday.",
+         "contactEmail":"ada@example.com","state":"IN_PROGRESS",
+         "createTime":"{}","updateTime":"{}"}}]}}"#,
+        ago(120),
+        ago(3)
+    );
+    let (table, wide) = tables(cases, "support", &["list-cases", "--organization", "o"]).await;
+    assert_eq!(
+        table,
+        "\
+NAME   SUBJECT                  STATE         PROJECT   CREATE TIME   UPDATE TIME
+c-1    Volume stuck attaching   IN_PROGRESS   p1        5d ago        3h ago
+"
+    );
+    assert!(wide.contains("DESCRIPTION"), "{wide}");
+}

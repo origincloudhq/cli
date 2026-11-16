@@ -172,7 +172,14 @@ async fn list_cases(
             Listing {
                 field: "cases",
                 item: Some("origincloud.support.v1beta1.Case"),
-                columns: &[],
+                columns: &[
+                    "name",
+                    "subject",
+                    "state",
+                    "project",
+                    "createTime",
+                    "updateTime",
+                ],
                 parents: listed,
                 create: Some("origin support create-case"),
             },
@@ -196,7 +203,14 @@ async fn list_cases(
         Listing {
             field: "cases",
             item: Some("origincloud.support.v1beta1.Case"),
-            columns: &[],
+            columns: &[
+                "name",
+                "subject",
+                "state",
+                "project",
+                "createTime",
+                "updateTime",
+            ],
             parents: listed,
             create: Some("origin support create-case"),
         },

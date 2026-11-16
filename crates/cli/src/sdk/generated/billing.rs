@@ -327,7 +327,13 @@ async fn list_billing_accounts(
             Listing {
                 field: "billingAccounts",
                 item: Some("origincloud.billing.v1beta1.BillingAccount"),
-                columns: &[],
+                columns: &[
+                    "name",
+                    "displayName",
+                    "defaultAccount",
+                    "invoiceEmail",
+                    "vatId",
+                ],
                 parents: listed,
                 create: Some("origin billing create-billing-account"),
             },
@@ -353,7 +359,7 @@ async fn list_billing_accounts(
         Listing {
             field: "billingAccounts",
             item: Some("origincloud.billing.v1beta1.BillingAccount"),
-            columns: &[],
+            columns: &["name", "displayName", "defaultAccount", "invoiceEmail", "vatId"],
             parents: listed,
             create: Some("origin billing create-billing-account"),
         },
@@ -1486,7 +1492,14 @@ async fn query_project_usage(
             Listing {
                 field: "usageRecords",
                 item: Some("origincloud.billing.v1beta1.UsageRecord"),
-                columns: &[],
+                columns: &[
+                    "startTime",
+                    "endTime",
+                    "resourceKind",
+                    "resourceId",
+                    "metric",
+                    "quantity",
+                ],
                 parents: listed,
                 create: None,
             },
@@ -1512,7 +1525,14 @@ async fn query_project_usage(
         Listing {
             field: "usageRecords",
             item: Some("origincloud.billing.v1beta1.UsageRecord"),
-            columns: &[],
+            columns: &[
+                "startTime",
+                "endTime",
+                "resourceKind",
+                "resourceId",
+                "metric",
+                "quantity",
+            ],
             parents: listed,
             create: None,
         },
