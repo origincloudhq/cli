@@ -95,66 +95,6 @@ pub enum Commands {
     )]
     DeleteAclRule(DeleteAclRuleArgs),
     #[command(
-        name = "get-dns-policy",
-        about = "Returns a DNS policy",
-        long_about = "Returns a DNS policy."
-    )]
-    GetDnsPolicy(GetDnsPolicyArgs),
-    #[command(
-        name = "list-dns-policies",
-        about = "Lists the DNS policies in a region, oldest first, the project's default included",
-        long_about = "Lists the DNS policies in a region, oldest first, the project's default included."
-    )]
-    ListDnsPolicies(ListDnsPoliciesArgs),
-    #[command(
-        name = "create-dns-policy",
-        about = "Creates a DNS policy",
-        long_about = "Creates a DNS policy. It isn't the default: associate it with a VPC, or make it the default with `SetDefaultDnsPolicy`. The operation is done once the DNS policy is recorded."
-    )]
-    CreateDnsPolicy(CreateDnsPolicyArgs),
-    #[command(
-        name = "update-dns-policy",
-        about = "Changes a DNS policy's relay settings or tags",
-        long_about = "Changes a DNS policy's relay settings or tags. The operation is done once the change is recorded; the resolvers of every VPC relaying through the policy apply it within seconds."
-    )]
-    UpdateDnsPolicy(UpdateDnsPolicyArgs),
-    #[command(
-        name = "delete-dns-policy",
-        about = "Deletes a DNS policy",
-        long_about = "Deletes a DNS policy. Refused for the project's default policy and while a DNS policy association names it. The operation is done once the change is recorded."
-    )]
-    DeleteDnsPolicy(DeleteDnsPolicyArgs),
-    #[command(
-        name = "set-default-dns-policy",
-        about = "Makes a DNS policy the project's default in its region, in place of the one before",
-        long_about = "Makes a DNS policy the project's default in its region, in place of the one before. Every VPC of the region without a DNS policy association relays through it from then on. Making the default the default changes nothing. The operation is done once the change is recorded; the resolvers apply it within seconds."
-    )]
-    SetDefaultDnsPolicy(SetDefaultDnsPolicyArgs),
-    #[command(
-        name = "get-dns-policy-association",
-        about = "Returns a DNS policy association",
-        long_about = "Returns a DNS policy association."
-    )]
-    GetDnsPolicyAssociation(GetDnsPolicyAssociationArgs),
-    #[command(
-        name = "list-dns-policy-associations",
-        about = "Lists a VPC's DNS policy associations: none or one",
-        long_about = "Lists a VPC's DNS policy associations: none or one."
-    )]
-    ListDnsPolicyAssociations(ListDnsPolicyAssociationsArgs),
-    #[command(
-        name = "create-dns-policy-association",
-        about = "Associates a DNS policy with a VPC",
-        long_about = "Associates a DNS policy with a VPC. Refused with `FAILED_PRECONDITION` when the VPC has a DNS policy association. The operation is done once the change is recorded; the VPC's resolver applies it within seconds."
-    )]
-    CreateDnsPolicyAssociation(CreateDnsPolicyAssociationArgs),
-    #[command(
-        name = "delete-dns-policy-association",
-        about = "Removes a VPC's DNS policy association: the VPC relays through the project's default DNS policy in its region again",
-        long_about = "Removes a VPC's DNS policy association: the VPC relays through the project's default DNS policy in its region again. The operation is done once the change is recorded; the VPC's resolver applies it within seconds."
-    )]
-    DeleteDnsPolicyAssociation(DeleteDnsPolicyAssociationArgs),
-    #[command(
         name = "get-floating-ip",
         about = "Returns a floating IP",
         long_about = "Returns a floating IP."
@@ -298,6 +238,66 @@ pub enum Commands {
         long_about = "Deletes a network interface with its security group associations. Refused while it is attached to an instance or a floating IP is associated with it. The operation is done once the change is recorded; the network applies it within seconds."
     )]
     DeleteNetworkInterface(DeleteNetworkInterfaceArgs),
+    #[command(
+        name = "get-resolver-policy",
+        about = "Returns a resolver policy",
+        long_about = "Returns a resolver policy."
+    )]
+    GetResolverPolicy(GetResolverPolicyArgs),
+    #[command(
+        name = "list-resolver-policies",
+        about = "Lists the resolver policies in a region, oldest first, the project's default included",
+        long_about = "Lists the resolver policies in a region, oldest first, the project's default included."
+    )]
+    ListResolverPolicies(ListResolverPoliciesArgs),
+    #[command(
+        name = "create-resolver-policy",
+        about = "Creates a resolver policy",
+        long_about = "Creates a resolver policy. It isn't the default: associate it with a VPC, or make it the default with `SetDefaultResolverPolicy`. The operation is done once the resolver policy is recorded."
+    )]
+    CreateResolverPolicy(CreateResolverPolicyArgs),
+    #[command(
+        name = "update-resolver-policy",
+        about = "Changes a resolver policy's relay settings or tags",
+        long_about = "Changes a resolver policy's relay settings or tags. The operation is done once the change is recorded; the resolvers of every VPC relaying through the policy apply it within seconds."
+    )]
+    UpdateResolverPolicy(UpdateResolverPolicyArgs),
+    #[command(
+        name = "delete-resolver-policy",
+        about = "Deletes a resolver policy",
+        long_about = "Deletes a resolver policy. Refused for the project's default policy and while a resolver policy association names it. The operation is done once the change is recorded."
+    )]
+    DeleteResolverPolicy(DeleteResolverPolicyArgs),
+    #[command(
+        name = "set-default-resolver-policy",
+        about = "Makes a resolver policy the project's default in its region, in place of the one before",
+        long_about = "Makes a resolver policy the project's default in its region, in place of the one before. Every VPC of the region without a resolver policy association relays through it from then on. Making the default the default changes nothing. The operation is done once the change is recorded; the resolvers apply it within seconds."
+    )]
+    SetDefaultResolverPolicy(SetDefaultResolverPolicyArgs),
+    #[command(
+        name = "get-resolver-policy-association",
+        about = "Returns a resolver policy association",
+        long_about = "Returns a resolver policy association."
+    )]
+    GetResolverPolicyAssociation(GetResolverPolicyAssociationArgs),
+    #[command(
+        name = "list-resolver-policy-associations",
+        about = "Lists a VPC's resolver policy associations: none or one",
+        long_about = "Lists a VPC's resolver policy associations: none or one."
+    )]
+    ListResolverPolicyAssociations(ListResolverPolicyAssociationsArgs),
+    #[command(
+        name = "create-resolver-policy-association",
+        about = "Associates a resolver policy with a VPC",
+        long_about = "Associates a resolver policy with a VPC. Refused with `FAILED_PRECONDITION` when the VPC has a resolver policy association. The operation is done once the change is recorded; the VPC's resolver applies it within seconds."
+    )]
+    CreateResolverPolicyAssociation(CreateResolverPolicyAssociationArgs),
+    #[command(
+        name = "delete-resolver-policy-association",
+        about = "Removes a VPC's resolver policy association: the VPC relays through the project's default resolver policy in its region again",
+        long_about = "Removes a VPC's resolver policy association: the VPC relays through the project's default resolver policy in its region again. The operation is done once the change is recorded; the VPC's resolver applies it within seconds."
+    )]
+    DeleteResolverPolicyAssociation(DeleteResolverPolicyAssociationArgs),
     #[command(
         name = "get-route",
         about = "Returns a route",
@@ -495,7 +495,7 @@ pub enum Commands {
     #[command(
         name = "create-vpc",
         about = "Creates an empty VPC: no subnets, security groups, ACLs, route tables or internet gateway",
-        long_about = "Creates an empty VPC: no subnets, security groups, ACLs, route tables or internet gateway. It relays DNS through the project's default DNS policy in its region until a DNS policy association names another. The operation is done once the VPC is recorded."
+        long_about = "Creates an empty VPC: no subnets, security groups, ACLs, route tables or internet gateway. It relays DNS through the project's default resolver policy in its region until a resolver policy association names another. The operation is done once the VPC is recorded."
     )]
     CreateVpc(CreateVpcArgs),
     #[command(
@@ -506,8 +506,8 @@ pub enum Commands {
     UpdateVpc(UpdateVpcArgs),
     #[command(
         name = "delete-vpc",
-        about = "Deletes a VPC with its DNS policy association",
-        long_about = "Deletes a VPC with its DNS policy association. Refused with `FAILED_PRECONDITION` while the VPC has subnets, security groups, ACLs, route tables or an internet gateway, except those the platform created with it, which are deleted with it. The operation is done once the change is recorded; the network applies it within seconds."
+        about = "Deletes a VPC with its resolver policy association",
+        long_about = "Deletes a VPC with its resolver policy association. Refused with `FAILED_PRECONDITION` while the VPC has subnets, security groups, ACLs, route tables or an internet gateway, except those the platform created with it, which are deleted with it. The operation is done once the change is recorded; the network applies it within seconds."
     )]
     DeleteVpc(DeleteVpcArgs),
     #[command(
@@ -542,24 +542,6 @@ pub async fn run(
         Commands::ListAclRules(args) => list_acl_rules(ctx, args).await,
         Commands::CreateAclRule(args) => create_acl_rule(ctx, args).await,
         Commands::DeleteAclRule(args) => delete_acl_rule(ctx, args).await,
-        Commands::GetDnsPolicy(args) => get_dns_policy(ctx, args).await,
-        Commands::ListDnsPolicies(args) => list_dns_policies(ctx, args).await,
-        Commands::CreateDnsPolicy(args) => create_dns_policy(ctx, args).await,
-        Commands::UpdateDnsPolicy(args) => update_dns_policy(ctx, args).await,
-        Commands::DeleteDnsPolicy(args) => delete_dns_policy(ctx, args).await,
-        Commands::SetDefaultDnsPolicy(args) => set_default_dns_policy(ctx, args).await,
-        Commands::GetDnsPolicyAssociation(args) => {
-            get_dns_policy_association(ctx, args).await
-        }
-        Commands::ListDnsPolicyAssociations(args) => {
-            list_dns_policy_associations(ctx, args).await
-        }
-        Commands::CreateDnsPolicyAssociation(args) => {
-            create_dns_policy_association(ctx, args).await
-        }
-        Commands::DeleteDnsPolicyAssociation(args) => {
-            delete_dns_policy_association(ctx, args).await
-        }
         Commands::GetFloatingIp(args) => get_floating_ip(ctx, args).await,
         Commands::ListFloatingIps(args) => list_floating_ips(ctx, args).await,
         Commands::CreateFloatingIp(args) => create_floating_ip(ctx, args).await,
@@ -597,6 +579,26 @@ pub async fn run(
         }
         Commands::DeleteNetworkInterface(args) => {
             delete_network_interface(ctx, args).await
+        }
+        Commands::GetResolverPolicy(args) => get_resolver_policy(ctx, args).await,
+        Commands::ListResolverPolicies(args) => list_resolver_policies(ctx, args).await,
+        Commands::CreateResolverPolicy(args) => create_resolver_policy(ctx, args).await,
+        Commands::UpdateResolverPolicy(args) => update_resolver_policy(ctx, args).await,
+        Commands::DeleteResolverPolicy(args) => delete_resolver_policy(ctx, args).await,
+        Commands::SetDefaultResolverPolicy(args) => {
+            set_default_resolver_policy(ctx, args).await
+        }
+        Commands::GetResolverPolicyAssociation(args) => {
+            get_resolver_policy_association(ctx, args).await
+        }
+        Commands::ListResolverPolicyAssociations(args) => {
+            list_resolver_policy_associations(ctx, args).await
+        }
+        Commands::CreateResolverPolicyAssociation(args) => {
+            create_resolver_policy_association(ctx, args).await
+        }
+        Commands::DeleteResolverPolicyAssociation(args) => {
+            delete_resolver_policy_association(ctx, args).await
         }
         Commands::GetRoute(args) => get_route(ctx, args).await,
         Commands::ListRoutes(args) => list_routes(ctx, args).await,
@@ -1844,865 +1846,6 @@ async fn call_delete_acl_rule(
 > {
     ::origincloud_network::v1beta1::AclRuleClient::new(client.sdk())
         .delete_acl_rule(request)
-        .await
-}
-/// The flags of `get-dns-policy`.
-#[derive(clap::Args, Debug)]
-pub struct GetDnsPolicyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
-    #[arg(long = "project", value_name = "PROJECT")]
-    pub project: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
-    /// The DNS policy to return.
-    ///
-    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, or its relative name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
-    #[arg(long = "dns-policy", value_name = "DNS_POLICY")]
-    pub dns_policy: String,
-}
-async fn get_dns_policy(
-    ctx: &Context<'_>,
-    args: GetDnsPolicyArgs,
-) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
-        );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
-            &["network"],
-            "dns-policy",
-            Some(args.dns_policy.as_str()),
-        )?;
-    let name = names
-        .target(
-            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
-            &["network"],
-            "dns-policy",
-            args.dns_policy.as_str(),
-        )?;
-    let request = ::origincloud_network::v1beta1::GetDnsPolicyRequest {
-        name,
-    };
-    let client = ctx.client()?;
-    let response = call_get_dns_policy(&client, request).await.map_err(api_error)?;
-    json(&response, "origincloud.network.v1beta1.DnsPolicy")
-}
-async fn call_get_dns_policy(
-    client: &ReadClient,
-    request: ::origincloud_network::v1beta1::GetDnsPolicyRequest,
-) -> ::core::result::Result<
-    ::origincloud_network::v1beta1::DnsPolicy,
-    ::origincloud_core::Error,
-> {
-    ::origincloud_network::v1beta1::DnsPolicyClient::new(client.sdk())
-        .get_dns_policy(request)
-        .await
-}
-/// The flags of `list-dns-policies`.
-#[derive(clap::Args, Debug)]
-pub struct ListDnsPoliciesArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
-    #[arg(long = "project", value_name = "PROJECT")]
-    pub project: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
-    /// The most DNS policies to return; the server clamps it, and 0 means
-    /// its default.
-    ///
-    /// Without `--page-size` or `--page-token`, every page is listed.
-    #[arg(long = "page-size")]
-    pub page_size: Option<i32>,
-    /// A previous response's `nextPageToken`, for the page after it.
-    ///
-    /// Without `--page-size` or `--page-token`, every page is listed.
-    #[arg(long = "page-token")]
-    pub page_token: Option<String>,
-}
-async fn list_dns_policies(
-    ctx: &Context<'_>,
-    args: ListDnsPoliciesArgs,
-) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
-        .names(
-            &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
-        );
-    let parent = names.name("projects/{project}/regions/{region}")?;
-    let request = ::origincloud_network::v1beta1::ListDnsPoliciesRequest {
-        parent,
-        page_size: args.page_size.unwrap_or_default(),
-        page_token: args.page_token.clone().unwrap_or_default(),
-    };
-    let client = ctx.client()?;
-    let listed: Vec<String> = vec![request.parent.clone()];
-    if args.page_size.is_some() || args.page_token.is_some() {
-        let page = call_list_dns_policies(&client, request).await.map_err(api_error)?;
-        return list_json(
-            &page,
-            Listing {
-                field: "dnsPolicies",
-                item: Some("origincloud.network.v1beta1.DnsPolicy"),
-                columns: &[],
-                parents: listed,
-                create: Some("origin network create-dns-policy"),
-            },
-        );
-    }
-    let mut request = request;
-    let mut items = Vec::new();
-    loop {
-        let page = call_list_dns_policies(&client, request.clone())
-            .await
-            .map_err(api_error)?;
-        items.extend(page.dns_policies);
-        if page.next_page_token.is_empty() {
-            break;
-        }
-        request.page_token = page.next_page_token;
-    }
-    list_json(
-        &::origincloud_network::v1beta1::ListDnsPoliciesResponse {
-            dns_policies: items,
-            ..::core::default::Default::default()
-        },
-        Listing {
-            field: "dnsPolicies",
-            item: Some("origincloud.network.v1beta1.DnsPolicy"),
-            columns: &[],
-            parents: listed,
-            create: Some("origin network create-dns-policy"),
-        },
-    )
-}
-async fn call_list_dns_policies(
-    client: &ReadClient,
-    request: ::origincloud_network::v1beta1::ListDnsPoliciesRequest,
-) -> ::core::result::Result<
-    ::origincloud_network::v1beta1::ListDnsPoliciesResponse,
-    ::origincloud_core::Error,
-> {
-    ::origincloud_network::v1beta1::DnsPolicyClient::new(client.sdk())
-        .list_dns_policies(request)
-        .await
-}
-/// The flags of `create-dns-policy`.
-#[derive(clap::Args, Debug)]
-pub struct CreateDnsPolicyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
-    #[arg(long = "project", value_name = "PROJECT")]
-    pub project: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
-    /// Whether the resolver relays names it can't answer itself to
-    /// `--upstream-server`. Off, it answers only the platform's own names.
-    #[arg(
-        long = "relay-enabled",
-        value_name = "true|false",
-        action = clap::ArgAction::Set
-    )]
-    pub relay_enabled: Option<bool>,
-    /// The resolvers to relay to, at most 5 IPv4 or IPv6 addresses, tried in
-    /// order. At least one while `--relay-enabled` is on.
-    ///
-    /// Repeat for more.
-    #[arg(long = "upstream-server")]
-    pub upstream_server: Vec<String>,
-    /// Labels of your own, at most 50. The `origin:name` tag is the name the
-    /// console shows.
-    ///
-    /// As KEY=VALUE; repeat for more.
-    #[arg(long = "tag", value_name = "KEY=VALUE")]
-    pub tag: Vec<TagArg>,
-    /// A UUID; a repeat with the same id returns the first request's
-    /// operation instead of creating a second DNS policy. One is generated when not given.
-    #[arg(long = "request-id")]
-    pub request_id: Option<String>,
-    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
-    #[arg(long = "no-wait")]
-    pub no_wait: bool,
-}
-async fn create_dns_policy(
-    ctx: &Context<'_>,
-    args: CreateDnsPolicyArgs,
-) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
-        .names(
-            &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
-        );
-    let parent = names.name("projects/{project}/regions/{region}")?;
-    let dns_policy = ::origincloud_network::v1beta1::DnsPolicy {
-        relay_enabled: args.relay_enabled.unwrap_or_default(),
-        upstream_servers: args.upstream_server.clone(),
-        tags: tags(&args.tag),
-        ..::core::default::Default::default()
-    };
-    let request = ::origincloud_network::v1beta1::CreateDnsPolicyRequest {
-        parent,
-        dns_policy: Some(dns_policy),
-        request_id: args.request_id.clone().unwrap_or_default(),
-    };
-    let client = ctx.client()?;
-    let response = call_create_dns_policy(&client, request).await.map_err(api_error)?;
-    let mut operation = response;
-    if args.no_wait {
-        return json(operation.raw(), OPERATION);
-    }
-    let result = wait(ctx, &mut operation).await?;
-    json(&result, "origincloud.network.v1beta1.DnsPolicy")
-}
-async fn call_create_dns_policy(
-    client: &ReadClient,
-    request: ::origincloud_network::v1beta1::CreateDnsPolicyRequest,
-) -> ::core::result::Result<
-    ::origincloud_core::Operation<::origincloud_network::v1beta1::DnsPolicy>,
-    ::origincloud_core::Error,
-> {
-    ::origincloud_network::v1beta1::DnsPolicyClient::new(client.sdk())
-        .create_dns_policy(request)
-        .await
-}
-/// The flags of `update-dns-policy`.
-#[derive(clap::Args, Debug)]
-#[command(
-    group(
-        clap::ArgGroup::new(
-            "changes"
-        ).required(
-            true
-        ).multiple(
-            true
-        ).args(
-            ["relay_enabled",
-            "upstream_server",
-            "no_upstream_servers",
-            "tag",
-            "no_tags"]
-        )
-    )
-)]
-pub struct UpdateDnsPolicyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
-    #[arg(long = "project", value_name = "PROJECT")]
-    pub project: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
-    /// The dns policy to change.
-    ///
-    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, or its relative name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
-    #[arg(long = "dns-policy", value_name = "DNS_POLICY")]
-    pub dns_policy: String,
-    /// Whether the resolver relays names it can't answer itself to
-    /// `--upstream-server`. Off, it answers only the platform's own names.
-    ///
-    /// Left as it is when not given.
-    #[arg(
-        long = "relay-enabled",
-        value_name = "true|false",
-        action = clap::ArgAction::Set
-    )]
-    pub relay_enabled: Option<bool>,
-    /// The resolvers to relay to, at most 5 IPv4 or IPv6 addresses, tried in
-    /// order. At least one while `--relay-enabled` is on.
-    ///
-    /// Repeat for more. Replaces all of them, so give every one to keep; `--no-upstream-servers` removes them all. Left as they are when neither is given.
-    #[arg(long = "upstream-server")]
-    pub upstream_server: Vec<String>,
-    /// Remove all of its upstream servers.
-    #[arg(long = "no-upstream-servers", conflicts_with = "upstream_server")]
-    pub no_upstream_servers: bool,
-    /// Labels of your own, at most 50. The `origin:name` tag is the name the
-    /// console shows.
-    ///
-    /// As KEY=VALUE; repeat for more. Replaces all of them, so give every one to keep; `--no-tags` removes them all. Left as they are when neither is given.
-    #[arg(long = "tag", value_name = "KEY=VALUE")]
-    pub tag: Vec<TagArg>,
-    /// Remove all of its tags.
-    #[arg(long = "no-tags", conflicts_with = "tag")]
-    pub no_tags: bool,
-    /// A UUID; a repeat with the same id returns the first request's
-    /// operation instead of changing the DNS policy again. One is generated when not given.
-    #[arg(long = "request-id")]
-    pub request_id: Option<String>,
-    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
-    #[arg(long = "no-wait")]
-    pub no_wait: bool,
-}
-async fn update_dns_policy(
-    ctx: &Context<'_>,
-    args: UpdateDnsPolicyArgs,
-) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
-        );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
-            &["network"],
-            "dns-policy",
-            Some(args.dns_policy.as_str()),
-        )?;
-    let name = names
-        .target(
-            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
-            &["network"],
-            "dns-policy",
-            args.dns_policy.as_str(),
-        )?;
-    let mut dns_policy = ::origincloud_network::v1beta1::DnsPolicy {
-        name: name.clone(),
-        ..::core::default::Default::default()
-    };
-    let mut paths: Vec<String> = Vec::new();
-    if let Some(value) = args.relay_enabled {
-        dns_policy.relay_enabled = value;
-        paths.push("relay_enabled".to_owned());
-    }
-    if args.no_upstream_servers || !args.upstream_server.is_empty() {
-        dns_policy.upstream_servers = args.upstream_server.clone();
-        paths.push("upstream_servers".to_owned());
-    }
-    if args.no_tags || !args.tag.is_empty() {
-        dns_policy.tags = tags(&args.tag);
-        paths.push("tags".to_owned());
-    }
-    let request = ::origincloud_network::v1beta1::UpdateDnsPolicyRequest {
-        dns_policy: Some(dns_policy),
-        request_id: args.request_id.clone().unwrap_or_default(),
-        update_mask: Some(::origincloud_core::protobuf::FieldMask {
-            paths,
-        }),
-    };
-    let client = ctx.client()?;
-    let response = call_update_dns_policy(&client, request).await.map_err(api_error)?;
-    let mut operation = response;
-    if args.no_wait {
-        return json(operation.raw(), OPERATION);
-    }
-    let result = wait(ctx, &mut operation).await?;
-    json(&result, "origincloud.network.v1beta1.DnsPolicy")
-}
-async fn call_update_dns_policy(
-    client: &ReadClient,
-    request: ::origincloud_network::v1beta1::UpdateDnsPolicyRequest,
-) -> ::core::result::Result<
-    ::origincloud_core::Operation<::origincloud_network::v1beta1::DnsPolicy>,
-    ::origincloud_core::Error,
-> {
-    ::origincloud_network::v1beta1::DnsPolicyClient::new(client.sdk())
-        .update_dns_policy(request)
-        .await
-}
-/// The flags of `delete-dns-policy`.
-#[derive(clap::Args, Debug)]
-pub struct DeleteDnsPolicyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
-    #[arg(long = "project", value_name = "PROJECT")]
-    pub project: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
-    /// The DNS policy to delete.
-    ///
-    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, or its relative name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
-    #[arg(long = "dns-policy", value_name = "DNS_POLICY")]
-    pub dns_policy: String,
-    /// A UUID; a repeat with the same id returns the first request's
-    /// operation. One is generated when not given.
-    #[arg(long = "request-id")]
-    pub request_id: Option<String>,
-    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
-    #[arg(long = "no-wait")]
-    pub no_wait: bool,
-    #[command(flatten)]
-    pub confirmation: confirm::Confirmation,
-}
-async fn delete_dns_policy(
-    ctx: &Context<'_>,
-    args: DeleteDnsPolicyArgs,
-) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
-        );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
-            &["network"],
-            "dns-policy",
-            Some(args.dns_policy.as_str()),
-        )?;
-    let name = names
-        .target(
-            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
-            &["network"],
-            "dns-policy",
-            args.dns_policy.as_str(),
-        )?;
-    let request = ::origincloud_network::v1beta1::DeleteDnsPolicyRequest {
-        name,
-        request_id: args.request_id.clone().unwrap_or_default(),
-    };
-    let confirmed = confirm::require(
-        args.confirmation,
-        confirm::Destructive {
-            verb: "delete",
-            what: "dns policy",
-            target: &request.name,
-            consequence: "It can't be restored.",
-        },
-    )?;
-    let deleted_name = request.name.clone();
-    let client = ctx.confirmed_client(confirmed)?;
-    let response = call_delete_dns_policy(&client, request).await.map_err(api_error)?;
-    let mut operation = response;
-    if args.no_wait {
-        return json(operation.raw(), OPERATION);
-    }
-    wait(ctx, &mut operation).await?;
-    Ok(deleted("dns policy", &deleted_name))
-}
-async fn call_delete_dns_policy(
-    client: &ConfirmedClient,
-    request: ::origincloud_network::v1beta1::DeleteDnsPolicyRequest,
-) -> ::core::result::Result<
-    ::origincloud_core::Operation<::origincloud_core::protobuf::Empty>,
-    ::origincloud_core::Error,
-> {
-    ::origincloud_network::v1beta1::DnsPolicyClient::new(client.sdk())
-        .delete_dns_policy(request)
-        .await
-}
-/// The flags of `set-default-dns-policy`.
-#[derive(clap::Args, Debug)]
-pub struct SetDefaultDnsPolicyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
-    #[arg(long = "project", value_name = "PROJECT")]
-    pub project: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
-    /// The DNS policy to make the default.
-    ///
-    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, or its relative name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`.
-    #[arg(long = "dns-policy", value_name = "DNS_POLICY")]
-    pub dns_policy: String,
-    /// A UUID; a repeat with the same id returns the first request's
-    /// operation. One is generated when not given.
-    #[arg(long = "request-id")]
-    pub request_id: Option<String>,
-    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
-    #[arg(long = "no-wait")]
-    pub no_wait: bool,
-}
-async fn set_default_dns_policy(
-    ctx: &Context<'_>,
-    args: SetDefaultDnsPolicyArgs,
-) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
-        );
-    names
-        .learn(
-            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
-            &["network"],
-            "dns-policy",
-            Some(args.dns_policy.as_str()),
-        )?;
-    let name = names
-        .target(
-            &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
-            &["network"],
-            "dns-policy",
-            args.dns_policy.as_str(),
-        )?;
-    let request = ::origincloud_network::v1beta1::SetDefaultDnsPolicyRequest {
-        name,
-        request_id: args.request_id.clone().unwrap_or_default(),
-    };
-    let client = ctx.client()?;
-    let response = call_set_default_dns_policy(&client, request)
-        .await
-        .map_err(api_error)?;
-    let mut operation = response;
-    if args.no_wait {
-        return json(operation.raw(), OPERATION);
-    }
-    let result = wait(ctx, &mut operation).await?;
-    json(&result, "origincloud.network.v1beta1.DnsPolicy")
-}
-async fn call_set_default_dns_policy(
-    client: &ReadClient,
-    request: ::origincloud_network::v1beta1::SetDefaultDnsPolicyRequest,
-) -> ::core::result::Result<
-    ::origincloud_core::Operation<::origincloud_network::v1beta1::DnsPolicy>,
-    ::origincloud_core::Error,
-> {
-    ::origincloud_network::v1beta1::DnsPolicyClient::new(client.sdk())
-        .set_default_dns_policy(request)
-        .await
-}
-/// The flags of `get-dns-policy-association`.
-#[derive(clap::Args, Debug)]
-pub struct GetDnsPolicyAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
-    #[arg(long = "project", value_name = "PROJECT")]
-    pub project: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
-    /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`. Needed unless `--dns-policy-association` is given a whole name, which has it.
-    #[arg(long = "vpc", value_name = "VPC")]
-    pub vpc: Option<String>,
-    /// The association to return.
-    ///
-    /// Its id, completed with `--project` and `--region` and `--vpc`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}`.
-    #[arg(long = "dns-policy-association", value_name = "DNS_POLICY_ASSOCIATION")]
-    pub dns_policy_association: String,
-}
-async fn get_dns_policy_association(
-    ctx: &Context<'_>,
-    args: GetDnsPolicyAssociationArgs,
-) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[
-                ("project", args.project.as_deref()),
-                ("region", args.region.as_deref()),
-                ("vpc", args.vpc.as_deref()),
-            ],
-        );
-    names
-        .learn_part(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
-            &["network"],
-            "vpc",
-        )?;
-    names
-        .learn(
-            &[
-                "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
-            ],
-            &["network"],
-            "dns-policy-association",
-            Some(args.dns_policy_association.as_str()),
-        )?;
-    let name = names
-        .target(
-            &[
-                "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
-            ],
-            &["network"],
-            "dns-policy-association",
-            args.dns_policy_association.as_str(),
-        )?;
-    let request = ::origincloud_network::v1beta1::GetDnsPolicyAssociationRequest {
-        name,
-    };
-    let client = ctx.client()?;
-    let response = call_get_dns_policy_association(&client, request)
-        .await
-        .map_err(api_error)?;
-    json(&response, "origincloud.network.v1beta1.DnsPolicyAssociation")
-}
-async fn call_get_dns_policy_association(
-    client: &ReadClient,
-    request: ::origincloud_network::v1beta1::GetDnsPolicyAssociationRequest,
-) -> ::core::result::Result<
-    ::origincloud_network::v1beta1::DnsPolicyAssociation,
-    ::origincloud_core::Error,
-> {
-    ::origincloud_network::v1beta1::DnsPolicyAssociationClient::new(client.sdk())
-        .get_dns_policy_association(request)
-        .await
-}
-/// The flags of `list-dns-policy-associations`.
-#[derive(clap::Args, Debug)]
-pub struct ListDnsPolicyAssociationsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
-    #[arg(long = "project", value_name = "PROJECT")]
-    pub project: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
-    /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC", required = true)]
-    pub vpc: Option<String>,
-    /// The most associations to return; the server clamps it, and 0 means
-    /// its default.
-    ///
-    /// Without `--page-size` or `--page-token`, every page is listed.
-    #[arg(long = "page-size")]
-    pub page_size: Option<i32>,
-    /// A previous response's `nextPageToken`, for the page after it.
-    ///
-    /// Without `--page-size` or `--page-token`, every page is listed.
-    #[arg(long = "page-token")]
-    pub page_token: Option<String>,
-}
-async fn list_dns_policy_associations(
-    ctx: &Context<'_>,
-    args: ListDnsPolicyAssociationsArgs,
-) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[
-                ("project", args.project.as_deref()),
-                ("region", args.region.as_deref()),
-                ("vpc", args.vpc.as_deref()),
-            ],
-        );
-    names
-        .learn_part(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
-            &["network"],
-            "vpc",
-        )?;
-    let parent = names.name("projects/{project}/regions/{region}/vpcs/{vpc}")?;
-    let request = ::origincloud_network::v1beta1::ListDnsPolicyAssociationsRequest {
-        parent,
-        page_size: args.page_size.unwrap_or_default(),
-        page_token: args.page_token.clone().unwrap_or_default(),
-    };
-    let client = ctx.client()?;
-    let listed: Vec<String> = vec![request.parent.clone()];
-    if args.page_size.is_some() || args.page_token.is_some() {
-        let page = call_list_dns_policy_associations(&client, request)
-            .await
-            .map_err(api_error)?;
-        return list_json(
-            &page,
-            Listing {
-                field: "dnsPolicyAssociations",
-                item: Some("origincloud.network.v1beta1.DnsPolicyAssociation"),
-                columns: &[],
-                parents: listed,
-                create: Some("origin network create-dns-policy-association"),
-            },
-        );
-    }
-    let mut request = request;
-    let mut items = Vec::new();
-    loop {
-        let page = call_list_dns_policy_associations(&client, request.clone())
-            .await
-            .map_err(api_error)?;
-        items.extend(page.dns_policy_associations);
-        if page.next_page_token.is_empty() {
-            break;
-        }
-        request.page_token = page.next_page_token;
-    }
-    list_json(
-        &::origincloud_network::v1beta1::ListDnsPolicyAssociationsResponse {
-            dns_policy_associations: items,
-            ..::core::default::Default::default()
-        },
-        Listing {
-            field: "dnsPolicyAssociations",
-            item: Some("origincloud.network.v1beta1.DnsPolicyAssociation"),
-            columns: &[],
-            parents: listed,
-            create: Some("origin network create-dns-policy-association"),
-        },
-    )
-}
-async fn call_list_dns_policy_associations(
-    client: &ReadClient,
-    request: ::origincloud_network::v1beta1::ListDnsPolicyAssociationsRequest,
-) -> ::core::result::Result<
-    ::origincloud_network::v1beta1::ListDnsPolicyAssociationsResponse,
-    ::origincloud_core::Error,
-> {
-    ::origincloud_network::v1beta1::DnsPolicyAssociationClient::new(client.sdk())
-        .list_dns_policy_associations(request)
-        .await
-}
-/// The flags of `create-dns-policy-association`.
-#[derive(clap::Args, Debug)]
-pub struct CreateDnsPolicyAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
-    #[arg(long = "project", value_name = "PROJECT")]
-    pub project: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
-    /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
-    #[arg(long = "vpc", value_name = "VPC", required = true)]
-    pub vpc: Option<String>,
-    /// The full name of the DNS policy the VPC relays through, in the VPC's
-    /// project and region.
-    ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, or its relative name, `projects/{project}/regions/{region}/dnsPolicies/{dns_policy}`, which is sent as its full name; not an id.
-    #[arg(long = "dns-policy", value_name = "NAME")]
-    pub dns_policy: String,
-    /// A UUID; a repeat with the same id returns the first request's
-    /// operation. One is generated when not given.
-    #[arg(long = "request-id")]
-    pub request_id: Option<String>,
-    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
-    #[arg(long = "no-wait")]
-    pub no_wait: bool,
-}
-async fn create_dns_policy_association(
-    ctx: &Context<'_>,
-    args: CreateDnsPolicyAssociationArgs,
-) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[
-                ("project", args.project.as_deref()),
-                ("region", args.region.as_deref()),
-                ("vpc", args.vpc.as_deref()),
-            ],
-        );
-    names
-        .learn_part(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
-            &["network"],
-            "vpc",
-        )?;
-    let parent = names.name("projects/{project}/regions/{region}/vpcs/{vpc}")?;
-    let dns_policy = reference(
-        &["projects/{project}/regions/{region}/dnsPolicies/{dns_policy}"],
-        &["network"],
-        "--dns-policy",
-        args.dns_policy.as_str(),
-    )?;
-    let dns_policy_association = ::origincloud_network::v1beta1::DnsPolicyAssociation {
-        dns_policy,
-        ..::core::default::Default::default()
-    };
-    let request = ::origincloud_network::v1beta1::CreateDnsPolicyAssociationRequest {
-        parent,
-        dns_policy_association: Some(dns_policy_association),
-        request_id: args.request_id.clone().unwrap_or_default(),
-    };
-    let client = ctx.client()?;
-    let response = call_create_dns_policy_association(&client, request)
-        .await
-        .map_err(api_error)?;
-    let mut operation = response;
-    if args.no_wait {
-        return json(operation.raw(), OPERATION);
-    }
-    let result = wait(ctx, &mut operation).await?;
-    json(&result, "origincloud.network.v1beta1.DnsPolicyAssociation")
-}
-async fn call_create_dns_policy_association(
-    client: &ReadClient,
-    request: ::origincloud_network::v1beta1::CreateDnsPolicyAssociationRequest,
-) -> ::core::result::Result<
-    ::origincloud_core::Operation<::origincloud_network::v1beta1::DnsPolicyAssociation>,
-    ::origincloud_core::Error,
-> {
-    ::origincloud_network::v1beta1::DnsPolicyAssociationClient::new(client.sdk())
-        .create_dns_policy_association(request)
-        .await
-}
-/// The flags of `delete-dns-policy-association`.
-#[derive(clap::Args, Debug)]
-pub struct DeleteDnsPolicyAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
-    #[arg(long = "project", value_name = "PROJECT")]
-    pub project: Option<String>,
-    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
-    #[arg(long = "region", value_name = "REGION")]
-    pub region: Option<String>,
-    /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`. Needed unless `--dns-policy-association` is given a whole name, which has it.
-    #[arg(long = "vpc", value_name = "VPC")]
-    pub vpc: Option<String>,
-    /// The association to remove.
-    ///
-    /// Its id, completed with `--project` and `--region` and `--vpc`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}`.
-    #[arg(long = "dns-policy-association", value_name = "DNS_POLICY_ASSOCIATION")]
-    pub dns_policy_association: String,
-    /// A UUID; a repeat with the same id returns the first request's
-    /// operation. One is generated when not given.
-    #[arg(long = "request-id")]
-    pub request_id: Option<String>,
-    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
-    #[arg(long = "no-wait")]
-    pub no_wait: bool,
-    #[command(flatten)]
-    pub confirmation: confirm::Confirmation,
-}
-async fn delete_dns_policy_association(
-    ctx: &Context<'_>,
-    args: DeleteDnsPolicyAssociationArgs,
-) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx
-        .names(
-            &[
-                ("project", args.project.as_deref()),
-                ("region", args.region.as_deref()),
-                ("vpc", args.vpc.as_deref()),
-            ],
-        );
-    names
-        .learn_part(
-            "projects/{project}/regions/{region}/vpcs/{vpc}",
-            &["network"],
-            "vpc",
-        )?;
-    names
-        .learn(
-            &[
-                "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
-            ],
-            &["network"],
-            "dns-policy-association",
-            Some(args.dns_policy_association.as_str()),
-        )?;
-    let name = names
-        .target(
-            &[
-                "projects/{project}/regions/{region}/vpcs/{vpc}/dnsPolicyAssociations/{dns_policy_association}",
-            ],
-            &["network"],
-            "dns-policy-association",
-            args.dns_policy_association.as_str(),
-        )?;
-    let request = ::origincloud_network::v1beta1::DeleteDnsPolicyAssociationRequest {
-        name,
-        request_id: args.request_id.clone().unwrap_or_default(),
-    };
-    let confirmed = confirm::require(
-        args.confirmation,
-        confirm::Destructive {
-            verb: "delete",
-            what: "dns policy association",
-            target: &request.name,
-            consequence: "It can't be restored.",
-        },
-    )?;
-    let deleted_name = request.name.clone();
-    let client = ctx.confirmed_client(confirmed)?;
-    let response = call_delete_dns_policy_association(&client, request)
-        .await
-        .map_err(api_error)?;
-    let mut operation = response;
-    if args.no_wait {
-        return json(operation.raw(), OPERATION);
-    }
-    wait(ctx, &mut operation).await?;
-    Ok(deleted("dns policy association", &deleted_name))
-}
-async fn call_delete_dns_policy_association(
-    client: &ConfirmedClient,
-    request: ::origincloud_network::v1beta1::DeleteDnsPolicyAssociationRequest,
-) -> ::core::result::Result<
-    ::origincloud_core::Operation<::origincloud_core::protobuf::Empty>,
-    ::origincloud_core::Error,
-> {
-    ::origincloud_network::v1beta1::DnsPolicyAssociationClient::new(client.sdk())
-        .delete_dns_policy_association(request)
         .await
 }
 /// The flags of `get-floating-ip`.
@@ -4830,6 +3973,881 @@ async fn call_delete_network_interface(
 > {
     ::origincloud_network::v1beta1::NetworkInterfaceClient::new(client.sdk())
         .delete_network_interface(request)
+        .await
+}
+/// The flags of `get-resolver-policy`.
+#[derive(clap::Args, Debug)]
+pub struct GetResolverPolicyArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
+    #[arg(long = "region", value_name = "REGION")]
+    pub region: Option<String>,
+    /// The resolver policy to return.
+    ///
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`, or its relative name, `projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`.
+    #[arg(long = "resolver-policy", value_name = "RESOLVER_POLICY")]
+    pub resolver_policy: String,
+}
+async fn get_resolver_policy(
+    ctx: &Context<'_>,
+    args: GetResolverPolicyArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
+        );
+    names
+        .learn(
+            &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
+            &["network"],
+            "resolver-policy",
+            Some(args.resolver_policy.as_str()),
+        )?;
+    let name = names
+        .target(
+            &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
+            &["network"],
+            "resolver-policy",
+            args.resolver_policy.as_str(),
+        )?;
+    let request = ::origincloud_network::v1beta1::GetResolverPolicyRequest {
+        name,
+    };
+    let client = ctx.client()?;
+    let response = call_get_resolver_policy(&client, request).await.map_err(api_error)?;
+    json(&response, "origincloud.network.v1beta1.ResolverPolicy")
+}
+async fn call_get_resolver_policy(
+    client: &ReadClient,
+    request: ::origincloud_network::v1beta1::GetResolverPolicyRequest,
+) -> ::core::result::Result<
+    ::origincloud_network::v1beta1::ResolverPolicy,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_network::v1beta1::ResolverPolicyClient::new(client.sdk())
+        .get_resolver_policy(request)
+        .await
+}
+/// The flags of `list-resolver-policies`.
+#[derive(clap::Args, Debug)]
+pub struct ListResolverPoliciesArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
+    #[arg(long = "region", value_name = "REGION")]
+    pub region: Option<String>,
+    /// The most resolver policies to return; the server clamps it, and 0 means
+    /// its default.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-size")]
+    pub page_size: Option<i32>,
+    /// A previous response's `nextPageToken`, for the page after it.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-token")]
+    pub page_token: Option<String>,
+}
+async fn list_resolver_policies(
+    ctx: &Context<'_>,
+    args: ListResolverPoliciesArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let names = ctx
+        .names(
+            &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
+        );
+    let parent = names.name("projects/{project}/regions/{region}")?;
+    let request = ::origincloud_network::v1beta1::ListResolverPoliciesRequest {
+        parent,
+        page_size: args.page_size.unwrap_or_default(),
+        page_token: args.page_token.clone().unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
+    if args.page_size.is_some() || args.page_token.is_some() {
+        let page = call_list_resolver_policies(&client, request)
+            .await
+            .map_err(api_error)?;
+        return list_json(
+            &page,
+            Listing {
+                field: "resolverPolicies",
+                item: Some("origincloud.network.v1beta1.ResolverPolicy"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-resolver-policy"),
+            },
+        );
+    }
+    let mut request = request;
+    let mut items = Vec::new();
+    loop {
+        let page = call_list_resolver_policies(&client, request.clone())
+            .await
+            .map_err(api_error)?;
+        items.extend(page.resolver_policies);
+        if page.next_page_token.is_empty() {
+            break;
+        }
+        request.page_token = page.next_page_token;
+    }
+    list_json(
+        &::origincloud_network::v1beta1::ListResolverPoliciesResponse {
+            resolver_policies: items,
+            ..::core::default::Default::default()
+        },
+        Listing {
+            field: "resolverPolicies",
+            item: Some("origincloud.network.v1beta1.ResolverPolicy"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin network create-resolver-policy"),
+        },
+    )
+}
+async fn call_list_resolver_policies(
+    client: &ReadClient,
+    request: ::origincloud_network::v1beta1::ListResolverPoliciesRequest,
+) -> ::core::result::Result<
+    ::origincloud_network::v1beta1::ListResolverPoliciesResponse,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_network::v1beta1::ResolverPolicyClient::new(client.sdk())
+        .list_resolver_policies(request)
+        .await
+}
+/// The flags of `create-resolver-policy`.
+#[derive(clap::Args, Debug)]
+pub struct CreateResolverPolicyArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
+    #[arg(long = "region", value_name = "REGION")]
+    pub region: Option<String>,
+    /// Whether the resolver relays names it can't answer itself to
+    /// `--upstream-server`. Off, it answers only the platform's own names.
+    #[arg(
+        long = "relay-enabled",
+        value_name = "true|false",
+        action = clap::ArgAction::Set
+    )]
+    pub relay_enabled: Option<bool>,
+    /// The resolvers to relay to, at most 5 IPv4 or IPv6 addresses, tried in
+    /// order. At least one while `--relay-enabled` is on.
+    ///
+    /// Repeat for more.
+    #[arg(long = "upstream-server")]
+    pub upstream_server: Vec<String>,
+    /// Labels of your own, at most 50. The `origin:name` tag is the name the
+    /// console shows.
+    ///
+    /// As KEY=VALUE; repeat for more.
+    #[arg(long = "tag", value_name = "KEY=VALUE")]
+    pub tag: Vec<TagArg>,
+    /// A UUID; a repeat with the same id returns the first request's
+    /// operation instead of creating a second resolver policy. One is generated when not given.
+    #[arg(long = "request-id")]
+    pub request_id: Option<String>,
+    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
+    #[arg(long = "no-wait")]
+    pub no_wait: bool,
+}
+async fn create_resolver_policy(
+    ctx: &Context<'_>,
+    args: CreateResolverPolicyArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let names = ctx
+        .names(
+            &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
+        );
+    let parent = names.name("projects/{project}/regions/{region}")?;
+    let resolver_policy = ::origincloud_network::v1beta1::ResolverPolicy {
+        relay_enabled: args.relay_enabled.unwrap_or_default(),
+        upstream_servers: args.upstream_server.clone(),
+        tags: tags(&args.tag),
+        ..::core::default::Default::default()
+    };
+    let request = ::origincloud_network::v1beta1::CreateResolverPolicyRequest {
+        parent,
+        resolver_policy: Some(resolver_policy),
+        request_id: args.request_id.clone().unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    let response = call_create_resolver_policy(&client, request)
+        .await
+        .map_err(api_error)?;
+    let mut operation = response;
+    if args.no_wait {
+        return json(operation.raw(), OPERATION);
+    }
+    let result = wait(ctx, &mut operation).await?;
+    json(&result, "origincloud.network.v1beta1.ResolverPolicy")
+}
+async fn call_create_resolver_policy(
+    client: &ReadClient,
+    request: ::origincloud_network::v1beta1::CreateResolverPolicyRequest,
+) -> ::core::result::Result<
+    ::origincloud_core::Operation<::origincloud_network::v1beta1::ResolverPolicy>,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_network::v1beta1::ResolverPolicyClient::new(client.sdk())
+        .create_resolver_policy(request)
+        .await
+}
+/// The flags of `update-resolver-policy`.
+#[derive(clap::Args, Debug)]
+#[command(
+    group(
+        clap::ArgGroup::new(
+            "changes"
+        ).required(
+            true
+        ).multiple(
+            true
+        ).args(
+            ["relay_enabled",
+            "upstream_server",
+            "no_upstream_servers",
+            "tag",
+            "no_tags"]
+        )
+    )
+)]
+pub struct UpdateResolverPolicyArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
+    #[arg(long = "region", value_name = "REGION")]
+    pub region: Option<String>,
+    /// The resolver policy to change.
+    ///
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`, or its relative name, `projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`.
+    #[arg(long = "resolver-policy", value_name = "RESOLVER_POLICY")]
+    pub resolver_policy: String,
+    /// Whether the resolver relays names it can't answer itself to
+    /// `--upstream-server`. Off, it answers only the platform's own names.
+    ///
+    /// Left as it is when not given.
+    #[arg(
+        long = "relay-enabled",
+        value_name = "true|false",
+        action = clap::ArgAction::Set
+    )]
+    pub relay_enabled: Option<bool>,
+    /// The resolvers to relay to, at most 5 IPv4 or IPv6 addresses, tried in
+    /// order. At least one while `--relay-enabled` is on.
+    ///
+    /// Repeat for more. Replaces all of them, so give every one to keep; `--no-upstream-servers` removes them all. Left as they are when neither is given.
+    #[arg(long = "upstream-server")]
+    pub upstream_server: Vec<String>,
+    /// Remove all of its upstream servers.
+    #[arg(long = "no-upstream-servers", conflicts_with = "upstream_server")]
+    pub no_upstream_servers: bool,
+    /// Labels of your own, at most 50. The `origin:name` tag is the name the
+    /// console shows.
+    ///
+    /// As KEY=VALUE; repeat for more. Replaces all of them, so give every one to keep; `--no-tags` removes them all. Left as they are when neither is given.
+    #[arg(long = "tag", value_name = "KEY=VALUE")]
+    pub tag: Vec<TagArg>,
+    /// Remove all of its tags.
+    #[arg(long = "no-tags", conflicts_with = "tag")]
+    pub no_tags: bool,
+    /// A UUID; a repeat with the same id returns the first request's
+    /// operation instead of changing the resolver policy again. One is generated when not given.
+    #[arg(long = "request-id")]
+    pub request_id: Option<String>,
+    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
+    #[arg(long = "no-wait")]
+    pub no_wait: bool,
+}
+async fn update_resolver_policy(
+    ctx: &Context<'_>,
+    args: UpdateResolverPolicyArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
+        );
+    names
+        .learn(
+            &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
+            &["network"],
+            "resolver-policy",
+            Some(args.resolver_policy.as_str()),
+        )?;
+    let name = names
+        .target(
+            &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
+            &["network"],
+            "resolver-policy",
+            args.resolver_policy.as_str(),
+        )?;
+    let mut resolver_policy = ::origincloud_network::v1beta1::ResolverPolicy {
+        name: name.clone(),
+        ..::core::default::Default::default()
+    };
+    let mut paths: Vec<String> = Vec::new();
+    if let Some(value) = args.relay_enabled {
+        resolver_policy.relay_enabled = value;
+        paths.push("relay_enabled".to_owned());
+    }
+    if args.no_upstream_servers || !args.upstream_server.is_empty() {
+        resolver_policy.upstream_servers = args.upstream_server.clone();
+        paths.push("upstream_servers".to_owned());
+    }
+    if args.no_tags || !args.tag.is_empty() {
+        resolver_policy.tags = tags(&args.tag);
+        paths.push("tags".to_owned());
+    }
+    let request = ::origincloud_network::v1beta1::UpdateResolverPolicyRequest {
+        resolver_policy: Some(resolver_policy),
+        request_id: args.request_id.clone().unwrap_or_default(),
+        update_mask: Some(::origincloud_core::protobuf::FieldMask {
+            paths,
+        }),
+    };
+    let client = ctx.client()?;
+    let response = call_update_resolver_policy(&client, request)
+        .await
+        .map_err(api_error)?;
+    let mut operation = response;
+    if args.no_wait {
+        return json(operation.raw(), OPERATION);
+    }
+    let result = wait(ctx, &mut operation).await?;
+    json(&result, "origincloud.network.v1beta1.ResolverPolicy")
+}
+async fn call_update_resolver_policy(
+    client: &ReadClient,
+    request: ::origincloud_network::v1beta1::UpdateResolverPolicyRequest,
+) -> ::core::result::Result<
+    ::origincloud_core::Operation<::origincloud_network::v1beta1::ResolverPolicy>,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_network::v1beta1::ResolverPolicyClient::new(client.sdk())
+        .update_resolver_policy(request)
+        .await
+}
+/// The flags of `delete-resolver-policy`.
+#[derive(clap::Args, Debug)]
+pub struct DeleteResolverPolicyArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
+    #[arg(long = "region", value_name = "REGION")]
+    pub region: Option<String>,
+    /// The resolver policy to delete.
+    ///
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`, or its relative name, `projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`.
+    #[arg(long = "resolver-policy", value_name = "RESOLVER_POLICY")]
+    pub resolver_policy: String,
+    /// A UUID; a repeat with the same id returns the first request's
+    /// operation. One is generated when not given.
+    #[arg(long = "request-id")]
+    pub request_id: Option<String>,
+    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
+    #[arg(long = "no-wait")]
+    pub no_wait: bool,
+    #[command(flatten)]
+    pub confirmation: confirm::Confirmation,
+}
+async fn delete_resolver_policy(
+    ctx: &Context<'_>,
+    args: DeleteResolverPolicyArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
+        );
+    names
+        .learn(
+            &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
+            &["network"],
+            "resolver-policy",
+            Some(args.resolver_policy.as_str()),
+        )?;
+    let name = names
+        .target(
+            &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
+            &["network"],
+            "resolver-policy",
+            args.resolver_policy.as_str(),
+        )?;
+    let request = ::origincloud_network::v1beta1::DeleteResolverPolicyRequest {
+        name,
+        request_id: args.request_id.clone().unwrap_or_default(),
+    };
+    let confirmed = confirm::require(
+        args.confirmation,
+        confirm::Destructive {
+            verb: "delete",
+            what: "resolver policy",
+            target: &request.name,
+            consequence: "It can't be restored.",
+        },
+    )?;
+    let deleted_name = request.name.clone();
+    let client = ctx.confirmed_client(confirmed)?;
+    let response = call_delete_resolver_policy(&client, request)
+        .await
+        .map_err(api_error)?;
+    let mut operation = response;
+    if args.no_wait {
+        return json(operation.raw(), OPERATION);
+    }
+    wait(ctx, &mut operation).await?;
+    Ok(deleted("resolver policy", &deleted_name))
+}
+async fn call_delete_resolver_policy(
+    client: &ConfirmedClient,
+    request: ::origincloud_network::v1beta1::DeleteResolverPolicyRequest,
+) -> ::core::result::Result<
+    ::origincloud_core::Operation<::origincloud_core::protobuf::Empty>,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_network::v1beta1::ResolverPolicyClient::new(client.sdk())
+        .delete_resolver_policy(request)
+        .await
+}
+/// The flags of `set-default-resolver-policy`.
+#[derive(clap::Args, Debug)]
+pub struct SetDefaultResolverPolicyArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
+    #[arg(long = "region", value_name = "REGION")]
+    pub region: Option<String>,
+    /// The resolver policy to make the default.
+    ///
+    /// Its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`, or its relative name, `projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`.
+    #[arg(long = "resolver-policy", value_name = "RESOLVER_POLICY")]
+    pub resolver_policy: String,
+    /// A UUID; a repeat with the same id returns the first request's
+    /// operation. One is generated when not given.
+    #[arg(long = "request-id")]
+    pub request_id: Option<String>,
+    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
+    #[arg(long = "no-wait")]
+    pub no_wait: bool,
+}
+async fn set_default_resolver_policy(
+    ctx: &Context<'_>,
+    args: SetDefaultResolverPolicyArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
+        );
+    names
+        .learn(
+            &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
+            &["network"],
+            "resolver-policy",
+            Some(args.resolver_policy.as_str()),
+        )?;
+    let name = names
+        .target(
+            &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
+            &["network"],
+            "resolver-policy",
+            args.resolver_policy.as_str(),
+        )?;
+    let request = ::origincloud_network::v1beta1::SetDefaultResolverPolicyRequest {
+        name,
+        request_id: args.request_id.clone().unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    let response = call_set_default_resolver_policy(&client, request)
+        .await
+        .map_err(api_error)?;
+    let mut operation = response;
+    if args.no_wait {
+        return json(operation.raw(), OPERATION);
+    }
+    let result = wait(ctx, &mut operation).await?;
+    json(&result, "origincloud.network.v1beta1.ResolverPolicy")
+}
+async fn call_set_default_resolver_policy(
+    client: &ReadClient,
+    request: ::origincloud_network::v1beta1::SetDefaultResolverPolicyRequest,
+) -> ::core::result::Result<
+    ::origincloud_core::Operation<::origincloud_network::v1beta1::ResolverPolicy>,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_network::v1beta1::ResolverPolicyClient::new(client.sdk())
+        .set_default_resolver_policy(request)
+        .await
+}
+/// The flags of `get-resolver-policy-association`.
+#[derive(clap::Args, Debug)]
+pub struct GetResolverPolicyAssociationArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
+    #[arg(long = "region", value_name = "REGION")]
+    pub region: Option<String>,
+    /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`. Needed unless `--resolver-policy-association` is given a whole name, which has it.
+    #[arg(long = "vpc", value_name = "VPC")]
+    pub vpc: Option<String>,
+    /// The association to return.
+    ///
+    /// Its id, completed with `--project` and `--region` and `--vpc`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}/resolverPolicyAssociations/{resolver_policy_association}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}/resolverPolicyAssociations/{resolver_policy_association}`.
+    #[arg(
+        long = "resolver-policy-association",
+        value_name = "RESOLVER_POLICY_ASSOCIATION"
+    )]
+    pub resolver_policy_association: String,
+}
+async fn get_resolver_policy_association(
+    ctx: &Context<'_>,
+    args: GetResolverPolicyAssociationArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[
+                ("project", args.project.as_deref()),
+                ("region", args.region.as_deref()),
+                ("vpc", args.vpc.as_deref()),
+            ],
+        );
+    names
+        .learn_part(
+            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["network"],
+            "vpc",
+        )?;
+    names
+        .learn(
+            &[
+                "projects/{project}/regions/{region}/vpcs/{vpc}/resolverPolicyAssociations/{resolver_policy_association}",
+            ],
+            &["network"],
+            "resolver-policy-association",
+            Some(args.resolver_policy_association.as_str()),
+        )?;
+    let name = names
+        .target(
+            &[
+                "projects/{project}/regions/{region}/vpcs/{vpc}/resolverPolicyAssociations/{resolver_policy_association}",
+            ],
+            &["network"],
+            "resolver-policy-association",
+            args.resolver_policy_association.as_str(),
+        )?;
+    let request = ::origincloud_network::v1beta1::GetResolverPolicyAssociationRequest {
+        name,
+    };
+    let client = ctx.client()?;
+    let response = call_get_resolver_policy_association(&client, request)
+        .await
+        .map_err(api_error)?;
+    json(&response, "origincloud.network.v1beta1.ResolverPolicyAssociation")
+}
+async fn call_get_resolver_policy_association(
+    client: &ReadClient,
+    request: ::origincloud_network::v1beta1::GetResolverPolicyAssociationRequest,
+) -> ::core::result::Result<
+    ::origincloud_network::v1beta1::ResolverPolicyAssociation,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_network::v1beta1::ResolverPolicyAssociationClient::new(client.sdk())
+        .get_resolver_policy_association(request)
+        .await
+}
+/// The flags of `list-resolver-policy-associations`.
+#[derive(clap::Args, Debug)]
+pub struct ListResolverPolicyAssociationsArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
+    #[arg(long = "region", value_name = "REGION")]
+    pub region: Option<String>,
+    /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
+    #[arg(long = "vpc", value_name = "VPC", required = true)]
+    pub vpc: Option<String>,
+    /// The most associations to return; the server clamps it, and 0 means
+    /// its default.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-size")]
+    pub page_size: Option<i32>,
+    /// A previous response's `nextPageToken`, for the page after it.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-token")]
+    pub page_token: Option<String>,
+}
+async fn list_resolver_policy_associations(
+    ctx: &Context<'_>,
+    args: ListResolverPolicyAssociationsArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[
+                ("project", args.project.as_deref()),
+                ("region", args.region.as_deref()),
+                ("vpc", args.vpc.as_deref()),
+            ],
+        );
+    names
+        .learn_part(
+            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["network"],
+            "vpc",
+        )?;
+    let parent = names.name("projects/{project}/regions/{region}/vpcs/{vpc}")?;
+    let request = ::origincloud_network::v1beta1::ListResolverPolicyAssociationsRequest {
+        parent,
+        page_size: args.page_size.unwrap_or_default(),
+        page_token: args.page_token.clone().unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
+    if args.page_size.is_some() || args.page_token.is_some() {
+        let page = call_list_resolver_policy_associations(&client, request)
+            .await
+            .map_err(api_error)?;
+        return list_json(
+            &page,
+            Listing {
+                field: "resolverPolicyAssociations",
+                item: Some("origincloud.network.v1beta1.ResolverPolicyAssociation"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin network create-resolver-policy-association"),
+            },
+        );
+    }
+    let mut request = request;
+    let mut items = Vec::new();
+    loop {
+        let page = call_list_resolver_policy_associations(&client, request.clone())
+            .await
+            .map_err(api_error)?;
+        items.extend(page.resolver_policy_associations);
+        if page.next_page_token.is_empty() {
+            break;
+        }
+        request.page_token = page.next_page_token;
+    }
+    list_json(
+        &::origincloud_network::v1beta1::ListResolverPolicyAssociationsResponse {
+            resolver_policy_associations: items,
+            ..::core::default::Default::default()
+        },
+        Listing {
+            field: "resolverPolicyAssociations",
+            item: Some("origincloud.network.v1beta1.ResolverPolicyAssociation"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin network create-resolver-policy-association"),
+        },
+    )
+}
+async fn call_list_resolver_policy_associations(
+    client: &ReadClient,
+    request: ::origincloud_network::v1beta1::ListResolverPolicyAssociationsRequest,
+) -> ::core::result::Result<
+    ::origincloud_network::v1beta1::ListResolverPolicyAssociationsResponse,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_network::v1beta1::ResolverPolicyAssociationClient::new(client.sdk())
+        .list_resolver_policy_associations(request)
+        .await
+}
+/// The flags of `create-resolver-policy-association`.
+#[derive(clap::Args, Debug)]
+pub struct CreateResolverPolicyAssociationArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
+    #[arg(long = "region", value_name = "REGION")]
+    pub region: Option<String>,
+    /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`.
+    #[arg(long = "vpc", value_name = "VPC", required = true)]
+    pub vpc: Option<String>,
+    /// The full name of the resolver policy the VPC relays through, in the VPC's
+    /// project and region.
+    ///
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`, or its relative name, `projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`, which is sent as its full name; not an id.
+    #[arg(long = "resolver-policy", value_name = "NAME")]
+    pub resolver_policy: String,
+    /// A UUID; a repeat with the same id returns the first request's
+    /// operation. One is generated when not given.
+    #[arg(long = "request-id")]
+    pub request_id: Option<String>,
+    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
+    #[arg(long = "no-wait")]
+    pub no_wait: bool,
+}
+async fn create_resolver_policy_association(
+    ctx: &Context<'_>,
+    args: CreateResolverPolicyAssociationArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[
+                ("project", args.project.as_deref()),
+                ("region", args.region.as_deref()),
+                ("vpc", args.vpc.as_deref()),
+            ],
+        );
+    names
+        .learn_part(
+            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["network"],
+            "vpc",
+        )?;
+    let parent = names.name("projects/{project}/regions/{region}/vpcs/{vpc}")?;
+    let resolver_policy = reference(
+        &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
+        &["network"],
+        "--resolver-policy",
+        args.resolver_policy.as_str(),
+    )?;
+    let resolver_policy_association = ::origincloud_network::v1beta1::ResolverPolicyAssociation {
+        resolver_policy,
+        ..::core::default::Default::default()
+    };
+    let request = ::origincloud_network::v1beta1::CreateResolverPolicyAssociationRequest {
+        parent,
+        resolver_policy_association: Some(resolver_policy_association),
+        request_id: args.request_id.clone().unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    let response = call_create_resolver_policy_association(&client, request)
+        .await
+        .map_err(api_error)?;
+    let mut operation = response;
+    if args.no_wait {
+        return json(operation.raw(), OPERATION);
+    }
+    let result = wait(ctx, &mut operation).await?;
+    json(&result, "origincloud.network.v1beta1.ResolverPolicyAssociation")
+}
+async fn call_create_resolver_policy_association(
+    client: &ReadClient,
+    request: ::origincloud_network::v1beta1::CreateResolverPolicyAssociationRequest,
+) -> ::core::result::Result<
+    ::origincloud_core::Operation<
+        ::origincloud_network::v1beta1::ResolverPolicyAssociation,
+    >,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_network::v1beta1::ResolverPolicyAssociationClient::new(client.sdk())
+        .create_resolver_policy_association(request)
+        .await
+}
+/// The flags of `delete-resolver-policy-association`.
+#[derive(clap::Args, Debug)]
+pub struct DeleteResolverPolicyAssociationArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
+    #[arg(long = "region", value_name = "REGION")]
+    pub region: Option<String>,
+    /// The vpc: its id, completed with `--project` and `--region`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`. Needed unless `--resolver-policy-association` is given a whole name, which has it.
+    #[arg(long = "vpc", value_name = "VPC")]
+    pub vpc: Option<String>,
+    /// The association to remove.
+    ///
+    /// Its id, completed with `--project` and `--region` and `--vpc`, or its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}/resolverPolicyAssociations/{resolver_policy_association}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}/resolverPolicyAssociations/{resolver_policy_association}`.
+    #[arg(
+        long = "resolver-policy-association",
+        value_name = "RESOLVER_POLICY_ASSOCIATION"
+    )]
+    pub resolver_policy_association: String,
+    /// A UUID; a repeat with the same id returns the first request's
+    /// operation. One is generated when not given.
+    #[arg(long = "request-id")]
+    pub request_id: Option<String>,
+    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
+    #[arg(long = "no-wait")]
+    pub no_wait: bool,
+    #[command(flatten)]
+    pub confirmation: confirm::Confirmation,
+}
+async fn delete_resolver_policy_association(
+    ctx: &Context<'_>,
+    args: DeleteResolverPolicyAssociationArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[
+                ("project", args.project.as_deref()),
+                ("region", args.region.as_deref()),
+                ("vpc", args.vpc.as_deref()),
+            ],
+        );
+    names
+        .learn_part(
+            "projects/{project}/regions/{region}/vpcs/{vpc}",
+            &["network"],
+            "vpc",
+        )?;
+    names
+        .learn(
+            &[
+                "projects/{project}/regions/{region}/vpcs/{vpc}/resolverPolicyAssociations/{resolver_policy_association}",
+            ],
+            &["network"],
+            "resolver-policy-association",
+            Some(args.resolver_policy_association.as_str()),
+        )?;
+    let name = names
+        .target(
+            &[
+                "projects/{project}/regions/{region}/vpcs/{vpc}/resolverPolicyAssociations/{resolver_policy_association}",
+            ],
+            &["network"],
+            "resolver-policy-association",
+            args.resolver_policy_association.as_str(),
+        )?;
+    let request = ::origincloud_network::v1beta1::DeleteResolverPolicyAssociationRequest {
+        name,
+        request_id: args.request_id.clone().unwrap_or_default(),
+    };
+    let confirmed = confirm::require(
+        args.confirmation,
+        confirm::Destructive {
+            verb: "delete",
+            what: "resolver policy association",
+            target: &request.name,
+            consequence: "It can't be restored.",
+        },
+    )?;
+    let deleted_name = request.name.clone();
+    let client = ctx.confirmed_client(confirmed)?;
+    let response = call_delete_resolver_policy_association(&client, request)
+        .await
+        .map_err(api_error)?;
+    let mut operation = response;
+    if args.no_wait {
+        return json(operation.raw(), OPERATION);
+    }
+    wait(ctx, &mut operation).await?;
+    Ok(deleted("resolver policy association", &deleted_name))
+}
+async fn call_delete_resolver_policy_association(
+    client: &ConfirmedClient,
+    request: ::origincloud_network::v1beta1::DeleteResolverPolicyAssociationRequest,
+) -> ::core::result::Result<
+    ::origincloud_core::Operation<::origincloud_core::protobuf::Empty>,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_network::v1beta1::ResolverPolicyAssociationClient::new(client.sdk())
+        .delete_resolver_policy_association(request)
         .await
 }
 /// The flags of `get-route`.
