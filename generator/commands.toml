@@ -51,14 +51,14 @@ relative name, never an id."""
 
 [[service]]
 name = "network"
-about = "Network service: VPCs, subnets, route tables, ACLs, security groups, gateways, floating IPs, network interfaces and DNS policies"
+about = "Network service: VPCs, subnets, route tables, ACLs, security groups, gateways, floating IPs, network interfaces and resolver policies"
 details = """
 A resource a command acts on, and its parents, are given by their ids \
 (`--project`, `--region` or `--zone`, `--vpc`), or by their full names, \
 `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; \
 a reference to another resource, such as `--peer-security-group`, takes a \
 full or relative name, never an id. VPCs, route \
-tables, ACLs, security groups, internet gateways and DNS policies are \
+tables, ACLs, security groups, internet gateways and resolver policies are \
 regional (`--region`); subnets, network interfaces, floating IPs and NAT \
 gateways are zonal (`--zone`). `--project`, `--zone` and `--region` \
 default to `ORIGINCLOUD_PROJECT`, `ORIGINCLOUD_ZONE` and `ORIGINCLOUD_REGION`, \
@@ -282,7 +282,37 @@ why = "Use `origin network create-acl-association --subnet <subnet> --acl <acl>`
 [[retired]]
 group = "network"
 command = "attach-dns-policy"
-why = "Use `origin network create-dns-policy-association --vpc <vpc> --dns-policy <dns-policy>`; it doesn't replace a VPC's association: remove that first with `origin network delete-dns-policy-association`."
+why = "Use `origin network create-resolver-policy-association --vpc <vpc> --resolver-policy <resolver-policy>`; it doesn't replace a VPC's association: remove that first with `origin network delete-resolver-policy-association`."
+
+[[retired]]
+group = "network"
+command = "create-dns-policy"
+why = "Use `origin network create-resolver-policy`: the API renamed DNS policies to resolver policies."
+
+[[retired]]
+group = "network"
+command = "delete-dns-policy"
+why = "Use `origin network delete-resolver-policy`: the API renamed DNS policies to resolver policies."
+
+[[retired]]
+group = "network"
+command = "get-dns-policy"
+why = "Use `origin network get-resolver-policy`: the API renamed DNS policies to resolver policies."
+
+[[retired]]
+group = "network"
+command = "list-dns-policies"
+why = "Use `origin network list-resolver-policies`: the API renamed DNS policies to resolver policies."
+
+[[retired]]
+group = "network"
+command = "set-default-dns-policy"
+why = "Use `origin network set-default-resolver-policy`: the API renamed DNS policies to resolver policies."
+
+[[retired]]
+group = "network"
+command = "update-dns-policy"
+why = "Use `origin network update-resolver-policy`: the API renamed DNS policies to resolver policies."
 
 [[retired]]
 group = "network"

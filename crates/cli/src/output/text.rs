@@ -100,8 +100,8 @@ fn pairs(name: &str) -> Option<Vec<(&str, &str)>> {
     Some(segments.chunks(2).map(|pair| (pair[0], pair[1])).collect())
 }
 
-/// A collection's resource, in words: `zone` for `zones`, `dns policy`
-/// for `dnsPolicies`.
+/// A collection's resource, in words: `zone` for `zones`, `resolver policy`
+/// for `resolverPolicies`.
 pub(crate) fn singular(collection: &str) -> String {
     let one = if let Some(stem) = collection.strip_suffix("ies") {
         format!("{stem}y")
@@ -216,8 +216,8 @@ mod tests {
             Some("in any zone of project acme")
         );
         assert_eq!(
-            scope(&["projects/p/regions/r/dnsPolicies/d"]).as_deref(),
-            Some("in project p, region r, dns policy d")
+            scope(&["projects/p/regions/r/resolverPolicies/d"]).as_deref(),
+            Some("in project p, region r, resolver policy d")
         );
         assert_eq!(scope(&[]), None);
         assert_eq!(scope(&[""]), None);

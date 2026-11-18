@@ -180,8 +180,11 @@ mod tests {
             "Attaching volume attachment va"
         );
         assert_eq!(
-            label(&operation("delete", "projects/p/regions/r/dnsPolicies/d")),
-            "Deleting dns policy d"
+            label(&operation(
+                "delete",
+                "projects/p/regions/r/resolverPolicies/d"
+            )),
+            "Deleting resolver policy d"
         );
         assert_eq!(
             label(&json!({"name": "projects/p/zones/z/operations/op-1"})),

@@ -184,7 +184,7 @@ A group per service of the API:
   instance types and image families on offer.
 - `origin network`: VPCs, subnets, route tables and routes, ACLs, security
   groups and their rules, internet and NAT gateways, floating IPs, network
-  interfaces and DNS policies, and the associations between them.
+  interfaces and resolver policies, and the associations between them.
 - `origin pvs`: the persistent volume service's volumes, snapshots and
   storage classes.
 - `origin resourcemanager`: organizations and projects, and their quotas.
