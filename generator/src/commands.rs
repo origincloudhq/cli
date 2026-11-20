@@ -1668,23 +1668,40 @@ fn component_doc(var: &str) -> String {
     }
 }
 
+/// `forms` joined for help: "a", "a or b", "a, b or c".
+fn join_forms(forms: Vec<String>) -> String {
+    match forms.as_slice() {
+        [first @ .., last] if !first.is_empty() => format!("{} or {last}", first.join(", ")),
+        _ => forms.join(""),
+    }
+}
+
+/// The full names of `resource`, for help: "`//…`", of any of its patterns.
+fn full_forms(resource: &Resource) -> String {
+    join_forms(
+        resource
+            .patterns()
+            .iter()
+            .map(|p| format!("`{}`", full_form(&resource.services[0], p)))
+            .collect(),
+    )
+}
+
 /// The forms of `resource`'s whole names, full then relative, for help:
 /// "its full name, `//…`, or its relative name, `…`", each of any of its
 /// patterns.
 fn whole_forms(resource: &Resource) -> String {
-    let join = |forms: Vec<String>| match forms.as_slice() {
-        [first @ .., last] if !first.is_empty() => format!("{} or {last}", first.join(", ")),
-        _ => forms.join(""),
-    };
-    let patterns = resource.patterns();
-    let full = join(
-        patterns
+    let relative = join_forms(
+        resource
+            .patterns()
             .iter()
-            .map(|p| format!("`{}`", full_form(&resource.services[0], p)))
+            .map(|p| format!("`{p}`"))
             .collect(),
     );
-    let relative = join(patterns.iter().map(|p| format!("`{p}`")).collect());
-    format!("its full name, {full}, or its relative name, {relative}")
+    format!(
+        "its full name, {}, or its relative name, {relative}",
+        full_forms(resource)
+    )
 }
 
 /// The help of the flag of the command's own target, of `resource`: its id,
@@ -1704,10 +1721,8 @@ fn target_doc(comment: &str, resource: &Resource, leaf: &str) -> String {
     with_comment(comment, format!("{id}, or {}.", whole_forms(resource)))
 }
 
-/// The help of a flag referring to a resource of `resource`'s type: a full
-/// name, sent as given, or a relative name, sent as its full name; never an
-/// id. A field referring to types of several services takes a full name
-/// alone, a relative one not saying whose it is.
+/// The help of a flag referring to a resource of `resource`'s type: its full
+/// name, sent as given; never a relative name or an id.
 fn reference_doc(comment: &str, resource: &Resource) -> String {
     if resource.services.len() > 1 {
         let hosts: Vec<String> = resource
@@ -1725,15 +1740,10 @@ fn reference_doc(comment: &str, resource: &Resource) -> String {
             ),
         );
     }
-    let forms = whole_forms(resource);
-    let mut chars = forms.chars();
-    let forms = match chars.next() {
-        Some(first) => first.to_uppercase().chain(chars).collect::<String>(),
-        None => forms,
-    };
+    let forms = full_forms(resource);
     with_comment(
         comment,
-        format!("{forms}, which is sent as its full name; not an id."),
+        format!("Its full name, {forms}; not a relative name or an id."),
     )
 }
 
@@ -3707,7 +3717,7 @@ fn list_attrs(elem: &Elem) -> Vec<String> {
 
 /// The statements checking the resource names a nested message's keys
 /// gave, on the message `var`, given with the flag `--{flag}`: each a full
-/// name on the referenced type's host, or a relative name, never an id.
+/// name on the referenced type's host, never a relative name or an id.
 fn completions(n: &Nested, var: &str, flag: &str) -> Vec<String> {
     let mut out = Vec::new();
     for key in &n.keys {
@@ -4056,8 +4066,8 @@ fn json_doc(comment: &str, n: &Nested, keyed_long: &str, repeated: bool) -> Stri
     });
     if names {
         doc.push_str(
-            " A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a \
-             relative one, which is sent as its full name, never an id, as in its KEY=VALUE form.",
+            " A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, never a \
+             relative name or an id, as in its KEY=VALUE form.",
         );
     }
     if n.parser.is_some() {

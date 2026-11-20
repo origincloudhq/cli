@@ -423,7 +423,7 @@ async fn a_login_with_a_token_file_assumes_the_account_again_from_the_file() {
         seen.push(r);
         let expires = (chrono::Utc::now() + lifetime).to_rfc3339();
         let body = format!(
-            r#"{{"accessToken":"{token}","expireTime":"{expires}","serviceAccount":"organizations/o/serviceAccounts/s","federatedCredential":"organizations/o/serviceAccounts/s/federatedCredentials/f"}}"#
+            r#"{{"accessToken":"{token}","expireTime":"{expires}","serviceAccount":"//iam.origincloudapis.eu/organizations/o/serviceAccounts/s","federatedCredential":"organizations/o/serviceAccounts/s/federatedCredentials/f"}}"#
         );
         async move { Response::json(&body) }
     })
@@ -445,7 +445,7 @@ async fn a_login_with_a_token_file_assumes_the_account_again_from_the_file() {
             "--oidc-token-file",
             file.to_str().unwrap(),
             "--service-account",
-            "organizations/o/serviceAccounts/s",
+            "//iam.origincloudapis.eu/organizations/o/serviceAccounts/s",
         ],
         &env,
     )
@@ -453,7 +453,7 @@ async fn a_login_with_a_token_file_assumes_the_account_again_from_the_file() {
     success(&output);
     assert!(
         String::from_utf8_lossy(&output.stderr)
-            .contains("Logged in as organizations/o/serviceAccounts/s."),
+            .contains("Logged in as //iam.origincloudapis.eu/organizations/o/serviceAccounts/s."),
         "{output:?}"
     );
     {
@@ -463,7 +463,10 @@ async fn a_login_with_a_token_file_assumes_the_account_again_from_the_file() {
         assert_eq!(requests[0].header("authorization"), None);
         let body: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
         assert_eq!(body["oidcToken"], "first-token");
-        assert_eq!(body["serviceAccount"], "organizations/o/serviceAccounts/s");
+        assert_eq!(
+            body["serviceAccount"],
+            "//iam.origincloudapis.eu/organizations/o/serviceAccounts/s"
+        );
     }
 
     std::fs::write(&file, "second-token\n").unwrap();
@@ -475,5 +478,8 @@ async fn a_login_with_a_token_file_assumes_the_account_again_from_the_file() {
     assert_eq!(requests.len(), 2, "assumed again once: {requests:?}");
     let body: serde_json::Value = serde_json::from_slice(&requests[1].body).unwrap();
     assert_eq!(body["oidcToken"], "second-token");
-    assert_eq!(body["serviceAccount"], "organizations/o/serviceAccounts/s");
+    assert_eq!(
+        body["serviceAccount"],
+        "//iam.origincloudapis.eu/organizations/o/serviceAccounts/s"
+    );
 }

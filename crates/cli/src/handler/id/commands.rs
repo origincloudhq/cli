@@ -28,8 +28,9 @@ pub(crate) enum IdentityCommands {
         #[arg(long, value_name = "PATH")]
         oidc_token_file: Option<String>,
 
-        /// The service account to assume with --oidc-token-file,
-        /// `organizations/{organization}/serviceAccounts/{service_account}`;
+        /// The service account to assume with --oidc-token-file, its full
+        /// name,
+        /// `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`;
         /// without it, the one whose federated credential trusts the token
         #[arg(long, value_name = "NAME", requires = "oidc_token_file")]
         service_account: Option<String>,

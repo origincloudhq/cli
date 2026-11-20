@@ -10,7 +10,7 @@ pub(crate) mod credentials;
 mod nested;
 mod runtime;
 
-pub(crate) use runtime::read_value_file;
+pub(crate) use runtime::{read_value_file, reference};
 
 // Included rather than declared as modules, so that rustfmt leaves the
 // generated code as the generator wrote it.

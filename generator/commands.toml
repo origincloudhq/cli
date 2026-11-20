@@ -35,7 +35,7 @@ with `--project` and `--zone`, or by its full name, \
 `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`; \
 `--project` and `--zone` default to the profile's `default-project` and \
 `default-zone`. A reference, such as `--storage-class` or \
-`--source-snapshot`, takes a full or relative name, never an id."""
+`--source-snapshot`, takes a full name, never a relative name or an id."""
 
 [[service]]
 name = "compute"
@@ -46,8 +46,8 @@ A resource a command acts on is given by its id (`--instance`), with \
 `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`; \
 `--project` and `--zone` default to the profile's `default-project` and \
 `default-zone`. A reference, such as `--image`, `--key-pair` or a volume \
-attachment's `--volume` (`//pvs.origincloudapis.eu/…`), takes a full or \
-relative name, never an id."""
+attachment's `--volume` (`//pvs.origincloudapis.eu/…`), takes a full \
+name, never a relative name or an id."""
 
 [[service]]
 name = "network"
@@ -57,7 +57,7 @@ A resource a command acts on, and its parents, are given by their ids \
 (`--project`, `--region` or `--zone`, `--vpc`), or by their full names, \
 `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; \
 a reference to another resource, such as `--peer-security-group`, takes a \
-full or relative name, never an id. VPCs, route \
+full name, never a relative name or an id. VPCs, route \
 tables, ACLs, security groups, internet gateways and resolver policies are \
 regional (`--region`); subnets, network interfaces, floating IPs and NAT \
 gateways are zonal (`--zone`). `--project`, `--zone` and `--region` \
@@ -123,8 +123,8 @@ when it was opened."""
 
 # A reference field that also takes the names of another resource type than
 # the one its definition declares: a `google.api.resource_reference` names
-# one type only. Its flag (or key) then takes a whole name of either type,
-# full or relative, which its help says. The
+# one type only. Its flag (or key) then takes a full name of either type,
+# which its help says. The
 # entry names the field by its full name, wherever it appears, and the other
 # type; generation fails, and so does the coverage test, when the field isn't
 # a reference to a type the API declares, or the type isn't one.

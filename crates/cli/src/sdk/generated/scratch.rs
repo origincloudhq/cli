@@ -167,7 +167,7 @@ pub struct CreateFirewallArgs {
     pub zone: Option<String>,
     #[arg(
         long = "rule",
-        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`, or its relative name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`, which is sent as its full name; not an id.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.",
+        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`; not a relative name or an id.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.",
         help = "The rules, in the order they are evaluated; the first that matches decides: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_rule(text, "--rules-json"),
@@ -177,7 +177,7 @@ pub struct CreateFirewallArgs {
     pub rule: Vec<Keyed<::origincloud_scratch::v1::Rule>>,
     #[arg(
         long = "rules-json",
-        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, which is sent as its full name, never an id, as in its KEY=VALUE form. Instead of `--rule`.",
+        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, never a relative name or an id, as in its KEY=VALUE form. Instead of `--rule`.",
         help = "Rules as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<Vec<::origincloud_scratch::v1::Rule>>(
@@ -193,7 +193,7 @@ pub struct CreateFirewallArgs {
     pub port: Vec<i32>,
     /// The networks the firewall guards.
     ///
-    /// Each by its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`, or its relative name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`, which is sent as its full name; not an id.
+    /// Each by its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`; not a relative name or an id.
     ///
     /// Repeat for more.
     #[arg(long = "network", value_name = "NAME")]
@@ -271,7 +271,7 @@ pub struct CreateFirewallArgs {
     ///
     /// One of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one.
     ///
-    /// Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`, or its relative name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`, which is sent as its full name; not an id.
+    /// Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`; not a relative name or an id.
     #[arg(long = "mirror-network", value_name = "NAME")]
     pub mirror_network: Option<String>,
     /// An address that receives the copies, such as `10.0.0.9:4789`.
@@ -534,7 +534,7 @@ pub struct UpdateFirewallArgs {
     pub firewall: String,
     #[arg(
         long = "rule",
-        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`, or its relative name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`, which is sent as its full name; not an id.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
+        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`; not a relative name or an id.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
         help = "The rules, in the order they are evaluated; the first that matches decides: one element per flag, as KEY=VALUE pairs; the list is replaced whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_rule(text, "--rules-json"),
@@ -543,7 +543,7 @@ pub struct UpdateFirewallArgs {
     pub rule: Vec<Keyed<::origincloud_scratch::v1::Rule>>,
     #[arg(
         long = "rules-json",
-        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, which is sent as its full name, never an id, as in its KEY=VALUE form. Instead of `--rule`.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
+        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, never a relative name or an id, as in its KEY=VALUE form. Instead of `--rule`.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
         help = "Rules as JSON; replaced whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<Vec<::origincloud_scratch::v1::Rule>>(
@@ -562,7 +562,7 @@ pub struct UpdateFirewallArgs {
     pub no_ports: bool,
     /// The networks the firewall guards.
     ///
-    /// Each by its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`, or its relative name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`, which is sent as its full name; not an id.
+    /// Each by its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`; not a relative name or an id.
     ///
     /// Repeat for more. Replaces all of them, so give every one to keep; `--no-networks` removes them all. Left as they are when neither is given.
     #[arg(long = "network", value_name = "NAME")]
@@ -669,7 +669,7 @@ pub struct UpdateFirewallArgs {
     ///
     /// One of `--mirror-network`, `--mirror-address`, `--mirror-log`: give at most one. Setting it replaces whichever of them is set; `--no-mirror` sets none.
     ///
-    /// Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`, or its relative name, `projects/{project}/zones/{zone}/networks/{network}` or `zones/{zone}/networks/{network}`, which is sent as its full name; not an id.
+    /// Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`; not a relative name or an id.
     #[arg(long = "mirror-network", value_name = "NAME")]
     pub mirror_network: Option<String>,
     /// An address that receives the copies, such as `10.0.0.9:4789`.
@@ -1260,7 +1260,7 @@ async fn call_list_firewall_policies(
 pub struct ListNetworksArgs {
     /// The firewall whose networks to list.
     ///
-    /// Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/firewalls/{firewall}`, or its relative name, `projects/{project}/zones/{zone}/firewalls/{firewall}`, which is sent as its full name; not an id.
+    /// Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/firewalls/{firewall}`; not a relative name or an id.
     #[arg(long = "firewall", value_name = "NAME")]
     pub firewall: String,
     /// Only the networks this person owns, of a service no package declares.

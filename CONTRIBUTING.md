@@ -110,19 +110,18 @@ take ids, completed from those flags and the profile (`runtime.rs`'s
 `Names`); a whole name given to one fills in the other parts, and the
 request's path is the relative name. A reference to another resource, in a
 flag, a key or JSON at any depth, is never made of parts (`runtime.rs`'s
-`reference`, `nested.rs`'s `full_names`): it is a whole name, sent as a
-full name, as the API requires of a reference: a full name as given, a
-relative one with its type's service's host put in front
-(`FullName::from_relative`), refused when the field refers to types of
-several services; an id is refused with the full name's form. A reference whose resource declares several patterns
-(`google.api.resource`'s `pattern` list) takes a whole name of each, its
+`reference`, `nested.rs`'s `full_names`): it is a full name, sent as
+given, as the API requires of a reference, and a relative name or an id is
+refused, before any request, with the full name's form.
+A reference whose resource declares several patterns
+(`google.api.resource`'s `pattern` list) takes a full name of each, its
 help naming them all.
 
 The tests' scratch service isn't one of the platform's, so its full names
 aren't (`FullName` knows the platform's services only): its tests give
-relative names, which, with the `test-services` feature alone, are sent as
-`//scratch.origincloudapis.eu/…` in the same form, and full names given
-are tested through the published services.
+full names in the same form, `//scratch.origincloudapis.eu/…`, which, with
+the `test-services` feature alone, are accepted, and the refusal of a
+relative name is tested through the published services.
 
 A duration or a timestamp is a flag of its own form (`30s`, RFC 3339). A
 `bytes` field is `--{field}-file`, taking a path or `-` for standard input,
@@ -229,8 +228,8 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   (`origincloud.compute.v1beta1.Instance.image`), that takes the names of
   another resource type too (`compute.origincloudapis.eu/PublicImage`),
   which its `google.api.resource_reference`, naming one type, can't say:
-  its flag, key or JSON value takes a whole name of either, full on that
-  type's service's host or relative. Generation fails when the
+  its flag, key or JSON value takes a full name of either, on that
+  type's service's host. Generation fails when the
   field isn't a reference to a type the API declares, or the other type
   isn't one;
 - `[[view]]` names the columns of the `table` a list of a message is

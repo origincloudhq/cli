@@ -535,7 +535,7 @@ async fn usage_is_listed_by_interval_resource_metric_and_quantity() {
         &[
             "query-project-usage",
             "--project",
-            "projects/p",
+            "//resourcemanager.origincloudapis.eu/projects/p",
             "--start-time",
             "2026-11-01T00:00:00Z",
             "--end-time",

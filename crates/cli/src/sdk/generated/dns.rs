@@ -793,7 +793,7 @@ pub struct CreateRecordSetArgs {
     pub basic_json: Option<JsonArg<::origincloud_dns::v1beta1::BasicRecordData>>,
     #[arg(
         long = "alias",
-        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The full name of the Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, which is sent as its full name; not an id.\n\nA value with a comma in it goes through `--alias-json` too.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
+        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The full name of the Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`; not a relative name or an id.\n\nA value with a comma in it goes through `--alias-json` too.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
         help = "The address of a platform resource, followed as it changes, as KEY=VALUE pairs; sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_alias_record_data(text, "--alias-json"),
@@ -802,7 +802,7 @@ pub struct CreateRecordSetArgs {
     pub alias: Option<Keyed<::origincloud_dns::v1beta1::AliasRecordData>>,
     #[arg(
         long = "alias-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, which is sent as its full name, never an id, as in its KEY=VALUE form. Instead of `--alias`.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, never a relative name or an id, as in its KEY=VALUE form. Instead of `--alias`.\n\nOne of `--basic-json`, `--alias`: give exactly one.",
         help = "Alias as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_dns::v1beta1::AliasRecordData>(
@@ -940,7 +940,7 @@ pub struct UpdateRecordSetArgs {
     pub basic_json: Option<JsonArg<::origincloud_dns::v1beta1::BasicRecordData>>,
     #[arg(
         long = "alias",
-        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The full name of the Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, which is sent as its full name; not an id.\n\nA value with a comma in it goes through `--alias-json` too.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
+        long_help = "The address of a platform resource, followed as it changes.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`floating_ip`, required: The full name of the Floating IP whose address the record set answers with, in the zone's project. A Floating IP's address is an IPv4 address, so the record set is of type `A`; an `AAAA` alias is refused. Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`; not a relative name or an id.\n\nA value with a comma in it goes through `--alias-json` too.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
         help = "The address of a platform resource, followed as it changes, as KEY=VALUE pairs; replaced whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_alias_record_data(text, "--alias-json"),
@@ -949,7 +949,7 @@ pub struct UpdateRecordSetArgs {
     pub alias: Option<Keyed<::origincloud_dns::v1beta1::AliasRecordData>>,
     #[arg(
         long = "alias-json",
-        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, which is sent as its full name, never an id, as in its KEY=VALUE form. Instead of `--alias`.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, never a relative name or an id, as in its KEY=VALUE form. Instead of `--alias`.\n\nIt is replaced whole: a key not given is reset. Left as it is when none of these is given.\n\nOne of `--basic-json`, `--alias`: give at most one. Setting it replaces whichever of them is set.",
         help = "Alias as JSON; replaced whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<::origincloud_dns::v1beta1::AliasRecordData>(
@@ -1161,7 +1161,7 @@ pub struct BatchChangeRecordSetsArgs {
     pub hosted_zone: Option<String>,
     /// The record sets to delete, by their full names.
     ///
-    /// Each by its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`, which is sent as its full name; not an id.
+    /// Each by its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}/recordSets/{record_set}`; not a relative name or an id.
     ///
     /// Repeat for more.
     #[arg(long = "deletion", value_name = "NAME")]
@@ -1345,7 +1345,7 @@ pub struct ListVpcAttachmentsArgs {
     /// Only the attachments to this VPC, by its full name; every VPC's when
     /// left empty.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; not a relative name or an id.
     #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: Option<String>,
 }
@@ -1447,7 +1447,7 @@ pub struct CreateVpcAttachmentArgs {
     pub hosted_zone: Option<String>,
     /// The full name of the VPC the zone answers in, in the zone's project.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; not a relative name or an id.
     #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: String,
     /// A UUID; a repeat with the same id within a day returns the attachment

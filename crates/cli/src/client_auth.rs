@@ -1,7 +1,7 @@
 use crate::config::{Assumed, ClientSession};
 use crate::graphql::{OAuthAuthenticationError, OAuthClientAuthenticator, TokenProvider};
 use crate::sdk::credentials::access_token;
-use crate::sdk::read_value_file;
+use crate::sdk::{read_value_file, reference};
 use chrono::{DateTime, Utc};
 use origincloud_core::credentials::{Credentials, TokenFuture};
 use origincloud_oauth_login::{
@@ -103,6 +103,16 @@ pub(crate) async fn login_with_token(
         "-" => None,
         path => Some(std::path::absolute(path)?),
     };
+    let service_account = service_account
+        .map(|name| {
+            reference(
+                &["organizations/{organization}/serviceAccounts/{service_account}"],
+                &["iam"],
+                "--service-account",
+                &name,
+            )
+        })
+        .transpose()?;
     let token = read_token(token_file.as_deref())?;
     let session = exchange(token, service_account.unwrap_or_default(), token_file).await?;
     session.safe_to_file()?;

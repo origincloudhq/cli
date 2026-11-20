@@ -96,7 +96,7 @@ file `--config` names.
 `WORKLOAD` service account instead. It assumes the account with a token from
 your own identity provider, which one of the account's federated credentials
 trusts, at the security token service; `--service-account` names the
-account, when more than one could trust the token. Once the account's access
+account by its full name, when more than one could trust the token. Once the account's access
 token expires, the CLI reads the file again and assumes the account again,
 so a file the identity provider or a credential helper keeps current keeps
 the session going; a token from standard input is read once.
@@ -224,9 +224,7 @@ every method of the API, with the API's own descriptions as help:
   service the resource belongs to, which may be another than the
   command's: `origin compute create-volume-attachment --volume` takes a
   volume's, `//pvs.origincloudapis.eu/…`, and a name on any other host is
-  refused before anything is sent. The relative name, the full name
-  without `//{host}/` (`projects/…/volumes/vol-123`, a resource's `name`
-  as the API prints it), is taken too.
+  refused before anything is sent.
   - **The resource a command acts on**, and its parents, can also be built
     from their ids, each anything but empty, `.` or `..`, and without `/`,
     such as `vol-123` or `gp1.core.2`: the flag named after the resource
@@ -243,19 +241,17 @@ every method of the API, with the API's own descriptions as help:
     name. A part without a default, such as `--instance`, is required
     unless a whole name given to another flag has it.
   - **A reference** to another resource, such as `--source-snapshot`,
-    `--storage-class` or `--key-pair`, takes a whole name only, and is
-    always sent as a full name: a full name as given, a relative name with
-    the host of the referenced resource's service put in front
-    (`storageClasses/gp1` is sent as
-    `//pvs.origincloudapis.eu/storageClasses/gp1`), in a flag, a key or
-    JSON at any depth. It is never completed from `--project` or `--zone`,
-    and may name another project's resource. An id is refused, with the
-    full name's form. A reference to types of several services takes its
-    full name alone, a relative name not saying whose it is. Where a reference takes more
-    than one form of name, its help names each: `--image` of
+    `--storage-class` or `--key-pair`, takes a full name only, in a flag, a
+    key or JSON at any depth, and sends it as given
+    (`//pvs.origincloudapis.eu/storageClasses/gp1`). It is never built from
+    `--project` or `--zone`, and may name another project's resource. A
+    relative name (`storageClasses/gp1`) or an id (`gp1`) is refused before
+    anything is sent, with the full name's form. Where a reference takes
+    more than one form of name, its help names each: `--image` of
     `origin compute create-instance` takes one of the project's own images,
-    `projects/{project}/zones/{zone}/images/{image}`, or a public one,
-    `zones/{zone}/images/{image}`.
+    `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`,
+    or a public one,
+    `//compute.origincloudapis.eu/zones/{zone}/images/{image}`.
 - **Other flags.** Each other field of the request, and of the volume or
   snapshot it carries, is the flag of its name in kebab case: `size_gib` is
   `--size-gib`. Output-only fields aren't flags, and neither is a field the
@@ -298,7 +294,7 @@ every method of the API, with the API's own descriptions as help:
 
   Each key is typed and checked like a flag of its own (an enum's values, a
   number, `true` or `false`, a duration, a time, a resource name by its full
-  or relative name), a required key must be given, and the flag's help lists the
+  name), a required key must be given, and the flag's help lists the
   keys. Every such field also has a `-json` flag taking the field as the
   API's JSON, or `@FILE` to read it from a file, for what pairs can't say: a
   value with a comma, or a message nested deeper. Its fields are named as the
@@ -306,8 +302,8 @@ every method of the API, with the API's own descriptions as help:
   Before anything is sent it is checked at every depth, each refusal naming
   its path: a field the message doesn't have, a key given twice, a value of
   the wrong type, an enum value that isn't one, an element given twice where
-  the API keeps each once. A resource name in it, at any depth, is a full or
-  relative name, never an id:
+  the API keeps each once. A resource name in it, at any depth, is a full
+  name, never a relative name or an id:
 
   ```sh
   --rules-json '[{"protocol": "TCP", "match": {"headers": [{"name": "x-env", "value": "prod"}]}}]'
@@ -339,8 +335,8 @@ every method of the API, with the API's own descriptions as help:
   its id with `--project` and `--zone`:
 
   ```sh
-  origin pvs create-volume --size-gib 8 --storage-class gp1 --no-wait
-  origin pvs wait-operation --operation projects/my-project-123/zones/eu-central1-az1/operations/op-123
+  origin pvs create-volume --size-gib 8 --storage-class //pvs.origincloudapis.eu/storageClasses/gp1 --no-wait
+  origin pvs wait-operation --operation //pvs.origincloudapis.eu/projects/my-project-123/zones/eu-central1-az1/operations/op-123
   ```
 
 - **Lists.** A list command lists every page; `--page-size` or `--page-token`

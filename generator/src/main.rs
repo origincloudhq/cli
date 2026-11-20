@@ -942,8 +942,7 @@ mod tests {
         let files = generated(&[dir.path()]).unwrap();
         let code = file(&files, "docs.rs");
         let whole = "A resource name in it is a full name, \
-                     `//{service}.origincloudapis.eu/{name}`, or a relative one, which is sent as \
-                     its full name, never an id";
+                     `//{service}.origincloudapis.eu/{name}`, never a relative name or an id";
         assert!(code.contains(whole), "{code}");
         assert!(!code.contains("completed with"), "{code}");
         assert!(!code.contains("`--document`"), "{code}");
@@ -1296,9 +1295,7 @@ mod tests {
         for expected in [
             r#"reference(&["projects/{project}/books/{book}", "books/{book}"], &["shelf"], "--book", args.book.as_str()"#,
             "Its full name, `//shelf.origincloudapis.eu/projects/{project}/books/{book}` or \
-             `//shelf.origincloudapis.eu/books/{book}`, or its relative name, \
-             `projects/{project}/books/{book}` or `books/{book}`, which is sent as its full name; \
-             not an id.",
+             `//shelf.origincloudapis.eu/books/{book}`; not a relative name or an id.",
             r#"reference(&["projects/{project}/shelves/{shelf}"], &["shelf"], "--shelf", v)"#,
         ] {
             assert!(
@@ -1314,7 +1311,7 @@ mod tests {
         let code = flat(&generated_with(&[dir.path()], &policy).unwrap());
         for expected in [
             r#"reference(&["projects/{project}/shelves/{shelf}", "shelves/{shelf}"], &["shelf"], "--shelf", v"#,
-            "or its relative name, `projects/{project}/shelves/{shelf}` or `shelves/{shelf}`, which is sent as its full name; not an id.",
+            "Its full name, `//shelf.origincloudapis.eu/projects/{project}/shelves/{shelf}` or `//shelf.origincloudapis.eu/shelves/{shelf}`; not a relative name or an id.",
         ] {
             assert!(
                 code.contains(&wanted(expected)),

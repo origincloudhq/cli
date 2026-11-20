@@ -743,7 +743,7 @@ pub struct ListAclsArgs {
     pub page_token: Option<String>,
     /// Only the ACLs of this VPC, by its full name, when set.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; not a relative name or an id.
     #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: Option<String>,
 }
@@ -833,7 +833,7 @@ pub struct CreateAclArgs {
     /// The full name of the VPC the ACL belongs to, in the same project and
     /// region.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; not a relative name or an id.
     #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -1290,7 +1290,7 @@ pub struct CreateAclAssociationArgs {
     /// The full name of the ACL that filters the subnet's traffic, in the
     /// subnet's VPC.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}`, or its relative name, `projects/{project}/regions/{region}/acls/{acl}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/acls/{acl}`; not a relative name or an id.
     #[arg(long = "acl", value_name = "NAME")]
     pub acl: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -2483,7 +2483,7 @@ pub struct CreateFloatingIpAssociationArgs {
     /// floating IP's project
     /// and zone.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, or its relative name, `projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`; not a relative name or an id.
     #[arg(long = "network-interface", value_name = "NAME")]
     pub network_interface: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -2727,7 +2727,7 @@ pub struct ListInternetGatewaysArgs {
     pub page_token: Option<String>,
     /// Only the gateway of this VPC, by its full name, when set.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; not a relative name or an id.
     #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: Option<String>,
 }
@@ -2823,7 +2823,7 @@ pub struct CreateInternetGatewayArgs {
     /// The full name of the VPC the gateway connects, in the same project and
     /// region.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; not a relative name or an id.
     #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -3243,14 +3243,14 @@ pub struct CreateNatGatewayArgs {
     /// The full name of the public subnet the gateway lives in, in the same
     /// project and zone.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`; not a relative name or an id.
     #[arg(long = "subnet", value_name = "NAME")]
     pub subnet: String,
     /// The full name of the floating IP instances behind the gateway appear
     /// as, in the same
     /// project and zone. It stays allocated when the gateway is deleted.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, or its relative name, `projects/{project}/zones/{zone}/floatingIps/{floating_ip}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/floatingIps/{floating_ip}`; not a relative name or an id.
     #[arg(long = "floating-ip", value_name = "NAME")]
     pub floating_ip: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -3566,7 +3566,7 @@ pub struct ListNetworkInterfacesArgs {
     pub page_token: Option<String>,
     /// Only the interfaces in this subnet, by its full name, when set.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`; not a relative name or an id.
     #[arg(long = "subnet", value_name = "NAME")]
     pub subnet: Option<String>,
 }
@@ -3701,7 +3701,7 @@ pub struct CreateNetworkInterfaceArgs {
     /// same project
     /// and zone.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`, or its relative name, `projects/{project}/zones/{zone}/subnets/{subnet}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`; not a relative name or an id.
     #[arg(long = "subnet", value_name = "NAME")]
     pub subnet: String,
     /// Whether a packet the instance sends must carry the interface's own
@@ -4679,7 +4679,7 @@ pub struct CreateResolverPolicyAssociationArgs {
     /// The full name of the resolver policy the VPC relays through, in the VPC's
     /// project and region.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`, or its relative name, `projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}`; not a relative name or an id.
     #[arg(long = "resolver-policy", value_name = "NAME")]
     pub resolver_policy: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -5041,7 +5041,7 @@ pub struct CreateRouteArgs {
     /// The full name of the internet gateway of the table's VPC to send the
     /// traffic to.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/internetGateways/{internet_gateway}`, or its relative name, `projects/{project}/regions/{region}/internetGateways/{internet_gateway}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/internetGateways/{internet_gateway}`; not a relative name or an id.
     #[arg(long = "internet-gateway", value_name = "NAME")]
     pub internet_gateway: Option<String>,
     /// The full name of the NAT gateway in the table's VPC to send the traffic
@@ -5050,7 +5050,7 @@ pub struct CreateRouteArgs {
     /// the gateway's own zone; a name with another zone is refused with
     /// `INVALID_ARGUMENT`.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/natGateways/{nat_gateway}`, or its relative name, `projects/{project}/zones/{zone}/natGateways/{nat_gateway}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/natGateways/{nat_gateway}`; not a relative name or an id.
     #[arg(long = "nat-gateway", value_name = "NAME")]
     pub nat_gateway: Option<String>,
     /// A UUID; a repeat with the same id returns the first request's
@@ -5310,7 +5310,7 @@ pub struct ListRouteTablesArgs {
     pub page_token: Option<String>,
     /// Only the route tables of this VPC, by its full name, when set.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; not a relative name or an id.
     #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: Option<String>,
 }
@@ -5404,7 +5404,7 @@ pub struct CreateRouteTableArgs {
     /// The full name of the VPC the table routes for, in the same project and
     /// region.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; not a relative name or an id.
     #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -5862,7 +5862,7 @@ pub struct CreateRouteTableAssociationArgs {
     pub subnet: Option<String>,
     /// The full name of the route table the subnet uses, in the subnet's VPC.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}`, or its relative name, `projects/{project}/regions/{region}/routeTables/{route_table}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/routeTables/{route_table}`; not a relative name or an id.
     #[arg(long = "route-table", value_name = "NAME")]
     pub route_table: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -6105,7 +6105,7 @@ pub struct ListSecurityGroupsArgs {
     pub page_token: Option<String>,
     /// Only the groups of this VPC, by its full name, when set.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; not a relative name or an id.
     #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: Option<String>,
 }
@@ -6199,7 +6199,7 @@ pub struct CreateSecurityGroupArgs {
     /// The full name of the VPC the group belongs to, in the same project and
     /// region.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; not a relative name or an id.
     #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: String,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
@@ -6674,7 +6674,7 @@ pub struct CreateSecurityGroupAssociationArgs {
     pub network_interface: Option<String>,
     /// The security group's full name, in the interface's VPC.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`; not a relative name or an id.
     #[arg(long = "security-group", value_name = "NAME")]
     pub security_group: String,
     /// A UUID; a repeat with the same id returns the first request's
@@ -7079,7 +7079,7 @@ pub struct CreateSecurityGroupRuleArgs {
     /// addresses. The rule's own group is refused here with
     /// `INVALID_ARGUMENT`: it is `--same-group`.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`, or its relative name, `projects/{project}/regions/{region}/securityGroups/{security_group}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`; not a relative name or an id.
     #[arg(long = "peer-security-group", value_name = "NAME")]
     pub peer_security_group: Option<String>,
     /// The peer as the rule's own group's members.
@@ -7345,7 +7345,7 @@ pub struct ListSubnetsArgs {
     pub page_token: Option<String>,
     /// Only the subnets of this VPC, by its full name, when set.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; not a relative name or an id.
     #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: Option<String>,
 }
@@ -7479,7 +7479,7 @@ pub struct CreateSubnetArgs {
     /// region. For now a VPC lives in one zone of its region: a subnet in
     /// another zone is refused with `FAILED_PRECONDITION`.
     ///
-    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`, or its relative name, `projects/{project}/regions/{region}/vpcs/{vpc}`, which is sent as its full name; not an id.
+    /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; not a relative name or an id.
     #[arg(long = "vpc", value_name = "NAME")]
     pub vpc: String,
     /// Whether a launch that creates its network interface in the subnet,
