@@ -427,7 +427,7 @@ pub struct CreateBillingAccountArgs {
     pub request_id: Option<String>,
     #[arg(
         long = "accepted-legal-document",
-        long_help = "The legal document versions the new billing account accepts, each with the `sha256` of the text shown. Required once a version of a document customers accept is in force: every such version must be accepted, or the request fails naming `acceptedLegalDocuments` and creates nothing.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`legal_document_version`, required: The version's full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`. Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`, or its relative name, `legalDocuments/{legal_document}/versions/{version}`, which is sent as its full name; not an id.\n\n`sha256`, required: The version's `sha256`, as read with it: an acceptance is refused when the text shown isn't the version's.\n\nA value with a comma in it goes through `--accepted-legal-documents-json` too.",
+        long_help = "The legal document versions the new billing account accepts, each with the `sha256` of the text shown. Required once a version of a document customers accept is in force: every such version must be accepted, or the request fails naming `acceptedLegalDocuments` and creates nothing.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`legal_document_version`, required: The version's full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`. Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`; not a relative name or an id.\n\n`sha256`, required: The version's `sha256`, as read with it: an acceptance is refused when the text shown isn't the version's.\n\nA value with a comma in it goes through `--accepted-legal-documents-json` too.",
         help = "The legal document versions the new billing account accepts, each with the `sha256` of the text shown: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_legal_document_version_to_accept(
@@ -441,7 +441,7 @@ pub struct CreateBillingAccountArgs {
     >,
     #[arg(
         long = "accepted-legal-documents-json",
-        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, which is sent as its full name, never an id, as in its KEY=VALUE form. Instead of `--accepted-legal-document`.",
+        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, never a relative name or an id, as in its KEY=VALUE form. Instead of `--accepted-legal-document`.",
         help = "Accepted legal documents as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<Vec<::origincloud_billing::v1beta1::LegalDocumentVersionToAccept>>(
@@ -934,7 +934,7 @@ pub struct UpdateProjectBillingInfoArgs {
     /// one of its organization's:
     /// `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`.
     ///
-    /// Its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`, which is sent as its full name; not an id.
+    /// Its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`; not a relative name or an id.
     ///
     /// Left as it is when not given.
     #[arg(long = "billing-account", value_name = "NAME")]
@@ -1226,7 +1226,7 @@ async fn call_list_billing_countries(
 pub struct QueryProjectCostArgs {
     /// The project, `projects/{project}`.
     ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`, which is sent as its full name; not an id.
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`; not a relative name or an id.
     #[arg(long = "project", value_name = "NAME")]
     pub project: String,
     /// The period's start, included.
@@ -1293,7 +1293,7 @@ async fn call_query_project_cost(
 pub struct QueryOrganizationCostArgs {
     /// The organization, `organizations/{organization}`.
     ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`, which is sent as its full name; not an id.
+    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`; not a relative name or an id.
     #[arg(long = "organization", value_name = "NAME")]
     pub organization: String,
     /// The period's start, included.
@@ -1362,7 +1362,7 @@ async fn call_query_organization_cost(
 pub struct QueryBillingAccountCostArgs {
     /// The billing account.
     ///
-    /// Its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`, which is sent as its full name; not an id.
+    /// Its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`; not a relative name or an id.
     #[arg(long = "billing-account", value_name = "NAME")]
     pub billing_account: String,
     /// The period's start, included.
@@ -1431,7 +1431,7 @@ async fn call_query_billing_account_cost(
 pub struct QueryProjectUsageArgs {
     /// The project, `projects/{project}`.
     ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`, which is sent as its full name; not an id.
+    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`; not a relative name or an id.
     #[arg(long = "project", value_name = "NAME")]
     pub project: String,
     /// The period's start: records that end after it are listed.
@@ -1731,7 +1731,7 @@ pub struct AcceptLegalDocumentsArgs {
     pub billing_account: String,
     #[arg(
         long = "version",
-        long_help = "The versions to accept.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`legal_document_version`, required: The version's full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`. Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`, or its relative name, `legalDocuments/{legal_document}/versions/{version}`, which is sent as its full name; not an id.\n\n`sha256`, required: The version's `sha256`, as read with it: an acceptance is refused when the text shown isn't the version's.\n\nA value with a comma in it goes through `--versions-json` too.",
+        long_help = "The versions to accept.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`legal_document_version`, required: The version's full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`. Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}/versions/{version}`; not a relative name or an id.\n\n`sha256`, required: The version's `sha256`, as read with it: an acceptance is refused when the text shown isn't the version's.\n\nA value with a comma in it goes through `--versions-json` too.",
         help = "The versions to accept: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_legal_document_version_to_accept(
@@ -1746,7 +1746,7 @@ pub struct AcceptLegalDocumentsArgs {
     >,
     #[arg(
         long = "versions-json",
-        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, or a relative one, which is sent as its full name, never an id, as in its KEY=VALUE form. Instead of `--version`.",
+        long_help = "The whole list as the API's JSON, an array of objects whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, never a relative name or an id, as in its KEY=VALUE form. Instead of `--version`.",
         help = "Versions as JSON; sent whole",
         value_name = "JSON",
         value_parser = |text:&str|json_arg::<Vec<::origincloud_billing::v1beta1::LegalDocumentVersionToAccept>>(
@@ -2007,7 +2007,7 @@ async fn call_get_legal_document(
 pub struct ListLegalDocumentVersionsArgs {
     /// The document whose versions to list, `legalDocuments/{legal_document}`.
     ///
-    /// Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}`, or its relative name, `legalDocuments/{legal_document}`, which is sent as its full name; not an id.
+    /// Its full name, `//billing.origincloudapis.eu/legalDocuments/{legal_document}`; not a relative name or an id.
     #[arg(long = "parent", value_name = "NAME")]
     pub parent: String,
     /// The most versions to return; the server clamps it, and 0 means its

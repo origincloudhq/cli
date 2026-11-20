@@ -1507,7 +1507,7 @@ dependencies = [
 
 [[package]]
 name = "origincloud-cli"
-version = "1.23.0"
+version = "1.24.0"
 dependencies = [
  "anstream",
  "anstyle",

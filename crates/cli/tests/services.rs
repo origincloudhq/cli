@@ -171,7 +171,7 @@ async fn get_operation_reads_the_operation_no_wait_printed() {
                 "--size-gib",
                 "8",
                 "--storage-class",
-                "storageClasses/gp1",
+                "//pvs.origincloudapis.eu/storageClasses/gp1",
                 "--no-wait",
             ])
             .await,
@@ -337,7 +337,7 @@ async fn wait_operation_fails_with_a_failed_operation() {
                 "--size-gib",
                 "8",
                 "--storage-class",
-                "storageClasses/gp1",
+                "//pvs.origincloudapis.eu/storageClasses/gp1",
             ])
             .await,
     );
@@ -775,14 +775,16 @@ async fn a_refusal_s_metadata_the_message_doesn_t_name_is_said() {
 }
 
 /// `create-instance` builds its own parent from `--project` and `--zone`,
-/// and sends each reference as a full name: one given as given, on the
-/// host of the referenced type's service, a relative one with that host
-/// put in front, of another project too, and an instance type whose id
-/// holds dots. A reference's parts never fill in the instance's, nor are
-/// they checked against them.
+/// and sends each reference as the full name given, on the host of the
+/// referenced type's service, of another project too, and an instance type
+/// whose id holds dots. A reference's parts never fill in the instance's,
+/// nor are they checked against them.
 #[tokio::test(flavor = "multi_thread")]
 async fn create_instance_sends_references_as_full_names() {
     const LAUNCHING: &str = r#"{"name":"projects/p/zones/z/operations/op-1"}"#;
+    const TYPE: &str = "//compute.origincloudapis.eu/instanceTypes/gp1.core.2";
+    const IMAGE: &str = "//compute.origincloudapis.eu/projects/p/zones/z/images/img-1";
+    const KEY_PAIR: &str = "//compute.origincloudapis.eu/projects/p/keyPairs/k";
     let server = recording(|_| Response::json(LAUNCHING)).await;
     let create = |instance_type: &'static str, image: &'static str, key_pair: &'static str| {
         vec![
@@ -803,20 +805,11 @@ async fn create_instance_sends_references_as_full_names() {
         ]
     };
     for (instance_type, image, key_pair) in [
-        (
-            "instanceTypes/gp1.core.2",
-            "zones/z/images/img-1",
-            "projects/p/keyPairs/k",
-        ),
-        (
-            "//compute.origincloudapis.eu/instanceTypes/gp1.core.2",
-            "//compute.origincloudapis.eu/projects/p/zones/z/images/img-1",
-            "//compute.origincloudapis.eu/projects/p/keyPairs/k",
-        ),
+        (TYPE, IMAGE, KEY_PAIR),
         // Another project's key pair, and a public image of another zone:
         // the server decides whether they may be used.
         (
-            "instanceTypes/gp1.core.2",
+            TYPE,
             "//compute.origincloudapis.eu/zones/z2/images/img-1",
             "//compute.origincloudapis.eu/projects/other/keyPairs/k",
         ),
@@ -832,71 +825,69 @@ async fn create_instance_sends_references_as_full_names() {
             "{args:?}"
         );
         let body: serde_json::Value = serde_json::from_slice(&sent.body).unwrap();
-        let full = |name: &str| {
-            if name.starts_with("//") {
-                name.to_owned()
-            } else {
-                format!("//compute.origincloudapis.eu/{name}")
-            }
-        };
         assert_eq!(
             body,
             serde_json::json!({
-                "instanceType": full(instance_type),
-                "image": full(image),
-                "keyPair": full(key_pair),
+                "instanceType": instance_type,
+                "image": image,
+                "keyPair": key_pair,
                 "networkInterfaces": ["//network.origincloudapis.eu/projects/p/zones/z/networkInterfaces/ni-1"],
             }),
             "{args:?}"
         );
     }
 
-    // An id is refused where it used to be completed from `--project` and
-    // `--zone`, naming the full form; so is a full name on another
+    // A relative name or an id is refused, whatever `--project` and
+    // `--zone` say, naming the full form; so is a full name on another
     // service's host, naming the expected one, and a name of no form the
     // type has. Nothing is sent.
     let before = server.requests().len();
     for (args, refusal) in [
         (
-            create("instanceTypes/gp1.core.2", "zones/z/images/img-1", "k"),
+            create(TYPE, IMAGE, "k"),
             "--key-pair: \"k\" is an id; give the resource's full name, such as \
              //compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}",
         ),
         (
-            create("instanceTypes/gp1.core.2", "img-1", "projects/p/keyPairs/k"),
+            create(TYPE, IMAGE, "projects/p/keyPairs/k"),
+            "--key-pair: \"projects/p/keyPairs/k\" is a relative name; give the resource's full \
+             name, such as //compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}",
+        ),
+        (
+            create(TYPE, "zones/z/images/img-1", KEY_PAIR),
+            "--image: \"zones/z/images/img-1\" is a relative name",
+        ),
+        (
+            create(TYPE, "img-1", KEY_PAIR),
             "--image: \"img-1\" is an id",
         ),
         (
-            create(
-                "gp1.core.2",
-                "zones/z/images/img-1",
-                "projects/p/keyPairs/k",
-            ),
+            create("gp1.core.2", IMAGE, KEY_PAIR),
             "--instance-type: \"gp1.core.2\" is an id",
         ),
         (
+            create("instanceTypes/gp1.core.2", IMAGE, KEY_PAIR),
+            "--instance-type: \"instanceTypes/gp1.core.2\" is a relative name",
+        ),
+        (
             create(
-                "instanceTypes/gp1.core.2",
-                "zones/z/images/img-1",
+                TYPE,
+                IMAGE,
                 "//pvs.origincloudapis.eu/projects/p/keyPairs/k",
             ),
             "--key-pair: \"//pvs.origincloudapis.eu/projects/p/keyPairs/k\" is a name on \
              pvs.origincloudapis.eu, but --key-pair takes a name on compute.origincloudapis.eu",
         ),
         (
-            create(
-                "instanceTypes/gp1.core.2",
-                "images/img-1",
-                "projects/p/keyPairs/k",
-            ),
+            create(TYPE, "//compute.origincloudapis.eu/images/img-1", KEY_PAIR),
             "isn't a name of the form projects/{project}/zones/{zone}/images/{image} or \
              zones/{zone}/images/{image}",
         ),
         (
             create(
-                "instanceTypes/gp1.core.2/x",
-                "zones/z/images/img-1",
-                "projects/p/keyPairs/k",
+                "//compute.origincloudapis.eu/instanceTypes/gp1.core.2/x",
+                IMAGE,
+                KEY_PAIR,
             ),
             "isn't a name of the form instanceTypes/{instance_type}",
         ),
@@ -909,8 +900,8 @@ async fn create_instance_sends_references_as_full_names() {
 
 /// A volume attachment names its instance, a parent, by its id or its whole
 /// name, which gives the project and zone, and a volume of another service
-/// by its full name, sent as given. A disagreeing `--zone` is refused,
-/// and a relative volume is sent as its full name.
+/// by its full name, sent as given. A disagreeing `--zone` is refused, and
+/// so is a relative or bare volume, whatever `--project` and `--zone` say.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_volume_attachment_takes_a_parent_and_another_services_volume() {
     const ATTACHING: &str = r#"{"name":"projects/p/zones/z/operations/op-1"}"#;
@@ -949,7 +940,7 @@ async fn a_volume_attachment_takes_a_parent_and_another_services_volume() {
                     "--instance",
                     "i-1",
                     "--volume",
-                    "projects/p/zones/z/volumes/vol-1",
+                    volume,
                     "--no-wait",
                 ],
             )
@@ -1003,6 +994,18 @@ async fn a_volume_attachment_takes_a_parent_and_another_services_volume() {
                 "vol-1",
             ],
             "--volume: \"vol-1\" is an id; give the resource's full name, such as \
+             //pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}",
+        ),
+        (
+            vec![
+                "create-volume-attachment",
+                "--instance",
+                "projects/p/zones/z/instances/i-1",
+                "--volume",
+                "projects/p/zones/z/volumes/vol-1",
+            ],
+            "--volume: \"projects/p/zones/z/volumes/vol-1\" is a relative name; give the \
+             resource's full name, such as \
              //pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}",
         ),
     ] {
@@ -1100,7 +1103,7 @@ async fn assume_service_account_reads_the_token_from_a_file() {
                 "--oidc-token-file",
                 token.to_str().unwrap(),
                 "--service-account",
-                "organizations/o/serviceAccounts/s",
+                "//iam.origincloudapis.eu/organizations/o/serviceAccounts/s",
                 "--lifetime",
                 "10m",
             ],

@@ -512,7 +512,7 @@ pub struct ListProjectsArgs {
     /// The full name of the organization whose projects to list,
     /// `//resourcemanager.origincloudapis.eu/organizations/{organization}`.
     ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`, which is sent as its full name; not an id.
+    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`; not a relative name or an id.
     #[arg(long = "organization", value_name = "NAME")]
     pub organization: String,
     /// The most projects to return; the server clamps it, and 0 means its
@@ -600,7 +600,7 @@ pub struct CreateProjectArgs {
     /// The full name of the organization the project belongs to,
     /// `//resourcemanager.origincloudapis.eu/organizations/{organization}`.
     ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`, which is sent as its full name; not an id.
+    /// Its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`; not a relative name or an id.
     #[arg(long = "organization", value_name = "NAME")]
     pub organization: String,
     /// The name the console shows. Not empty.

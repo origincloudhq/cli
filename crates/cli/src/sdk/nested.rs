@@ -153,9 +153,8 @@ fn referenced_service(field: &FieldDescriptor) -> Option<String> {
     (!service.is_empty() && t != "*").then(|| service.to_owned())
 }
 
-/// Sends every resource name in `value`, a message of `message`'s type, at
-/// any depth, as its full name: a relative one is given the host of its
-/// field's type's service, as a reference flag's is.
+/// Checks every resource name in `value`, a message of `message`'s type, at
+/// any depth, is a full name, as a reference flag's is.
 fn full_names(
     value: &mut serde_json::Value,
     message: &MessageDescriptor,
@@ -425,7 +424,7 @@ fn check_value(
         Kind::String => match value {
             J::String(s) => {
                 // A resource name is never completed from parts: it is a
-                // full name, or a relative one, at any depth.
+                // full name at any depth; json_reference refuses a relative one.
                 if is_reference(field) && !s.is_empty() && !s.contains('/') {
                     Err(format!(
                         "{here}: {s:?} is an id; give the resource's full name, //{{service}}.origincloudapis.eu/{{name}}"
@@ -864,20 +863,26 @@ mod tests {
         }
         // A value of an enum, by its name or its number.
         assert!(json_arg::<Volume>(r#"{"state": "AVAILABLE"}"#, volume).is_ok());
-        // A resource name is whole, full or relative, never an id.
-        // A relative one is sent as its full name, on its type's service's
-        // host; a full one as given.
-        for whole in [
+        // A resource name is a full name, sent as given, never a relative
+        // name or an id.
+        let whole =
+            r#"{"sourceSnapshot": "//pvs.origincloudapis.eu/projects/p/zones/z/snapshots/snap-1"}"#;
+        let read = json_arg::<Volume>(whole, volume).unwrap();
+        assert_eq!(
+            read.0.source_snapshot,
+            "//pvs.origincloudapis.eu/projects/p/zones/z/snapshots/snap-1"
+        );
+        let refused = json_arg::<Volume>(
             r#"{"sourceSnapshot": "projects/p/zones/z/snapshots/snap-1"}"#,
-            r#"{"sourceSnapshot": "//pvs.origincloudapis.eu/projects/p/zones/z/snapshots/snap-1"}"#,
-        ] {
-            let read = json_arg::<Volume>(whole, volume).unwrap();
-            assert_eq!(
-                read.0.source_snapshot,
-                "//pvs.origincloudapis.eu/projects/p/zones/z/snapshots/snap-1",
-                "{whole}"
-            );
-        }
+            volume,
+        )
+        .unwrap_err();
+        assert!(
+            refused.starts_with(
+                "sourceSnapshot: \"projects/p/zones/z/snapshots/snap-1\" is a relative name"
+            ),
+            "{refused}"
+        );
         let refused = json_arg::<Volume>(
             r#"{"sourceSnapshot": "//compute.origincloudapis.eu/projects/p/zones/z/snapshots/snap-1"}"#,
             volume,

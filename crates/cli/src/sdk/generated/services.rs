@@ -210,7 +210,7 @@ pub enum ServiceCommands {
     #[command(
         name = "compute",
         about = "Compute service: instances, images, key pairs, volume attachments, and the instance types and image families on offer",
-        long_about = "Compute service: instances, images, key pairs, volume attachments, and the instance types and image families on offer.\n\nA resource a command acts on is given by its id (`--instance`), with `--project` and `--zone`, or by its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`; `--project` and `--zone` default to the profile's `default-project` and `default-zone`. A reference, such as `--image`, `--key-pair` or a volume attachment's `--volume` (`//pvs.origincloudapis.eu/…`), takes a full or relative name, never an id."
+        long_about = "Compute service: instances, images, key pairs, volume attachments, and the instance types and image families on offer.\n\nA resource a command acts on is given by its id (`--instance`), with `--project` and `--zone`, or by its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`; `--project` and `--zone` default to the profile's `default-project` and `default-zone`. A reference, such as `--image`, `--key-pair` or a volume attachment's `--volume` (`//pvs.origincloudapis.eu/…`), takes a full name, never a relative name or an id."
     )]
     Compute(ComputeCli),
     #[command(
@@ -240,7 +240,7 @@ pub enum ServiceCommands {
     #[command(
         name = "network",
         about = "Network service: VPCs, subnets, route tables, ACLs, security groups, gateways, floating IPs, network interfaces and resolver policies",
-        long_about = "Network service: VPCs, subnets, route tables, ACLs, security groups, gateways, floating IPs, network interfaces and resolver policies.\n\nA resource a command acts on, and its parents, are given by their ids (`--project`, `--region` or `--zone`, `--vpc`), or by their full names, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; a reference to another resource, such as `--peer-security-group`, takes a full or relative name, never an id. VPCs, route tables, ACLs, security groups, internet gateways and resolver policies are regional (`--region`); subnets, network interfaces, floating IPs and NAT gateways are zonal (`--zone`). `--project`, `--zone` and `--region` default to `ORIGINCLOUD_PROJECT`, `ORIGINCLOUD_ZONE` and `ORIGINCLOUD_REGION`, else to the profile's `default-project`, `default-zone` and `region`; `--region`, else to the region of the default zone."
+        long_about = "Network service: VPCs, subnets, route tables, ACLs, security groups, gateways, floating IPs, network interfaces and resolver policies.\n\nA resource a command acts on, and its parents, are given by their ids (`--project`, `--region` or `--zone`, `--vpc`), or by their full names, `//network.origincloudapis.eu/projects/{project}/regions/{region}/vpcs/{vpc}`; a reference to another resource, such as `--peer-security-group`, takes a full name, never a relative name or an id. VPCs, route tables, ACLs, security groups, internet gateways and resolver policies are regional (`--region`); subnets, network interfaces, floating IPs and NAT gateways are zonal (`--zone`). `--project`, `--zone` and `--region` default to `ORIGINCLOUD_PROJECT`, `ORIGINCLOUD_ZONE` and `ORIGINCLOUD_REGION`, else to the profile's `default-project`, `default-zone` and `region`; `--region`, else to the region of the default zone."
     )]
     Network(NetworkCli),
     #[command(
@@ -252,7 +252,7 @@ pub enum ServiceCommands {
     #[command(
         name = "pvs",
         about = "Persistent volume service: volumes, snapshots and storage classes",
-        long_about = "Persistent volume service: volumes, snapshots and storage classes.\n\nA volume or snapshot a command acts on is given by its id (`--volume`), with `--project` and `--zone`, or by its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`; `--project` and `--zone` default to the profile's `default-project` and `default-zone`. A reference, such as `--storage-class` or `--source-snapshot`, takes a full or relative name, never an id."
+        long_about = "Persistent volume service: volumes, snapshots and storage classes.\n\nA volume or snapshot a command acts on is given by its id (`--volume`), with `--project` and `--zone`, or by its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`; `--project` and `--zone` default to the profile's `default-project` and `default-zone`. A reference, such as `--storage-class` or `--source-snapshot`, takes a full name, never a relative name or an id."
     )]
     Pvs(PvsCli),
     #[command(

@@ -51,7 +51,7 @@ pub struct AssumeServiceAccountArgs {
     /// its federated credentials are considered. Without it, any service
     /// account's credential that trusts the token is.
     ///
-    /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`, which is sent as its full name; not an id.
+    /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`; not a relative name or an id.
     #[arg(long = "service-account", value_name = "NAME")]
     pub service_account: Option<String>,
     /// How long the access token lives: from 60 seconds to 1 hour, 15 minutes
