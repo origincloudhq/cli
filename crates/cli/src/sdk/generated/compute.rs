@@ -89,6 +89,12 @@ pub enum Commands {
     )]
     CreateInstance(CreateInstanceArgs),
     #[command(
+        name = "launch-instance",
+        about = "Launches an instance from a recipe: the instance it describes, with a network interface created from each interface spec it holds",
+        long_about = "Launches an instance from a recipe: the instance it describes, with a network interface created from each interface spec it holds. The recipe is sent inline as `--launch-template-data`, or is a version of a launch template named by `--launch-template`, with the fields set in `--launch-template-data` overriding that version's for this launch only. Nothing is created when the launch is refused, as for an invalid field, a quota or a subnet with no address left. The operation is done once the instance is `RUNNING`, or failed once it is `FAILED`, with the reason in `stateReason`; a failed instance still exists, keeps the interfaces created for it, and can be started again or deleted."
+    )]
+    LaunchInstance(LaunchInstanceArgs),
+    #[command(
         name = "update-instance",
         about = "Changes an instance's type, tags or service account",
         long_about = "Changes an instance's type, tags or service account. A new `--instance-type` needs the instance `STOPPED`, and is refused with `FAILED_PRECONDITION` otherwise; it takes effect at the next start. A larger type is checked against the same vCPU quota a launch is. The operation is done once the instance shows the change."
@@ -142,6 +148,54 @@ pub enum Commands {
         long_about = "Deletes a key pair. Instances launched with it keep the key installed."
     )]
     DeleteKeyPair(DeleteKeyPairArgs),
+    #[command(
+        name = "get-launch-template",
+        about = "Returns a launch template with one version's recipe: its default version's for a bare name or `@default`, its newest for `@latest`, or version `N` for `@N`",
+        long_about = "Returns a launch template with one version's recipe: its default version's for a bare name or `@default`, its newest for `@latest`, or version `N` for `@N`."
+    )]
+    GetLaunchTemplate(GetLaunchTemplateArgs),
+    #[command(
+        name = "list-launch-templates",
+        about = "Lists a project's launch templates, oldest first, each with its default version's recipe",
+        long_about = "Lists a project's launch templates, oldest first, each with its default version's recipe."
+    )]
+    ListLaunchTemplates(ListLaunchTemplatesArgs),
+    #[command(
+        name = "create-launch-template",
+        about = "Creates a launch template with `--launch-template-data` as its version 1, which is its default",
+        long_about = "Creates a launch template with `--launch-template-data` as its version 1, which is its default. The recipe's fields are checked for what their names say: their type, and that a key pair, a subnet, a network interface or a security group is the template's project's and a service account its organization's. Whether they exist, and are in the zone an instance is launched in, is checked at that launch."
+    )]
+    CreateLaunchTemplate(CreateLaunchTemplateArgs),
+    #[command(
+        name = "update-launch-template",
+        about = "Changes a launch template's tags or its default version, or both",
+        long_about = "Changes a launch template's tags or its default version, or both. A version's recipe never changes."
+    )]
+    UpdateLaunchTemplate(UpdateLaunchTemplateArgs),
+    #[command(
+        name = "delete-launch-template",
+        about = "Deletes a launch template and every version of it",
+        long_about = "Deletes a launch template and every version of it. Instances launched from it keep running."
+    )]
+    DeleteLaunchTemplate(DeleteLaunchTemplateArgs),
+    #[command(
+        name = "create-launch-template-version",
+        about = "Adds a version to a launch template with `--launch-template-data` as its recipe, numbered one past the highest number the template has ever given, and returns the template at it",
+        long_about = "Adds a version to a launch template with `--launch-template-data` as its recipe, numbered one past the highest number the template has ever given, and returns the template at it. The default version stays as it is. The recipe is checked as CreateLaunchTemplate checks it. A template holds at most 100 versions."
+    )]
+    CreateLaunchTemplateVersion(CreateLaunchTemplateVersionArgs),
+    #[command(
+        name = "list-launch-template-versions",
+        about = "Lists a launch template's versions, newest first, each as the template at that version, named `{launch_template}@{version}`",
+        long_about = "Lists a launch template's versions, newest first, each as the template at that version, named `{launch_template}@{version}`."
+    )]
+    ListLaunchTemplateVersions(ListLaunchTemplateVersionsArgs),
+    #[command(
+        name = "delete-launch-template-version",
+        about = "Deletes one version of a launch template, named `{launch_template}@{version}`",
+        long_about = "Deletes one version of a launch template, named `{launch_template}@{version}`. The default version can't be deleted: set another default first. A deleted version's number is never given to another version."
+    )]
+    DeleteLaunchTemplateVersion(DeleteLaunchTemplateVersionArgs),
     #[command(
         name = "get-public-image",
         about = "Returns a public image",
@@ -209,6 +263,7 @@ pub async fn run(
         Commands::GetInstance(args) => get_instance(ctx, args).await,
         Commands::ListInstances(args) => list_instances(ctx, args).await,
         Commands::CreateInstance(args) => create_instance(ctx, args).await,
+        Commands::LaunchInstance(args) => launch_instance(ctx, args).await,
         Commands::UpdateInstance(args) => update_instance(ctx, args).await,
         Commands::DeleteInstance(args) => delete_instance(ctx, args).await,
         Commands::StartInstance(args) => start_instance(ctx, args).await,
@@ -218,6 +273,20 @@ pub async fn run(
         Commands::CreateKeyPair(args) => create_key_pair(ctx, args).await,
         Commands::UpdateKeyPair(args) => update_key_pair(ctx, args).await,
         Commands::DeleteKeyPair(args) => delete_key_pair(ctx, args).await,
+        Commands::GetLaunchTemplate(args) => get_launch_template(ctx, args).await,
+        Commands::ListLaunchTemplates(args) => list_launch_templates(ctx, args).await,
+        Commands::CreateLaunchTemplate(args) => create_launch_template(ctx, args).await,
+        Commands::UpdateLaunchTemplate(args) => update_launch_template(ctx, args).await,
+        Commands::DeleteLaunchTemplate(args) => delete_launch_template(ctx, args).await,
+        Commands::CreateLaunchTemplateVersion(args) => {
+            create_launch_template_version(ctx, args).await
+        }
+        Commands::ListLaunchTemplateVersions(args) => {
+            list_launch_template_versions(ctx, args).await
+        }
+        Commands::DeleteLaunchTemplateVersion(args) => {
+            delete_launch_template_version(ctx, args).await
+        }
         Commands::GetPublicImage(args) => get_public_image(ctx, args).await,
         Commands::ListPublicImages(args) => list_public_images(ctx, args).await,
         Commands::GetVolumeAttachment(args) => get_volume_attachment(ctx, args).await,
@@ -1087,8 +1156,9 @@ pub struct CreateInstanceArgs {
     /// project and zone that nothing else holds, created with the network
     /// service: its subnet and security groups are the instance's.
     /// Terminating the instance releases it, and it stays. An instance
-    /// launched before interfaces were named at launch shows the interface
-    /// created for it, which is deleted with the instance.
+    /// launched from a recipe with an interface spec, or before interfaces
+    /// were named at launch, shows the interface created for it once it
+    /// exists, which is deleted with the instance.
     ///
     /// Each by its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/networkInterfaces/{network_interface}`; not a relative name or an id.
     ///
@@ -1234,6 +1304,153 @@ async fn call_create_instance(
 > {
     ::origincloud_compute::v1beta1::InstanceClient::new(client.sdk())
         .create_instance(request)
+        .await
+}
+/// The flags of `launch-instance`.
+#[derive(clap::Args, Debug)]
+pub struct LaunchInstanceArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
+    #[arg(long = "zone", value_name = "ZONE")]
+    pub zone: Option<String>,
+    #[arg(
+        long = "launch-template-data",
+        long_help = "The recipe of the instance to launch. Required unless `--launch-template` is set. With `--launch-template`, the fields set here override the version's for this launch only, and the version stays as it is: a field left empty keeps the version's, so an override can't clear one. `image` or `imageFamily` replaces both of the version's, `sizeGib` and `storageClass` of `bootVolume` each replace the version's own, and `tags` and `networkInterfaces` replace the version's whole.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`instance_type`, required: The instance type by its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, such as `//compute.origincloudapis.eu/instanceTypes/gp1.core.2`: one whose `available` is true. Its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`; not a relative name or an id.\n\n`image`: The full name of the image the boot volume is created from, in the launch's zone: one of the project's own, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`, or a public one, `//compute.origincloudapis.eu/zones/{zone}/images/{image}`. Set exactly one of `image` and `image_family`. Its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`; not a relative name or an id.\n\n`image_family`: The full name of the image family to launch the current public image of, `//compute.origincloudapis.eu/imageFamilies/{image_family}`. Set exactly one of `image` and `image_family`. Its full name, `//compute.origincloudapis.eu/imageFamilies/{image_family}`; not a relative name or an id.\n\n`key_pair`, required: The full name of the key pair whose public key is installed for `login_user`, in the launch's project. Its full name, `//compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}`; not a relative name or an id.\n\n`login_user`: The account to log in as: a user created at first boot that holds the key pair. A POSIX user name of at most 32 lowercase letters, digits, underscores and hyphens, starting with a letter or an underscore, and not `root`. The image's `default_user` when left empty.\n\n`service_account`: The full name of the service account the instance runs as, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`: a `WORKLOAD` service account of the project's organization that isn't deleted. Launching with one needs `iam.service_account.act_as` on the organization as well. Empty for an instance that runs as none. Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`; not a relative name or an id.\n\n`boot_volume`, `tags`, `network_interfaces` are set only through `--launch-template-data-json`. A value with a comma in it goes through `--launch-template-data-json` too.",
+        help = "The recipe of the instance to launch, as KEY=VALUE pairs; sent whole",
+        value_name = "KEY=VALUE,...",
+        value_parser = |text:&str|parse_launch_template_data(
+            text,
+            "--launch-template-data-json"
+        ),
+        conflicts_with = "launch_template_data_json"
+    )]
+    pub launch_template_data: Option<
+        Keyed<::origincloud_compute::v1beta1::LaunchTemplateData>,
+    >,
+    #[arg(
+        long = "launch-template-data-json",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, never a relative name or an id, as in its KEY=VALUE form. Instead of `--launch-template-data`.",
+        help = "Launch template data as JSON; sent whole",
+        value_name = "JSON",
+        value_parser = |text:&str|json_arg::<::origincloud_compute::v1beta1::LaunchTemplateData>(
+            text,
+            "origincloud.compute.v1beta1.LaunchTemplateData"
+        )
+    )]
+    pub launch_template_data_json: Option<
+        JsonArg<::origincloud_compute::v1beta1::LaunchTemplateData>,
+    >,
+    /// A UUID; a repeat with the same id returns the first request's
+    /// operation instead of launching a second instance. One is generated when not given.
+    #[arg(long = "request-id")]
+    pub request_id: Option<String>,
+    /// The full name of a launch template of the instance's project to launch
+    /// from,
+    /// `//compute.origincloudapis.eu/projects/{project}/launchTemplates/{launch_template}`
+    /// for its default version, or with `@{version}`, `@default` or `@latest`
+    /// after it for that version, resolved when the launch is made. Launching
+    /// from one needs `compute.launch_template.get` on it as well. An unknown
+    /// template or version is refused with `NOT_FOUND`, and a version whose
+    /// image, key pair or subnet is gone is refused naming that field of
+    /// `--launch-template-data`.
+    ///
+    /// Its full name, `//compute.origincloudapis.eu/projects/{project}/launchTemplates/{launch_template}`; not a relative name or an id.
+    #[arg(long = "launch-template", value_name = "NAME")]
+    pub launch_template: Option<String>,
+    /// Print the operation as soon as the API accepts it, instead of waiting until it is done.
+    #[arg(long = "no-wait")]
+    pub no_wait: bool,
+}
+async fn launch_instance(
+    ctx: &Context<'_>,
+    args: LaunchInstanceArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let names = ctx
+        .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    let parent = names.name("projects/{project}/zones/{zone}")?;
+    let mut launch_template_data = match args.launch_template_data_json {
+        Some(json) => Some(json.0),
+        None => args.launch_template_data.map(|keyed| { keyed.value }),
+    };
+    if let Some(item) = &mut launch_template_data {
+        if !item.instance_type.is_empty() {
+            item.instance_type = reference(
+                &["instanceTypes/{instance_type}"],
+                &["compute"],
+                "--launch-template-data instance_type",
+                item.instance_type.as_str(),
+            )?;
+        }
+        if !item.image.is_empty() {
+            item.image = reference(
+                &["projects/{project}/zones/{zone}/images/{image}"],
+                &["compute"],
+                "--launch-template-data image",
+                item.image.as_str(),
+            )?;
+        }
+        if !item.image_family.is_empty() {
+            item.image_family = reference(
+                &["imageFamilies/{image_family}"],
+                &["compute"],
+                "--launch-template-data image_family",
+                item.image_family.as_str(),
+            )?;
+        }
+        if !item.key_pair.is_empty() {
+            item.key_pair = reference(
+                &["projects/{project}/keyPairs/{key_pair}"],
+                &["compute"],
+                "--launch-template-data key_pair",
+                item.key_pair.as_str(),
+            )?;
+        }
+        if !item.service_account.is_empty() {
+            item.service_account = reference(
+                &["organizations/{organization}/serviceAccounts/{service_account}"],
+                &["iam"],
+                "--launch-template-data service_account",
+                item.service_account.as_str(),
+            )?;
+        }
+    }
+    let launch_template = match args.launch_template.as_deref() {
+        Some(v) => {
+            reference(
+                &["projects/{project}/launchTemplates/{launch_template}"],
+                &["compute"],
+                "--launch-template",
+                v,
+            )?
+        }
+        None => String::new(),
+    };
+    let request = ::origincloud_compute::v1beta1::LaunchInstanceRequest {
+        parent,
+        launch_template_data,
+        request_id: args.request_id.clone().unwrap_or_default(),
+        launch_template,
+    };
+    let client = ctx.client()?;
+    let response = call_launch_instance(&client, request).await.map_err(api_error)?;
+    let mut operation = response;
+    if args.no_wait {
+        return json(operation.raw(), OPERATION);
+    }
+    let result = wait(ctx, &mut operation).await?;
+    json(&result, "origincloud.compute.v1beta1.Instance")
+}
+async fn call_launch_instance(
+    client: &ReadClient,
+    request: ::origincloud_compute::v1beta1::LaunchInstanceRequest,
+) -> ::core::result::Result<
+    ::origincloud_core::Operation<::origincloud_compute::v1beta1::Instance>,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_compute::v1beta1::InstanceClient::new(client.sdk())
+        .launch_instance(request)
         .await
 }
 /// The flags of `update-instance`.
@@ -1910,6 +2127,716 @@ async fn call_delete_key_pair(
 > {
     ::origincloud_compute::v1beta1::KeyPairClient::new(client.sdk())
         .delete_key_pair(request)
+        .await
+}
+/// The flags of `get-launch-template`.
+#[derive(clap::Args, Debug)]
+pub struct GetLaunchTemplateArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The launch template to return: `projects/{project}/launchTemplates/{launch_template}`
+    /// for its default version, or with `@{version}`, `@default` or `@latest`
+    /// after it for that version.
+    ///
+    /// Its id, completed with `--project`, or its full name, `//compute.origincloudapis.eu/projects/{project}/launchTemplates/{launch_template}`, or its relative name, `projects/{project}/launchTemplates/{launch_template}`.
+    #[arg(long = "launch-template", value_name = "LAUNCH_TEMPLATE")]
+    pub launch_template: String,
+}
+async fn get_launch_template(
+    ctx: &Context<'_>,
+    args: GetLaunchTemplateArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names
+        .learn(
+            &["projects/{project}/launchTemplates/{launch_template}"],
+            &["compute"],
+            "launch-template",
+            Some(args.launch_template.as_str()),
+        )?;
+    let name = names
+        .target(
+            &["projects/{project}/launchTemplates/{launch_template}"],
+            &["compute"],
+            "launch-template",
+            args.launch_template.as_str(),
+        )?;
+    let request = ::origincloud_compute::v1beta1::GetLaunchTemplateRequest {
+        name,
+    };
+    let client = ctx.client()?;
+    let response = call_get_launch_template(&client, request).await.map_err(api_error)?;
+    json(&response, "origincloud.compute.v1beta1.LaunchTemplate")
+}
+async fn call_get_launch_template(
+    client: &ReadClient,
+    request: ::origincloud_compute::v1beta1::GetLaunchTemplateRequest,
+) -> ::core::result::Result<
+    ::origincloud_compute::v1beta1::LaunchTemplate,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_compute::v1beta1::LaunchTemplateClient::new(client.sdk())
+        .get_launch_template(request)
+        .await
+}
+/// The flags of `list-launch-templates`.
+#[derive(clap::Args, Debug)]
+pub struct ListLaunchTemplatesArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The most launch templates to return; the server clamps it, and 0 means
+    /// its default.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-size")]
+    pub page_size: Option<i32>,
+    /// A previous response's `nextPageToken`, for the page after it.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-token")]
+    pub page_token: Option<String>,
+}
+async fn list_launch_templates(
+    ctx: &Context<'_>,
+    args: ListLaunchTemplatesArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let names = ctx.names(&[("project", args.project.as_deref())]);
+    let parent = names.name("projects/{project}")?;
+    let request = ::origincloud_compute::v1beta1::ListLaunchTemplatesRequest {
+        parent,
+        page_size: args.page_size.unwrap_or_default(),
+        page_token: args.page_token.clone().unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
+    if args.page_size.is_some() || args.page_token.is_some() {
+        let page = call_list_launch_templates(&client, request)
+            .await
+            .map_err(api_error)?;
+        return list_json(
+            &page,
+            Listing {
+                field: "launchTemplates",
+                item: Some("origincloud.compute.v1beta1.LaunchTemplate"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin compute create-launch-template-version"),
+            },
+        );
+    }
+    let mut request = request;
+    let mut items = Vec::new();
+    loop {
+        let page = call_list_launch_templates(&client, request.clone())
+            .await
+            .map_err(api_error)?;
+        items.extend(page.launch_templates);
+        if page.next_page_token.is_empty() {
+            break;
+        }
+        request.page_token = page.next_page_token;
+    }
+    list_json(
+        &::origincloud_compute::v1beta1::ListLaunchTemplatesResponse {
+            launch_templates: items,
+            ..::core::default::Default::default()
+        },
+        Listing {
+            field: "launchTemplates",
+            item: Some("origincloud.compute.v1beta1.LaunchTemplate"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin compute create-launch-template-version"),
+        },
+    )
+}
+async fn call_list_launch_templates(
+    client: &ReadClient,
+    request: ::origincloud_compute::v1beta1::ListLaunchTemplatesRequest,
+) -> ::core::result::Result<
+    ::origincloud_compute::v1beta1::ListLaunchTemplatesResponse,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_compute::v1beta1::LaunchTemplateClient::new(client.sdk())
+        .list_launch_templates(request)
+        .await
+}
+/// The flags of `create-launch-template`.
+#[derive(clap::Args, Debug)]
+pub struct CreateLaunchTemplateArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    #[arg(
+        long = "launch-template-data",
+        long_help = "The recipe of the version this shows, `version`: the default version's unless the name named another. On creation, the recipe of version 1.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`instance_type`, required: The instance type by its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, such as `//compute.origincloudapis.eu/instanceTypes/gp1.core.2`: one whose `available` is true. Its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`; not a relative name or an id.\n\n`image`: The full name of the image the boot volume is created from, in the launch's zone: one of the project's own, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`, or a public one, `//compute.origincloudapis.eu/zones/{zone}/images/{image}`. Set exactly one of `image` and `image_family`. Its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`; not a relative name or an id.\n\n`image_family`: The full name of the image family to launch the current public image of, `//compute.origincloudapis.eu/imageFamilies/{image_family}`. Set exactly one of `image` and `image_family`. Its full name, `//compute.origincloudapis.eu/imageFamilies/{image_family}`; not a relative name or an id.\n\n`key_pair`, required: The full name of the key pair whose public key is installed for `login_user`, in the launch's project. Its full name, `//compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}`; not a relative name or an id.\n\n`login_user`: The account to log in as: a user created at first boot that holds the key pair. A POSIX user name of at most 32 lowercase letters, digits, underscores and hyphens, starting with a letter or an underscore, and not `root`. The image's `default_user` when left empty.\n\n`service_account`: The full name of the service account the instance runs as, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`: a `WORKLOAD` service account of the project's organization that isn't deleted. Launching with one needs `iam.service_account.act_as` on the organization as well. Empty for an instance that runs as none. Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`; not a relative name or an id.\n\n`boot_volume`, `tags`, `network_interfaces` are set only through `--launch-template-data-json`. A value with a comma in it goes through `--launch-template-data-json` too.",
+        help = "The recipe of the version this shows, `version`: the default version's unless the name named another, as KEY=VALUE pairs; sent whole",
+        value_name = "KEY=VALUE,...",
+        value_parser = |text:&str|parse_launch_template_data(
+            text,
+            "--launch-template-data-json"
+        ),
+        conflicts_with = "launch_template_data_json",
+        required_unless_present = "launch_template_data_json"
+    )]
+    pub launch_template_data: Option<
+        Keyed<::origincloud_compute::v1beta1::LaunchTemplateData>,
+    >,
+    #[arg(
+        long = "launch-template-data-json",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, never a relative name or an id, as in its KEY=VALUE form. Instead of `--launch-template-data`.",
+        help = "Launch template data as JSON; sent whole",
+        value_name = "JSON",
+        value_parser = |text:&str|json_arg::<::origincloud_compute::v1beta1::LaunchTemplateData>(
+            text,
+            "origincloud.compute.v1beta1.LaunchTemplateData"
+        )
+    )]
+    pub launch_template_data_json: Option<
+        JsonArg<::origincloud_compute::v1beta1::LaunchTemplateData>,
+    >,
+    /// The number of the version launches use when they name no version. 1 on
+    /// creation; an update sets it to another version the template has.
+    #[arg(long = "default-version")]
+    pub default_version: Option<i32>,
+    /// Labels of your own for the launch template, at most 50. The
+    /// `origin:name` tag is the name the console shows. The recipe's own
+    /// `--tag` are the instances'.
+    ///
+    /// As KEY=VALUE; repeat for more.
+    #[arg(long = "tag", value_name = "KEY=VALUE")]
+    pub tag: Vec<TagArg>,
+    /// A UUID; a repeat with the same id creates no second launch template
+    /// and returns the first request's. One is generated when not given.
+    #[arg(long = "request-id")]
+    pub request_id: Option<String>,
+}
+async fn create_launch_template(
+    ctx: &Context<'_>,
+    args: CreateLaunchTemplateArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let names = ctx.names(&[("project", args.project.as_deref())]);
+    let parent = names.name("projects/{project}")?;
+    let mut launch_template_data = match args.launch_template_data_json {
+        Some(json) => Some(json.0),
+        None => args.launch_template_data.map(|keyed| { keyed.value }),
+    };
+    if let Some(item) = &mut launch_template_data {
+        if !item.instance_type.is_empty() {
+            item.instance_type = reference(
+                &["instanceTypes/{instance_type}"],
+                &["compute"],
+                "--launch-template-data instance_type",
+                item.instance_type.as_str(),
+            )?;
+        }
+        if !item.image.is_empty() {
+            item.image = reference(
+                &["projects/{project}/zones/{zone}/images/{image}"],
+                &["compute"],
+                "--launch-template-data image",
+                item.image.as_str(),
+            )?;
+        }
+        if !item.image_family.is_empty() {
+            item.image_family = reference(
+                &["imageFamilies/{image_family}"],
+                &["compute"],
+                "--launch-template-data image_family",
+                item.image_family.as_str(),
+            )?;
+        }
+        if !item.key_pair.is_empty() {
+            item.key_pair = reference(
+                &["projects/{project}/keyPairs/{key_pair}"],
+                &["compute"],
+                "--launch-template-data key_pair",
+                item.key_pair.as_str(),
+            )?;
+        }
+        if !item.service_account.is_empty() {
+            item.service_account = reference(
+                &["organizations/{organization}/serviceAccounts/{service_account}"],
+                &["iam"],
+                "--launch-template-data service_account",
+                item.service_account.as_str(),
+            )?;
+        }
+    }
+    let launch_template = ::origincloud_compute::v1beta1::LaunchTemplate {
+        launch_template_data,
+        default_version: args.default_version.unwrap_or_default(),
+        tags: tags(&args.tag),
+        ..::core::default::Default::default()
+    };
+    let request = ::origincloud_compute::v1beta1::CreateLaunchTemplateRequest {
+        parent,
+        launch_template: Some(launch_template),
+        request_id: args.request_id.clone().unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    let response = call_create_launch_template(&client, request)
+        .await
+        .map_err(api_error)?;
+    json(&response, "origincloud.compute.v1beta1.LaunchTemplate")
+}
+async fn call_create_launch_template(
+    client: &ReadClient,
+    request: ::origincloud_compute::v1beta1::CreateLaunchTemplateRequest,
+) -> ::core::result::Result<
+    ::origincloud_compute::v1beta1::LaunchTemplate,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_compute::v1beta1::LaunchTemplateClient::new(client.sdk())
+        .create_launch_template(request)
+        .await
+}
+/// The flags of `update-launch-template`.
+#[derive(clap::Args, Debug)]
+#[command(
+    group(
+        clap::ArgGroup::new(
+            "changes"
+        ).required(true).multiple(true).args(["default_version", "tag", "no_tags"])
+    )
+)]
+pub struct UpdateLaunchTemplateArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The launch template to change.
+    ///
+    /// Its id, completed with `--project`, or its full name, `//compute.origincloudapis.eu/projects/{project}/launchTemplates/{launch_template}`, or its relative name, `projects/{project}/launchTemplates/{launch_template}`.
+    #[arg(long = "launch-template", value_name = "LAUNCH_TEMPLATE")]
+    pub launch_template: String,
+    /// The number of the version launches use when they name no version. 1 on
+    /// creation; an update sets it to another version the template has.
+    ///
+    /// Left as it is when not given.
+    #[arg(long = "default-version")]
+    pub default_version: Option<i32>,
+    /// Labels of your own for the launch template, at most 50. The
+    /// `origin:name` tag is the name the console shows. The recipe's own
+    /// `--tag` are the instances'.
+    ///
+    /// As KEY=VALUE; repeat for more. Replaces all of them, so give every one to keep; `--no-tags` removes them all. Left as they are when neither is given.
+    #[arg(long = "tag", value_name = "KEY=VALUE")]
+    pub tag: Vec<TagArg>,
+    /// Remove all of its tags.
+    #[arg(long = "no-tags", conflicts_with = "tag")]
+    pub no_tags: bool,
+}
+async fn update_launch_template(
+    ctx: &Context<'_>,
+    args: UpdateLaunchTemplateArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names
+        .learn(
+            &["projects/{project}/launchTemplates/{launch_template}"],
+            &["compute"],
+            "launch-template",
+            Some(args.launch_template.as_str()),
+        )?;
+    let name = names
+        .target(
+            &["projects/{project}/launchTemplates/{launch_template}"],
+            &["compute"],
+            "launch-template",
+            args.launch_template.as_str(),
+        )?;
+    let mut launch_template = ::origincloud_compute::v1beta1::LaunchTemplate {
+        name: name.clone(),
+        ..::core::default::Default::default()
+    };
+    let mut paths: Vec<String> = Vec::new();
+    if let Some(value) = args.default_version {
+        launch_template.default_version = value;
+        paths.push("default_version".to_owned());
+    }
+    if args.no_tags || !args.tag.is_empty() {
+        launch_template.tags = tags(&args.tag);
+        paths.push("tags".to_owned());
+    }
+    let request = ::origincloud_compute::v1beta1::UpdateLaunchTemplateRequest {
+        launch_template: Some(launch_template),
+        update_mask: Some(::origincloud_core::protobuf::FieldMask {
+            paths,
+        }),
+    };
+    let client = ctx.client()?;
+    let response = call_update_launch_template(&client, request)
+        .await
+        .map_err(api_error)?;
+    json(&response, "origincloud.compute.v1beta1.LaunchTemplate")
+}
+async fn call_update_launch_template(
+    client: &ReadClient,
+    request: ::origincloud_compute::v1beta1::UpdateLaunchTemplateRequest,
+) -> ::core::result::Result<
+    ::origincloud_compute::v1beta1::LaunchTemplate,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_compute::v1beta1::LaunchTemplateClient::new(client.sdk())
+        .update_launch_template(request)
+        .await
+}
+/// The flags of `delete-launch-template`.
+#[derive(clap::Args, Debug)]
+pub struct DeleteLaunchTemplateArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The launch template to delete.
+    ///
+    /// Its id, completed with `--project`, or its full name, `//compute.origincloudapis.eu/projects/{project}/launchTemplates/{launch_template}`, or its relative name, `projects/{project}/launchTemplates/{launch_template}`.
+    #[arg(long = "launch-template", value_name = "LAUNCH_TEMPLATE")]
+    pub launch_template: String,
+    #[command(flatten)]
+    pub confirmation: confirm::Confirmation,
+}
+async fn delete_launch_template(
+    ctx: &Context<'_>,
+    args: DeleteLaunchTemplateArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names
+        .learn(
+            &["projects/{project}/launchTemplates/{launch_template}"],
+            &["compute"],
+            "launch-template",
+            Some(args.launch_template.as_str()),
+        )?;
+    let name = names
+        .target(
+            &["projects/{project}/launchTemplates/{launch_template}"],
+            &["compute"],
+            "launch-template",
+            args.launch_template.as_str(),
+        )?;
+    let request = ::origincloud_compute::v1beta1::DeleteLaunchTemplateRequest {
+        name,
+    };
+    let confirmed = confirm::require(
+        args.confirmation,
+        confirm::Destructive {
+            verb: "delete",
+            what: "launch template",
+            target: &request.name,
+            consequence: "It can't be restored.",
+        },
+    )?;
+    let deleted_name = request.name.clone();
+    let client = ctx.confirmed_client(confirmed)?;
+    let response = call_delete_launch_template(&client, request)
+        .await
+        .map_err(api_error)?;
+    let _ = response;
+    Ok(deleted("launch template", &deleted_name))
+}
+async fn call_delete_launch_template(
+    client: &ConfirmedClient,
+    request: ::origincloud_compute::v1beta1::DeleteLaunchTemplateRequest,
+) -> ::core::result::Result<
+    ::origincloud_core::protobuf::Empty,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_compute::v1beta1::LaunchTemplateClient::new(client.sdk())
+        .delete_launch_template(request)
+        .await
+}
+/// The flags of `create-launch-template-version`.
+#[derive(clap::Args, Debug)]
+pub struct CreateLaunchTemplateVersionArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The launch template to add a version to.
+    ///
+    /// Its id, completed with `--project`, or its full name, `//compute.origincloudapis.eu/projects/{project}/launchTemplates/{launch_template}`, or its relative name, `projects/{project}/launchTemplates/{launch_template}`.
+    #[arg(long = "launch-template", value_name = "LAUNCH_TEMPLATE")]
+    pub launch_template: String,
+    #[arg(
+        long = "launch-template-data",
+        long_help = "The new version's recipe.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`instance_type`, required: The instance type by its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, such as `//compute.origincloudapis.eu/instanceTypes/gp1.core.2`: one whose `available` is true. Its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`; not a relative name or an id.\n\n`image`: The full name of the image the boot volume is created from, in the launch's zone: one of the project's own, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`, or a public one, `//compute.origincloudapis.eu/zones/{zone}/images/{image}`. Set exactly one of `image` and `image_family`. Its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`; not a relative name or an id.\n\n`image_family`: The full name of the image family to launch the current public image of, `//compute.origincloudapis.eu/imageFamilies/{image_family}`. Set exactly one of `image` and `image_family`. Its full name, `//compute.origincloudapis.eu/imageFamilies/{image_family}`; not a relative name or an id.\n\n`key_pair`, required: The full name of the key pair whose public key is installed for `login_user`, in the launch's project. Its full name, `//compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}`; not a relative name or an id.\n\n`login_user`: The account to log in as: a user created at first boot that holds the key pair. A POSIX user name of at most 32 lowercase letters, digits, underscores and hyphens, starting with a letter or an underscore, and not `root`. The image's `default_user` when left empty.\n\n`service_account`: The full name of the service account the instance runs as, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`: a `WORKLOAD` service account of the project's organization that isn't deleted. Launching with one needs `iam.service_account.act_as` on the organization as well. Empty for an instance that runs as none. Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`; not a relative name or an id.\n\n`boot_volume`, `tags`, `network_interfaces` are set only through `--launch-template-data-json`. A value with a comma in it goes through `--launch-template-data-json` too.",
+        help = "The new version's recipe, as KEY=VALUE pairs; sent whole",
+        value_name = "KEY=VALUE,...",
+        value_parser = |text:&str|parse_launch_template_data(
+            text,
+            "--launch-template-data-json"
+        ),
+        conflicts_with = "launch_template_data_json",
+        required_unless_present = "launch_template_data_json"
+    )]
+    pub launch_template_data: Option<
+        Keyed<::origincloud_compute::v1beta1::LaunchTemplateData>,
+    >,
+    #[arg(
+        long = "launch-template-data-json",
+        long_help = "As the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth. A resource name in it is a full name, `//{service}.origincloudapis.eu/{name}`, never a relative name or an id, as in its KEY=VALUE form. Instead of `--launch-template-data`.",
+        help = "Launch template data as JSON; sent whole",
+        value_name = "JSON",
+        value_parser = |text:&str|json_arg::<::origincloud_compute::v1beta1::LaunchTemplateData>(
+            text,
+            "origincloud.compute.v1beta1.LaunchTemplateData"
+        )
+    )]
+    pub launch_template_data_json: Option<
+        JsonArg<::origincloud_compute::v1beta1::LaunchTemplateData>,
+    >,
+}
+async fn create_launch_template_version(
+    ctx: &Context<'_>,
+    args: CreateLaunchTemplateVersionArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names
+        .learn(
+            &["projects/{project}/launchTemplates/{launch_template}"],
+            &["compute"],
+            "launch-template",
+            Some(args.launch_template.as_str()),
+        )?;
+    let name = names
+        .target(
+            &["projects/{project}/launchTemplates/{launch_template}"],
+            &["compute"],
+            "launch-template",
+            args.launch_template.as_str(),
+        )?;
+    let mut launch_template_data = match args.launch_template_data_json {
+        Some(json) => Some(json.0),
+        None => args.launch_template_data.map(|keyed| { keyed.value }),
+    };
+    if let Some(item) = &mut launch_template_data {
+        if !item.instance_type.is_empty() {
+            item.instance_type = reference(
+                &["instanceTypes/{instance_type}"],
+                &["compute"],
+                "--launch-template-data instance_type",
+                item.instance_type.as_str(),
+            )?;
+        }
+        if !item.image.is_empty() {
+            item.image = reference(
+                &["projects/{project}/zones/{zone}/images/{image}"],
+                &["compute"],
+                "--launch-template-data image",
+                item.image.as_str(),
+            )?;
+        }
+        if !item.image_family.is_empty() {
+            item.image_family = reference(
+                &["imageFamilies/{image_family}"],
+                &["compute"],
+                "--launch-template-data image_family",
+                item.image_family.as_str(),
+            )?;
+        }
+        if !item.key_pair.is_empty() {
+            item.key_pair = reference(
+                &["projects/{project}/keyPairs/{key_pair}"],
+                &["compute"],
+                "--launch-template-data key_pair",
+                item.key_pair.as_str(),
+            )?;
+        }
+        if !item.service_account.is_empty() {
+            item.service_account = reference(
+                &["organizations/{organization}/serviceAccounts/{service_account}"],
+                &["iam"],
+                "--launch-template-data service_account",
+                item.service_account.as_str(),
+            )?;
+        }
+    }
+    let request = ::origincloud_compute::v1beta1::CreateLaunchTemplateVersionRequest {
+        name,
+        launch_template_data,
+    };
+    let client = ctx.client()?;
+    let response = call_create_launch_template_version(&client, request)
+        .await
+        .map_err(api_error)?;
+    json(&response, "origincloud.compute.v1beta1.LaunchTemplate")
+}
+async fn call_create_launch_template_version(
+    client: &ReadClient,
+    request: ::origincloud_compute::v1beta1::CreateLaunchTemplateVersionRequest,
+) -> ::core::result::Result<
+    ::origincloud_compute::v1beta1::LaunchTemplate,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_compute::v1beta1::LaunchTemplateClient::new(client.sdk())
+        .create_launch_template_version(request)
+        .await
+}
+/// The flags of `list-launch-template-versions`.
+#[derive(clap::Args, Debug)]
+pub struct ListLaunchTemplateVersionsArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The launch template whose versions to list.
+    ///
+    /// Its id, completed with `--project`, or its full name, `//compute.origincloudapis.eu/projects/{project}/launchTemplates/{launch_template}`, or its relative name, `projects/{project}/launchTemplates/{launch_template}`.
+    #[arg(long = "launch-template", value_name = "LAUNCH_TEMPLATE")]
+    pub launch_template: String,
+    /// The most versions to return; the server clamps it, and 0 means its
+    /// default.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-size")]
+    pub page_size: Option<i32>,
+    /// A previous response's `nextPageToken`, for the page after it.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-token")]
+    pub page_token: Option<String>,
+}
+async fn list_launch_template_versions(
+    ctx: &Context<'_>,
+    args: ListLaunchTemplateVersionsArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names
+        .learn(
+            &["projects/{project}/launchTemplates/{launch_template}"],
+            &["compute"],
+            "launch-template",
+            Some(args.launch_template.as_str()),
+        )?;
+    let name = names
+        .target(
+            &["projects/{project}/launchTemplates/{launch_template}"],
+            &["compute"],
+            "launch-template",
+            args.launch_template.as_str(),
+        )?;
+    let request = ::origincloud_compute::v1beta1::ListLaunchTemplateVersionsRequest {
+        name,
+        page_size: args.page_size.unwrap_or_default(),
+        page_token: args.page_token.clone().unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    let listed: Vec<String> = Vec::new();
+    if args.page_size.is_some() || args.page_token.is_some() {
+        let page = call_list_launch_template_versions(&client, request)
+            .await
+            .map_err(api_error)?;
+        return list_json(
+            &page,
+            Listing {
+                field: "launchTemplates",
+                item: Some("origincloud.compute.v1beta1.LaunchTemplate"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin compute create-launch-template-version"),
+            },
+        );
+    }
+    let mut request = request;
+    let mut items = Vec::new();
+    loop {
+        let page = call_list_launch_template_versions(&client, request.clone())
+            .await
+            .map_err(api_error)?;
+        items.extend(page.launch_templates);
+        if page.next_page_token.is_empty() {
+            break;
+        }
+        request.page_token = page.next_page_token;
+    }
+    list_json(
+        &::origincloud_compute::v1beta1::ListLaunchTemplateVersionsResponse {
+            launch_templates: items,
+            ..::core::default::Default::default()
+        },
+        Listing {
+            field: "launchTemplates",
+            item: Some("origincloud.compute.v1beta1.LaunchTemplate"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin compute create-launch-template-version"),
+        },
+    )
+}
+async fn call_list_launch_template_versions(
+    client: &ReadClient,
+    request: ::origincloud_compute::v1beta1::ListLaunchTemplateVersionsRequest,
+) -> ::core::result::Result<
+    ::origincloud_compute::v1beta1::ListLaunchTemplateVersionsResponse,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_compute::v1beta1::LaunchTemplateClient::new(client.sdk())
+        .list_launch_template_versions(request)
+        .await
+}
+/// The flags of `delete-launch-template-version`.
+#[derive(clap::Args, Debug)]
+pub struct DeleteLaunchTemplateVersionArgs {
+    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The version to delete, `projects/{project}/launchTemplates/{launch_template}@{version}`
+    /// with the version's number.
+    ///
+    /// Its id, completed with `--project`, or its full name, `//compute.origincloudapis.eu/projects/{project}/launchTemplates/{launch_template}`, or its relative name, `projects/{project}/launchTemplates/{launch_template}`.
+    #[arg(long = "launch-template", value_name = "LAUNCH_TEMPLATE")]
+    pub launch_template: String,
+    #[command(flatten)]
+    pub confirmation: confirm::Confirmation,
+}
+async fn delete_launch_template_version(
+    ctx: &Context<'_>,
+    args: DeleteLaunchTemplateVersionArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names
+        .learn(
+            &["projects/{project}/launchTemplates/{launch_template}"],
+            &["compute"],
+            "launch-template",
+            Some(args.launch_template.as_str()),
+        )?;
+    let name = names
+        .target(
+            &["projects/{project}/launchTemplates/{launch_template}"],
+            &["compute"],
+            "launch-template",
+            args.launch_template.as_str(),
+        )?;
+    let request = ::origincloud_compute::v1beta1::DeleteLaunchTemplateVersionRequest {
+        name,
+    };
+    let confirmed = confirm::require(
+        args.confirmation,
+        confirm::Destructive {
+            verb: "delete",
+            what: "launch template",
+            target: &request.name,
+            consequence: "It can't be restored.",
+        },
+    )?;
+    let deleted_name = request.name.clone();
+    let client = ctx.confirmed_client(confirmed)?;
+    let response = call_delete_launch_template_version(&client, request)
+        .await
+        .map_err(api_error)?;
+    let _ = response;
+    Ok(deleted("launch template", &deleted_name))
+}
+async fn call_delete_launch_template_version(
+    client: &ConfirmedClient,
+    request: ::origincloud_compute::v1beta1::DeleteLaunchTemplateVersionRequest,
+) -> ::core::result::Result<
+    ::origincloud_core::protobuf::Empty,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_compute::v1beta1::LaunchTemplateClient::new(client.sdk())
+        .delete_launch_template_version(request)
         .await
 }
 /// The flags of `get-public-image`.
@@ -2671,6 +3598,51 @@ fn parse_image_block_device(
         }
     }
     required_keys(&pairs, &["device", "size_gib"])?;
+    Ok(Keyed {
+        value: out,
+        given: pairs.into_iter().map(|(key, _)| key).collect(),
+    })
+}
+/// A `::origincloud_compute::v1beta1::LaunchTemplateData` from its `KEY=VALUE,...` form; a key that is a field only the
+/// JSON form sets says so, naming `json_flag`.
+fn parse_launch_template_data(
+    text: &str,
+    json_flag: &str,
+) -> ::core::result::Result<
+    Keyed<::origincloud_compute::v1beta1::LaunchTemplateData>,
+    String,
+> {
+    let pairs = key_values(text)?;
+    let mut out = <::origincloud_compute::v1beta1::LaunchTemplateData>::default();
+    for (key, value) in &pairs {
+        let value = value.as_str();
+        match key.as_str() {
+            "instance_type" => out.instance_type = value.to_owned(),
+            "image" => out.image = value.to_owned(),
+            "image_family" => out.image_family = value.to_owned(),
+            "key_pair" => out.key_pair = value.to_owned(),
+            "login_user" => out.login_user = value.to_owned(),
+            "service_account" => out.service_account = value.to_owned(),
+            other => {
+                return Err(
+                    unknown_key(
+                        other,
+                        &[
+                            "instance_type",
+                            "image",
+                            "image_family",
+                            "key_pair",
+                            "login_user",
+                            "service_account",
+                        ],
+                        &["boot_volume", "tags", "network_interfaces"],
+                        json_flag,
+                    ),
+                );
+            }
+        }
+    }
+    required_keys(&pairs, &["instance_type", "key_pair"])?;
     Ok(Keyed {
         value: out,
         given: pairs.into_iter().map(|(key, _)| key).collect(),

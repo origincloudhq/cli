@@ -137,6 +137,30 @@ pub enum Commands {
     )]
     DeleteServiceAccount(DeleteServiceAccountArgs),
     #[command(
+        name = "get-service-account-key",
+        about = "Returns a service account key's public metadata, deleted or not; never its private key",
+        long_about = "Returns a service account key's public metadata, deleted or not; never its private key. Needs `iam.service_account_key.get` on the organization."
+    )]
+    GetServiceAccountKey(GetServiceAccountKeyArgs),
+    #[command(
+        name = "list-service-account-keys",
+        about = "Lists a service account's keys, oldest first, by their public metadata; never a private key",
+        long_about = "Lists a service account's keys, oldest first, by their public metadata; never a private key. Deleted ones are listed only when `--show-deleted` is set. Needs `iam.service_account_key.list` on the organization."
+    )]
+    ListServiceAccountKeys(ListServiceAccountKeysArgs),
+    #[command(
+        name = "create-service-account-key",
+        about = "Creates an `ES256` key for an active `EXTERNAL` service account and returns its private key in `credentialsFile`, in this response only: store it now",
+        long_about = "Creates an `ES256` key for an active `EXTERNAL` service account and returns its private key in `credentialsFile`, in this response only: store it now. Whoever holds the file acts as the service account, so creating a key needs `iam.service_account_key.create` and `iam.service_account.act_as` on the organization. A service account has at most 10 keys that aren't deleted; an 11th is refused with `CONFLICT`. A `WORKLOAD` service account never has a key: it is refused with `INVALID_ARGUMENT`."
+    )]
+    CreateServiceAccountKey(CreateServiceAccountKeyArgs),
+    #[command(
+        name = "delete-service-account-key",
+        about = "Deletes a service account key: no assertion signed with it is exchanged from then on",
+        long_about = "Deletes a service account key: no assertion signed with it is exchanged from then on. It stays readable as `DELETED`. Deleting a deleted one succeeds. Needs `iam.service_account_key.delete` on the organization."
+    )]
+    DeleteServiceAccountKey(DeleteServiceAccountKeyArgs),
+    #[command(
         name = "get-user",
         about = "Returns the caller's own profile",
         long_about = "Returns the caller's own profile. Any other user is `NOT_FOUND`; a service account caller is refused with `BAD_REQUEST`, having no profile."
@@ -185,6 +209,16 @@ pub async fn run(
             rotate_service_account_secret(ctx, args).await
         }
         Commands::DeleteServiceAccount(args) => delete_service_account(ctx, args).await,
+        Commands::GetServiceAccountKey(args) => get_service_account_key(ctx, args).await,
+        Commands::ListServiceAccountKeys(args) => {
+            list_service_account_keys(ctx, args).await
+        }
+        Commands::CreateServiceAccountKey(args) => {
+            create_service_account_key(ctx, args).await
+        }
+        Commands::DeleteServiceAccountKey(args) => {
+            delete_service_account_key(ctx, args).await
+        }
         Commands::GetUser(args) => get_user(ctx, args).await,
         Commands::LookupUser(args) => lookup_user(ctx, args).await,
     }
@@ -1539,6 +1573,328 @@ async fn call_delete_service_account(
 > {
     ::origincloud_iam::v1beta1::ServiceAccountClient::new(client.sdk())
         .delete_service_account(request)
+        .await
+}
+/// The flags of `get-service-account-key`.
+#[derive(clap::Args, Debug)]
+pub struct GetServiceAccountKeyArgs {
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` or `--key` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    pub organization: Option<String>,
+    /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`. Needed unless `--key` is given a whole name, which has it.
+    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
+    pub service_account: Option<String>,
+    /// The key to return.
+    ///
+    /// Its id, completed with `--organization` and `--service-account`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}/keys/{key}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}/keys/{key}`.
+    #[arg(long = "key", value_name = "KEY")]
+    pub key: String,
+}
+async fn get_service_account_key(
+    ctx: &Context<'_>,
+    args: GetServiceAccountKeyArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[
+                ("organization", args.organization.as_deref()),
+                ("service_account", args.service_account.as_deref()),
+            ],
+        );
+    names
+        .learn_part(
+            "organizations/{organization}/serviceAccounts/{service_account}",
+            &["iam"],
+            "service_account",
+        )?;
+    names
+        .learn(
+            &[
+                "organizations/{organization}/serviceAccounts/{service_account}/keys/{key}",
+            ],
+            &["iam"],
+            "key",
+            Some(args.key.as_str()),
+        )?;
+    let name = names
+        .target(
+            &[
+                "organizations/{organization}/serviceAccounts/{service_account}/keys/{key}",
+            ],
+            &["iam"],
+            "key",
+            args.key.as_str(),
+        )?;
+    let request = ::origincloud_iam::v1beta1::GetServiceAccountKeyRequest {
+        name,
+    };
+    let client = ctx.client()?;
+    let response = call_get_service_account_key(&client, request)
+        .await
+        .map_err(api_error)?;
+    json(&response, "origincloud.iam.v1beta1.ServiceAccountKey")
+}
+async fn call_get_service_account_key(
+    client: &ReadClient,
+    request: ::origincloud_iam::v1beta1::GetServiceAccountKeyRequest,
+) -> ::core::result::Result<
+    ::origincloud_iam::v1beta1::ServiceAccountKey,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_iam::v1beta1::ServiceAccountKeyClient::new(client.sdk())
+        .get_service_account_key(request)
+        .await
+}
+/// The flags of `list-service-account-keys`.
+#[derive(clap::Args, Debug)]
+pub struct ListServiceAccountKeysArgs {
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    pub organization: Option<String>,
+    /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`.
+    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT", required = true)]
+    pub service_account: Option<String>,
+    /// The most keys to return; the server clamps it, and 0 means its
+    /// default.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-size")]
+    pub page_size: Option<i32>,
+    /// A previous response's `nextPageToken`, for the page after it.
+    ///
+    /// Without `--page-size` or `--page-token`, every page is listed.
+    #[arg(long = "page-token")]
+    pub page_token: Option<String>,
+    /// Whether deleted keys are listed too.
+    #[arg(
+        long = "show-deleted",
+        value_name = "true|false",
+        action = clap::ArgAction::Set
+    )]
+    pub show_deleted: Option<bool>,
+}
+async fn list_service_account_keys(
+    ctx: &Context<'_>,
+    args: ListServiceAccountKeysArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[
+                ("organization", args.organization.as_deref()),
+                ("service_account", args.service_account.as_deref()),
+            ],
+        );
+    names
+        .learn_part(
+            "organizations/{organization}/serviceAccounts/{service_account}",
+            &["iam"],
+            "service_account",
+        )?;
+    let parent = names
+        .name("organizations/{organization}/serviceAccounts/{service_account}")?;
+    let request = ::origincloud_iam::v1beta1::ListServiceAccountKeysRequest {
+        parent,
+        page_size: args.page_size.unwrap_or_default(),
+        page_token: args.page_token.clone().unwrap_or_default(),
+        show_deleted: args.show_deleted.unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    let listed: Vec<String> = vec![request.parent.clone()];
+    if args.page_size.is_some() || args.page_token.is_some() {
+        let page = call_list_service_account_keys(&client, request)
+            .await
+            .map_err(api_error)?;
+        return list_json(
+            &page,
+            Listing {
+                field: "serviceAccountKeys",
+                item: Some("origincloud.iam.v1beta1.ServiceAccountKey"),
+                columns: &[],
+                parents: listed,
+                create: Some("origin iam create-service-account-key"),
+            },
+        );
+    }
+    let mut request = request;
+    let mut items = Vec::new();
+    loop {
+        let page = call_list_service_account_keys(&client, request.clone())
+            .await
+            .map_err(api_error)?;
+        items.extend(page.service_account_keys);
+        if page.next_page_token.is_empty() {
+            break;
+        }
+        request.page_token = page.next_page_token;
+    }
+    list_json(
+        &::origincloud_iam::v1beta1::ListServiceAccountKeysResponse {
+            service_account_keys: items,
+            ..::core::default::Default::default()
+        },
+        Listing {
+            field: "serviceAccountKeys",
+            item: Some("origincloud.iam.v1beta1.ServiceAccountKey"),
+            columns: &[],
+            parents: listed,
+            create: Some("origin iam create-service-account-key"),
+        },
+    )
+}
+async fn call_list_service_account_keys(
+    client: &ReadClient,
+    request: ::origincloud_iam::v1beta1::ListServiceAccountKeysRequest,
+) -> ::core::result::Result<
+    ::origincloud_iam::v1beta1::ListServiceAccountKeysResponse,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_iam::v1beta1::ServiceAccountKeyClient::new(client.sdk())
+        .list_service_account_keys(request)
+        .await
+}
+/// The flags of `create-service-account-key`.
+#[derive(clap::Args, Debug)]
+pub struct CreateServiceAccountKeyArgs {
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    pub organization: Option<String>,
+    /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`.
+    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT", required = true)]
+    pub service_account: Option<String>,
+    /// A UUID. A repeat of the request with the same `--request-id` within a
+    /// day creates nothing and is refused with `CONFLICT`: the private key
+    /// went to the first request only. The error's `ErrorInfo` metadata names
+    /// the key under `serviceAccountKey`; delete it and create a new one. The
+    /// same `--request-id` with a different request is refused with `CONFLICT`
+    /// without that metadata. One is generated when not given.
+    #[arg(long = "request-id")]
+    pub request_id: Option<String>,
+}
+async fn create_service_account_key(
+    ctx: &Context<'_>,
+    args: CreateServiceAccountKeyArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[
+                ("organization", args.organization.as_deref()),
+                ("service_account", args.service_account.as_deref()),
+            ],
+        );
+    names
+        .learn_part(
+            "organizations/{organization}/serviceAccounts/{service_account}",
+            &["iam"],
+            "service_account",
+        )?;
+    let parent = names
+        .name("organizations/{organization}/serviceAccounts/{service_account}")?;
+    let service_account_key = ::origincloud_iam::v1beta1::ServiceAccountKey {
+        ..::core::default::Default::default()
+    };
+    let request = ::origincloud_iam::v1beta1::CreateServiceAccountKeyRequest {
+        parent,
+        service_account_key: Some(service_account_key),
+        request_id: args.request_id.clone().unwrap_or_default(),
+    };
+    let client = ctx.client()?;
+    let response = call_create_service_account_key(&client, request)
+        .await
+        .map_err(api_error)?;
+    json(&response, "origincloud.iam.v1beta1.ServiceAccountKey")
+}
+async fn call_create_service_account_key(
+    client: &ReadClient,
+    request: ::origincloud_iam::v1beta1::CreateServiceAccountKeyRequest,
+) -> ::core::result::Result<
+    ::origincloud_iam::v1beta1::ServiceAccountKey,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_iam::v1beta1::ServiceAccountKeyClient::new(client.sdk())
+        .create_service_account_key(request)
+        .await
+}
+/// The flags of `delete-service-account-key`.
+#[derive(clap::Args, Debug)]
+pub struct DeleteServiceAccountKeyArgs {
+    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` or `--key` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    pub organization: Option<String>,
+    /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`. Needed unless `--key` is given a whole name, which has it.
+    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
+    pub service_account: Option<String>,
+    /// The key to delete.
+    ///
+    /// Its id, completed with `--organization` and `--service-account`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}/keys/{key}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}/keys/{key}`.
+    #[arg(long = "key", value_name = "KEY")]
+    pub key: String,
+    #[command(flatten)]
+    pub confirmation: confirm::Confirmation,
+}
+async fn delete_service_account_key(
+    ctx: &Context<'_>,
+    args: DeleteServiceAccountKeyArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx
+        .names(
+            &[
+                ("organization", args.organization.as_deref()),
+                ("service_account", args.service_account.as_deref()),
+            ],
+        );
+    names
+        .learn_part(
+            "organizations/{organization}/serviceAccounts/{service_account}",
+            &["iam"],
+            "service_account",
+        )?;
+    names
+        .learn(
+            &[
+                "organizations/{organization}/serviceAccounts/{service_account}/keys/{key}",
+            ],
+            &["iam"],
+            "key",
+            Some(args.key.as_str()),
+        )?;
+    let name = names
+        .target(
+            &[
+                "organizations/{organization}/serviceAccounts/{service_account}/keys/{key}",
+            ],
+            &["iam"],
+            "key",
+            args.key.as_str(),
+        )?;
+    let request = ::origincloud_iam::v1beta1::DeleteServiceAccountKeyRequest {
+        name,
+    };
+    let confirmed = confirm::require(
+        args.confirmation,
+        confirm::Destructive {
+            verb: "delete",
+            what: "service account key",
+            target: &request.name,
+            consequence: "It can't be restored.",
+        },
+    )?;
+    let deleted_name = request.name.clone();
+    let client = ctx.confirmed_client(confirmed)?;
+    let response = call_delete_service_account_key(&client, request)
+        .await
+        .map_err(api_error)?;
+    let _ = response;
+    Ok(deleted("service account key", &deleted_name))
+}
+async fn call_delete_service_account_key(
+    client: &ConfirmedClient,
+    request: ::origincloud_iam::v1beta1::DeleteServiceAccountKeyRequest,
+) -> ::core::result::Result<
+    ::origincloud_core::protobuf::Empty,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_iam::v1beta1::ServiceAccountKeyClient::new(client.sdk())
+        .delete_service_account_key(request)
         .await
 }
 /// The flags of `get-user`.
