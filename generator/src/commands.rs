@@ -2040,15 +2040,15 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                     )?);
                 }
             }
-            let rest = if inits.len() < struct_fields(&body) {
-                ", ..::core::default::Default::default()"
-            } else {
-                ""
-            };
+            let mut literal = inits.clone();
+            if inits.len() < struct_fields(&body) {
+                // `{ ..Default::default() }` when no field comes before it.
+                literal.push("..::core::default::Default::default()".to_owned());
+            }
             let binding = if update { "let mut" } else { "let" };
             b.prelude.push(format!(
-                "{binding} {local} = {body_ty} {{ {}{rest} }};",
-                inits.join(", ")
+                "{binding} {local} = {body_ty} {{ {} }};",
+                literal.join(", ")
             ));
             b.request.push(format!("{fid}: Some({local})"));
             body_updates = Some(updates);

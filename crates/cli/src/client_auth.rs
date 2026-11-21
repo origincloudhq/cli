@@ -161,6 +161,7 @@ async fn exchange(
         .assume_service_account(AssumeServiceAccountRequest {
             oidc_token: token,
             service_account,
+            audience: String::new(),
             lifetime: None,
         })
         .await?;

@@ -231,11 +231,6 @@ why = "Use `origin compute create-key-pair --public-key '<OpenSSH public key lin
 
 [[retired]]
 group = "compute"
-command = "launch-instance"
-why = "Use `origin compute create-instance`, with `--instance-type`, `--image` or `--image-family`, `--key-pair` and `--network-interface`: create the interface first with `origin network create-network-interface --subnet <subnet>`, and give it security groups with `origin network create-security-group-association`."
-
-[[retired]]
-group = "compute"
 command = "set-resource-tags"
 why = "Set tags with `origin compute update-instance --tag` / `update-image --tag` / `update-key-pair --tag`; the API replaces the tags whole, so give every tag to keep."
 

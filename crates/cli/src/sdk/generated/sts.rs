@@ -19,7 +19,7 @@ pub enum Commands {
     #[command(
         name = "assume-service-account",
         about = "Assumes a `WORKLOAD` service account with an OIDC token",
-        long_about = "Assumes a `WORKLOAD` service account with an OIDC token. Exactly one federated credential, of the named service account or of any, must trust the token: its issuer and audience, and every one of its conditions. The token is verified with its issuer's published keys (RS256), and a pull request's job is admitted only by a credential that names its `event_name`. Refused with `PERMISSION_DENIED` when the token isn't trusted, without saying why, and with `UNAVAILABLE` when its issuer or the trust can't be read now."
+        long_about = "Assumes a `WORKLOAD` service account with an OIDC token. Exactly one federated credential, of the named service account or of any, must trust the token: its issuer and audience, and every one of its conditions. The token is verified with its issuer's published keys (RS256), and a pull request's job is admitted only by a credential that names its `event_name`. Refused with `PERMISSION_DENIED` when the token isn't trusted, without saying why, with `INVALID_ARGUMENT` when it asks for an audience no token is issued for, and with `UNAVAILABLE` when its issuer or the trust can't be read now."
     )]
     AssumeServiceAccount(AssumeServiceAccountArgs),
 }
@@ -60,6 +60,12 @@ pub struct AssumeServiceAccountArgs {
     /// Such as `30s` or `1m`.
     #[arg(long = "lifetime", value_name = "DURATION", value_parser = duration)]
     pub lifetime: Option<::origincloud_core::protobuf::Duration>,
+    /// Who the access token is for: `origincloud:api`, the platform's APIs, when
+    /// unset, or `https://mcp.origincloudapis.eu`, the hosted MCP server. A
+    /// token for the hosted MCP server isn't accepted by the APIs. Any other
+    /// audience is refused with `INVALID_ARGUMENT`, before the token is checked.
+    #[arg(long = "audience")]
+    pub audience: Option<String>,
 }
 async fn assume_service_account(
     ctx: &Context<'_>,
@@ -80,6 +86,7 @@ async fn assume_service_account(
         oidc_token: read_value_file(&args.oidc_token_file)?,
         service_account,
         lifetime: args.lifetime,
+        audience: args.audience.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
     let response = call_assume_service_account(&client, request)
