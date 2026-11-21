@@ -499,6 +499,16 @@ method = "AssumeServiceAccount"
 field = "oidc_token"
 why = "The OIDC token is a credential, and a CI job or a credential helper has it in a file."
 
+# A message field of a request whose `KEY=VALUE` form requires none of the
+# keys its message requires: the message is an override of another, and sets
+# only the fields it changes. Generation fails for one that has no
+# `KEY=VALUE` form.
+[[partial]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+why = "With `--launch-template`, the fields given override the version's, so a key the recipe requires, such as `instance_type`, isn't required here."
+
 # The columns of the `table` a list of a message is printed as, by the
 # fields' paths from the message, through messages and lists of them:
 # what tells one item from another, and what someone listing them looks

@@ -383,10 +383,37 @@ pub fn reference(
     if !value.starts_with("//") {
         bail!("{}", not_a_full_name(patterns, services, source, value));
     }
-    let relative =
-        relative_name(services, source, value)?.expect("a full name has a relative name");
+    let bare = without_version(patterns, source, value)?;
+    let relative = relative_name(services, source, bare)?.expect("a full name has a relative name");
     parse_any(patterns, relative).map_err(|e| anyhow!("{source}: {e}"))?;
     Ok(value.to_owned())
+}
+
+/// The names whose last segment may be followed by a version, `@{version}`,
+/// `@default` or `@latest`: the API resolves it when the name is used.
+const VERSIONED: &[&str] = &["projects/{project}/launchTemplates/{launch_template}"];
+
+/// `value` without the version a name of `patterns` may end in, when one of
+/// them takes it, which the SDK's names don't hold; `value` as it is
+/// otherwise. A version that is none of those is refused.
+fn without_version<'v>(patterns: &[&str], source: &str, value: &'v str) -> anyhow::Result<&'v str> {
+    if !patterns.iter().any(|p| VERSIONED.contains(p)) {
+        return Ok(value);
+    }
+    let Some((bare, version)) = value.rsplit_once('@') else {
+        return Ok(value);
+    };
+    // Only the last segment is versioned.
+    if version.contains('/') {
+        return Ok(value);
+    }
+    if !matches!(version, "default" | "latest") && !version.parse::<u32>().is_ok_and(|n| n > 0) {
+        bail!(
+            "{source}: the version {version:?} of {bare:?} is neither a number, `default` nor \
+             `latest`"
+        );
+    }
+    Ok(bare)
 }
 
 /// The refusal of `value`, a relative name or an id given to `source`, a
@@ -1510,5 +1537,44 @@ mod tests {
         assert!(names_any(Some(&mask(&["*"])), &["size_gib"]));
         assert!(!names_any(Some(&mask(&["tags"])), &["size_gib"]));
         assert!(!names_any(None, &["size_gib"]));
+    }
+
+    #[test]
+    fn a_launch_template_takes_a_version_and_no_other_name_does() {
+        const TEMPLATE: &str = "projects/{project}/launchTemplates/{launch_template}";
+        let full = "//compute.origincloudapis.eu/projects/p/launchTemplates/web";
+        for version in ["@1", "@12", "@default", "@latest"] {
+            let value = format!("{full}{version}");
+            assert_eq!(
+                reference(&[TEMPLATE], &["compute"], "--launch-template", &value).unwrap(),
+                value
+            );
+        }
+        for version in ["@0", "@-1", "@next", "@", "@1.5"] {
+            let value = format!("{full}{version}");
+            let err = reference(&[TEMPLATE], &["compute"], "--launch-template", &value)
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("is neither a number"), "{value}: {err}");
+        }
+        // A name of another form, and a version in another segment, keep
+        // the SDK's refusal.
+        let key_pair = "//compute.origincloudapis.eu/projects/p/keyPairs/k@2";
+        let err = reference(
+            &["projects/{project}/keyPairs/{key_pair}"],
+            &["compute"],
+            "--key-pair",
+            key_pair,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("a segment is letters"), "{err}");
+        assert!(reference(
+            &[TEMPLATE],
+            &["compute"],
+            "--launch-template",
+            &format!("{full}@2/x")
+        )
+        .is_err());
     }
 }

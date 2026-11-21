@@ -224,6 +224,11 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   its flag is `--{field}-file`, and the value is the file's content without
   its final newline. Generation fails for a field that isn't a string: a
   `bytes` field is read from a file without an entry;
+- `[[partial]]` names a message field of a method's request, such as
+  `LaunchInstance`'s `launch_template_data`, whose `KEY=VALUE` form requires
+  none of the keys its message requires, because the field overrides another
+  message's, such as a launch template version's, and sets only what it
+  changes. Generation fails for a field that has no `KEY=VALUE` form;
 - `[[also_names]]` names a reference field, by its full name
   (`origincloud.compute.v1beta1.Instance.image`), that takes the names of
   another resource type too (`compute.origincloudapis.eu/PublicImage`),
