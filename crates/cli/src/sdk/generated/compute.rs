@@ -1317,10 +1317,10 @@ pub struct LaunchInstanceArgs {
     pub zone: Option<String>,
     #[arg(
         long = "launch-template-data",
-        long_help = "The recipe of the instance to launch. Required unless `--launch-template` is set. With `--launch-template`, the fields set here override the version's for this launch only, and the version stays as it is: a field left empty keeps the version's, so an override can't clear one. `image` or `imageFamily` replaces both of the version's, `sizeGib` and `storageClass` of `bootVolume` each replace the version's own, and `tags` and `networkInterfaces` replace the version's whole.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`instance_type`, required: The instance type by its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, such as `//compute.origincloudapis.eu/instanceTypes/gp1.core.2`: one whose `available` is true. Its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`; not a relative name or an id.\n\n`image`: The full name of the image the boot volume is created from, in the launch's zone: one of the project's own, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`, or a public one, `//compute.origincloudapis.eu/zones/{zone}/images/{image}`. Set exactly one of `image` and `image_family`. Its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`; not a relative name or an id.\n\n`image_family`: The full name of the image family to launch the current public image of, `//compute.origincloudapis.eu/imageFamilies/{image_family}`. Set exactly one of `image` and `image_family`. Its full name, `//compute.origincloudapis.eu/imageFamilies/{image_family}`; not a relative name or an id.\n\n`key_pair`, required: The full name of the key pair whose public key is installed for `login_user`, in the launch's project. Its full name, `//compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}`; not a relative name or an id.\n\n`login_user`: The account to log in as: a user created at first boot that holds the key pair. A POSIX user name of at most 32 lowercase letters, digits, underscores and hyphens, starting with a letter or an underscore, and not `root`. The image's `default_user` when left empty.\n\n`service_account`: The full name of the service account the instance runs as, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`: a `WORKLOAD` service account of the project's organization that isn't deleted. Launching with one needs `iam.service_account.act_as` on the organization as well. Empty for an instance that runs as none. Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`; not a relative name or an id.\n\n`boot_volume`, `tags`, `network_interfaces` are set only through `--launch-template-data-json`. A value with a comma in it goes through `--launch-template-data-json` too.",
+        long_help = "The recipe of the instance to launch. Required unless `--launch-template` is set. With `--launch-template`, the fields set here override the version's for this launch only, and the version stays as it is: a field left empty keeps the version's, so an override can't clear one. `image` or `imageFamily` replaces both of the version's, `sizeGib` and `storageClass` of `bootVolume` each replace the version's own, and `tags` and `networkInterfaces` replace the version's whole.\n\nAs comma-separated KEY=VALUE pairs. A key is a field's name, with `_` or `-`. The keys:\n\n`instance_type`: The instance type by its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, such as `//compute.origincloudapis.eu/instanceTypes/gp1.core.2`: one whose `available` is true. Its full name, `//compute.origincloudapis.eu/instanceTypes/{instance_type}`; not a relative name or an id.\n\n`image`: The full name of the image the boot volume is created from, in the launch's zone: one of the project's own, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`, or a public one, `//compute.origincloudapis.eu/zones/{zone}/images/{image}`. Set exactly one of `image` and `image_family`. Its full name, `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`; not a relative name or an id.\n\n`image_family`: The full name of the image family to launch the current public image of, `//compute.origincloudapis.eu/imageFamilies/{image_family}`. Set exactly one of `image` and `image_family`. Its full name, `//compute.origincloudapis.eu/imageFamilies/{image_family}`; not a relative name or an id.\n\n`key_pair`: The full name of the key pair whose public key is installed for `login_user`, in the launch's project. Its full name, `//compute.origincloudapis.eu/projects/{project}/keyPairs/{key_pair}`; not a relative name or an id.\n\n`login_user`: The account to log in as: a user created at first boot that holds the key pair. A POSIX user name of at most 32 lowercase letters, digits, underscores and hyphens, starting with a letter or an underscore, and not `root`. The image's `default_user` when left empty.\n\n`service_account`: The full name of the service account the instance runs as, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`: a `WORKLOAD` service account of the project's organization that isn't deleted. Launching with one needs `iam.service_account.act_as` on the organization as well. Empty for an instance that runs as none. Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`; not a relative name or an id.\n\n`boot_volume`, `tags`, `network_interfaces` are set only through `--launch-template-data-json`. A value with a comma in it goes through `--launch-template-data-json` too.",
         help = "The recipe of the instance to launch, as KEY=VALUE pairs; sent whole",
         value_name = "KEY=VALUE,...",
-        value_parser = |text:&str|parse_launch_template_data(
+        value_parser = |text:&str|parse_launch_template_data_partial(
             text,
             "--launch-template-data-json"
         ),
@@ -3643,6 +3643,51 @@ fn parse_launch_template_data(
         }
     }
     required_keys(&pairs, &["instance_type", "key_pair"])?;
+    Ok(Keyed {
+        value: out,
+        given: pairs.into_iter().map(|(key, _)| key).collect(),
+    })
+}
+/// A `::origincloud_compute::v1beta1::LaunchTemplateData` from its `KEY=VALUE,...` form; a key that is a field only the
+/// JSON form sets says so, naming `json_flag`.
+fn parse_launch_template_data_partial(
+    text: &str,
+    json_flag: &str,
+) -> ::core::result::Result<
+    Keyed<::origincloud_compute::v1beta1::LaunchTemplateData>,
+    String,
+> {
+    let pairs = key_values(text)?;
+    let mut out = <::origincloud_compute::v1beta1::LaunchTemplateData>::default();
+    for (key, value) in &pairs {
+        let value = value.as_str();
+        match key.as_str() {
+            "instance_type" => out.instance_type = value.to_owned(),
+            "image" => out.image = value.to_owned(),
+            "image_family" => out.image_family = value.to_owned(),
+            "key_pair" => out.key_pair = value.to_owned(),
+            "login_user" => out.login_user = value.to_owned(),
+            "service_account" => out.service_account = value.to_owned(),
+            other => {
+                return Err(
+                    unknown_key(
+                        other,
+                        &[
+                            "instance_type",
+                            "image",
+                            "image_family",
+                            "key_pair",
+                            "login_user",
+                            "service_account",
+                        ],
+                        &["boot_volume", "tags", "network_interfaces"],
+                        json_flag,
+                    ),
+                );
+            }
+        }
+    }
+    required_keys(&pairs, &[])?;
     Ok(Keyed {
         value: out,
         given: pairs.into_iter().map(|(key, _)| key).collect(),

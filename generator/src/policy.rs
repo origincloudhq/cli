@@ -51,6 +51,10 @@ pub struct Policy {
     /// String fields of a request a command reads from a file.
     #[serde(default)]
     pub from_file: Vec<FromFile>,
+    /// Message fields of a request whose `KEY=VALUE` form requires none of
+    /// the keys its message requires.
+    #[serde(default)]
+    pub partial: Vec<Partial>,
     /// Reference fields that also take the names of another resource type.
     #[serde(default)]
     pub also_names: Vec<AlsoNames>,
@@ -182,6 +186,21 @@ pub struct FromFile {
     pub why: String,
 }
 
+/// A message field of a request that sets some of the message's fields,
+/// not all it requires: an override of another message's. The message's
+/// `REQUIRED` fields are required where it is created, not here.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Partial {
+    pub service: String,
+    pub method: String,
+    /// The field of the request, such as `launch_template_data`.
+    pub field: String,
+    /// Why, for whoever reads the table.
+    #[allow(dead_code)]
+    pub why: String,
+}
+
 /// A reference field that also takes the names of a resource type other
 /// than the one its `google.api.resource_reference` declares, which can
 /// name one type only: its flag takes a whole name of either, and an id
@@ -269,6 +288,12 @@ impl Policy {
             .any(|f| f.service == service && f.method == method && f.field == field)
     }
 
+    pub fn partial(&self, service: &str, method: &str, field: &str) -> bool {
+        self.partial
+            .iter()
+            .any(|p| p.service == service && p.method == method && p.field == field)
+    }
+
     pub fn shown_once(&self, service: &str, method: &str) -> Vec<&ShownOnce> {
         self.shown_once
             .iter()
@@ -301,7 +326,11 @@ impl Policy {
             .from_file
             .iter()
             .map(|f| (f.service.as_str(), f.method.as_str(), f.field.as_str()));
-        no_command.chain(exclude).chain(from_file)
+        let partial = self
+            .partial
+            .iter()
+            .map(|p| (p.service.as_str(), p.method.as_str(), p.field.as_str()));
+        no_command.chain(exclude).chain(from_file).chain(partial)
     }
 }
 
@@ -346,6 +375,12 @@ mod tests {
             field = "token"
             why = "v"
 
+            [[partial]]
+            service = "compute"
+            method = "LaunchInstance"
+            field = "launch_template_data"
+            why = "u"
+
             [[also_names]]
             field = "origincloud.compute.v1beta1.Instance.image"
             resource = "compute.origincloudapis.eu/PublicImage"
@@ -368,7 +403,9 @@ mod tests {
         assert!(!policy.excluded("other", "ImportVolume", "volume.source_snapshot"));
         assert!(policy.read_from_file("sts", "AssumeServiceAccount", "token"));
         assert!(!policy.read_from_file("sts", "AssumeServiceAccount", "lifetime"));
-        assert_eq!(policy.entries().count(), 3);
+        assert!(policy.partial("compute", "LaunchInstance", "launch_template_data"));
+        assert!(!policy.partial("compute", "CreateInstance", "launch_template_data"));
+        assert_eq!(policy.entries().count(), 4);
         assert_eq!(
             policy.also_names[0].resource,
             "compute.origincloudapis.eu/PublicImage"

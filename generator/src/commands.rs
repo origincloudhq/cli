@@ -1188,6 +1188,9 @@ struct Nested {
     /// The function parsing the `KEY=VALUE,...` form, when there is one:
     /// when a field can be a key and none that can't is required.
     parser: Option<String>,
+    /// The parser of a field `commands.toml` lists under `[[partial]]`: its
+    /// name and its code, which checks no key is required.
+    partial: Option<(String, String)>,
     /// Whether it is a well-known type, such as a struct, whose JSON is a
     /// form of its own rather than an object of its fields.
     well_known: bool,
@@ -1443,6 +1446,7 @@ fn nested(cx: &Cx<'_>, m: &MessageDescriptor) -> Result<Nested, String> {
             .to_snake_case();
         format!("parse_{local}")
     });
+    let mut partial = None;
     if let Some(parser) = &parser {
         let mut arms = Vec::new();
         for key in &keys {
@@ -1479,24 +1483,32 @@ fn nested(cx: &Cx<'_>, m: &MessageDescriptor) -> Result<Nested, String> {
         let all = quoted(&mut keys.iter().map(|k| &k.name));
         let json = quoted(&mut json_only.iter());
         let needed = quoted(&mut required.iter());
-        let code = format!(
-            "/// A `{rust}` from its `KEY=VALUE,...` form; a key that is a field only the\n\
-             /// JSON form sets says so, naming `json_flag`.\n\
-             fn {parser}(text: &str, json_flag: &str) -> ::core::result::Result<Keyed<{rust}>, String> {{\n\
-                 let pairs = key_values(text)?;\n\
-                 let mut out = <{rust}>::default();\n\
-                 for (key, value) in &pairs {{\n\
-                     let value = value.as_str();\n\
-                     match key.as_str() {{\n\
-                         {}\n\
-                         other => return Err(unknown_key(other, &[{all}], &[{json}], json_flag)),\n\
+        // The same parser, named `name`, requiring the keys `needed` lists.
+        let code_of = |name: &str, needed: &str| {
+            format!(
+                "/// A `{rust}` from its `KEY=VALUE,...` form; a key that is a field only the\n\
+                 /// JSON form sets says so, naming `json_flag`.\n\
+                 fn {name}(text: &str, json_flag: &str) -> ::core::result::Result<Keyed<{rust}>, String> {{\n\
+                     let pairs = key_values(text)?;\n\
+                     let mut out = <{rust}>::default();\n\
+                     for (key, value) in &pairs {{\n\
+                         let value = value.as_str();\n\
+                         match key.as_str() {{\n\
+                             {}\n\
+                             other => return Err(unknown_key(other, &[{all}], &[{json}], json_flag)),\n\
+                         }}\n\
                      }}\n\
-                 }}\n\
-                 required_keys(&pairs, &[{needed}])?;\n\
-                 Ok(Keyed {{ value: out, given: pairs.into_iter().map(|(key, _)| key).collect() }})\n\
-             }}\n",
-            arms.join("\n")
-        );
+                     required_keys(&pairs, &[{needed}])?;\n\
+                     Ok(Keyed {{ value: out, given: pairs.into_iter().map(|(key, _)| key).collect() }})\n\
+                 }}\n",
+                arms.join("\n")
+            )
+        };
+        partial = Some((
+            format!("{parser}_partial"),
+            code_of(&format!("{parser}_partial"), ""),
+        ));
+        let code = code_of(parser, &needed);
         cx.helpers.borrow_mut().insert(parser.clone(), code);
     }
     Ok(Nested {
@@ -1505,8 +1517,33 @@ fn nested(cx: &Cx<'_>, m: &MessageDescriptor) -> Result<Nested, String> {
         keys,
         json_only,
         parser,
+        partial,
         well_known: m.package_name().starts_with("google."),
     })
+}
+
+/// `kind`, a message field `commands.toml` lists under `[[partial]]`, with
+/// the keys its message requires no longer required, and its parser the
+/// one that checks none.
+fn partial(cx: &Cx<'_>, kind: Kind2, field: &FieldDescriptor) -> Result<Kind2, String> {
+    let Kind2::Message(mut n) = kind else {
+        return Err(format!(
+            "{} is [[partial]], but isn't a message with a KEY=VALUE form",
+            field.full_name()
+        ));
+    };
+    let Some((name, code)) = n.partial.take() else {
+        return Err(format!(
+            "{} is [[partial]], but isn't a message with a KEY=VALUE form",
+            field.full_name()
+        ));
+    };
+    cx.helpers.borrow_mut().insert(name.clone(), code);
+    n.parser = Some(name);
+    for key in &mut n.keys {
+        key.required = false;
+    }
+    Ok(Kind2::Message(n))
 }
 
 /// The path of a type relative to its package's module: `Volume`, or
@@ -2109,7 +2146,10 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             }
         }
 
-        let k = kind(cx, &field)?;
+        let mut k = kind(cx, &field)?;
+        if cx.policy.partial(cx.own, m.name(), &name) {
+            k = partial(cx, k, &field)?;
+        }
         let mut doc = help(&comment(&field));
         if name == "page_size" || name == "page_token" {
             doc.push_str("\n\nWithout `--page-size` or `--page-token`, every page is listed.");

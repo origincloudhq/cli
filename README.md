@@ -180,8 +180,8 @@ account's client secret, `clientSecret`.
 
 A group per service of the API:
 
-- `origin compute`: instances, images, key pairs, volume attachments, and the
-  instance types and image families on offer.
+- `origin compute`: instances, images, key pairs, volume attachments, launch
+  templates, and the instance types and image families on offer.
 - `origin network`: VPCs, subnets, route tables and routes, ACLs, security
   groups and their rules, internet and NAT gateways, floating IPs, network
   interfaces and resolver policies, and the associations between them.
@@ -252,6 +252,21 @@ every method of the API, with the API's own descriptions as help:
     `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`,
     or a public one,
     `//compute.origincloudapis.eu/zones/{zone}/images/{image}`.
+- **Launch templates.** A launch template is a recipe for an instance with
+  immutable versions: `origin compute create-launch-template` takes the
+  recipe as `--launch-template-data` (KEY=VALUE pairs, or
+  `--launch-template-data-json`) and makes it version 1;
+  `create-launch-template-version` adds the next, `list-launch-template-versions`
+  lists them, newest first, `update-launch-template --default-version` picks
+  the one a launch uses when it names none, and
+  `delete-launch-template-version` deletes one. A version is named by adding
+  `@{version}`, `@default` or `@latest` to the template's name, in
+  `get-launch-template --launch-template web@2` and in
+  `//compute.origincloudapis.eu/projects/{project}/launchTemplates/{launch_template}@2`,
+  the form `origin compute launch-instance --launch-template` takes. With it,
+  the keys of `--launch-template-data` override the version's for that launch
+  alone, and none is required; without it, the recipe is `instance_type` and
+  `key_pair` at least. A recipe's references are full names, as everywhere.
 - **Other flags.** Each other field of the request, and of the volume or
   snapshot it carries, is the flag of its name in kebab case: `size_gib` is
   `--size-gib`. Output-only fields aren't flags, and neither is a field the
