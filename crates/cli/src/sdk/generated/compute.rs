@@ -5,8 +5,8 @@
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
     passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
-    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
-    OPERATION,
+    wait_for, waited, waiting, zones, ConfirmedClient, SecretFile, Context, Listing,
+    ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;

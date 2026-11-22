@@ -1,6 +1,9 @@
 //! The SDK's credentials over the CLI's own login session, and, without
-//! one, the instance's metadata service. In a CI job whose OIDC token the
-//! environment names, that token exchanged at the STS comes first.
+//! one, the instance's metadata service. A service account key's
+//! credentials file, which `ORIGINCLOUD_CREDENTIALS_FILE` or the profile's
+//! `credentials-file` names, comes first, and then, in a CI job whose OIDC
+//! token the environment names, that token exchanged at the STS: the chain
+//! every SDK follows.
 //!
 //! The SDK can read the session file itself, but renews it only in memory.
 //! This adapter renews it the way every other command does, through
@@ -10,11 +13,12 @@
 //! login session, the commands call the API as that service account.
 
 use std::fmt;
-use std::sync::OnceLock;
+use std::path::PathBuf;
+use std::sync::{Arc, OnceLock};
 
 use chrono::{DateTime, Utc};
 use origincloud_core::credentials::{Credentials, TokenFuture};
-use origincloud_core::{Error, Federated, InstanceMetadata};
+use origincloud_core::{Error, Federated, InstanceMetadata, ServiceAccount};
 use tokio::sync::Mutex;
 
 use crate::config::{ClientSession, SessionError, EXPIRY_MARGIN};
@@ -22,12 +26,14 @@ use crate::graphql::TokenProvider;
 
 /// What a command says when it has no credentials at all.
 pub(crate) const NOT_LOGGED_IN: &str = "not logged in: log in with `origin id login`, or set \
-    ORIGINCLOUD_ACCESS_TOKEN, or ORIGINCLOUD_CLIENT_ID and ORIGINCLOUD_CLIENT_SECRET, or run in a \
+    ORIGINCLOUD_ACCESS_TOKEN, or name a service account key's credentials file with \
+    ORIGINCLOUD_CREDENTIALS_FILE or `origin config profile-set credentials-file FILE`, or run in a \
     CI job whose OIDC token a federated credential trusts (GitHub Actions with `permissions: \
     id-token: write`, ORIGINCLOUD_OIDC_TOKEN_FILE or ORIGINCLOUD_OIDC_TOKEN), or run on an \
     instance that runs as a \
     service account";
 
+const ENV_CREDENTIALS_FILE: &str = "ORIGINCLOUD_CREDENTIALS_FILE";
 const ENV_METADATA_DISABLED: &str = "ORIGINCLOUD_METADATA_DISABLED";
 const ENV_METADATA_ENDPOINT: &str = "ORIGINCLOUD_METADATA_ENDPOINT";
 const ENV_OIDC_DISABLED: &str = "ORIGINCLOUD_OIDC_DISABLED";
@@ -40,6 +46,45 @@ const ENV_GITHUB_REQUEST_TOKEN: &str = "ACTIONS_ID_TOKEN_REQUEST_TOKEN";
 
 fn var(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|v| !v.is_empty())
+}
+
+/// The credentials file the profile names, `ORIGINCLOUD_CREDENTIALS_FILE`
+/// before its `credentials-file`, as [`configure`] was given it.
+static CREDENTIALS_FILE: OnceLock<Option<PathBuf>> = OnceLock::new();
+
+/// Sets the credentials file of the process's commands to the one
+/// `profile` names, its variable before its file's value. `origin` calls it
+/// once, with the profile it loaded, before running a command; without
+/// it, the variable alone names one.
+pub(crate) fn configure(profile: &crate::config::ClientProfile) {
+    let _ = CREDENTIALS_FILE.set(profile.credentials_file.clone());
+}
+
+/// The service account whose key's credentials file the profile names, read
+/// once per process, so that its commands share one token, which the SDK
+/// renews before it expires; `None` when no file is named. A file that
+/// can't be read, or isn't a credentials file, is the error: it was named
+/// to be used, and the commands don't fall back to another identity.
+pub(crate) fn service_account() -> Result<Option<Arc<ServiceAccount>>, Error> {
+    static ACCOUNT: OnceLock<Option<Result<Arc<ServiceAccount>, String>>> = OnceLock::new();
+    let account = ACCOUNT.get_or_init(|| {
+        let path = match CREDENTIALS_FILE.get() {
+            Some(configured) => configured.clone(),
+            None => var(ENV_CREDENTIALS_FILE).map(PathBuf::from),
+        }?;
+        Some(ServiceAccount::from_file(&path).map(Arc::new).map_err(|e| {
+            format!(
+                "the credentials file {}, from ORIGINCLOUD_CREDENTIALS_FILE or the \
+                         profile's credentials-file: {e}",
+                path.display()
+            )
+        }))
+    });
+    match account {
+        None => Ok(None),
+        Some(Ok(account)) => Ok(Some(Arc::clone(account))),
+        Some(Err(message)) => Err(Error::Credentials(message.clone())),
+    }
 }
 
 /// The CI job's OIDC token, exchanged at the STS, when the environment
@@ -103,7 +148,7 @@ fn instance_metadata() -> Option<&'static InstanceMetadata> {
 /// it and the GraphQL commands send it.
 pub(crate) enum AccessToken {
     Session(ClientSession),
-    /// A service account's: the CI job's, or the instance's.
+    /// A service account's: its key's, the CI job's, or the instance's.
     Workload(String),
 }
 
@@ -123,12 +168,17 @@ impl TokenProvider for AccessToken {
     }
 }
 
-/// The CI job's token, exchanged at the STS, when the environment names
+/// The service account's token, exchanged at the STS for an assertion
+/// signed with its key, when the profile names a credentials file; else
+/// the CI job's token, exchanged at the STS, when the environment names
 /// one; otherwise the login session's access token, renewed when it is
 /// about to expire, or, without a login session, the instance's
-/// credential. A CI job's refused exchange is the error: the job set up
-/// federation, and wants to hear why it failed.
+/// credential. A refused exchange is the error: whoever named the file or
+/// set up federation wants to hear why it failed.
 pub(crate) async fn access_token() -> Result<AccessToken, Error> {
+    if let Some(account) = service_account()? {
+        return account.token().await.map(AccessToken::Workload);
+    }
     if let Some(ci_job) = ci_job() {
         return ci_job.token().await.map(AccessToken::Workload);
     }
@@ -155,8 +205,9 @@ fn not_logged_in() -> Error {
 
 /// The access token of the CLI's login session, renewed from its refresh
 /// token, and stored, once it is about to expire. Without a login session,
-/// the instance's credential, which its metadata service renews. In a CI
-/// job, its exchanged token, which [`ci_job`]'s credentials renew.
+/// the instance's credential, which its metadata service renews. With a
+/// credentials file, or in a CI job, the exchanged token, which
+/// [`service_account`]'s or [`ci_job`]'s credentials renew.
 #[derive(Default)]
 pub(crate) struct CliSessionCredentials {
     cached: Mutex<Option<(String, DateTime<Utc>)>>,

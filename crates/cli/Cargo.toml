@@ -1,6 +1,6 @@
 [package]
 name = "origincloud-cli"
-version = "1.25.0"
+version = "2.0.0"
 # Shown as the summary line of `origin --help`.
 description = "Command-line interface for Origin Cloud"
 edition.workspace = true
@@ -87,6 +87,9 @@ test-services = ["dep:origincloud-scratch"]
 # The credential tests write an unsigned JWT with an expiry in the past.
 base64.workspace = true
 fake-server.workspace = true
+# The credentials-file tests sign with a key made from a fixed scalar, as
+# the SDK reads it: a PKCS #8 P-256 key in PEM.
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "pem", "pkcs8"] }
 # The coverage and generated-command tests read the API descriptors the
 # generator checked in, and its table of choices.
 serde.workspace = true

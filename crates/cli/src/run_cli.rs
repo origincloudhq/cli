@@ -30,6 +30,7 @@ pub async fn run() -> ! {
     if let Some(output) = cli.output {
         profile.output_format = Some(output);
     }
+    crate::sdk::credentials::configure(&profile);
 
     let api_url: Url = cli.api.parse().expect("failed to parse API URL");
     let printing = Printing {

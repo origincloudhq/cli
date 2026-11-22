@@ -4,12 +4,13 @@ use crate::output::{CommandResult, SerializableOutput};
 use anyhow::{anyhow, bail};
 use std::str::FromStr;
 
-const VALID_KEYS: [&str; 5] = [
+const VALID_KEYS: [&str; 6] = [
     "default-username",
     "output-format",
     "default-project",
     "default-zone",
     "region",
+    "credentials-file",
 ];
 
 /// Sets `key` to `value` in `profile`, which is the profile as its file holds
@@ -40,6 +41,7 @@ pub(super) fn perform_profile_set(
             }
             profile.region = Some(value)
         }
+        "credentials-file" => profile.credentials_file = Some(credentials_file(&value)?),
         other => {
             return Ok(Box::new(CommandResult::Failure(format!(
                 "invalid profile key '{other}'. valid values: {}",
@@ -53,6 +55,21 @@ pub(super) fn perform_profile_set(
         .map_err(|e| anyhow!("failed to save profile: {e}"))?;
 
     Ok(Box::new(CommandResult::Success))
+}
+
+/// The credentials file at `value`, made absolute, so that the profile
+/// names it from any directory: refused unless it is a service account
+/// key's credentials file, before anything is saved.
+fn credentials_file(value: &str) -> anyhow::Result<std::path::PathBuf> {
+    let path = std::path::absolute(value).map_err(|e| anyhow!("{value:?}: {e}"))?;
+    origincloud_core::ServiceAccount::from_file(&path).map_err(|e| {
+        anyhow!(
+            "{} isn't a service account key's credentials file, as `origin iam \
+             create-service-account-key --credentials-file FILE` writes one: {e}",
+            path.display()
+        )
+    })?;
+    Ok(path)
 }
 
 #[cfg(test)]
@@ -97,6 +114,7 @@ mod tests {
             ("default-project", "a/b"),
             ("default-project", ".."),
             ("default-zone", ""),
+            ("credentials-file", "no-such-file.json"),
         ] {
             assert!(
                 perform_profile_set(ClientProfile::load_file(Some(&file)), key, value.to_owned())

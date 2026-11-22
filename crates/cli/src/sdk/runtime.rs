@@ -12,7 +12,7 @@ use origincloud_core::{Client, Operation};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use super::credentials::CliSessionCredentials;
+use super::credentials::{ci_job, service_account, CliSessionCredentials};
 use crate::config::ClientProfile;
 use crate::confirm::Confirmed;
 use crate::handler::tag_args::TagArg;
@@ -23,14 +23,11 @@ use crate::output::{
 };
 use crate::progress::{self, Spinner};
 
-/// The variables that hold credentials for the SDK. When any is set, or
+/// The variable that holds an access token for the SDK. When it is set, or
 /// the environment names a CI job's OIDC token, the generated commands use
-/// the SDK's credentials, as every SDK does, instead of the login session.
-const CREDENTIAL_VARIABLES: [&str; 3] = [
-    "ORIGINCLOUD_ACCESS_TOKEN",
-    "ORIGINCLOUD_CLIENT_ID",
-    "ORIGINCLOUD_CLIENT_SECRET",
-];
+/// the SDK's credentials, as every SDK does, instead of the login session;
+/// a credentials file the profile names comes before a CI job's token.
+const ACCESS_TOKEN_VARIABLE: &str = "ORIGINCLOUD_ACCESS_TOKEN";
 
 /// What the runtime knows of a generated group, which the generator writes
 /// in `generated/services.rs`.
@@ -149,11 +146,13 @@ impl<'a> Context<'a> {
                     .map(|(region, _)| region)
                     .unwrap_or_default(),
             );
-        let from_environment = CREDENTIAL_VARIABLES
-            .iter()
-            .any(|name| std::env::var(name).is_ok_and(|v| !v.is_empty()))
-            || crate::sdk::credentials::ci_job().is_some();
-        builder = if from_environment {
+        let access_token = std::env::var(ACCESS_TOKEN_VARIABLE).is_ok_and(|v| !v.is_empty());
+        builder = if access_token {
+            let credentials = origincloud_core::default_credentials().map_err(api_error)?;
+            builder.credentials(Shared(credentials))
+        } else if let Some(account) = service_account().map_err(api_error)? {
+            builder.credentials(Shared(account))
+        } else if ci_job().is_some() {
             let credentials = origincloud_core::default_credentials().map_err(api_error)?;
             builder.credentials(Shared(credentials))
         } else {
@@ -928,6 +927,115 @@ fn source_name(path: &str) -> &str {
 pub fn shown_once(value: &str, notice: &str) {
     if !value.is_empty() {
         eprintln!("{notice}");
+    }
+}
+
+/// The file a command writes a secret of its response to
+/// (`commands.toml`'s `to_file`), such as a service account key's
+/// credentials file, which the API returns this once: never standard
+/// output, where it would end up in a terminal's scrollback, a CI log or a
+/// pipe's other end.
+///
+/// The file is claimed before the request is sent, so that one that can't
+/// be written is refused while nothing has been created: a new file is
+/// created empty, readable by its owner alone (`0600` on Unix), and an
+/// existing one is refused unless `overwrite`, which writes beside it and
+/// replaces it only once the secret is in. A claim the command doesn't
+/// get to write, because the request failed, is given up again: the new
+/// file is removed, an existing one is left as it was.
+pub struct SecretFile {
+    path: std::path::PathBuf,
+    /// The file the secret is written to: `path` itself, or, to replace an
+    /// existing one, a file beside it, renamed over it once written.
+    writing: std::path::PathBuf,
+    file: Option<std::fs::File>,
+}
+
+impl SecretFile {
+    /// Claims `path`, which the flag `--{flag}` names.
+    pub fn claim(path: &std::path::Path, overwrite: bool, flag: &str) -> anyhow::Result<Self> {
+        if path.as_os_str() == "-" {
+            bail!(
+                "--{flag} names the file to write to: the secret is never written to standard \
+                 output"
+            );
+        }
+        let exists = std::fs::symlink_metadata(path).is_ok();
+        if exists && !overwrite {
+            bail!(
+                "{} exists: name another file with --{flag}, or give --overwrite to replace it",
+                path.display()
+            );
+        }
+        if path.is_dir() {
+            bail!("{} is a directory: --{flag} names a file", path.display());
+        }
+        let writing = if exists {
+            let name = path
+                .file_name()
+                .ok_or_else(|| anyhow!("--{flag} names no file: {}", path.display()))?;
+            let mut beside = std::ffi::OsString::from(".");
+            beside.push(name);
+            beside.push(format!(".{}.tmp", uuid::Uuid::new_v4().simple()));
+            path.with_file_name(beside)
+        } else {
+            path.to_path_buf()
+        };
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let file = options.open(&writing).map_err(|e| match e.kind() {
+            std::io::ErrorKind::AlreadyExists => anyhow!(
+                "{} exists: name another file with --{flag}, or give --overwrite to replace it",
+                path.display()
+            ),
+            _ => anyhow!("creating {}: {e}", writing.display()),
+        })?;
+        Ok(Self {
+            path: path.to_path_buf(),
+            writing,
+            file: Some(file),
+        })
+    }
+
+    /// Writes `secret`, `what` the response for `resource` holds, to the
+    /// file, and says on standard error which file holds it.
+    pub fn write(mut self, secret: String, what: &str, resource: &str) -> anyhow::Result<()> {
+        let kept = |e: &dyn std::fmt::Display| {
+            anyhow!(
+                "{resource} was created, but {what} couldn't be written to {}: {e}. The API \
+                 returns it only once: delete {resource} and create another",
+                self.path.display()
+            )
+        };
+        if secret.is_empty() {
+            return Err(kept(&"the response holds none"));
+        }
+        let mut file = self.file.take().expect("a claimed file is written once");
+        std::io::Write::write_all(&mut file, secret.as_bytes())
+            .and_then(|()| file.sync_all())
+            .map_err(|e| kept(&e))?;
+        drop(file);
+        if self.writing != self.path {
+            std::fs::rename(&self.writing, &self.path).map_err(|e| kept(&e))?;
+        }
+        // Written: the claim is kept.
+        self.writing = std::path::PathBuf::new();
+        eprintln!(
+            "Wrote {what} of {resource} to {}, readable by you alone. The API returns it this \
+             once: keep the file, it can't be fetched again.",
+            self.path.display()
+        );
+        Ok(())
+    }
+}
+
+impl Drop for SecretFile {
+    fn drop(&mut self) {
+        if !self.writing.as_os_str().is_empty() {
+            let _ = std::fs::remove_file(&self.writing);
+        }
     }
 }
 

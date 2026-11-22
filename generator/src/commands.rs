@@ -347,7 +347,7 @@ pub fn generate(
              api_error, deadline_after, deleted, duration, json, list_json, names_any, pace, passed,\n\
              read_bytes_file, read_value_file, reference, shown_once, success, tags, wait, wait_for,\n\
              waited, waiting, zones,\n\
-             ConfirmedClient,\n\
+             ConfirmedClient, SecretFile,\n\
              Context, Listing, ReadClient, OPERATION,\n\
          };\n\
          #[allow(unused_imports)]\n\
@@ -2349,6 +2349,37 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         if unpaged_list.is_some() {
             call.push_str(&format!("let listed: Vec<String> = {listed_parent};\n"));
         }
+        // A secret written to a file claims the file before the request: a
+        // file that can't be written is refused while nothing has been
+        // created yet.
+        if let Some(entry) = cx.policy.to_file(cx.own, m.name()) {
+            let ident = ident(&entry.flag.to_snake_case());
+            b.flags.push(Flag {
+                ident: ident.clone(),
+                long: entry.flag.clone(),
+                doc: entry.help.clone(),
+                ty: "::std::path::PathBuf".to_owned(),
+                attrs: vec![format!(
+                    "value_name = {:?}",
+                    entry.flag.to_snake_case().to_uppercase()
+                )],
+            });
+            b.flags.push(Flag {
+                ident: "overwrite".to_owned(),
+                long: "overwrite".to_owned(),
+                doc: format!(
+                    "Replace the file `--{}` names when it exists, once the response is in.",
+                    entry.flag
+                ),
+                ty: "bool".to_owned(),
+                attrs: Vec::new(),
+            });
+            let _ = writeln!(
+                call,
+                "let secret_file = SecretFile::claim(&args.{ident}, args.overwrite, {:?})?;",
+                entry.flag
+            );
+        }
         let _ = writeln!(
             call,
             "let client = ctx.client()?;\nlet response = call_{handler}(&client, request).await.map_err(api_error)?;"
@@ -2483,9 +2514,41 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                         entry.notice
                     );
                 }
+                // A secret written to a file leaves the printed response.
+                if let Some(entry) = cx.policy.to_file(cx.own, m.name()) {
+                    let field = response
+                        .get_field_by_name(&entry.field)
+                        .filter(|f| f.kind() == Kind::String && !f.is_list())
+                        .ok_or_else(|| {
+                            format!(
+                                "commands.toml's to_file names {}, which isn't a string of \
+                                 its response",
+                                entry.field
+                            )
+                        })?;
+                    let named = response
+                        .get_field_by_name("name")
+                        .filter(|f| f.kind() == Kind::String && !f.is_list())
+                        .map(|_| "&response.name")
+                        .unwrap_or("\"\"");
+                    let _ = writeln!(
+                        tail,
+                        "let mut response = response;\n\
+                         secret_file.write(::std::mem::take(&mut response.{}), {:?}, {named})?;",
+                        ident(field.name()),
+                        entry.what
+                    );
+                }
                 let _ = writeln!(tail, "json(&response, {:?})", response.full_name());
             }
         },
+    }
+    if cx.policy.to_file(cx.own, m.name()).is_some() && !tail.contains("secret_file.write(") {
+        return Err(
+            "commands.toml's to_file is only for a method answering with its response, \
+             not a list, an operation or nothing"
+                .to_owned(),
+        );
     }
     let shown = tail.contains("shown_once(");
     if !shown && !cx.policy.shown_once(cx.own, m.name()).is_empty() {

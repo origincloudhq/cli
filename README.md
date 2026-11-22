@@ -101,6 +101,42 @@ token expires, the CLI reads the file again and assumes the account again,
 so a file the identity provider or a credential helper keeps current keeps
 the session going; a token from standard input is read once.
 
+### A service account's credentials file
+
+An `EXTERNAL` service account calls the API with one of its keys. Creating a
+key writes its credentials file, which holds the private key, to the file
+you name, readable by you alone; the API returns it this once and the
+platform keeps no copy, so it is never printed:
+
+```sh
+origin iam create-service-account-key --service-account //iam.origincloudapis.eu/organizations/my-org/serviceAccounts/deploy \
+  --credentials-file deploy-key.json
+origin iam list-service-account-keys --service-account //iam.origincloudapis.eu/organizations/my-org/serviceAccounts/deploy
+origin iam delete-service-account-key --key //iam.origincloudapis.eu/organizations/my-org/serviceAccounts/deploy/keys/KEY --yes
+```
+
+An existing file is refused, before the key is created, unless
+`--overwrite` is given, which replaces it once the response is in. Standard
+output has the key without its credentials file; standard error names the
+file and the key.
+
+Point `ORIGINCLOUD_CREDENTIALS_FILE`, or the profile's `credentials-file`,
+at the file, and every command calls the API as the service account: the CLI
+signs an assertion with the key, exchanges it at the security token service
+for the account's access token, and renews that token before it expires.
+
+```sh
+origin config profile-set credentials-file deploy-key.json   # saved as an absolute path, checked first
+ORIGINCLOUD_CREDENTIALS_FILE=deploy-key.json origin resourcemanager list-projects
+```
+
+The CLI looks for credentials in the order every Origin Cloud SDK does: the
+credentials file, then a CI job's OIDC token (federation), then the login
+session, then the instance's credential (see [Credentials](#the-generated-commands)).
+A named file that can't be read is the error; the CLI doesn't fall back to
+another identity. Delete a key once nothing uses it: `lastUseTime` says when
+it was last exchanged.
+
 The profile's defaults:
 
 ```sh
@@ -117,6 +153,7 @@ origin config profile
 | `default-project` | `ORIGINCLOUD_PROJECT` | `--project` of the generated commands, such as `origin pvs`'s, when not given. |
 | `default-zone` | `ORIGINCLOUD_ZONE` | `--zone` of the generated commands, when not given; not of the lists, which list every zone without `--zone`. |
 | `region` | `ORIGINCLOUD_REGION` | The region the generated commands work in: the `--region` of the `network` commands' regional resources and of the `kms` commands, when not given, and the front door the `compute`, `network`, `pvs`, `observability` and `kms` commands call, such as `pvs.{region}.origincloudapis.eu`. Without it, the region of the default zone (`eu-central1` for `eu-central1-az1`); without either, `--region` must be given, and the calls go to the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource. The `location`, `resourcemanager`, `iam`, `billing`, `support`, `dns` and `sts` commands always call their regionless host. |
+| `credentials-file` | `ORIGINCLOUD_CREDENTIALS_FILE` | A service account key's credentials file, as `origin iam create-service-account-key --credentials-file` writes it: every command calls the API as that service account, before a CI job's token and the login session. |
 
 As in the AWS CLI, a flag comes first, then the environment variable, then
 the profile's value: an environment variable overrides the profile while a
@@ -173,8 +210,9 @@ command restores it, and prints the deleted resource.
 key it generates as `privateKey`, which the API returns this once, and says
 so on standard error: save it, readable by you alone, such as with
 `origin compute create-key-pair | (umask 077; jq -r .privateKey > my-key)`.
-`origin iam create-service-account` does the same with the service
-account's client secret, `clientSecret`.
+`origin iam create-service-account-key` never prints the credentials file
+it creates: it writes it to the file `--credentials-file` names (see
+[A service account's credentials file](#a-service-accounts-credentials-file)).
 
 ## The generated commands
 
@@ -365,8 +403,9 @@ every method of the API, with the API's own descriptions as help:
 
 - **Credentials.** The login session, or, when they are set, the variables
   every Origin Cloud SDK reads: `ORIGINCLOUD_ACCESS_TOKEN`, or
-  `ORIGINCLOUD_CLIENT_ID` and `ORIGINCLOUD_CLIENT_SECRET` for a service
-  account. In a CI job, the job's OIDC token, exchanged at the security
+  `ORIGINCLOUD_CREDENTIALS_FILE` (or the profile's `credentials-file`) for
+  a service account's key, which comes before a CI job's token. In a CI
+  job, the job's OIDC token, exchanged at the security
   token service for the service account a federated credential trusts the
   job as: GitHub Actions' token in a job granted
   `permissions: id-token: write`, the token in the file

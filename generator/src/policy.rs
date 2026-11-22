@@ -48,6 +48,10 @@ pub struct Policy {
     /// response alone.
     #[serde(default)]
     pub shown_once: Vec<ShownOnce>,
+    /// Fields of a response holding a secret the API returns in that
+    /// response alone, which the command writes to a file.
+    #[serde(default)]
+    pub to_file: Vec<ToFile>,
     /// String fields of a request a command reads from a file.
     #[serde(default)]
     pub from_file: Vec<FromFile>,
@@ -169,6 +173,26 @@ pub struct ShownOnce {
     /// What standard error says: that it can't be had again, and how to
     /// keep it.
     pub notice: String,
+}
+
+/// A string field of a method's response holding a secret the API returns
+/// in that response alone, such as a service account key's credentials
+/// file: the command writes it to the file its flag names, never to
+/// standard output.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ToFile {
+    pub service: String,
+    pub method: String,
+    /// The field of the response, such as `credentials_file`.
+    pub field: String,
+    /// The flag naming the file, without its dashes: `credentials-file`.
+    pub flag: String,
+    /// What the file holds, as standard error names it: `the key's
+    /// credentials file`.
+    pub what: String,
+    /// The flag's help.
+    pub help: String,
 }
 
 /// A string field of a request itself a command reads from a file, or from
@@ -301,6 +325,12 @@ impl Policy {
             .collect()
     }
 
+    pub fn to_file(&self, service: &str, method: &str) -> Option<&ToFile> {
+        self.to_file
+            .iter()
+            .find(|t| t.service == service && t.method == method)
+    }
+
     /// Every `(service, method, field)` the one-way changes name, the field
     /// a path from the request.
     pub fn one_way_entries(&self) -> impl Iterator<Item = (&str, &str, &str)> {
@@ -311,8 +341,9 @@ impl Policy {
 
     /// Every `(service, method, field)` `commands.toml` names, the field a
     /// path from the request; the field is empty for a method left without
-    /// a command. The fields of `shown_once`, which are a response's, aren't
-    /// among them: generation fails for one the response doesn't have.
+    /// a command. The fields of `shown_once` and `to_file`, which are a
+    /// response's, aren't among them: generation fails for one the response
+    /// doesn't have.
     pub fn entries(&self) -> impl Iterator<Item = (&str, &str, &str)> {
         let no_command = self
             .no_command
@@ -369,6 +400,14 @@ mod tests {
             field = "private_key"
             notice = "z"
 
+            [[to_file]]
+            service = "iam"
+            method = "CreateServiceAccountKey"
+            field = "credentials_file"
+            flag = "credentials-file"
+            what = "t"
+            help = "h"
+
             [[from_file]]
             service = "sts"
             method = "AssumeServiceAccount"
@@ -395,6 +434,13 @@ mod tests {
         .unwrap();
         assert_eq!(policy.shown_once("compute", "CreateKeyPair")[0].notice, "z");
         assert!(policy.shown_once("compute", "GetKeyPair").is_empty());
+        assert_eq!(
+            policy
+                .to_file("iam", "CreateServiceAccountKey")
+                .map(|t| t.flag.as_str()),
+            Some("credentials-file")
+        );
+        assert!(policy.to_file("iam", "GetServiceAccountKey").is_none());
         assert_eq!(policy.view[0].columns, ["name", "state"]);
         assert_eq!(policy.group("pvs").unwrap().about, "Volumes");
         assert!(policy.no_command("longrunning", "WaitOperation"));

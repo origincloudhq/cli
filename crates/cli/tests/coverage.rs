@@ -43,6 +43,8 @@ struct Table {
     #[serde(default)]
     shown_once: Vec<Entry>,
     #[serde(default)]
+    to_file: Vec<Entry>,
+    #[serde(default)]
     from_file: Vec<Entry>,
     #[serde(default)]
     partial: Vec<Entry>,
@@ -329,8 +331,8 @@ fn every_table_entry_names_a_method_and_a_field() {
             }
         }
     }
-    // A secret shown once is a field of the response.
-    for entry in &table.shown_once {
+    // A secret shown once, or written to a file, is a field of the response.
+    for entry in table.shown_once.iter().chain(&table.to_file) {
         let (_, method) = methods
             .iter()
             .find(|(s, m)| *s == entry.service && m.name() == entry.method)

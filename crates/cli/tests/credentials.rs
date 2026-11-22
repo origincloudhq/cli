@@ -1,7 +1,10 @@
 //! Without a login session or credentials in the environment, `origin`
 //! calls the API as the service account the instance runs as, with the
 //! credential of the instance's metadata service, which a local server
-//! plays here, at `ORIGINCLOUD_METADATA_ENDPOINT`.
+//! plays here, at `ORIGINCLOUD_METADATA_ENDPOINT`. With a service account
+//! key's credentials file, it calls the API as that service account, with
+//! the token the STS exchanges for an assertion signed with the key, which
+//! a local server plays too, at the file's `sts_endpoint`.
 
 mod common;
 
@@ -481,5 +484,274 @@ async fn a_login_with_a_token_file_assumes_the_account_again_from_the_file() {
     assert_eq!(
         body["serviceAccount"],
         "//iam.origincloudapis.eu/organizations/o/serviceAccounts/s"
+    );
+}
+
+/// A P-256 key of these tests alone, from a fixed scalar, so that no
+/// private key is checked in: no account anywhere has it.
+fn test_key() -> String {
+    use p256::pkcs8::EncodePrivateKey as _;
+    p256::ecdsa::SigningKey::from_slice(&[7u8; 32])
+        .unwrap()
+        .to_pkcs8_pem(p256::pkcs8::LineEnding::LF)
+        .unwrap()
+        .to_string()
+}
+const KEY: &str = "//iam.origincloudapis.eu/organizations/o/serviceAccounts/deploy/keys/k-1";
+const ACCOUNT: &str = "//iam.origincloudapis.eu/organizations/o/serviceAccounts/deploy";
+
+/// A credentials file of [`KEY`], whose assertions are exchanged at `sts`.
+fn credentials_file(dir: &std::path::Path, sts: &str) -> std::path::PathBuf {
+    let path = dir.join("deploy-key.json");
+    let file = serde_json::json!({
+        "type": "service_account_key",
+        "name": KEY,
+        "service_account": ACCOUNT,
+        "algorithm": "ES256",
+        "private_key": test_key(),
+        "sts_endpoint": sts,
+    });
+    std::fs::write(&path, file.to_string()).unwrap();
+    path
+}
+
+/// The claims of a JWT, unverified: the SDK's tests check its signature.
+fn claims(jwt: &str) -> serde_json::Value {
+    use base64::Engine as _;
+    let payload = jwt.split('.').nth(1).expect("a JWT");
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload)
+        .unwrap();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+/// The STS, exchanging an assertion of [`KEY`] for `sa-token-<n>`, valid
+/// for `lifetime` seconds, and the location and pvs services, all at one
+/// address. The API refuses any token but the newest the STS issued, as
+/// it would refuse an expired one.
+async fn sts(lifetime: u64) -> (FakeServer, std::sync::Arc<std::sync::Mutex<Vec<Received>>>) {
+    let received = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen = std::sync::Arc::clone(&received);
+    let issued = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let server = FakeServer::start(move |r: Received| {
+        let newest = format!(
+            "Bearer sa-token-{}",
+            issued.load(std::sync::atomic::Ordering::SeqCst)
+        );
+        let response = match (r.method.as_str(), r.path.as_str()) {
+            ("POST", "/v1/token") => {
+                let form: std::collections::HashMap<String, String> =
+                    url::form_urlencoded::parse(r.body.as_ref())
+                        .into_owned()
+                        .collect();
+                let assertion = form.get("assertion").cloned().unwrap_or_default();
+                if form.get("grant_type").map(String::as_str)
+                    == Some("urn:ietf:params:oauth:grant-type:jwt-bearer")
+                    && claims(&assertion)["sub"] == ACCOUNT
+                {
+                    let n = issued.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                    Response::json(format!(
+                        r#"{{"access_token":"sa-token-{n}","token_type":"Bearer","expires_in":{lifetime}}}"#
+                    ))
+                } else {
+                    Response::json(r#"{"error":"invalid_grant"}"#).with_status(400)
+                }
+            }
+            _ if r.header("authorization") != Some(newest.as_str()) => Response::json(
+                r#"{"error":{"code":401,"status":"UNAUTHENTICATED","message":"expired"}}"#,
+            )
+            .with_status(401),
+            (_, "/v1beta1/zones") => Response::json(
+                r#"{"zones":[{"name":"zones/z-a","services":["pvs"]},{"name":"zones/z-b","services":["pvs"]}]}"#,
+            ),
+            (_, path) if path.ends_with("/volumes") => Response::json(r#"{"volumes":[]}"#),
+            _ => Response::json("").with_status(404),
+        };
+        seen.lock().unwrap().push(r);
+        async move { response }
+    })
+    .await;
+    (server, received)
+}
+
+/// With only a credentials file, named by `ORIGINCLOUD_CREDENTIALS_FILE`,
+/// the commands call the API as its service account: the STS gets an
+/// assertion signed with its key, naming the key and the account, and the
+/// API the token it exchanged that for. `origin id token` prints it.
+#[tokio::test(flavor = "multi_thread")]
+async fn with_a_credentials_file_the_commands_call_as_its_service_account() {
+    let (server, received) = sts(900).await;
+    let home = tempfile::tempdir().unwrap();
+    let url = server.url();
+    let file = credentials_file(home.path(), &url);
+    let env = [
+        ("ORIGINCLOUD_CREDENTIALS_FILE", file.to_str().unwrap()),
+        ("ORIGINCLOUD_METADATA_DISABLED", "true"),
+    ];
+
+    success(
+        &origin(
+            home.path(),
+            &["location", "--endpoint", &url, "list-zones"],
+            &env,
+        )
+        .await,
+    );
+    let requests = received.lock().unwrap().clone();
+    let exchange = requests
+        .iter()
+        .find(|r| r.path == "/v1/token")
+        .expect("the STS was asked");
+    let form: std::collections::HashMap<String, String> =
+        url::form_urlencoded::parse(exchange.body.as_ref())
+            .into_owned()
+            .collect();
+    let assertion = &form["assertion"];
+    let header = {
+        use base64::Engine as _;
+        let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(assertion.split('.').next().unwrap())
+            .unwrap();
+        serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()
+    };
+    assert_eq!(header["kid"], KEY);
+    assert_eq!(header["alg"], "ES256");
+    let claims = claims(assertion);
+    assert_eq!(claims["iss"], ACCOUNT);
+    assert_eq!(claims["aud"], url.as_str());
+    let call = requests
+        .iter()
+        .find(|r| r.path == "/v1beta1/zones")
+        .expect("the API was called");
+    assert_eq!(call.header("authorization"), Some("Bearer sa-token-1"));
+
+    let printed = success(&origin(home.path(), &["id", "token"], &env).await);
+    assert_eq!(printed["token"], "sa-token-2");
+}
+
+/// The profile's `credentials-file` names one too, which `origin config
+/// profile-set` checks and saves as an absolute path. It comes before a
+/// login session; `ORIGINCLOUD_CREDENTIALS_FILE` comes before it.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_profile_names_a_credentials_file_before_the_login_session() {
+    let (server, received) = sts(900).await;
+    let home = tempfile::tempdir().unwrap();
+    common::write_session(home.path());
+    let url = server.url();
+    let file = credentials_file(home.path(), &url);
+    let env = [("ORIGINCLOUD_METADATA_DISABLED", "true")];
+
+    let not_a_key = home.path().join("not-a-key.json");
+    std::fs::write(&not_a_key, "{}").unwrap();
+    let output = origin(
+        home.path(),
+        &[
+            "config",
+            "profile-set",
+            "credentials-file",
+            not_a_key.to_str().unwrap(),
+        ],
+        &env,
+    )
+    .await;
+    assert_ne!(output.status.code(), Some(0), "{output:?}");
+    success(
+        &origin(
+            home.path(),
+            &[
+                "config",
+                "profile-set",
+                "credentials-file",
+                file.to_str().unwrap(),
+            ],
+            &env,
+        )
+        .await,
+    );
+    let profile = success(&origin(home.path(), &["config", "profile"], &env).await);
+    assert_eq!(profile["credentials_file"], file.to_str().unwrap());
+
+    success(
+        &origin(
+            home.path(),
+            &["location", "--endpoint", &url, "list-zones"],
+            &env,
+        )
+        .await,
+    );
+    let call = received
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|r| r.path == "/v1beta1/zones")
+        .cloned()
+        .expect("the API was called");
+    assert_eq!(call.header("authorization"), Some("Bearer sa-token-1"));
+
+    // A file the variable names, which isn't there, is the error: the
+    // commands don't fall back to the profile's file or the login.
+    let missing = home.path().join("missing.json");
+    let env = [
+        ("ORIGINCLOUD_METADATA_DISABLED", "true"),
+        ("ORIGINCLOUD_CREDENTIALS_FILE", missing.to_str().unwrap()),
+    ];
+    let description = failure(
+        &origin(
+            home.path(),
+            &["location", "--endpoint", &url, "list-zones"],
+            &env,
+        )
+        .await,
+    );
+    assert!(description.contains("missing.json"), "{description}");
+    assert!(
+        description.contains("ORIGINCLOUD_CREDENTIALS_FILE"),
+        "{description}"
+    );
+}
+
+/// A token about to expire is renewed before the call that would have
+/// sent it: with tokens the STS grants for 30 seconds, inside the margin
+/// the SDK renews within, each call of one command sends a newly exchanged
+/// one, and none is refused.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_token_about_to_expire_is_renewed_without_a_failed_call() {
+    let (server, received) = sts(30).await;
+    let home = tempfile::tempdir().unwrap();
+    let url = server.url();
+    let file = credentials_file(home.path(), &url);
+    let env = [
+        ("ORIGINCLOUD_CREDENTIALS_FILE", file.to_str().unwrap()),
+        ("ORIGINCLOUD_METADATA_DISABLED", "true"),
+        ("ORIGINCLOUD_PVS_ENDPOINT", url.as_str()),
+        ("ORIGINCLOUD_LOCATION_ENDPOINT", url.as_str()),
+    ];
+
+    // The zones, then the volumes of each: three calls.
+    let listed = success(
+        &origin(
+            home.path(),
+            &["pvs", "list-volumes", "--project", "p"],
+            &env,
+        )
+        .await,
+    );
+    assert_eq!(listed["volumes"], serde_json::json!([]), "{listed}");
+    let requests = received.lock().unwrap().clone();
+    let calls: Vec<_> = requests.iter().filter(|r| r.path != "/v1/token").collect();
+    let exchanges = requests.iter().filter(|r| r.path == "/v1/token").count();
+    assert_eq!(calls.len(), 3, "{calls:?}");
+    assert_eq!(exchanges, 3, "one exchange before each call");
+    let tokens: Vec<_> = calls
+        .iter()
+        .map(|r| r.header("authorization").unwrap_or_default().to_owned())
+        .collect();
+    assert_eq!(
+        tokens,
+        [
+            "Bearer sa-token-1",
+            "Bearer sa-token-2",
+            "Bearer sa-token-3"
+        ]
     );
 }

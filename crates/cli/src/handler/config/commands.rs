@@ -14,10 +14,14 @@ pub(crate) enum ConfigCommands {
     /// `--zone` isn't given) and `region` (the region they work in: their
     /// `--region` when not given, and the front door of the services with
     /// regional hosts, such as `pvs`; without it, the region of
-    /// `default-zone`). `origin config profile-set region eu-central1` sets
-    /// the region. The environment variables ORIGINCLOUD_PROJECT,
-    /// ORIGINCLOUD_ZONE and ORIGINCLOUD_REGION override the profile's
-    /// values, and a flag overrides both.
+    /// `default-zone`), and `credentials-file` (a service account key's
+    /// credentials file, as `origin iam create-service-account-key` writes
+    /// it: the commands call the API as that service account, before a CI
+    /// job's token and the login session). `origin config profile-set region
+    /// eu-central1` sets the region. The environment variables
+    /// ORIGINCLOUD_PROJECT, ORIGINCLOUD_ZONE, ORIGINCLOUD_REGION and
+    /// ORIGINCLOUD_CREDENTIALS_FILE override the profile's values, and a flag
+    /// overrides both.
     ProfileSet {
         /// The key to set.
         #[arg(index = 1)]
