@@ -20,6 +20,10 @@ const ENV_ZONE: &str = "ORIGINCLOUD_ZONE";
 /// The region the generated commands work in (see
 /// [`ClientProfile::region_in_effect`]); the same variable the SDKs read.
 const ENV_REGION: &str = "ORIGINCLOUD_REGION";
+/// The service account key's credentials file the CLI calls the API with,
+/// before a CI job's token and the login session; the same variable the
+/// SDKs read.
+const ENV_CREDENTIALS_FILE: &str = "ORIGINCLOUD_CREDENTIALS_FILE";
 
 fn config_base_dir() -> String {
     env_or(
@@ -51,6 +55,11 @@ pub(crate) struct ClientProfile {
     /// see [`ClientProfile::region_in_effect`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<String>,
+    /// A service account key's credentials file, which the commands call the
+    /// API with as that service account, before a CI job's token and the
+    /// login session: see [`crate::sdk::credentials`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credentials_file: Option<PathBuf>,
     /// The file this profile was loaded from when `--config` named one, so a
     /// save writes back to it rather than to the default location.
     #[serde(skip)]
@@ -113,6 +122,7 @@ impl ClientProfile {
             default_project: try_env(ENV_PROJECT).ok(),
             default_zone: try_env(ENV_ZONE).ok(),
             region: try_env(ENV_REGION).ok(),
+            credentials_file: try_env(ENV_CREDENTIALS_FILE).ok(),
             source: None,
         }
     }
@@ -190,6 +200,9 @@ impl ClientProfile {
         if other.region.is_some() {
             self.region = other.region;
         }
+        if other.credentials_file.is_some() {
+            self.credentials_file = other.credentials_file;
+        }
     }
 }
 
@@ -208,12 +221,13 @@ mod tests {
     const PROFILE: &str =
         r#"{"default_org":null,"default_username":"file-user","output_format":"Json"}"#;
 
-    const ALL_ENV: [&str; 5] = [
+    const ALL_ENV: [&str; 6] = [
         ENV_USERNAME,
         ENV_OUTPUT_FORMAT,
         ENV_PROJECT,
         ENV_ZONE,
         ENV_REGION,
+        ENV_CREDENTIALS_FILE,
     ];
 
     /// Points `HOME` and `XDG_CONFIG_HOME` at `dir`, so that nothing touches
@@ -254,6 +268,7 @@ mod tests {
         assert_eq!(ENV_PROJECT, "ORIGINCLOUD_PROJECT");
         assert_eq!(ENV_ZONE, "ORIGINCLOUD_ZONE");
         assert_eq!(ENV_REGION, "ORIGINCLOUD_REGION");
+        assert_eq!(ENV_CREDENTIALS_FILE, "ORIGINCLOUD_CREDENTIALS_FILE");
     }
 
     /// The environment must reach the *loaded* profile, not just
@@ -268,6 +283,7 @@ mod tests {
         std::env::set_var(ENV_USERNAME, "from-env@example.com");
         std::env::set_var(ENV_ZONE, "eu-central1-az9");
         std::env::set_var(ENV_REGION, "eu-central9");
+        std::env::set_var(ENV_CREDENTIALS_FILE, "/run/secrets/key.json");
         let profile = ClientProfile::load(None);
         assert_eq!(
             profile.default_username.as_deref(),
@@ -275,8 +291,13 @@ mod tests {
         );
         assert_eq!(profile.default_zone.as_deref(), Some("eu-central1-az9"));
         assert_eq!(profile.region.as_deref(), Some("eu-central9"));
+        assert_eq!(
+            profile.credentials_file.as_deref(),
+            Some(Path::new("/run/secrets/key.json"))
+        );
 
         let file = ClientProfile::load_file(None);
+        assert!(file.credentials_file.is_none());
         assert!(file.default_username.is_none());
         assert!(file.default_zone.is_none());
         for key in ALL_ENV {

@@ -4,7 +4,7 @@
 //!   fall-back-to-legacy resolution both stores use
 //! - `file_io.rs`: the JSON read/write helpers both stores use
 //! - `profile.rs`: `ClientProfile`, the user's defaults (username, output
-//!   format, project, zone, region)
+//!   format, project, zone, region, credentials file)
 //! - `session.rs`: `ClientSession`, the cached OIDC tokens
 //! - `env.rs`: reading the environment variables that override them
 

@@ -5,8 +5,8 @@
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
     passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
-    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
-    OPERATION,
+    wait_for, waited, waiting, zones, ConfirmedClient, SecretFile, Context, Listing,
+    ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -120,16 +120,10 @@ pub enum Commands {
     ListServiceAccounts(ListServiceAccountsArgs),
     #[command(
         name = "create-service-account",
-        about = "Creates a service account and, for an `EXTERNAL` one, its client secret, which expires after `--secret-lifetime`",
-        long_about = "Creates a service account and, for an `EXTERNAL` one, its client secret, which expires after `--secret-lifetime`. The response is the only place the secret is ever shown: store it now. Needs `iam.service_account.create` on the organization."
+        about = "Creates a service account",
+        long_about = "Creates a service account. It has no credential yet: give a `WORKLOAD` one a federated credential, an `EXTERNAL` one a key. Needs `iam.service_account.create` on the organization."
     )]
     CreateServiceAccount(CreateServiceAccountArgs),
-    #[command(
-        name = "rotate-service-account-secret",
-        about = "Issues a new client secret for an `EXTERNAL` service account and returns the service account with it in `clientSecret`, the only place it is ever shown",
-        long_about = "Issues a new client secret for an `EXTERNAL` service account and returns the service account with it in `clientSecret`, the only place it is ever shown. The previous secret is refused from then on, and the new one is accepted at once, also when the previous one had expired. It expires after `--secret-lifetime`. An access token issued before stays valid until it expires, within minutes. Needs `iam.service_account.create` on the organization."
-    )]
-    RotateServiceAccountSecret(RotateServiceAccountSecretArgs),
     #[command(
         name = "delete-service-account",
         about = "Deletes a service account for good: its credential is refused from then on, an access token it already holds is refused on its next request, and every role binding it holds, in any organization, is removed",
@@ -205,9 +199,6 @@ pub async fn run(
         Commands::GetServiceAccount(args) => get_service_account(ctx, args).await,
         Commands::ListServiceAccounts(args) => list_service_accounts(ctx, args).await,
         Commands::CreateServiceAccount(args) => create_service_account(ctx, args).await,
-        Commands::RotateServiceAccountSecret(args) => {
-            rotate_service_account_secret(ctx, args).await
-        }
         Commands::DeleteServiceAccount(args) => delete_service_account(ctx, args).await,
         Commands::GetServiceAccountKey(args) => get_service_account_key(ctx, args).await,
         Commands::ListServiceAccountKeys(args) => {
@@ -1312,14 +1303,7 @@ async fn list_service_accounts(
             Listing {
                 field: "serviceAccounts",
                 item: Some("origincloud.iam.v1beta1.ServiceAccount"),
-                columns: &[
-                    "name",
-                    "displayName",
-                    "state",
-                    "member",
-                    "clientId",
-                    "createTime",
-                ],
+                columns: &["name", "displayName", "state", "member", "createTime"],
                 parents: listed,
                 create: Some("origin iam create-service-account"),
             },
@@ -1345,14 +1329,7 @@ async fn list_service_accounts(
         Listing {
             field: "serviceAccounts",
             item: Some("origincloud.iam.v1beta1.ServiceAccount"),
-            columns: &[
-                "name",
-                "displayName",
-                "state",
-                "member",
-                "clientId",
-                "createTime",
-            ],
+            columns: &["name", "displayName", "state", "member", "createTime"],
             parents: listed,
             create: Some("origin iam create-service-account"),
         },
@@ -1383,21 +1360,11 @@ pub struct CreateServiceAccountArgs {
     #[arg(long = "type", value_parser = ["EXTERNAL", "WORKLOAD"])]
     pub r#type: Option<String>,
     /// A UUID. A repeat of the request with the same `--request-id` within a
-    /// day creates nothing and is refused with `CONFLICT`: the secret went to
-    /// the first request only. The error's `ErrorInfo` metadata names the
-    /// service account under `serviceAccount`; delete it and create a new one
-    /// to get a working secret. The same `--request-id` with a different
-    /// request is refused with `CONFLICT` without that metadata. One is generated when not given.
+    /// day creates nothing and returns the service account the first request
+    /// created. The same `--request-id` with a different request is refused with
+    /// `CONFLICT`. One is generated when not given.
     #[arg(long = "request-id")]
     pub request_id: Option<String>,
-    /// How long an `EXTERNAL` service account's client secret is accepted,
-    /// from its creation: more than zero and at most 365 days. 90 days when
-    /// left out. A `WORKLOAD` service account has no secret, and a create of
-    /// one that sets it is refused.
-    ///
-    /// Such as `30s` or `1m`.
-    #[arg(long = "secret-lifetime", value_name = "DURATION", value_parser = duration)]
-    pub secret_lifetime: Option<::origincloud_core::protobuf::Duration>,
 }
 async fn create_service_account(
     ctx: &Context<'_>,
@@ -1418,16 +1385,11 @@ async fn create_service_account(
         parent,
         service_account: Some(service_account),
         request_id: args.request_id.clone().unwrap_or_default(),
-        secret_lifetime: args.secret_lifetime,
     };
     let client = ctx.client()?;
     let response = call_create_service_account(&client, request)
         .await
         .map_err(api_error)?;
-    shown_once(
-        &response.client_secret,
-        "`clientSecret` holds the service account's client secret, which the API returns this once. Save it now where only you can read it, such as by piping the output through `(umask 077; jq -r .clientSecret > client-secret)`. A lost secret can't be fetched again: delete the service account and create another.",
-    );
     json(&response, "origincloud.iam.v1beta1.ServiceAccount")
 }
 async fn call_create_service_account(
@@ -1439,76 +1401,6 @@ async fn call_create_service_account(
 > {
     ::origincloud_iam::v1beta1::ServiceAccountClient::new(client.sdk())
         .create_service_account(request)
-        .await
-}
-/// The flags of `rotate-service-account-secret`.
-#[derive(clap::Args, Debug)]
-pub struct RotateServiceAccountSecretArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
-    #[arg(long = "organization", value_name = "ORGANIZATION")]
-    pub organization: Option<String>,
-    /// The `EXTERNAL` service account whose secret to replace.
-    ///
-    /// Its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`.
-    #[arg(long = "service-account", value_name = "SERVICE_ACCOUNT")]
-    pub service_account: String,
-    /// How long the new secret is accepted, from now: more than zero and at
-    /// most 365 days. 90 days when left out.
-    ///
-    /// Such as `30s` or `1m`.
-    #[arg(long = "secret-lifetime", value_name = "DURATION", value_parser = duration)]
-    pub secret_lifetime: Option<::origincloud_core::protobuf::Duration>,
-    /// A UUID. A repeat of the request with the same `--request-id` within a
-    /// day issues no secret and is refused with `CONFLICT`: the secret went
-    /// to the first request only. Rotate again with a new `--request-id` to get
-    /// a working secret. The same `--request-id` with a different request is
-    /// refused with `CONFLICT` too. One is generated when not given.
-    #[arg(long = "request-id")]
-    pub request_id: Option<String>,
-}
-async fn rotate_service_account_secret(
-    ctx: &Context<'_>,
-    args: RotateServiceAccountSecretArgs,
-) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
-    names
-        .learn(
-            &["organizations/{organization}/serviceAccounts/{service_account}"],
-            &["iam"],
-            "service-account",
-            Some(args.service_account.as_str()),
-        )?;
-    let name = names
-        .target(
-            &["organizations/{organization}/serviceAccounts/{service_account}"],
-            &["iam"],
-            "service-account",
-            args.service_account.as_str(),
-        )?;
-    let request = ::origincloud_iam::v1beta1::RotateServiceAccountSecretRequest {
-        name,
-        secret_lifetime: args.secret_lifetime,
-        request_id: args.request_id.clone().unwrap_or_default(),
-    };
-    let client = ctx.client()?;
-    let response = call_rotate_service_account_secret(&client, request)
-        .await
-        .map_err(api_error)?;
-    shown_once(
-        &response.client_secret,
-        "`clientSecret` holds the service account's new client secret, which the API returns this once; the old one no longer works. Save it now where only you can read it, such as by piping the output through `(umask 077; jq -r .clientSecret > client-secret)`. A lost secret can't be fetched again: rotate it again.",
-    );
-    json(&response, "origincloud.iam.v1beta1.ServiceAccount")
-}
-async fn call_rotate_service_account_secret(
-    client: &ReadClient,
-    request: ::origincloud_iam::v1beta1::RotateServiceAccountSecretRequest,
-) -> ::core::result::Result<
-    ::origincloud_iam::v1beta1::ServiceAccount,
-    ::origincloud_core::Error,
-> {
-    ::origincloud_iam::v1beta1::ServiceAccountClient::new(client.sdk())
-        .rotate_service_account_secret(request)
         .await
 }
 /// The flags of `delete-service-account`.
@@ -1709,7 +1601,7 @@ async fn list_service_account_keys(
             Listing {
                 field: "serviceAccountKeys",
                 item: Some("origincloud.iam.v1beta1.ServiceAccountKey"),
-                columns: &[],
+                columns: &["name", "state", "algorithm", "createTime", "lastUseTime"],
                 parents: listed,
                 create: Some("origin iam create-service-account-key"),
             },
@@ -1735,7 +1627,7 @@ async fn list_service_account_keys(
         Listing {
             field: "serviceAccountKeys",
             item: Some("origincloud.iam.v1beta1.ServiceAccountKey"),
-            columns: &[],
+            columns: &["name", "state", "algorithm", "createTime", "lastUseTime"],
             parents: listed,
             create: Some("origin iam create-service-account-key"),
         },
@@ -1769,6 +1661,12 @@ pub struct CreateServiceAccountKeyArgs {
     /// without that metadata. One is generated when not given.
     #[arg(long = "request-id")]
     pub request_id: Option<String>,
+    /// Where to write the key's credentials file, which holds its private key: the API returns it this once, and the platform keeps no copy. It is created readable by you alone; an existing file is refused unless `--overwrite` is given. Point `ORIGINCLOUD_CREDENTIALS_FILE`, or the profile's `credentials-file`, at it to call the API as the service account.
+    #[arg(long = "credentials-file", value_name = "CREDENTIALS_FILE")]
+    pub credentials_file: ::std::path::PathBuf,
+    /// Replace the file `--credentials-file` names when it exists, once the response is in.
+    #[arg(long = "overwrite")]
+    pub overwrite: bool,
 }
 async fn create_service_account_key(
     ctx: &Context<'_>,
@@ -1797,10 +1695,22 @@ async fn create_service_account_key(
         service_account_key: Some(service_account_key),
         request_id: args.request_id.clone().unwrap_or_default(),
     };
+    let secret_file = SecretFile::claim(
+        &args.credentials_file,
+        args.overwrite,
+        "credentials-file",
+    )?;
     let client = ctx.client()?;
     let response = call_create_service_account_key(&client, request)
         .await
         .map_err(api_error)?;
+    let mut response = response;
+    secret_file
+        .write(
+            ::std::mem::take(&mut response.credentials_file),
+            "the key's credentials file",
+            &response.name,
+        )?;
     json(&response, "origincloud.iam.v1beta1.ServiceAccountKey")
 }
 async fn call_create_service_account_key(

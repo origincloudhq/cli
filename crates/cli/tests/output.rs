@@ -268,16 +268,16 @@ rb-2   serviceAccount:sa-1    viewer   p1
 }
 
 /// Service accounts are listed with the member a role binding names them
-/// by, their state and the client id they log in with; a deleted one
-/// (`--show-deleted`) says so in its state.
+/// by and their state; a deleted one (`--show-deleted`) says so in its
+/// state.
 #[tokio::test(flavor = "multi_thread")]
-async fn service_accounts_are_listed_by_member_state_and_client_id() {
+async fn service_accounts_are_listed_by_member_and_state() {
     const ACCOUNTS: &str = r#"{"serviceAccounts":[
         {"name":"organizations/o/serviceAccounts/sa-1","displayName":"CI deploy",
-         "member":"serviceAccount:sa-1","clientId":"c-7f3a","state":"ACTIVE",
+         "member":"serviceAccount:sa-1","state":"ACTIVE",
          "creator":"user:ada@example.com"},
         {"name":"organizations/o/serviceAccounts/sa-2","displayName":"Old backup",
-         "member":"serviceAccount:sa-2","clientId":"c-91be","state":"DELETED",
+         "member":"serviceAccount:sa-2","state":"DELETED",
          "creator":"user:ada@example.com","deleteTime":"2026-01-02T00:00:00Z"}]}"#;
     let server = recording(|_| Response::json(ACCOUNTS)).await;
     let args = ["list-service-accounts", "--organization", "o"];
@@ -287,9 +287,9 @@ async fn service_accounts_are_listed_by_member_state_and_client_id() {
     assert_eq!(
         text(&table.stdout),
         "\
-NAME   DISPLAY NAME   STATE     MEMBER                CLIENT ID   CREATE TIME
-sa-1   CI deploy      ACTIVE    serviceAccount:sa-1   c-7f3a
-sa-2   Old backup     DELETED   serviceAccount:sa-2   c-91be
+NAME   DISPLAY NAME   STATE     MEMBER                CREATE TIME
+sa-1   CI deploy      ACTIVE    serviceAccount:sa-1
+sa-2   Old backup     DELETED   serviceAccount:sa-2
 "
     );
 
@@ -298,6 +298,38 @@ sa-2   Old backup     DELETED   serviceAccount:sa-2   c-91be
         .await;
     let header = text(&wide.stdout).lines().next().unwrap().to_owned();
     assert!(header.contains("DELETE TIME"), "{header}");
+}
+
+/// A service account's keys are listed by their state, algorithm and when
+/// they were created and last used: what tells a key still in use from one
+/// to delete.
+#[tokio::test(flavor = "multi_thread")]
+async fn service_account_keys_are_listed_by_state_and_last_use() {
+    const KEYS: &str = r#"{"serviceAccountKeys":[
+        {"name":"organizations/o/serviceAccounts/sa-1/keys/k-1","algorithm":"ES256",
+         "state":"ACTIVE","creator":"//iam.origincloudapis.eu/users/ada",
+         "createTime":"2026-11-01T00:00:00Z","lastUseTime":"2026-11-20T00:00:00Z"},
+        {"name":"organizations/o/serviceAccounts/sa-1/keys/k-2","algorithm":"ES256",
+         "state":"ACTIVE","creator":"//iam.origincloudapis.eu/users/ada",
+         "createTime":"2026-11-02T00:00:00Z"}]}"#;
+    let server = recording(|_| Response::json(KEYS)).await;
+    let args = [
+        "list-service-account-keys",
+        "--organization",
+        "o",
+        "--service-account",
+        "sa-1",
+        "-o",
+        "table",
+    ];
+    let table = text(&server.run("iam", &args).await.stdout);
+    let header = table.lines().next().unwrap().to_owned();
+    assert!(
+        header.starts_with("NAME") && header.contains("STATE") && header.contains("LAST USE TIME"),
+        "{table}"
+    );
+    assert!(!header.contains("CREATOR"), "{table}");
+    assert!(table.contains("k-1") && table.contains("k-2"), "{table}");
 }
 
 /// Roles are listed by their id and the name the console shows them by,

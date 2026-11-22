@@ -217,6 +217,15 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   the API returns in that response alone, such as `CreateKeyPair`'s
   `private_key`: the command prints the response as any other, and its
   `notice` on standard error when the field isn't empty;
+- `[[to_file]]` names a string field of a method's response holding a
+  secret the API returns in that response alone, which the command writes to
+  a file instead of printing it, such as `CreateServiceAccountKey`'s
+  `credentials_file`: its required flag `--{flag}` names the file, which is
+  claimed before the request (created `0600`, an existing one refused
+  unless `--overwrite`, then replaced only once the response is in, and
+  removed again when the request fails, `runtime.rs`'s `SecretFile`); the
+  printed response leaves the field out, and standard error names the file
+  and the resource;
 - `[[from_file]]` names a string field of a method's request, such as
   `AssumeServiceAccount`'s `oidc_token`, that its command reads from a file, or
   from standard input with `-`, rather than from the command line, where a

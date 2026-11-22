@@ -466,27 +466,26 @@ can read, such as by piping the output through \
 `(umask 077; jq -r .privateKey > my-key)`. A lost key can't be fetched \
 again: delete the key pair and create another."""
 
-[[shown_once]]
+# A string field of a method's response holding a secret the API returns in
+# that response alone, which the command writes to a file rather than
+# print: its flag `--{flag}` names the file, which is required. The file is
+# claimed before the request is sent and created readable by its owner alone
+# (`0600`); an existing one is refused unless `--overwrite` is given, and is
+# then replaced only once the response is in. The printed response leaves
+# the field out, and standard error names the file and the resource.
+# Generation fails for a field that isn't a string of the response.
+[[to_file]]
 service = "iam"
-method = "CreateServiceAccount"
-field = "client_secret"
-notice = """
-`clientSecret` holds the service account's client secret, which the API \
-returns this once. Save it now where only you can read it, such as by piping \
-the output through `(umask 077; jq -r .clientSecret > client-secret)`. A lost \
-secret can't be fetched again: delete the service account and create \
-another."""
-
-[[shown_once]]
-service = "iam"
-method = "RotateServiceAccountSecret"
-field = "client_secret"
-notice = """
-`clientSecret` holds the service account's new client secret, which the API \
-returns this once; the old one no longer works. Save it now where only you \
-can read it, such as by piping the output through \
-`(umask 077; jq -r .clientSecret > client-secret)`. A lost secret can't be \
-fetched again: rotate it again."""
+method = "CreateServiceAccountKey"
+field = "credentials_file"
+flag = "credentials-file"
+what = "the key's credentials file"
+help = """
+Where to write the key's credentials file, which holds its private \
+key: the API returns it this once, and the platform keeps no copy. It is \
+created readable by you alone; an existing file is refused unless \
+`--overwrite` is given. Point `ORIGINCLOUD_CREDENTIALS_FILE`, or the \
+profile's `credentials-file`, at it to call the API as the service account."""
 
 # A string field of a request itself that a command reads from a file, or
 # from standard input with `-`, rather than from the command line, where it
@@ -614,7 +613,12 @@ columns = ["name", "member", "role", "project", "create_time"]
 [[view]]
 service = "iam"
 message = "ServiceAccount"
-columns = ["name", "display_name", "state", "member", "client_id", "create_time"]
+columns = ["name", "display_name", "state", "member", "create_time"]
+
+[[view]]
+service = "iam"
+message = "ServiceAccountKey"
+columns = ["name", "state", "algorithm", "create_time", "last_use_time"]
 
 [[view]]
 service = "iam"

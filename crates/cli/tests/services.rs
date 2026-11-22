@@ -652,88 +652,152 @@ async fn a_generated_private_key_comes_with_a_notice() {
     assert!(!stderr.contains("privateKey"), "{stderr}");
 }
 
-/// A new service account's client secret is printed in the JSON as the API
-/// sends it, and standard error says it is shown this once and how to keep
-/// it. A repeat of the request, with the same request id, can't show the
-/// secret again: the API refuses it with `CONFLICT`, and the failure names
-/// the account to delete, without a notice.
+/// A new key's credentials file, which holds its private key and which the
+/// API returns this once, is written to the file `--credentials-file`
+/// names, readable by its owner alone, and never printed: standard output
+/// has the key without it, and standard error names the file and the key.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_service_account_s_client_secret_comes_with_a_notice() {
-    const CREATED: &str = r#"{"name":"organizations/o/serviceAccounts/sa-1","displayName":"ci","member":"serviceAccount:sa-1","clientId":"c-1","clientSecret":"s3cr3t-value","state":"ACTIVE"}"#;
-    const REPEATED: &str = r#"{"error":{"code":409,"status":"FAILED_PRECONDITION","message":"the service account organizations/o/serviceAccounts/sa-1 was created by an earlier request with this request_id; its client secret was returned only to that request. To get a working secret, delete that account and create a new one","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"CONFLICT","domain":"origincloudapis.eu","metadata":{"serviceAccount":"organizations/o/serviceAccounts/sa-1"}},{"@type":"type.googleapis.com/google.rpc.RequestInfo","requestId":"7d3c1a2b9e8f4051"}]}}"#;
+async fn a_key_s_credentials_file_is_written_to_the_named_file_never_printed() {
+    const SECRET: &str = r#"{"type":"service_account_key","private_key":"-----BEGIN PRIVATE KEY-----\nPRIVATE-KEY-MATERIAL\n-----END PRIVATE KEY-----\n"}"#;
+    let created = serde_json::json!({
+        "name": "organizations/o/serviceAccounts/sa-1/keys/k-1",
+        "algorithm": "ES256",
+        "state": "ACTIVE",
+        "credentialsFile": SECRET,
+    })
+    .to_string();
+    let server = recording(move |_: &Received| Response::json(&created)).await;
+    let file = server.home.path().join("sa-1.json");
+    let path = file.to_str().unwrap();
+    let create = [
+        "create-service-account-key",
+        "--organization",
+        "o",
+        "--service-account",
+        "sa-1",
+        "--credentials-file",
+        path,
+    ];
+
+    for format in ["json", "table"] {
+        let _ = std::fs::remove_file(&file);
+        let output = server
+            .run("iam", &[&create[..], &["-o", format]].concat())
+            .await;
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+        let printed = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        for said in [&printed, &stderr] {
+            assert!(!said.contains("PRIVATE-KEY-MATERIAL"), "{said}");
+            assert!(!said.contains("PRIVATE KEY"), "{said}");
+        }
+        assert!(
+            printed.contains("organizations/o/serviceAccounts/sa-1/keys/k-1"),
+            "{printed}"
+        );
+        assert!(stderr.contains(path), "the file: {stderr}");
+        assert!(
+            stderr.contains("organizations/o/serviceAccounts/sa-1/keys/k-1"),
+            "the key: {stderr}"
+        );
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), SECRET);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let mode = std::fs::metadata(&file).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o600, "{mode:o}");
+        }
+    }
+    std::fs::remove_file(&file).unwrap();
+    let printed = success(&server.run("iam", &create).await);
+    assert_eq!(
+        printed["name"],
+        "organizations/o/serviceAccounts/sa-1/keys/k-1"
+    );
+    assert!(printed.get("credentialsFile").is_none(), "{printed}");
+    assert_eq!(
+        server.requests()[0].path,
+        "/v1beta1/organizations/o/serviceAccounts/sa-1/keys"
+    );
+}
+
+/// An existing file is refused before any request, and left as it is,
+/// unless `--overwrite`, which replaces it once the response is in; a
+/// request that fails leaves no new file behind and an existing one as it
+/// was. `--credentials-file` is required, and isn't standard output.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_key_s_credentials_file_never_replaces_a_file_unasked() {
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
     let server = recording(move |_: &Received| {
         if seen.fetch_add(1, Ordering::SeqCst) == 0 {
-            Response::json(CREATED)
+            Response::json(
+                r#"{"name":"organizations/o/serviceAccounts/sa-1/keys/k-2","credentialsFile":"NEW-KEY"}"#,
+            )
         } else {
-            Response::json(REPEATED).with_status(409)
+            Response::json(r#"{"error":{"code":403,"status":"PERMISSION_DENIED","message":"denied"}}"#)
+                .with_status(403)
         }
     })
     .await;
-    let create = [
-        "create-service-account",
-        "--organization",
-        "o",
-        "--display-name",
-        "ci",
-        "--request-id",
-        "r-1",
-    ];
+    let file = server.home.path().join("existing.json");
+    std::fs::write(&file, "OLD-KEY").unwrap();
+    let path = file.to_str().unwrap();
+    let create = |extra: &'static [&'static str]| {
+        let mut args = vec![
+            "create-service-account-key",
+            "--organization",
+            "o",
+            "--service-account",
+            "sa-1",
+        ];
+        args.extend_from_slice(extra);
+        args
+    };
 
-    let output = server.run("iam", &create).await;
-    assert_eq!(success(&output), json(CREATED));
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    for part in [
-        "`clientSecret`",
-        "this once",
-        "umask 077",
-        "jq -r .clientSecret",
-    ] {
-        assert!(stderr.contains(part), "{part}: {stderr}");
-    }
-    assert!(!stderr.contains("s3cr3t-value"), "{stderr}");
-    assert_eq!(
-        server.requests()[0].path,
-        "/v1beta1/organizations/o/serviceAccounts"
-    );
+    let with_file = [&create(&[])[..], &["--credentials-file", path]].concat();
+    let description = failure(&server.run("iam", &with_file).await);
+    assert!(description.contains("--overwrite"), "{description}");
+    assert!(description.contains(path), "{description}");
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "OLD-KEY");
+    assert!(server.requests().is_empty(), "refused before any request");
 
-    let output = server.run("iam", &create).await;
-    let description = failure(&output);
-    for part in [
-        "CONFLICT",
-        "organizations/o/serviceAccounts/sa-1",
-        "delete that account and create a new one",
-        "7d3c1a2b9e8f4051",
-    ] {
-        assert!(description.contains(part), "{part}: {description}");
-    }
-    // The message names the account already, so the description doesn't
-    // repeat it; the JSON carries it apart, for a script.
-    assert_eq!(
-        description
-            .matches("organizations/o/serviceAccounts/sa-1")
-            .count(),
-        1,
-        "{description}"
+    let output = server
+        .run(
+            "iam",
+            &[&create(&[])[..], &["--credentials-file", "-"]].concat(),
+        )
+        .await;
+    assert!(failure(&output).contains("never written to standard output"));
+    let output = server.run("iam", &create(&[])).await;
+    assert_eq!(output.status.code(), Some(2), "a usage error: {output:?}");
+    assert!(server.requests().is_empty(), "refused before any request");
+
+    let overwrite = [&with_file[..], &["--overwrite"]].concat();
+    success(&server.run("iam", &overwrite).await);
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "NEW-KEY");
+
+    // The API refuses from here on.
+    std::fs::write(&file, "OLD-KEY").unwrap();
+    failure(&server.run("iam", &overwrite).await);
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "OLD-KEY");
+    let fresh = server.home.path().join("fresh.json");
+    let fresh_path = fresh.to_str().unwrap();
+    failure(
+        &server
+            .run(
+                "iam",
+                &[&create(&[])[..], &["--credentials-file", fresh_path]].concat(),
+            )
+            .await,
     );
-    let printed = stdout(&output);
-    assert_eq!(printed["reason"], "CONFLICT", "{printed}");
-    assert_eq!(
-        printed["metadata"],
-        json(r#"{"serviceAccount": "organizations/o/serviceAccounts/sa-1"}"#),
-        "{printed}"
-    );
-    assert_eq!(printed["requestId"], "7d3c1a2b9e8f4051", "{printed}");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!stderr.contains("clientSecret"), "{stderr}");
-    // A 409 isn't retried: the repeat was sent once, with the same request
-    // id as the create.
-    let requests = server.requests();
-    assert_eq!(requests.len(), 2, "{requests:?}");
-    for request in &requests {
-        assert_eq!(request.query_values("requestId"), ["r-1"], "{request:?}");
-    }
+    assert!(!fresh.exists(), "no file is left behind");
+    let leftovers: Vec<_> = std::fs::read_dir(server.home.path())
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".tmp"))
+        .collect();
+    assert!(leftovers.is_empty(), "{leftovers:?}");
 }
 
 /// What a refusal's metadata names that its message doesn't is said under

@@ -261,9 +261,10 @@ async fn credentials_come_from_the_environment_then_the_session() {
         "{description}"
     );
     assert!(
-        description.contains("ORIGINCLOUD_CLIENT_ID"),
+        description.contains("ORIGINCLOUD_CREDENTIALS_FILE"),
         "{description}"
     );
+    assert!(!description.contains("CLIENT_ID"), "{description}");
     assert_eq!(server.requests().len(), 2, "no request without credentials");
 }
 

@@ -5,8 +5,8 @@
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
     passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
-    wait_for, waited, waiting, zones, ConfirmedClient, Context, Listing, ReadClient,
-    OPERATION,
+    wait_for, waited, waiting, zones, ConfirmedClient, SecretFile, Context, Listing,
+    ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -5023,6 +5023,13 @@ async fn call_list_routes(
 }
 /// The flags of `create-route`.
 #[derive(clap::Args, Debug)]
+#[command(
+    group(
+        clap::ArgGroup::new(
+            "target"
+        ).multiple(false).args(["internet_gateway", "nat_gateway"])
+    )
+)]
 pub struct CreateRouteArgs {
     /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
@@ -5041,14 +5048,17 @@ pub struct CreateRouteArgs {
     /// The full name of the internet gateway of the table's VPC to send the
     /// traffic to.
     ///
+    /// One of `--internet-gateway`, `--nat-gateway`: give at most one.
+    ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/internetGateways/{internet_gateway}`; not a relative name or an id.
     #[arg(long = "internet-gateway", value_name = "NAME")]
     pub internet_gateway: Option<String>,
-    /// The full name of the NAT gateway in the table's VPC to send the traffic
-    /// to, for the
-    /// IPv4 default route only: a NAT gateway translates IPv4 only. Named in
-    /// the gateway's own zone; a name with another zone is refused with
-    /// `INVALID_ARGUMENT`.
+    /// The full name of the NAT gateway in the table's VPC to send the
+    /// traffic to, for the IPv4 default route only: a NAT gateway
+    /// translates IPv4 only. Named in the gateway's own zone; a name with
+    /// another zone is refused with `INVALID_ARGUMENT`.
+    ///
+    /// One of `--internet-gateway`, `--nat-gateway`: give at most one.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/zones/{zone}/natGateways/{nat_gateway}`; not a relative name or an id.
     #[arg(long = "nat-gateway", value_name = "NAME")]
@@ -5081,34 +5091,37 @@ async fn create_route(
         )?;
     let parent = names
         .name("projects/{project}/regions/{region}/routeTables/{route_table}")?;
-    let internet_gateway = match args.internet_gateway.as_deref() {
-        Some(v) => {
-            reference(
-                &[
-                    "projects/{project}/regions/{region}/internetGateways/{internet_gateway}",
-                ],
-                &["network"],
-                "--internet-gateway",
-                v,
-            )?
-        }
-        None => String::new(),
-    };
-    let nat_gateway = match args.nat_gateway.as_deref() {
-        Some(v) => {
-            reference(
-                &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
-                &["network"],
-                "--nat-gateway",
-                v,
-            )?
-        }
-        None => String::new(),
+    #[allow(clippy::manual_map)]
+    let target = if let Some(value) = args
+        .internet_gateway
+        .as_deref()
+        .map(|v| reference(
+            &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
+            &["network"],
+            "--internet-gateway",
+            v,
+        ))
+        .transpose()?
+    {
+        Some(::origincloud_network::v1beta1::route::Target::InternetGateway(value))
+    } else if let Some(value) = args
+        .nat_gateway
+        .as_deref()
+        .map(|v| reference(
+            &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
+            &["network"],
+            "--nat-gateway",
+            v,
+        ))
+        .transpose()?
+    {
+        Some(::origincloud_network::v1beta1::route::Target::NatGateway(value))
+    } else {
+        None
     };
     let route = ::origincloud_network::v1beta1::Route {
         destination: args.destination.clone(),
-        internet_gateway,
-        nat_gateway,
+        target,
         ..::core::default::Default::default()
     };
     let request = ::origincloud_network::v1beta1::CreateRouteRequest {
@@ -7041,6 +7054,13 @@ async fn call_list_security_group_rules(
 }
 /// The flags of `create-security-group-rule`.
 #[derive(clap::Args, Debug)]
+#[command(
+    group(
+        clap::ArgGroup::new(
+            "peer"
+        ).multiple(false).args(["cidr_block", "peer_security_group", "same_group"])
+    )
+)]
 pub struct CreateSecurityGroupRuleArgs {
     /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
@@ -7072,17 +7092,22 @@ pub struct CreateSecurityGroupRuleArgs {
     pub last_port: Option<i32>,
     /// The peer as an address range: where admitted traffic comes from, or
     /// where sent traffic goes to.
+    ///
+    /// One of `--cidr-block`, `--peer-security-group`, `--same-group`: give at most one.
     #[arg(long = "cidr-block")]
     pub cidr_block: Option<String>,
-    /// The peer as another security group of the same VPC, by its full name:
-    /// its members'
-    /// addresses. The rule's own group is refused here with
-    /// `INVALID_ARGUMENT`: it is `--same-group`.
+    /// The peer as another security group of the same VPC, by its full
+    /// name: its members' addresses. The rule's own group is refused here
+    /// with `INVALID_ARGUMENT`: it is `--same-group`.
+    ///
+    /// One of `--cidr-block`, `--peer-security-group`, `--same-group`: give at most one.
     ///
     /// Its full name, `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`; not a relative name or an id.
     #[arg(long = "peer-security-group", value_name = "NAME")]
     pub peer_security_group: Option<String>,
-    /// The peer as the rule's own group's members.
+    /// The peer as the rule's own group's members; only `true` is a peer.
+    ///
+    /// One of `--cidr-block`, `--peer-security-group`, `--same-group`: give at most one.
     #[arg(long = "same-group", value_name = "true|false", action = clap::ArgAction::Set)]
     pub same_group: Option<bool>,
     /// What the rule is for.
@@ -7116,16 +7141,29 @@ async fn create_security_group_rule(
         )?;
     let parent = names
         .name("projects/{project}/regions/{region}/securityGroups/{security_group}")?;
-    let peer_security_group = match args.peer_security_group.as_deref() {
-        Some(v) => {
-            reference(
-                &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
-                &["network"],
-                "--peer-security-group",
-                v,
-            )?
-        }
-        None => String::new(),
+    #[allow(clippy::manual_map)]
+    let peer = if let Some(value) = args.cidr_block.clone() {
+        Some(::origincloud_network::v1beta1::security_group_rule::Peer::CidrBlock(value))
+    } else if let Some(value) = args
+        .peer_security_group
+        .as_deref()
+        .map(|v| reference(
+            &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
+            &["network"],
+            "--peer-security-group",
+            v,
+        ))
+        .transpose()?
+    {
+        Some(
+            ::origincloud_network::v1beta1::security_group_rule::Peer::PeerSecurityGroup(
+                value,
+            ),
+        )
+    } else if let Some(value) = args.same_group {
+        Some(::origincloud_network::v1beta1::security_group_rule::Peer::SameGroup(value))
+    } else {
+        None
     };
     let security_group_rule = ::origincloud_network::v1beta1::SecurityGroupRule {
         direction: ::origincloud_network::v1beta1::security_group_rule::Direction::from_str_name(
@@ -7138,9 +7176,7 @@ async fn create_security_group_rule(
             .map_or(0, |v| v as i32),
         first_port: args.first_port.unwrap_or_default(),
         last_port: args.last_port.unwrap_or_default(),
-        cidr_block: args.cidr_block.clone().unwrap_or_default(),
-        peer_security_group,
-        same_group: args.same_group.unwrap_or_default(),
+        peer,
         description: args.description.clone().unwrap_or_default(),
         ..::core::default::Default::default()
     };
