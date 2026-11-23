@@ -66,8 +66,8 @@ pub enum Commands {
     ListProjects(ListProjectsArgs),
     #[command(
         name = "create-project",
-        about = "Creates a project in an `ACTIVE` organization, under the id the caller chooses",
-        long_about = "Creates a project in an `ACTIVE` organization, under the id the caller chooses. The caller becomes the project's owner, and the project is billed to the organization's default billing account. An id in use, or used by a project that was deleted, is refused as a `CONFLICT`."
+        about = "Creates a project in an `ACTIVE` organization, under the id the caller chooses, or one the server generates when the caller leaves it out",
+        long_about = "Creates a project in an `ACTIVE` organization, under the id the caller chooses, or one the server generates when the caller leaves it out. The caller becomes the project's owner, and the project is billed to the organization's default billing account. An id in use, or used by a project that was deleted, is refused as a `CONFLICT`."
     )]
     CreateProject(CreateProjectArgs),
     #[command(
@@ -607,14 +607,18 @@ pub struct CreateProjectArgs {
     #[arg(long = "display-name")]
     pub display_name: String,
     /// A UUID; a repeat with the same id returns the project the first request
-    /// created instead of creating a second one. One is generated when not given.
+    /// created instead of creating a second one, with the id it was given or
+    /// generated. One is generated when not given.
     #[arg(long = "request-id")]
     pub request_id: Option<String>,
     /// The project's id, the last segment of its name: 6 to 16 lowercase
     /// letters, digits and hyphens, starting with a letter and not ending with
-    /// a hyphen, such as `acme-prod`.
+    /// a hyphen, such as `acme-prod`. An id is never used twice: one a project
+    /// has or had is refused as a `CONFLICT`. Left out, the server generates
+    /// one, such as `escots-052954863`, and the project returned carries it in
+    /// its `name`.
     #[arg(long = "project-id")]
-    pub project_id: String,
+    pub project_id: Option<String>,
 }
 async fn create_project(
     ctx: &Context<'_>,
@@ -634,7 +638,7 @@ async fn create_project(
     let request = ::origincloud_resourcemanager::v1beta1::CreateProjectRequest {
         project: Some(project),
         request_id: args.request_id.clone().unwrap_or_default(),
-        project_id: args.project_id.clone(),
+        project_id: args.project_id.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
     let response = call_create_project(&client, request).await.map_err(api_error)?;
