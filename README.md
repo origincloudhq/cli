@@ -160,7 +160,7 @@ the profile's `impersonate-service-account`. `--impersonate-service-account ""`
 turns impersonation off for one command.
 
 You need `roles/iam.service-account-token-creator` on the account, or on
-its project or organization. The STS issues tokens only to a person, and
+its organization. The STS issues tokens only to a person, and
 only for an active `EXTERNAL` or `WORKLOAD` account. The account's token
 lives five minutes at most, and the CLI renews it before it expires. If the
 STS refuses, the command fails and names the account and the reason. It
