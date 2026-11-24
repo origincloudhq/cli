@@ -16,7 +16,8 @@ pub(crate) enum McpCommands {
     /// `credentials-file`), a CI job's token, its login, or the access token
     /// in ORIGINCLOUD_ACCESS_TOKEN, acting as the service account
     /// `--impersonate-service-account`, ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT
-    /// or the profile's `impersonate-service-account` names, if any, so that
+    /// or the profile's `impersonate-service-account` names, if any (only a
+    /// person's login can impersonate), so that
     /// the agent has that account's roles alone, in the region
     /// the commands use (ORIGINCLOUD_REGION, else the profile's `region`,
     /// else the region of the default zone), and with each service's

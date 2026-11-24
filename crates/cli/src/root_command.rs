@@ -55,9 +55,10 @@ pub struct Cli {
 
     /// Act as this service account, by its full name
     /// (//iam.origincloudapis.eu/organizations/ORG/serviceAccounts/ACCOUNT),
-    /// with its roles alone: the token of the credentials found (typically
-    /// the session of `origin id login`) is exchanged at the STS for the
-    /// account's, which needs roles/iam.service-account-token-creator on it.
+    /// with its roles alone: the token of the credentials found, which must
+    /// be a person's (such as the session of `origin id login`), is
+    /// exchanged at the STS for the account's; the person needs
+    /// roles/iam.service-account-token-creator on it.
     /// Overrides ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT and the profile's
     /// `impersonate-service-account`; an empty name impersonates no one.
     #[arg(
