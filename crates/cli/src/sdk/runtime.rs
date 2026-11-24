@@ -12,7 +12,6 @@ use origincloud_core::{Client, Operation};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use super::credentials::{ci_job, service_account, CliSessionCredentials};
 use crate::config::ClientProfile;
 use crate::confirm::Confirmed;
 use crate::handler::tag_args::TagArg;
@@ -22,12 +21,6 @@ use crate::output::{
     CommandResult, Refusal, Refused, SerializableOutput, SerializationError, Shape,
 };
 use crate::progress::{self, Spinner};
-
-/// The variable that holds an access token for the SDK. When it is set, or
-/// the environment names a CI job's OIDC token, the generated commands use
-/// the SDK's credentials, as every SDK does, instead of the login session;
-/// a credentials file the profile names comes before a CI job's token.
-const ACCESS_TOKEN_VARIABLE: &str = "ORIGINCLOUD_ACCESS_TOKEN";
 
 /// What the runtime knows of a generated group, which the generator writes
 /// in `generated/services.rs`.
@@ -146,18 +139,14 @@ impl<'a> Context<'a> {
                     .map(|(region, _)| region)
                     .unwrap_or_default(),
             );
-        let access_token = std::env::var(ACCESS_TOKEN_VARIABLE).is_ok_and(|v| !v.is_empty());
-        builder = if access_token {
-            let credentials = origincloud_core::default_credentials().map_err(api_error)?;
-            builder.credentials(Shared(credentials))
-        } else if let Some(account) = service_account().map_err(api_error)? {
-            builder.credentials(Shared(account))
-        } else if ci_job().is_some() {
-            let credentials = origincloud_core::default_credentials().map_err(api_error)?;
-            builder.credentials(Shared(credentials))
-        } else {
-            builder.credentials(CliSessionCredentials::default())
-        };
+        // The CLI has already resolved the account to impersonate, the
+        // flag before the variable before the profile, and wrapped the
+        // credentials in it: the empty name keeps the SDK from wrapping
+        // them again from the variable.
+        let credentials = super::credentials::credentials().map_err(api_error)?;
+        builder = builder
+            .credentials(Shared(credentials))
+            .impersonate_service_account("");
         if let Some(endpoint) = endpoint {
             builder = builder.endpoint(endpoint);
         }

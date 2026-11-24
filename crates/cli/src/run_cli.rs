@@ -30,6 +30,9 @@ pub async fn run() -> ! {
     if let Some(output) = cli.output {
         profile.output_format = Some(output);
     }
+    if let Some(service_account) = cli.impersonate_service_account.clone() {
+        profile.impersonate_service_account = Some(service_account);
+    }
     crate::sdk::credentials::configure(&profile);
 
     let api_url: Url = cli.api.parse().expect("failed to parse API URL");

@@ -755,3 +755,292 @@ async fn a_token_about_to_expire_is_renewed_without_a_failed_call() {
         ]
     );
 }
+
+const VIEWER: &str = "//iam.origincloudapis.eu/organizations/o/serviceAccounts/viewer";
+const DEPLOYER: &str = "//iam.origincloudapis.eu/organizations/o/serviceAccounts/deployer";
+const AUDITOR: &str = "//iam.origincloudapis.eu/organizations/o/serviceAccounts/auditor";
+
+/// The STS, exchanging a token for that of the service account
+/// `service_account` names, `impersonated-<account>`, unless it is
+/// `deployer`, which the caller holds no token-creator role on, and the
+/// location service, both at one address.
+async fn impersonation() -> (FakeServer, std::sync::Arc<std::sync::Mutex<Vec<Received>>>) {
+    let received = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen = std::sync::Arc::clone(&received);
+    let server = FakeServer::start(move |r: Received| {
+        let response = match (r.method.as_str(), r.path.as_str()) {
+            ("POST", "/v1/token") => {
+                let account = url::form_urlencoded::parse(r.body.as_ref())
+                    .find(|(k, _)| k == "service_account")
+                    .map(|(_, v)| v.rsplit('/').next().unwrap_or_default().to_owned())
+                    .unwrap_or_default();
+                if account == "deployer" {
+                    Response::json(
+                        r#"{"error":"invalid_grant","error_description":"permission denied"}"#,
+                    )
+                    .with_status(400)
+                } else {
+                    Response::json(format!(
+                        r#"{{"access_token":"impersonated-{account}","issued_token_type":"urn:ietf:params:oauth:token-type:access_token","token_type":"Bearer","expires_in":300}}"#
+                    ))
+                }
+            }
+            (_, "/v1beta1/zones") => Response::json(ZONES),
+            _ => Response::json("").with_status(404),
+        };
+        seen.lock().unwrap().push(r);
+        async move { response }
+    })
+    .await;
+    (server, received)
+}
+
+/// The form of each exchange the STS received, as name/value pairs.
+fn exchanges(requests: &[Received]) -> Vec<Vec<(String, String)>> {
+    requests
+        .iter()
+        .filter(|r| r.path == "/v1/token")
+        .map(|r| {
+            url::form_urlencoded::parse(r.body.as_ref())
+                .into_owned()
+                .collect()
+        })
+        .collect()
+}
+
+/// The authorization header of the calls to the API.
+fn api_authorization(requests: &[Received]) -> Vec<String> {
+    requests
+        .iter()
+        .filter(|r| r.path == "/v1beta1/zones")
+        .map(|r| r.header("authorization").unwrap_or_default().to_owned())
+        .collect()
+}
+
+/// With only a login session, `--impersonate-service-account` exchanges the
+/// session's token at the STS for the account's, and the commands call the
+/// API with that token alone; `origin id token` prints it.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_login_session_impersonates_the_service_account_the_flag_names() {
+    let (server, received) = impersonation().await;
+    let home = tempfile::tempdir().unwrap();
+    common::write_session(home.path());
+    let url = server.url();
+    let env = [
+        ("ORIGINCLOUD_STS_ENDPOINT", url.as_str()),
+        ("ORIGINCLOUD_METADATA_DISABLED", "true"),
+    ];
+
+    let zones = success(
+        &origin(
+            home.path(),
+            &[
+                "location",
+                "--endpoint",
+                &url,
+                "list-zones",
+                "--impersonate-service-account",
+                VIEWER,
+            ],
+            &env,
+        )
+        .await,
+    );
+    assert_eq!(zones["zones"][0]["name"], "zones/z-a");
+    let requests = received.lock().unwrap().clone();
+    let exchanges = exchanges(&requests);
+    assert_eq!(exchanges.len(), 1, "{exchanges:?}");
+    for pair in [
+        ("subject_token", "stored-access"),
+        (
+            "subject_token_type",
+            "urn:ietf:params:oauth:token-type:access_token",
+        ),
+        (
+            "grant_type",
+            "urn:ietf:params:oauth:grant-type:token-exchange",
+        ),
+        ("service_account", VIEWER),
+    ] {
+        assert!(
+            exchanges[0].contains(&(pair.0.to_owned(), pair.1.to_owned())),
+            "{exchanges:?}"
+        );
+    }
+    assert_eq!(api_authorization(&requests), ["Bearer impersonated-viewer"]);
+
+    // The flag goes before the command too, and `origin id token` prints it.
+    let printed = success(
+        &origin(
+            home.path(),
+            &["--impersonate-service-account", VIEWER, "id", "token"],
+            &env,
+        )
+        .await,
+    );
+    assert_eq!(printed["token"], "impersonated-viewer");
+}
+
+/// The flag comes before `ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT`, which
+/// comes before the profile's `impersonate-service-account`; an empty flag
+/// impersonates no one, and the command acts as the person.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_flag_comes_before_the_variable_before_the_profile() {
+    let (server, received) = impersonation().await;
+    let home = tempfile::tempdir().unwrap();
+    common::write_session(home.path());
+    let url = server.url();
+    let base = [
+        ("ORIGINCLOUD_STS_ENDPOINT", url.as_str()),
+        ("ORIGINCLOUD_METADATA_DISABLED", "true"),
+    ];
+
+    // `profile-set` checks the name before it saves it.
+    let output = origin(
+        home.path(),
+        &[
+            "config",
+            "profile-set",
+            "impersonate-service-account",
+            "viewer",
+        ],
+        &base,
+    )
+    .await;
+    assert_ne!(output.status.code(), Some(0), "{output:?}");
+    success(
+        &origin(
+            home.path(),
+            &[
+                "config",
+                "profile-set",
+                "impersonate-service-account",
+                VIEWER,
+            ],
+            &base,
+        )
+        .await,
+    );
+    let profile = success(&origin(home.path(), &["config", "profile"], &base).await);
+    assert_eq!(profile["impersonate_service_account"], VIEWER);
+
+    let token = |args: &'static [&'static str], env: &'static str| {
+        let home = home.path().to_owned();
+        let url = url.clone();
+        async move {
+            let mut env_vars = vec![
+                ("ORIGINCLOUD_STS_ENDPOINT", url.as_str()),
+                ("ORIGINCLOUD_METADATA_DISABLED", "true"),
+            ];
+            if !env.is_empty() {
+                env_vars.push(("ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT", env));
+            }
+            let mut all = args.to_vec();
+            all.extend(["id", "token"]);
+            success(&origin(&home, &all, &env_vars).await)["token"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        }
+    };
+    assert_eq!(token(&[], "").await, "impersonated-viewer");
+    assert_eq!(token(&[], AUDITOR).await, "impersonated-auditor");
+    assert_eq!(
+        token(
+            &[
+                "--impersonate-service-account",
+                "//iam.origincloudapis.eu/organizations/o/serviceAccounts/flag"
+            ],
+            AUDITOR
+        )
+        .await,
+        "impersonated-flag"
+    );
+    let before = exchanges(&received.lock().unwrap()).len();
+    assert_eq!(
+        token(&["--impersonate-service-account", ""], AUDITOR).await,
+        "stored-access"
+    );
+    assert_eq!(exchanges(&received.lock().unwrap()).len(), before);
+
+    // An empty value removes it from the profile.
+    success(
+        &origin(
+            home.path(),
+            &["config", "profile-set", "impersonate-service-account", ""],
+            &base,
+        )
+        .await,
+    );
+    assert_eq!(token(&[], "").await, "stored-access");
+}
+
+/// A refused impersonation fails the command, naming the account and what
+/// the caller needs on it; the API is never called, with the person's
+/// token or any other.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refused_impersonation_names_the_account_and_never_acts_as_the_person() {
+    let (server, received) = impersonation().await;
+    let home = tempfile::tempdir().unwrap();
+    common::write_session(home.path());
+    let url = server.url();
+    let env = [
+        ("ORIGINCLOUD_STS_ENDPOINT", url.as_str()),
+        ("ORIGINCLOUD_METADATA_DISABLED", "true"),
+        ("ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT", DEPLOYER),
+    ];
+
+    let description = failure(
+        &origin(
+            home.path(),
+            &["location", "--endpoint", &url, "list-zones"],
+            &env,
+        )
+        .await,
+    );
+    assert!(description.contains(DEPLOYER), "{description}");
+    assert!(description.contains("invalid_grant"), "{description}");
+    assert!(
+        description.contains("roles/iam.service-account-token-creator"),
+        "{description}"
+    );
+    assert!(!description.contains("stored-access"), "{description}");
+
+    let description = failure(&origin(home.path(), &["id", "token"], &env).await);
+    assert!(description.contains(DEPLOYER), "{description}");
+    assert!(!description.contains("stored-access"), "{description}");
+
+    let requests = received.lock().unwrap().clone();
+    assert_eq!(exchanges(&requests).len(), 2);
+    assert!(api_authorization(&requests).is_empty(), "{requests:?}");
+}
+
+/// A name that isn't a service account's full name is refused before
+/// anything is sent.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_name_that_isnt_a_service_accounts_is_refused_before_any_call() {
+    let (server, received) = impersonation().await;
+    let home = tempfile::tempdir().unwrap();
+    common::write_session(home.path());
+    let url = server.url();
+    let description = failure(
+        &origin(
+            home.path(),
+            &[
+                "--impersonate-service-account",
+                "viewer",
+                "location",
+                "--endpoint",
+                &url,
+                "list-zones",
+            ],
+            &[
+                ("ORIGINCLOUD_STS_ENDPOINT", url.as_str()),
+                ("ORIGINCLOUD_METADATA_DISABLED", "true"),
+            ],
+        )
+        .await,
+    );
+    assert!(description.contains("full name"), "{description}");
+    assert!(received.lock().unwrap().is_empty());
+}

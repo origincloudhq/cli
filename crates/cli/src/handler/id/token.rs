@@ -1,6 +1,6 @@
 use crate::graphql::TokenProvider;
 use crate::output::{CommandResult, SerializableOutput, SerializationError};
-use crate::sdk::credentials::access_token;
+use crate::sdk::credentials::{access_token, describe, impersonating};
 use serde::Serialize;
 
 pub(super) async fn perform_token(
@@ -8,6 +8,8 @@ pub(super) async fn perform_token(
     raw: bool,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let credentials = match access_token().await {
+        // Which account was refused, and why.
+        Err(err) if impersonating() => anyhow::bail!("{}", describe(&err)),
         Err(_) => {
             return Ok(Box::new(CommandResult::Failure(
                 "unauthenticated".to_string(),
