@@ -90,8 +90,8 @@ pub enum Commands {
     GetRoleBinding(GetRoleBindingArgs),
     #[command(
         name = "list-role-bindings",
-        about = "Lists an organization's role bindings, oldest first, optionally only a member's or a project's",
-        long_about = "Lists an organization's role bindings, oldest first, optionally only a member's or a project's. Needs `iam.member.list` on the organization. With the parent `organizations/-` it lists the caller's own bindings in every organization and needs no permission; `--member` must be empty there."
+        about = "Lists an organization's role bindings, active and pending, oldest first, optionally only a member's or a project's",
+        long_about = "Lists an organization's role bindings, active and pending, oldest first, optionally only a member's or a project's. Needs `iam.member.list` on the organization. With the parent `organizations/-` it lists the caller's own active bindings in every organization and needs no permission; `--member` must be empty there."
     )]
     ListRoleBindings(ListRoleBindingsArgs),
     #[command(
@@ -103,7 +103,7 @@ pub enum Commands {
     #[command(
         name = "delete-role-binding",
         about = "Removes a role binding",
-        long_about = "Removes a role binding. Needs `iam.role.revoke` on the organization and every permission of the role at the binding's scope, as CreateRoleBinding does. Refused with `CONFLICT`, removing nothing, when it is the organization's last organization-wide binding of `roles/owner`: bind another owner first."
+        long_about = "Removes a role binding. Needs `iam.role.revoke` on the organization and every permission of the role at the binding's scope, as CreateRoleBinding does. Refused with `CONFLICT`, removing nothing, when it is the organization's last organization-wide binding of `roles/owner`: bind another owner first. Deleting a pending binding withdraws the invitation: signing up with its address afterwards grants nothing."
     )]
     DeleteRoleBinding(DeleteRoleBindingArgs),
     #[command(
@@ -973,7 +973,8 @@ pub struct ListRoleBindingsArgs {
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
     /// Only the bindings of this member, by its full name, as a binding's
-    /// `--member` names it. Every member's when empty.
+    /// `--member` names it, or a pending binding's `user:{email}`, matched
+    /// without regard to case. Every member's when empty.
     #[arg(long = "member")]
     pub member: Option<String>,
     /// Only the bindings limited to this project, by its full name,
@@ -1077,7 +1078,9 @@ pub struct CreateRoleBindingArgs {
     /// service accounts,
     /// `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`,
     /// or a platform service agent,
-    /// `//iam.origincloudapis.eu/serviceAgents/{service_agent}`.
+    /// `//iam.origincloudapis.eu/serviceAgents/{service_agent}`. A pending
+    /// binding's member is `user:{email}`, the address it was granted to,
+    /// until it becomes active.
     #[arg(long = "member")]
     pub member: String,
     /// The full name of the role granted,
