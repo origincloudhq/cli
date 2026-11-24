@@ -97,7 +97,7 @@ pub enum Commands {
     #[command(
         name = "create-role-binding",
         about = "Grants a role to a member",
-        long_about = "Grants a role to a member. Needs `iam.role.assign` on the organization, for a project binding as well, and every permission of the role at the binding's scope: a permission held on the organization counts for any scope, one held on a project only for that project. Refused with `NOT_FOUND` when `--member` names a user without an enabled account or a service account of another organization. Refused with `CONFLICT` when the member already holds the role at that scope, and with `BAD_REQUEST` when the member is a deleted service account, names no service agent the platform has, or is a service agent and the role isn't one its service needs."
+        long_about = "Grants a role to a member. Needs `iam.role.assign` on the organization, for a project binding as well, and every permission of the role at the binding's scope: a permission held on the organization counts for any scope, one held on a project only for that project. Refused with `NOT_FOUND` when `--member` names a user without an enabled account or a service account of another organization. Refused with `CONFLICT` when the member already holds the role at that scope, and with `BAD_REQUEST` when the member is a deleted service account, names no service agent the platform has, or is a service agent and the role isn't one its service needs.\n\nWith `--member` set to `user:{email}`, the account that verified the address is bound, as above. If no enabled account has verified it, the binding is created `PENDING`, organization-wide, and an invitation email is sent to the address. That also needs `iam.member.create` on the organization, and is refused with `BAD_REQUEST` when `--project` is set and with `CONFLICT` when the address already holds a pending binding of the role in the organization. An address more than one account has verified is refused with `CONFLICT`. Repeated under its `--request-id`, the call answers with the binding it created, pending or since activated."
     )]
     CreateRoleBinding(CreateRoleBindingArgs),
     #[command(
@@ -1080,7 +1080,8 @@ pub struct CreateRoleBindingArgs {
     /// or a platform service agent,
     /// `//iam.origincloudapis.eu/serviceAgents/{service_agent}`. A pending
     /// binding's member is `user:{email}`, the address it was granted to,
-    /// until it becomes active.
+    /// as typed, until it becomes active. On create, `user:{email}` names a
+    /// user by email address: see CreateRoleBinding.
     #[arg(long = "member")]
     pub member: String,
     /// The full name of the role granted,
