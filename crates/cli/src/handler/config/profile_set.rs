@@ -4,13 +4,14 @@ use crate::output::{CommandResult, SerializableOutput};
 use anyhow::{anyhow, bail};
 use std::str::FromStr;
 
-const VALID_KEYS: [&str; 6] = [
+const VALID_KEYS: [&str; 7] = [
     "default-username",
     "output-format",
     "default-project",
     "default-zone",
     "region",
     "credentials-file",
+    "impersonate-service-account",
 ];
 
 /// Sets `key` to `value` in `profile`, which is the profile as its file holds
@@ -42,6 +43,13 @@ pub(super) fn perform_profile_set(
             profile.region = Some(value)
         }
         "credentials-file" => profile.credentials_file = Some(credentials_file(&value)?),
+        // An empty name removes it.
+        "impersonate-service-account" if value.trim().is_empty() => {
+            profile.impersonate_service_account = None
+        }
+        "impersonate-service-account" => {
+            profile.impersonate_service_account = Some(service_account(&value)?)
+        }
         other => {
             return Ok(Box::new(CommandResult::Failure(format!(
                 "invalid profile key '{other}'. valid values: {}",
@@ -70,6 +78,26 @@ fn credentials_file(value: &str) -> anyhow::Result<std::path::PathBuf> {
         )
     })?;
     Ok(path)
+}
+
+/// `value`, if it is a service account's full name, the only name the
+/// STS impersonates, before anything is saved.
+fn service_account(value: &str) -> anyhow::Result<String> {
+    let is_account = origincloud_core::FullName::parse(value)
+        .ok()
+        .is_some_and(|name| {
+            matches!(
+                name.principal(),
+                Some(origincloud_core::names::Principal::ServiceAccount { .. })
+            )
+        });
+    if !is_account {
+        bail!(
+            "{value:?} isn't a service account's full name, \
+             //iam.origincloudapis.eu/organizations/ORGANIZATION/serviceAccounts/SERVICE_ACCOUNT"
+        );
+    }
+    Ok(value.to_owned())
 }
 
 #[cfg(test)]
@@ -115,6 +143,15 @@ mod tests {
             ("default-project", ".."),
             ("default-zone", ""),
             ("credentials-file", "no-such-file.json"),
+            ("impersonate-service-account", "deployer"),
+            (
+                "impersonate-service-account",
+                "organizations/o/serviceAccounts/deployer",
+            ),
+            (
+                "impersonate-service-account",
+                "//iam.origincloudapis.eu/users/u",
+            ),
         ] {
             assert!(
                 perform_profile_set(ClientProfile::load_file(Some(&file)), key, value.to_owned())
@@ -130,5 +167,25 @@ mod tests {
         )
         .unwrap();
         assert!(file.exists());
+    }
+
+    /// A service account's full name is saved as it is, and an empty one
+    /// removes it.
+    #[test]
+    fn the_service_account_to_impersonate_is_saved_and_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("profile.json");
+        let account = "//iam.origincloudapis.eu/organizations/o/serviceAccounts/viewer";
+        let set = |value: &str| {
+            perform_profile_set(
+                ClientProfile::load_file(Some(&file)),
+                "impersonate-service-account",
+                value.to_owned(),
+            )
+            .unwrap();
+            ClientProfile::load_file(Some(&file)).impersonate_service_account
+        };
+        assert_eq!(set(account).as_deref(), Some(account));
+        assert_eq!(set(""), None);
     }
 }

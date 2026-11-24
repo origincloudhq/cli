@@ -24,6 +24,10 @@ const ENV_REGION: &str = "ORIGINCLOUD_REGION";
 /// before a CI job's token and the login session; the same variable the
 /// SDKs read.
 const ENV_CREDENTIALS_FILE: &str = "ORIGINCLOUD_CREDENTIALS_FILE";
+/// The service account the commands act as, by impersonation, with the
+/// credentials the chain finds; the same variable the SDKs read.
+/// `--impersonate-service-account` comes before it.
+const ENV_IMPERSONATE_SERVICE_ACCOUNT: &str = "ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT";
 
 fn config_base_dir() -> String {
     env_or(
@@ -60,6 +64,12 @@ pub(crate) struct ClientProfile {
     /// login session: see [`crate::sdk::credentials`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credentials_file: Option<PathBuf>,
+    /// The service account, by its full name, the commands act as by
+    /// impersonation, exchanging the token of the credentials the chain
+    /// finds (typically the login session) for the account's at the STS:
+    /// see [`crate::sdk::credentials`]. An empty name impersonates no one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub impersonate_service_account: Option<String>,
     /// The file this profile was loaded from when `--config` named one, so a
     /// save writes back to it rather than to the default location.
     #[serde(skip)]
@@ -123,6 +133,7 @@ impl ClientProfile {
             default_zone: try_env(ENV_ZONE).ok(),
             region: try_env(ENV_REGION).ok(),
             credentials_file: try_env(ENV_CREDENTIALS_FILE).ok(),
+            impersonate_service_account: try_env(ENV_IMPERSONATE_SERVICE_ACCOUNT).ok(),
             source: None,
         }
     }
@@ -203,6 +214,9 @@ impl ClientProfile {
         if other.credentials_file.is_some() {
             self.credentials_file = other.credentials_file;
         }
+        if other.impersonate_service_account.is_some() {
+            self.impersonate_service_account = other.impersonate_service_account;
+        }
     }
 }
 
@@ -221,13 +235,14 @@ mod tests {
     const PROFILE: &str =
         r#"{"default_org":null,"default_username":"file-user","output_format":"Json"}"#;
 
-    const ALL_ENV: [&str; 6] = [
+    const ALL_ENV: [&str; 7] = [
         ENV_USERNAME,
         ENV_OUTPUT_FORMAT,
         ENV_PROJECT,
         ENV_ZONE,
         ENV_REGION,
         ENV_CREDENTIALS_FILE,
+        ENV_IMPERSONATE_SERVICE_ACCOUNT,
     ];
 
     /// Points `HOME` and `XDG_CONFIG_HOME` at `dir`, so that nothing touches
@@ -269,6 +284,10 @@ mod tests {
         assert_eq!(ENV_ZONE, "ORIGINCLOUD_ZONE");
         assert_eq!(ENV_REGION, "ORIGINCLOUD_REGION");
         assert_eq!(ENV_CREDENTIALS_FILE, "ORIGINCLOUD_CREDENTIALS_FILE");
+        assert_eq!(
+            ENV_IMPERSONATE_SERVICE_ACCOUNT,
+            "ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT"
+        );
     }
 
     /// The environment must reach the *loaded* profile, not just
@@ -284,6 +303,7 @@ mod tests {
         std::env::set_var(ENV_ZONE, "eu-central1-az9");
         std::env::set_var(ENV_REGION, "eu-central9");
         std::env::set_var(ENV_CREDENTIALS_FILE, "/run/secrets/key.json");
+        std::env::set_var(ENV_IMPERSONATE_SERVICE_ACCOUNT, "//iam/env");
         let profile = ClientProfile::load(None);
         assert_eq!(
             profile.default_username.as_deref(),
@@ -295,9 +315,14 @@ mod tests {
             profile.credentials_file.as_deref(),
             Some(Path::new("/run/secrets/key.json"))
         );
+        assert_eq!(
+            profile.impersonate_service_account.as_deref(),
+            Some("//iam/env")
+        );
 
         let file = ClientProfile::load_file(None);
         assert!(file.credentials_file.is_none());
+        assert!(file.impersonate_service_account.is_none());
         assert!(file.default_username.is_none());
         assert!(file.default_zone.is_none());
         for key in ALL_ENV {

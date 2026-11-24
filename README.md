@@ -137,6 +137,38 @@ A named file that can't be read is the error; the CLI doesn't fall back to
 another identity. Delete a key once nothing uses it: `lastUseTime` says when
 it was last exchanged.
 
+### Impersonating a service account
+
+A person can act as a service account, with that account's roles alone,
+for instance to check that a deploy account's narrow roles are enough, or
+to give an AI agent read-only access. Name the account by its full name, and
+every command exchanges the token of the credentials it found (typically
+your `origin id login` session) at the security token service for the
+account's token, then calls the API with that token. The audit log names
+the service account as the principal and you as the actor.
+
+```sh
+origin --impersonate-service-account //iam.origincloudapis.eu/organizations/my-org/serviceAccounts/viewer \
+  resourcemanager list-projects
+export ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT=//iam.origincloudapis.eu/organizations/my-org/serviceAccounts/viewer
+origin config profile-set impersonate-service-account //iam.origincloudapis.eu/organizations/my-org/serviceAccounts/viewer
+origin config profile-set impersonate-service-account ""   # removes it
+```
+
+The flag comes first, then `ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT`, then
+the profile's `impersonate-service-account`. `--impersonate-service-account ""`
+turns impersonation off for one command.
+
+You need `roles/iam.service-account-token-creator` on the account, or on
+its organization. The STS issues tokens only to a person, and
+only for an active `EXTERNAL` or `WORKLOAD` account. The account's token
+lives five minutes at most, and the CLI renews it before it expires. If the
+STS refuses, the command fails and names the account and the reason. It
+never falls back to your own identity.
+
+The generated commands, `origin id token` and `origin mcp serve` act as the
+account. `origin id login` itself does not: it always signs you in.
+
 The profile's defaults:
 
 ```sh
@@ -154,6 +186,7 @@ origin config profile
 | `default-zone` | `ORIGINCLOUD_ZONE` | `--zone` of the generated commands, when not given; not of the lists, which list every zone without `--zone`. |
 | `region` | `ORIGINCLOUD_REGION` | The region the generated commands work in: the `--region` of the `network` commands' regional resources and of the `kms` commands, when not given, and the front door the `compute`, `network`, `pvs`, `observability` and `kms` commands call, such as `pvs.{region}.origincloudapis.eu`. Without it, the region of the default zone (`eu-central1` for `eu-central1-az1`); without either, `--region` must be given, and the calls go to the regionless host, such as `pvs.origincloudapis.eu`, which serves every resource. The `location`, `resourcemanager`, `iam`, `billing`, `support`, `dns` and `sts` commands always call their regionless host. |
 | `credentials-file` | `ORIGINCLOUD_CREDENTIALS_FILE` | A service account key's credentials file, as `origin iam create-service-account-key --credentials-file` writes it: every command calls the API as that service account, before a CI job's token and the login session. |
+| `impersonate-service-account` | `ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT` | A service account's full name: every command acts as that account by impersonation, with the credentials found (see [Impersonating a service account](#impersonating-a-service-account)); `--impersonate-service-account` overrides it. |
 
 As in the AWS CLI, a flag comes first, then the environment variable, then
 the profile's value: an environment variable overrides the profile while a

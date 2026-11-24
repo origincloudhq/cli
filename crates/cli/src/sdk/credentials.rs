@@ -11,6 +11,15 @@
 //! renewed session, so that the generated commands and the GraphQL commands
 //! share one login. On an instance that runs as a service account, with no
 //! login session, the commands call the API as that service account.
+//!
+//! On top of whichever of them is found, the commands may act as another
+//! service account by impersonation: `--impersonate-service-account`,
+//! else `ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT`, else the profile's
+//! `impersonate-service-account` names it, and the SDK's [`Impersonated`]
+//! exchanges the found token for the account's at the STS. The generated
+//! commands, `origin id token` and `origin mcp serve` then act as the
+//! account, through one exchange per process; `origin id login`'s read of
+//! the person who signed in does not.
 
 use std::fmt;
 use std::path::PathBuf;
@@ -18,7 +27,7 @@ use std::sync::{Arc, OnceLock};
 
 use chrono::{DateTime, Utc};
 use origincloud_core::credentials::{Credentials, TokenFuture};
-use origincloud_core::{Error, Federated, InstanceMetadata, ServiceAccount};
+use origincloud_core::{Error, Federated, Impersonated, InstanceMetadata, ServiceAccount};
 use tokio::sync::Mutex;
 
 use crate::config::{ClientSession, SessionError, EXPIRY_MARGIN};
@@ -33,7 +42,13 @@ pub(crate) const NOT_LOGGED_IN: &str = "not logged in: log in with `origin id lo
     instance that runs as a \
     service account";
 
+/// The variable that holds an access token for the SDK. When it is set, or
+/// the environment names a CI job's OIDC token, the generated commands use
+/// the SDK's credentials, as every SDK does, instead of the login session;
+/// a credentials file the profile names comes before a CI job's token.
+const ENV_ACCESS_TOKEN: &str = "ORIGINCLOUD_ACCESS_TOKEN";
 const ENV_CREDENTIALS_FILE: &str = "ORIGINCLOUD_CREDENTIALS_FILE";
+const ENV_IMPERSONATE_SERVICE_ACCOUNT: &str = "ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT";
 const ENV_METADATA_DISABLED: &str = "ORIGINCLOUD_METADATA_DISABLED";
 const ENV_METADATA_ENDPOINT: &str = "ORIGINCLOUD_METADATA_ENDPOINT";
 const ENV_OIDC_DISABLED: &str = "ORIGINCLOUD_OIDC_DISABLED";
@@ -52,12 +67,103 @@ fn var(name: &str) -> Option<String> {
 /// before its `credentials-file`, as [`configure`] was given it.
 static CREDENTIALS_FILE: OnceLock<Option<PathBuf>> = OnceLock::new();
 
+/// The service account the profile names to impersonate, the flag before
+/// `ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT` before its
+/// `impersonate-service-account`, as [`configure`] was given it.
+static IMPERSONATE: OnceLock<Option<String>> = OnceLock::new();
+
 /// Sets the credentials file of the process's commands to the one
-/// `profile` names, its variable before its file's value. `origin` calls it
-/// once, with the profile it loaded, before running a command; without
-/// it, the variable alone names one.
+/// `profile` names, its variable before its file's value, and the service
+/// account they impersonate to the one it names, the flag before the
+/// variable before the file's value. `origin` calls it once, with the
+/// profile it loaded and the flags applied, before running a command;
+/// without it, the variables alone name them.
 pub(crate) fn configure(profile: &crate::config::ClientProfile) {
     let _ = CREDENTIALS_FILE.set(profile.credentials_file.clone());
+    let _ = IMPERSONATE.set(profile.impersonate_service_account.clone());
+}
+
+/// The full name of the service account the commands impersonate, as
+/// [`configure`] was given it; `None` when none is named, or the name is
+/// empty, which turns impersonation off.
+fn impersonated_account() -> Option<String> {
+    match IMPERSONATE.get() {
+        Some(configured) => configured.clone(),
+        None => var(ENV_IMPERSONATE_SERVICE_ACCOUNT),
+    }
+    .map(|name| name.trim().to_owned())
+    .filter(|name| !name.is_empty())
+}
+
+/// Whether the commands impersonate a service account: `origin id token`
+/// then reports a failure to get a token as it is, since it names the
+/// account and says why, rather than as "unauthenticated".
+pub(crate) fn impersonating() -> bool {
+    impersonated_account().is_some()
+}
+
+/// `err` as a command reports it, without the SDK's `origincloud: `.
+pub(crate) fn describe(err: &Error) -> String {
+    let rendered = err.to_string();
+    match rendered.strip_prefix("origincloud: ") {
+        Some(rest) => rest.to_owned(),
+        None => rendered,
+    }
+}
+
+/// The credentials the commands call the API with, before impersonation:
+/// `ORIGINCLOUD_ACCESS_TOKEN`, else the credentials file the profile names,
+/// else the CI job's token, else the login session or, without one, the
+/// instance's credential.
+fn found_credentials() -> Result<Arc<dyn Credentials>, Error> {
+    if var(ENV_ACCESS_TOKEN).is_some() {
+        return origincloud_core::default_credentials();
+    }
+    if let Some(account) = service_account()? {
+        return Ok(account);
+    }
+    if ci_job().is_some() {
+        return origincloud_core::default_credentials();
+    }
+    Ok(Arc::new(CliSessionCredentials::default()))
+}
+
+/// The service account the commands impersonate, over the credentials
+/// found, once per process, so that every client and the GraphQL commands
+/// share one exchange, which the SDK renews before it expires; `None` when
+/// none is named. A name that isn't a service account's full name is the
+/// error, as is a credential that can't be found: the commands never act
+/// as the caller when they were asked to act as the account.
+fn impersonated() -> Result<Option<Arc<Impersonated>>, Error> {
+    static IMPERSONATED: OnceLock<Option<Result<Arc<Impersonated>, String>>> = OnceLock::new();
+    let impersonated = IMPERSONATED.get_or_init(|| {
+        let account = impersonated_account()?;
+        let built = found_credentials().and_then(|found| {
+            let mut impersonated = Impersonated::new(found, account)?;
+            if let Some(endpoint) = var(ENV_STS_ENDPOINT) {
+                impersonated = impersonated.with_endpoint(endpoint);
+            }
+            Ok(Arc::new(impersonated))
+        });
+        Some(built.map_err(|e| match e {
+            Error::Credentials(message) | Error::Config(message) => message,
+            other => other.to_string(),
+        }))
+    });
+    match impersonated {
+        None => Ok(None),
+        Some(Ok(impersonated)) => Ok(Some(Arc::clone(impersonated))),
+        Some(Err(message)) => Err(Error::Credentials(message.clone())),
+    }
+}
+
+/// The credentials the SDK clients call the API with: the impersonated
+/// service account's when one is named, else those found.
+pub(crate) fn credentials() -> Result<Arc<dyn Credentials>, Error> {
+    match impersonated()? {
+        Some(impersonated) => Ok(impersonated),
+        None => found_credentials(),
+    }
 }
 
 /// The service account whose key's credentials file the profile names, read
@@ -145,10 +251,12 @@ fn instance_metadata() -> Option<&'static InstanceMetadata> {
 }
 
 /// An access token of the CLI's credentials, as `origin id token` prints
-/// it and the GraphQL commands send it.
+/// it and the GraphQL commands send it: the impersonated service account's
+/// when one is named.
 pub(crate) enum AccessToken {
     Session(ClientSession),
-    /// A service account's: its key's, the CI job's, or the instance's.
+    /// A service account's: its key's, the CI job's, the instance's, or the
+    /// one impersonated.
     Workload(String),
 }
 
@@ -168,14 +276,25 @@ impl TokenProvider for AccessToken {
     }
 }
 
+/// The impersonated service account's token when one is named, exchanged
+/// at the STS for the token of the credentials found; else
+/// [`found_access_token`].
+pub(crate) async fn access_token() -> Result<AccessToken, Error> {
+    match impersonated()? {
+        Some(impersonated) => impersonated.token().await.map(AccessToken::Workload),
+        None => found_access_token().await,
+    }
+}
+
 /// The service account's token, exchanged at the STS for an assertion
 /// signed with its key, when the profile names a credentials file; else
 /// the CI job's token, exchanged at the STS, when the environment names
 /// one; otherwise the login session's access token, renewed when it is
 /// about to expire, or, without a login session, the instance's
 /// credential. A refused exchange is the error: whoever named the file or
-/// set up federation wants to hear why it failed.
-pub(crate) async fn access_token() -> Result<AccessToken, Error> {
+/// set up federation wants to hear why it failed. It never impersonates:
+/// [`access_token`] does, over it.
+pub(crate) async fn found_access_token() -> Result<AccessToken, Error> {
     if let Some(account) = service_account()? {
         return account.token().await.map(AccessToken::Workload);
     }
@@ -228,7 +347,7 @@ impl Credentials for CliSessionCredentials {
                     return Ok(token.clone());
                 }
             }
-            match access_token().await? {
+            match found_access_token().await? {
                 AccessToken::Session(session) => {
                     let token = session.token().to_owned();
                     *cached = Some((token.clone(), session.expires()));

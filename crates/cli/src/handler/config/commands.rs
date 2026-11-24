@@ -17,11 +17,14 @@ pub(crate) enum ConfigCommands {
     /// `default-zone`), and `credentials-file` (a service account key's
     /// credentials file, as `origin iam create-service-account-key` writes
     /// it: the commands call the API as that service account, before a CI
-    /// job's token and the login session). `origin config profile-set region
-    /// eu-central1` sets the region. The environment variables
-    /// ORIGINCLOUD_PROJECT, ORIGINCLOUD_ZONE, ORIGINCLOUD_REGION and
-    /// ORIGINCLOUD_CREDENTIALS_FILE override the profile's values, and a flag
-    /// overrides both.
+    /// job's token and the login session), and `impersonate-service-account`
+    /// (a service account's full name: the commands act as it, with the
+    /// credentials found, as `--impersonate-service-account` does; an empty
+    /// value removes it). `origin config profile-set region eu-central1`
+    /// sets the region. The environment variables ORIGINCLOUD_PROJECT,
+    /// ORIGINCLOUD_ZONE, ORIGINCLOUD_REGION, ORIGINCLOUD_CREDENTIALS_FILE and
+    /// ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT override the profile's values,
+    /// and a flag overrides both.
     ProfileSet {
         /// The key to set.
         #[arg(index = 1)]

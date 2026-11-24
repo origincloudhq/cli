@@ -14,7 +14,11 @@ pub(crate) enum McpCommands {
     /// toolset per service, and calls them as this profile: with its
     /// credentials file (ORIGINCLOUD_CREDENTIALS_FILE, else the profile's
     /// `credentials-file`), a CI job's token, its login, or the access token
-    /// in ORIGINCLOUD_ACCESS_TOKEN, in the region
+    /// in ORIGINCLOUD_ACCESS_TOKEN, acting as the service account
+    /// `--impersonate-service-account`, ORIGINCLOUD_IMPERSONATE_SERVICE_ACCOUNT
+    /// or the profile's `impersonate-service-account` names, if any (only a
+    /// person's login can impersonate), so that
+    /// the agent has that account's roles alone, in the region
     /// the commands use (ORIGINCLOUD_REGION, else the profile's `region`,
     /// else the region of the default zone), and with each service's
     /// endpoint variable, such as ORIGINCLOUD_PVS_ENDPOINT. The tool

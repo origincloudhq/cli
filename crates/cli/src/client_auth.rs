@@ -1,6 +1,6 @@
 use crate::config::{Assumed, ClientSession};
 use crate::graphql::{OAuthAuthenticationError, OAuthClientAuthenticator, TokenProvider};
-use crate::sdk::credentials::access_token;
+use crate::sdk::credentials::found_access_token;
 use crate::sdk::{read_value_file, reference};
 use chrono::{DateTime, Utc};
 use origincloud_core::credentials::{Credentials, TokenFuture};
@@ -13,13 +13,15 @@ const IDENTITY_URL: &str = "https://auth.origincloud.eu";
 const REALM_NAME: &str = "origincloud";
 const OIDC_CLIENT_ID: &str = "origin-cli";
 
+/// The credentials found, never the service account the commands may
+/// impersonate: `origin id login` reads the person who just signed in.
 #[derive(Default)]
 #[allow(dead_code)]
 pub(crate) struct ConfigAuthenticator {}
 
 impl OAuthClientAuthenticator for ConfigAuthenticator {
     async fn get_token(&self) -> Result<impl TokenProvider, OAuthAuthenticationError> {
-        access_token()
+        found_access_token()
             .await
             .map_err(|_| OAuthAuthenticationError::Unauthenticated)
     }
