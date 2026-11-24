@@ -481,7 +481,7 @@ pub enum Commands {
     #[command(
         name = "delete-subnet",
         about = "Deletes a subnet with its route table and ACL associations and its unattached network interfaces",
-        long_about = "Deletes a subnet with its route table and ACL associations and its unattached network interfaces. Refused while an interface in it is attached or a NAT gateway lives in it. The operation is done once the change is recorded; the network applies it within seconds."
+        long_about = "Deletes a subnet with its route table and ACL associations and its unattached network interfaces. Refused while an interface in it is attached, a Floating IP you allocated is still associated with one of its interfaces, or a NAT gateway lives in it. The operation is done once the change is recorded; the network applies it within seconds."
     )]
     DeleteSubnet(DeleteSubnetArgs),
     #[command(name = "get-vpc", about = "Returns a VPC", long_about = "Returns a VPC.")]
