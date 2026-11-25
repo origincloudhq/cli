@@ -79,7 +79,7 @@ pub enum Commands {
     #[command(
         name = "undelete-key",
         about = "Restores a deleted key whose material isn't destroyed yet: it becomes `DISABLED`, to be enabled with UpdateKey",
-        long_about = "Restores a deleted key whose material isn't destroyed yet: it becomes `DISABLED`, to be enabled with UpdateKey. Refused with `CONFLICT` for a key that isn't deleted, or whose `purgeTime` has passed, and with `FORBIDDEN` for a key the platform manages. Needs `kms.key.delete` on the project."
+        long_about = "Restores a deleted key whose material isn't destroyed yet: it becomes `DISABLED`, to be enabled with UpdateKey. Refused with `CONFLICT` for a key that isn't deleted, or whose `purgeTime` has passed, and with `FORBIDDEN` for a key the platform manages. Needs `kms.key.undelete` on the project, which `kms.key.delete` doesn't include."
     )]
     UndeleteKey(UndeleteKeyArgs),
     #[command(
