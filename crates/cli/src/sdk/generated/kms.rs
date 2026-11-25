@@ -317,8 +317,9 @@ pub struct CreateGrantArgs {
     /// What the host may do with the key.
     #[arg(long = "operation", value_parser = ["DECRYPT"])]
     pub operation: String,
-    /// The platform host the grant is for, by the SPIFFE ID its certificate
-    /// names, which ends in `/zones/{zone}/hosts/{host}`.
+    /// The platform host or zone workload the grant is for, by the SPIFFE ID
+    /// its certificate names, which ends in `/zones/{zone}/hosts/{host}` or
+    /// `/zones/{zone}/workloads/{workload}`.
     #[arg(long = "grantee")]
     pub grantee: String,
     /// The encryption context a use must carry, exactly; never empty.
