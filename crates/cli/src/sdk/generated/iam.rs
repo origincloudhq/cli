@@ -1019,6 +1019,13 @@ async fn call_get_role_binding(
 }
 /// The flags of `list-role-bindings`.
 #[derive(clap::Args, Debug)]
+#[command(
+    group(
+        clap::ArgGroup::new(
+            "project_or_service_account"
+        ).multiple(false).args(["project", "service_account"])
+    )
+)]
 pub struct ListRoleBindingsArgs {
     /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
@@ -1101,7 +1108,15 @@ async fn list_role_bindings(
             Listing {
                 field: "roleBindings",
                 item: Some("origincloud.iam.v1beta1.RoleBinding"),
-                columns: &["name", "member", "role", "state", "project", "createTime"],
+                columns: &[
+                    "name",
+                    "member",
+                    "role",
+                    "state",
+                    "project",
+                    "serviceAccount",
+                    "createTime",
+                ],
                 parents: listed,
                 create: Some("origin iam create-role-binding"),
             },
@@ -1127,7 +1142,15 @@ async fn list_role_bindings(
         Listing {
             field: "roleBindings",
             item: Some("origincloud.iam.v1beta1.RoleBinding"),
-            columns: &["name", "member", "role", "state", "project", "createTime"],
+            columns: &[
+                "name",
+                "member",
+                "role",
+                "state",
+                "project",
+                "serviceAccount",
+                "createTime",
+            ],
             parents: listed,
             create: Some("origin iam create-role-binding"),
         },
@@ -1146,6 +1169,13 @@ async fn call_list_role_bindings(
 }
 /// The flags of `create-role-binding`.
 #[derive(clap::Args, Debug)]
+#[command(
+    group(
+        clap::ArgGroup::new(
+            "project_or_service_account"
+        ).multiple(false).args(["project", "service_account"])
+    )
+)]
 pub struct CreateRoleBindingArgs {
     /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]

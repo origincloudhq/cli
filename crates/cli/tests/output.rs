@@ -239,7 +239,8 @@ v2                   ERROR    16         gp1
 }
 
 /// Role bindings, the caller's own among them (`organizations/-`), are
-/// listed by member and role, a role and a project by their ids rather than
+/// listed by member and role, with the project or the service account one
+/// is limited to; a role, a project and an account by their ids rather than
 /// their whole names.
 #[tokio::test(flavor = "multi_thread")]
 async fn role_bindings_are_listed_by_member_and_role() {
@@ -249,7 +250,11 @@ async fn role_bindings_are_listed_by_member_and_role() {
          "state":"PENDING"},
         {"name":"organizations/o/roleBindings/rb-2","member":"serviceAccount:sa-1",
          "role":"roles/viewer","project":"projects/p1","creator":"user:ada@example.com",
-         "state":"ACTIVE"}]}"#;
+         "state":"ACTIVE"},
+        {"name":"organizations/o/roleBindings/rb-3","member":"//iam.origincloudapis.eu/users/u-1",
+         "role":"roles/iam.service-account-token-creator",
+         "serviceAccount":"//iam.origincloudapis.eu/organizations/o/serviceAccounts/sa-1",
+         "creator":"user:ada@example.com","state":"ACTIVE"}]}"#;
     let server = recording(|_| Response::json(BINDINGS)).await;
     let args = ["list-role-bindings", "--organization", "-"];
     let table = server
@@ -258,9 +263,10 @@ async fn role_bindings_are_listed_by_member_and_role() {
     assert_eq!(
         text(&table.stdout),
         "\
-NAME   MEMBER                 ROLE     STATE     PROJECT   CREATE TIME
-rb-1   user:ada@example.com   owner    PENDING
-rb-2   serviceAccount:sa-1    viewer   ACTIVE    p1
+NAME   MEMBER                 ROLE                                STATE     PROJECT   SERVICE ACCOUNT   CREATE TIME
+rb-1   user:ada@example.com   owner                               PENDING
+rb-2   serviceAccount:sa-1    viewer                              ACTIVE    p1
+rb-3   u-1                    iam.service-account-token-creator   ACTIVE              sa-1
 "
     );
     assert_eq!(
@@ -281,7 +287,7 @@ rb-2   serviceAccount:sa-1    viewer   ACTIVE    p1
         .iter()
         .map(|b| b["state"].as_str().unwrap_or_default())
         .collect();
-    assert_eq!(states, ["PENDING", "ACTIVE"]);
+    assert_eq!(states, ["PENDING", "ACTIVE", "ACTIVE"]);
 }
 
 /// Service accounts are listed with the member a role binding names them

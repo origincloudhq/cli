@@ -2,7 +2,8 @@
 //! beside the generator: what a command group's help says, methods left
 //! without a command, fields left out of a command, secrets a response
 //! shows once, reference fields taking the names of more than one resource
-//! type, the columns a list's table shows, and the hand-written groups the
+//! type, flags that can't be given together, the columns a list's table
+//! shows, and the hand-written groups the
 //! generated ones replace; and the changes that can't be undone, from
 //! origincloudhq/mcp's `generator/tools.toml`, which holds the one list of
 //! them for the MCP tools, the CLI and the agent skills.
@@ -62,6 +63,9 @@ pub struct Policy {
     /// Reference fields that also take the names of another resource type.
     #[serde(default)]
     pub also_names: Vec<AlsoNames>,
+    /// Fields of a request at most one of which can be set.
+    #[serde(default)]
+    pub exclusive: Vec<Exclusive>,
     /// The columns of the table a list of a message is printed as.
     #[serde(default)]
     pub view: Vec<View>,
@@ -243,6 +247,23 @@ pub struct AlsoNames {
     pub why: String,
 }
 
+/// Fields of a request at most one of which can be set, although the API
+/// definitions don't say so with a `oneof`, which an existing field can't
+/// join without breaking the wire format: their flags are an argument
+/// group, so that clap refuses them together before anything is sent.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Exclusive {
+    pub service: String,
+    pub method: String,
+    /// The fields, as paths from the request, such as
+    /// `role_binding.project`; two or more.
+    pub fields: Vec<String>,
+    /// Why, for whoever reads the table.
+    #[allow(dead_code)]
+    pub why: String,
+}
+
 /// The columns of the `table` a list of a message is printed as, which
 /// would otherwise be every field the message defines that fits in a cell.
 /// `wide` shows those after these.
@@ -318,6 +339,14 @@ impl Policy {
             .any(|p| p.service == service && p.method == method && p.field == field)
     }
 
+    /// The fields of `method` at most one of which can be set, by group.
+    pub fn exclusive(&self, service: &str, method: &str) -> Vec<&Exclusive> {
+        self.exclusive
+            .iter()
+            .filter(|e| e.service == service && e.method == method)
+            .collect()
+    }
+
     pub fn shown_once(&self, service: &str, method: &str) -> Vec<&ShownOnce> {
         self.shown_once
             .iter()
@@ -361,7 +390,16 @@ impl Policy {
             .partial
             .iter()
             .map(|p| (p.service.as_str(), p.method.as_str(), p.field.as_str()));
-        no_command.chain(exclude).chain(from_file).chain(partial)
+        let exclusive = self.exclusive.iter().flat_map(|e| {
+            e.fields
+                .iter()
+                .map(move |f| (e.service.as_str(), e.method.as_str(), f.as_str()))
+        });
+        no_command
+            .chain(exclude)
+            .chain(from_file)
+            .chain(partial)
+            .chain(exclusive)
     }
 }
 
@@ -420,6 +458,12 @@ mod tests {
             field = "launch_template_data"
             why = "u"
 
+            [[exclusive]]
+            service = "iam"
+            method = "ListRoleBindings"
+            fields = ["project", "service_account"]
+            why = "e"
+
             [[also_names]]
             field = "origincloud.compute.v1beta1.Instance.image"
             resource = "compute.origincloudapis.eu/PublicImage"
@@ -451,7 +495,12 @@ mod tests {
         assert!(!policy.read_from_file("sts", "AssumeServiceAccount", "lifetime"));
         assert!(policy.partial("compute", "LaunchInstance", "launch_template_data"));
         assert!(!policy.partial("compute", "CreateInstance", "launch_template_data"));
-        assert_eq!(policy.entries().count(), 4);
+        assert_eq!(
+            policy.exclusive("iam", "ListRoleBindings")[0].fields,
+            ["project", "service_account"]
+        );
+        assert!(policy.exclusive("iam", "CreateRoleBinding").is_empty());
+        assert_eq!(policy.entries().count(), 6);
         assert_eq!(
             policy.also_names[0].resource,
             "compute.origincloudapis.eu/PublicImage"
