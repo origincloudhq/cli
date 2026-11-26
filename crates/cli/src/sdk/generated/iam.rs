@@ -1150,6 +1150,7 @@ async fn list_role_bindings(
                     "state",
                     "project",
                     "serviceAccount",
+                    "resources",
                     "createTime",
                 ],
                 parents: listed,
@@ -1184,6 +1185,7 @@ async fn list_role_bindings(
                 "state",
                 "project",
                 "serviceAccount",
+                "resources",
                 "createTime",
             ],
             parents: listed,
@@ -1209,6 +1211,13 @@ async fn call_list_role_bindings(
         clap::ArgGroup::new(
             "project_or_service_account"
         ).multiple(false).args(["project", "service_account"])
+    )
+)]
+#[command(
+    group(
+        clap::ArgGroup::new(
+            "service_account_or_resources"
+        ).multiple(false).args(["service_account", "resource"])
     )
 )]
 pub struct CreateRoleBindingArgs {

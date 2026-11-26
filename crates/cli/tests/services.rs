@@ -1346,3 +1346,109 @@ async fn a_role_binding_is_limited_to_a_project_or_a_service_account() {
     assert!(sent.get("project").is_none(), "{sent}");
     assert_eq!(requests[1].query_values("serviceAccount"), [ACCOUNT]);
 }
+
+/// A role binding can be limited to a list of resources: `--resource`,
+/// repeated, reaches a create's body as `resources`, in the order given; on
+/// a list it filters by one resource, and `test-iam-permissions` asks about
+/// one with `--full-resource-name`. A binding on one service account lists
+/// none: `--resource` and `--service-account` are refused together on a
+/// create before anything is sent.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_role_binding_is_limited_to_a_list_of_resources() {
+    const ACCOUNT: &str = "//iam.origincloudapis.eu/organizations/o/serviceAccounts/sa-1";
+    const PROJECT: &str = "//resourcemanager.origincloudapis.eu/projects/p1";
+    const DB: &str =
+        "//secretmanager.origincloudapis.eu/projects/p1/regions/eu-central1/secrets/billing-db";
+    const STRIPE: &str =
+        "//secretmanager.origincloudapis.eu/projects/p1/regions/eu-central1/secrets/billing-stripe";
+    let binding = format!(
+        r#"{{"name":"organizations/o/roleBindings/rb-1",
+        "member":"//iam.origincloudapis.eu/organizations/o/serviceAccounts/sa-2",
+        "role":"roles/secretmanager.secretAccessor","project":"projects/p1",
+        "resources":["{DB}","{STRIPE}"],"state":"ACTIVE"}}"#
+    );
+    let server = recording(move |request: &Received| {
+        if request.path.ends_with(":testIamPermissions") {
+            Response::json(r#"{"permissions":["secretmanager.versions.access"]}"#)
+        } else if request.method == "GET" {
+            Response::json(format!(r#"{{"roleBindings":[{binding}]}}"#))
+        } else {
+            Response::json(binding.clone())
+        }
+    })
+    .await;
+    let create = [
+        "create-role-binding",
+        "--organization",
+        "o",
+        "--member",
+        "//iam.origincloudapis.eu/organizations/o/serviceAccounts/sa-2",
+        "--role",
+        "//iam.origincloudapis.eu/roles/secretmanager.secretAccessor",
+    ];
+
+    let both = [
+        &create[..],
+        &["--service-account", ACCOUNT, "--resource", DB],
+    ]
+    .concat();
+    let output = server.run("iam", &both).await;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(2), "{stderr}");
+    assert!(stderr.contains("cannot be used with"), "{stderr}");
+    assert!(server.requests().is_empty());
+
+    let created = success(
+        &server
+            .run(
+                "iam",
+                &[
+                    &create[..],
+                    &["--project", PROJECT, "--resource", DB, "--resource", STRIPE],
+                ]
+                .concat(),
+            )
+            .await,
+    );
+    assert_eq!(created["resources"], serde_json::json!([DB, STRIPE]));
+    let listed = success(
+        &server
+            .run(
+                "iam",
+                &[
+                    "list-role-bindings",
+                    "--organization",
+                    "o",
+                    "--resource",
+                    DB,
+                ],
+            )
+            .await,
+    );
+    assert_eq!(listed["roleBindings"][0]["resources"][0], DB);
+    let held = success(
+        &server
+            .run(
+                "iam",
+                &[
+                    "test-iam-permissions",
+                    "--resource",
+                    "projects/p1",
+                    "--permission",
+                    "secretmanager.versions.access",
+                    "--full-resource-name",
+                    DB,
+                ],
+            )
+            .await,
+    );
+    assert_eq!(held["permissions"][0], "secretmanager.versions.access");
+
+    let requests = server.requests();
+    let sent: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+    assert_eq!(sent["resources"], serde_json::json!([DB, STRIPE]));
+    assert_eq!(sent["project"], PROJECT);
+    assert_eq!(requests[1].query_values("resource"), [DB]);
+    let asked: serde_json::Value = serde_json::from_slice(&requests[2].body).unwrap();
+    assert_eq!(asked["fullResourceName"], DB, "{asked}");
+}

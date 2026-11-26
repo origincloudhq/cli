@@ -521,6 +521,12 @@ why = "A binding is on the organization, one project or one service account: nev
 
 [[exclusive]]
 service = "iam"
+method = "CreateRoleBinding"
+fields = ["role_binding.service_account", "role_binding.resources"]
+why = "A binding on one service account lists no resources; the API refuses the pair."
+
+[[exclusive]]
+service = "iam"
 method = "ListRoleBindings"
 fields = ["project", "service_account"]
 why = "No binding is limited to both a project and a service account; the API refuses the pair."
@@ -625,7 +631,7 @@ columns = ["name", "display_name", "state", "create_time"]
 [[view]]
 service = "iam"
 message = "RoleBinding"
-columns = ["name", "member", "role", "state", "project", "service_account", "create_time"]
+columns = ["name", "member", "role", "state", "project", "service_account", "resources", "create_time"]
 
 [[view]]
 service = "iam"
