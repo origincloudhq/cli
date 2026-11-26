@@ -166,6 +166,12 @@ pub enum Commands {
         long_about = "Looks up the user whose account has verified an email address, and answers them with their `name` and their full name, `member`, which is how a role binding names them. Needs `iam.role.assign` on `--organization`, the permission a binding of the user needs anyway. Refused with `NOT_FOUND` when no enabled account has verified the address, and with `CONFLICT` when more than one has. The answer leaves `givenName` and `familyName` empty: only the user reads those."
     )]
     LookupUser(LookupUserArgs),
+    #[command(
+        name = "activate-pending-role-bindings",
+        about = "Activates the role bindings pending for the caller's email address, once the caller's account has verified it, and returns the caller's profile, as GetUser does",
+        long_about = "Activates the role bindings pending for the caller's email address, once the caller's account has verified it, and returns the caller's profile, as GetUser does. Each binding becomes active under its own name with the caller as its member, while whoever created it still holds every permission of its role in the organization; otherwise it is dropped. An address not yet verified activates nothing. Calling it again activates only what has been granted to the address since. A service account caller is refused with `BAD_REQUEST`; any user but the caller is `NOT_FOUND`."
+    )]
+    ActivatePendingRoleBindings(ActivatePendingRoleBindingsArgs),
 }
 /// Runs `command`.
 pub async fn run(
@@ -212,6 +218,9 @@ pub async fn run(
         }
         Commands::GetUser(args) => get_user(ctx, args).await,
         Commands::LookupUser(args) => lookup_user(ctx, args).await,
+        Commands::ActivatePendingRoleBindings(args) => {
+            activate_pending_role_bindings(ctx, args).await
+        }
     }
 }
 /// The endpoint the group's calls go to, which also serves its operations.
@@ -1884,4 +1893,41 @@ async fn call_lookup_user(
     ::origincloud_core::Error,
 > {
     ::origincloud_iam::v1beta1::UserClient::new(client.sdk()).lookup_user(request).await
+}
+/// The flags of `activate-pending-role-bindings`.
+#[derive(clap::Args, Debug)]
+pub struct ActivatePendingRoleBindingsArgs {
+    /// The user whose pending role bindings to activate: `users/me`, or the
+    /// caller's own `users/{user}`.
+    ///
+    /// Its id, or its full name, `//iam.origincloudapis.eu/users/{user}`, or its relative name, `users/{user}`.
+    #[arg(long = "user", value_name = "USER")]
+    pub user: String,
+}
+async fn activate_pending_role_bindings(
+    ctx: &Context<'_>,
+    args: ActivatePendingRoleBindingsArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx.names(&[]);
+    names.learn(&["users/{user}"], &["iam"], "user", Some(args.user.as_str()))?;
+    let name = names.target(&["users/{user}"], &["iam"], "user", args.user.as_str())?;
+    let request = ::origincloud_iam::v1beta1::ActivatePendingRoleBindingsRequest {
+        name,
+    };
+    let client = ctx.client()?;
+    let response = call_activate_pending_role_bindings(&client, request)
+        .await
+        .map_err(api_error)?;
+    json(&response, "origincloud.iam.v1beta1.User")
+}
+async fn call_activate_pending_role_bindings(
+    client: &ReadClient,
+    request: ::origincloud_iam::v1beta1::ActivatePendingRoleBindingsRequest,
+) -> ::core::result::Result<
+    ::origincloud_iam::v1beta1::User,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_iam::v1beta1::UserClient::new(client.sdk())
+        .activate_pending_role_bindings(request)
+        .await
 }
