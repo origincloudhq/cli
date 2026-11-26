@@ -306,10 +306,13 @@ every method of the API, with the API's own descriptions as help:
     are shared by every name a command builds, and default to the profile's
     `default-project` and `default-zone`; a regional resource, such as a
     VPC, takes `--region` instead of `--zone`, which defaults to the
-    profile's `region`, or the region of its `default-zone`. A whole name
-    given to one of these flags fills in the other parts, which must agree
-    with any given (`--zone`); the request's path is always the relative
-    name. A part without a default, such as `--instance`, is required
+    profile's `region`, or the region of its `default-zone`. `--project`
+    and `--organization` also take their resource's own whole name,
+    `projects/my-project-123` or
+    `//resourcemanager.origincloudapis.eu/projects/my-project-123`. A whole
+    name given to one of these flags fills in the other parts, which must
+    agree with any given (`--zone`); the request's path is always the
+    relative name. A part without a default, such as `--instance`, is required
     unless a whole name given to another flag has it.
   - **A reference** to another resource, such as `--source-snapshot`,
     `--storage-class` or `--key-pair`, takes a full name only, in a flag, a

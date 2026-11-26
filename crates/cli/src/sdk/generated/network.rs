@@ -671,7 +671,7 @@ pub(crate) fn service(
 /// The flags of `get-acl`.
 #[derive(clap::Args, Debug)]
 pub struct GetAclArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -691,6 +691,7 @@ async fn get_acl(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/acls/{acl}"],
@@ -724,7 +725,7 @@ async fn call_get_acl(
 /// The flags of `list-acls`.
 #[derive(clap::Args, Debug)]
 pub struct ListAclsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -751,10 +752,11 @@ async fn list_acls(
     ctx: &Context<'_>,
     args: ListAclsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
@@ -824,7 +826,7 @@ async fn call_list_acls(
 /// The flags of `create-acl`.
 #[derive(clap::Args, Debug)]
 pub struct CreateAclArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -854,10 +856,11 @@ async fn create_acl(
     ctx: &Context<'_>,
     args: CreateAclArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = reference(
         &["projects/{project}/regions/{region}/vpcs/{vpc}"],
@@ -905,7 +908,7 @@ async fn call_create_acl(
     )
 )]
 pub struct UpdateAclArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -941,6 +944,7 @@ async fn update_acl(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/acls/{acl}"],
@@ -994,7 +998,7 @@ async fn call_update_acl(
 /// The flags of `delete-acl`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteAclArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -1023,6 +1027,7 @@ async fn delete_acl(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/acls/{acl}"],
@@ -1074,7 +1079,7 @@ async fn call_delete_acl(
 /// The flags of `get-acl-association`.
 #[derive(clap::Args, Debug)]
 pub struct GetAclAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -1101,6 +1106,7 @@ async fn get_acl_association(
                 ("subnet", args.subnet.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/subnets/{subnet}",
@@ -1146,7 +1152,7 @@ async fn call_get_acl_association(
 /// The flags of `list-acl-associations`.
 #[derive(clap::Args, Debug)]
 pub struct ListAclAssociationsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -1179,6 +1185,7 @@ async fn list_acl_associations(
                 ("subnet", args.subnet.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/subnets/{subnet}",
@@ -1278,7 +1285,7 @@ async fn call_list_acl_associations(
 /// The flags of `create-acl-association`.
 #[derive(clap::Args, Debug)]
 pub struct CreateAclAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -1313,6 +1320,7 @@ async fn create_acl_association(
                 ("subnet", args.subnet.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/subnets/{subnet}",
@@ -1360,7 +1368,7 @@ async fn call_create_acl_association(
 /// The flags of `delete-acl-association`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteAclAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -1396,6 +1404,7 @@ async fn delete_acl_association(
                 ("subnet", args.subnet.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/subnets/{subnet}",
@@ -1459,7 +1468,7 @@ async fn call_delete_acl_association(
 /// The flags of `get-acl-rule`.
 #[derive(clap::Args, Debug)]
 pub struct GetAclRuleArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -1486,6 +1495,7 @@ async fn get_acl_rule(
                 ("acl", args.acl.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/acls/{acl}",
@@ -1527,7 +1537,7 @@ async fn call_get_acl_rule(
 /// The flags of `list-acl-rules`.
 #[derive(clap::Args, Debug)]
 pub struct ListAclRulesArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -1560,6 +1570,7 @@ async fn list_acl_rules(
                 ("acl", args.acl.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/acls/{acl}",
@@ -1645,7 +1656,7 @@ async fn call_list_acl_rules(
 /// The flags of `create-acl-rule`.
 #[derive(clap::Args, Debug)]
 pub struct CreateAclRuleArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -1704,6 +1715,7 @@ async fn create_acl_rule(
                 ("acl", args.acl.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/acls/{acl}",
@@ -1758,7 +1770,7 @@ async fn call_create_acl_rule(
 /// The flags of `delete-acl-rule`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteAclRuleArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -1794,6 +1806,7 @@ async fn delete_acl_rule(
                 ("acl", args.acl.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/acls/{acl}",
@@ -1851,7 +1864,7 @@ async fn call_delete_acl_rule(
 /// The flags of `get-floating-ip`.
 #[derive(clap::Args, Debug)]
 pub struct GetFloatingIpArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -1869,6 +1882,7 @@ async fn get_floating_ip(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
@@ -1904,7 +1918,7 @@ async fn call_get_floating_ip(
 /// The flags of `list-floating-ips`.
 #[derive(clap::Args, Debug)]
 pub struct ListFloatingIpsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -1926,8 +1940,9 @@ async fn list_floating_ips(
     ctx: &Context<'_>,
     args: ListFloatingIpsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let request = ::origincloud_network::v1beta1::ListFloatingIpsRequest {
         parent: String::new(),
         page_size: args.page_size.unwrap_or_default(),
@@ -2027,7 +2042,7 @@ async fn call_list_floating_ips(
 /// The flags of `create-floating-ip`.
 #[derive(clap::Args, Debug)]
 pub struct CreateFloatingIpArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -2051,8 +2066,9 @@ async fn create_floating_ip(
     ctx: &Context<'_>,
     args: CreateFloatingIpArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let floating_ip = ::origincloud_network::v1beta1::FloatingIp {
         tags: tags(&args.tag),
@@ -2093,7 +2109,7 @@ async fn call_create_floating_ip(
     )
 )]
 pub struct UpdateFloatingIpArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -2127,6 +2143,7 @@ async fn update_floating_ip(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
@@ -2180,7 +2197,7 @@ async fn call_update_floating_ip(
 /// The flags of `delete-floating-ip`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteFloatingIpArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -2207,6 +2224,7 @@ async fn delete_floating_ip(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/floatingIps/{floating_ip}"],
@@ -2258,7 +2276,7 @@ async fn call_delete_floating_ip(
 /// The flags of `get-floating-ip-association`.
 #[derive(clap::Args, Debug)]
 pub struct GetFloatingIpAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -2285,6 +2303,7 @@ async fn get_floating_ip_association(
                 ("floating_ip", args.floating_ip.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
@@ -2332,7 +2351,7 @@ async fn call_get_floating_ip_association(
 /// The flags of `list-floating-ip-associations`.
 #[derive(clap::Args, Debug)]
 pub struct ListFloatingIpAssociationsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -2365,6 +2384,7 @@ async fn list_floating_ip_associations(
                 ("floating_ip", args.floating_ip.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
@@ -2470,7 +2490,7 @@ async fn call_list_floating_ip_associations(
 /// The flags of `create-floating-ip-association`.
 #[derive(clap::Args, Debug)]
 pub struct CreateFloatingIpAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -2506,6 +2526,7 @@ async fn create_floating_ip_association(
                 ("floating_ip", args.floating_ip.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
@@ -2554,7 +2575,7 @@ async fn call_create_floating_ip_association(
 /// The flags of `delete-floating-ip-association`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteFloatingIpAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -2590,6 +2611,7 @@ async fn delete_floating_ip_association(
                 ("floating_ip", args.floating_ip.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/floatingIps/{floating_ip}",
@@ -2653,7 +2675,7 @@ async fn call_delete_floating_ip_association(
 /// The flags of `get-internet-gateway`.
 #[derive(clap::Args, Debug)]
 pub struct GetInternetGatewayArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -2673,6 +2695,7 @@ async fn get_internet_gateway(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
@@ -2708,7 +2731,7 @@ async fn call_get_internet_gateway(
 /// The flags of `list-internet-gateways`.
 #[derive(clap::Args, Debug)]
 pub struct ListInternetGatewaysArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -2735,10 +2758,11 @@ async fn list_internet_gateways(
     ctx: &Context<'_>,
     args: ListInternetGatewaysArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
@@ -2814,7 +2838,7 @@ async fn call_list_internet_gateways(
 /// The flags of `create-internet-gateway`.
 #[derive(clap::Args, Debug)]
 pub struct CreateInternetGatewayArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -2844,10 +2868,11 @@ async fn create_internet_gateway(
     ctx: &Context<'_>,
     args: CreateInternetGatewayArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = reference(
         &["projects/{project}/regions/{region}/vpcs/{vpc}"],
@@ -2897,7 +2922,7 @@ async fn call_create_internet_gateway(
     )
 )]
 pub struct UpdateInternetGatewayArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -2933,6 +2958,7 @@ async fn update_internet_gateway(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
@@ -2988,7 +3014,7 @@ async fn call_update_internet_gateway(
 /// The flags of `delete-internet-gateway`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteInternetGatewayArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -3017,6 +3043,7 @@ async fn delete_internet_gateway(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/internetGateways/{internet_gateway}"],
@@ -3070,7 +3097,7 @@ async fn call_delete_internet_gateway(
 /// The flags of `get-nat-gateway`.
 #[derive(clap::Args, Debug)]
 pub struct GetNatGatewayArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3088,6 +3115,7 @@ async fn get_nat_gateway(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
@@ -3123,7 +3151,7 @@ async fn call_get_nat_gateway(
 /// The flags of `list-nat-gateways`.
 #[derive(clap::Args, Debug)]
 pub struct ListNatGatewaysArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -3145,8 +3173,9 @@ async fn list_nat_gateways(
     ctx: &Context<'_>,
     args: ListNatGatewaysArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let request = ::origincloud_network::v1beta1::ListNatGatewaysRequest {
         parent: String::new(),
         page_size: args.page_size.unwrap_or_default(),
@@ -3234,7 +3263,7 @@ async fn call_list_nat_gateways(
 /// The flags of `create-nat-gateway`.
 #[derive(clap::Args, Debug)]
 pub struct CreateNatGatewayArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3271,8 +3300,9 @@ async fn create_nat_gateway(
     ctx: &Context<'_>,
     args: CreateNatGatewayArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let subnet = reference(
         &["projects/{project}/zones/{zone}/subnets/{subnet}"],
@@ -3327,7 +3357,7 @@ async fn call_create_nat_gateway(
     )
 )]
 pub struct UpdateNatGatewayArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3361,6 +3391,7 @@ async fn update_nat_gateway(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
@@ -3414,7 +3445,7 @@ async fn call_update_nat_gateway(
 /// The flags of `delete-nat-gateway`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteNatGatewayArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3441,6 +3472,7 @@ async fn delete_nat_gateway(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/natGateways/{nat_gateway}"],
@@ -3492,7 +3524,7 @@ async fn call_delete_nat_gateway(
 /// The flags of `get-network-interface`.
 #[derive(clap::Args, Debug)]
 pub struct GetNetworkInterfaceArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3510,6 +3542,7 @@ async fn get_network_interface(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
@@ -3547,7 +3580,7 @@ async fn call_get_network_interface(
 /// The flags of `list-network-interfaces`.
 #[derive(clap::Args, Debug)]
 pub struct ListNetworkInterfacesArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -3574,8 +3607,9 @@ async fn list_network_interfaces(
     ctx: &Context<'_>,
     args: ListNetworkInterfacesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let subnet = match args.subnet.as_deref() {
         Some(v) => {
             reference(
@@ -3691,7 +3725,7 @@ async fn call_list_network_interfaces(
 /// The flags of `create-network-interface`.
 #[derive(clap::Args, Debug)]
 pub struct CreateNetworkInterfaceArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3734,8 +3768,9 @@ async fn create_network_interface(
     ctx: &Context<'_>,
     args: CreateNetworkInterfaceArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let subnet = reference(
         &["projects/{project}/zones/{zone}/subnets/{subnet}"],
@@ -3790,7 +3825,7 @@ async fn call_create_network_interface(
     )
 )]
 pub struct UpdateNetworkInterfaceArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3839,6 +3874,7 @@ async fn update_network_interface(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
@@ -3898,7 +3934,7 @@ async fn call_update_network_interface(
 /// The flags of `delete-network-interface`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteNetworkInterfaceArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3925,6 +3961,7 @@ async fn delete_network_interface(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/networkInterfaces/{network_interface}"],
@@ -3978,7 +4015,7 @@ async fn call_delete_network_interface(
 /// The flags of `get-resolver-policy`.
 #[derive(clap::Args, Debug)]
 pub struct GetResolverPolicyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -3998,6 +4035,7 @@ async fn get_resolver_policy(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
@@ -4033,7 +4071,7 @@ async fn call_get_resolver_policy(
 /// The flags of `list-resolver-policies`.
 #[derive(clap::Args, Debug)]
 pub struct ListResolverPoliciesArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -4055,10 +4093,11 @@ async fn list_resolver_policies(
     ctx: &Context<'_>,
     args: ListResolverPoliciesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let request = ::origincloud_network::v1beta1::ListResolverPoliciesRequest {
         parent,
@@ -4122,7 +4161,7 @@ async fn call_list_resolver_policies(
 /// The flags of `create-resolver-policy`.
 #[derive(clap::Args, Debug)]
 pub struct CreateResolverPolicyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -4160,10 +4199,11 @@ async fn create_resolver_policy(
     ctx: &Context<'_>,
     args: CreateResolverPolicyArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let resolver_policy = ::origincloud_network::v1beta1::ResolverPolicy {
         relay_enabled: args.relay_enabled.unwrap_or_default(),
@@ -4218,7 +4258,7 @@ async fn call_create_resolver_policy(
     )
 )]
 pub struct UpdateResolverPolicyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -4273,6 +4313,7 @@ async fn update_resolver_policy(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
@@ -4336,7 +4377,7 @@ async fn call_update_resolver_policy(
 /// The flags of `delete-resolver-policy`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteResolverPolicyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -4365,6 +4406,7 @@ async fn delete_resolver_policy(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
@@ -4418,7 +4460,7 @@ async fn call_delete_resolver_policy(
 /// The flags of `set-default-resolver-policy`.
 #[derive(clap::Args, Debug)]
 pub struct SetDefaultResolverPolicyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -4445,6 +4487,7 @@ async fn set_default_resolver_policy(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/resolverPolicies/{resolver_policy}"],
@@ -4488,7 +4531,7 @@ async fn call_set_default_resolver_policy(
 /// The flags of `get-resolver-policy-association`.
 #[derive(clap::Args, Debug)]
 pub struct GetResolverPolicyAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -4518,6 +4561,7 @@ async fn get_resolver_policy_association(
                 ("vpc", args.vpc.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/vpcs/{vpc}",
@@ -4565,7 +4609,7 @@ async fn call_get_resolver_policy_association(
 /// The flags of `list-resolver-policy-associations`.
 #[derive(clap::Args, Debug)]
 pub struct ListResolverPolicyAssociationsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -4598,6 +4642,7 @@ async fn list_resolver_policy_associations(
                 ("vpc", args.vpc.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/vpcs/{vpc}",
@@ -4667,7 +4712,7 @@ async fn call_list_resolver_policy_associations(
 /// The flags of `create-resolver-policy-association`.
 #[derive(clap::Args, Debug)]
 pub struct CreateResolverPolicyAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -4702,6 +4747,7 @@ async fn create_resolver_policy_association(
                 ("vpc", args.vpc.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/vpcs/{vpc}",
@@ -4751,7 +4797,7 @@ async fn call_create_resolver_policy_association(
 /// The flags of `delete-resolver-policy-association`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteResolverPolicyAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -4790,6 +4836,7 @@ async fn delete_resolver_policy_association(
                 ("vpc", args.vpc.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/vpcs/{vpc}",
@@ -4853,7 +4900,7 @@ async fn call_delete_resolver_policy_association(
 /// The flags of `get-route`.
 #[derive(clap::Args, Debug)]
 pub struct GetRouteArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -4880,6 +4927,7 @@ async fn get_route(
                 ("route_table", args.route_table.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/routeTables/{route_table}",
@@ -4925,7 +4973,7 @@ async fn call_get_route(
 /// The flags of `list-routes`.
 #[derive(clap::Args, Debug)]
 pub struct ListRoutesArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -4958,6 +5006,7 @@ async fn list_routes(
                 ("route_table", args.route_table.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/routeTables/{route_table}",
@@ -5031,7 +5080,7 @@ async fn call_list_routes(
     )
 )]
 pub struct CreateRouteArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -5083,6 +5132,7 @@ async fn create_route(
                 ("route_table", args.route_table.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/routeTables/{route_table}",
@@ -5152,7 +5202,7 @@ async fn call_create_route(
 /// The flags of `delete-route`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteRouteArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -5188,6 +5238,7 @@ async fn delete_route(
                 ("route_table", args.route_table.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/routeTables/{route_table}",
@@ -5249,7 +5300,7 @@ async fn call_delete_route(
 /// The flags of `get-route-table`.
 #[derive(clap::Args, Debug)]
 pub struct GetRouteTableArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -5269,6 +5320,7 @@ async fn get_route_table(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/routeTables/{route_table}"],
@@ -5304,7 +5356,7 @@ async fn call_get_route_table(
 /// The flags of `list-route-tables`.
 #[derive(clap::Args, Debug)]
 pub struct ListRouteTablesArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -5331,10 +5383,11 @@ async fn list_route_tables(
     ctx: &Context<'_>,
     args: ListRouteTablesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
@@ -5408,7 +5461,7 @@ async fn call_list_route_tables(
 /// The flags of `create-route-table`.
 #[derive(clap::Args, Debug)]
 pub struct CreateRouteTableArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -5438,10 +5491,11 @@ async fn create_route_table(
     ctx: &Context<'_>,
     args: CreateRouteTableArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = reference(
         &["projects/{project}/regions/{region}/vpcs/{vpc}"],
@@ -5489,7 +5543,7 @@ async fn call_create_route_table(
     )
 )]
 pub struct UpdateRouteTableArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -5525,6 +5579,7 @@ async fn update_route_table(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/routeTables/{route_table}"],
@@ -5578,7 +5633,7 @@ async fn call_update_route_table(
 /// The flags of `delete-route-table`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteRouteTableArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -5607,6 +5662,7 @@ async fn delete_route_table(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/routeTables/{route_table}"],
@@ -5658,7 +5714,7 @@ async fn call_delete_route_table(
 /// The flags of `get-route-table-association`.
 #[derive(clap::Args, Debug)]
 pub struct GetRouteTableAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -5685,6 +5741,7 @@ async fn get_route_table_association(
                 ("subnet", args.subnet.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/subnets/{subnet}",
@@ -5732,7 +5789,7 @@ async fn call_get_route_table_association(
 /// The flags of `list-route-table-associations`.
 #[derive(clap::Args, Debug)]
 pub struct ListRouteTableAssociationsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -5765,6 +5822,7 @@ async fn list_route_table_associations(
                 ("subnet", args.subnet.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/subnets/{subnet}",
@@ -5864,7 +5922,7 @@ async fn call_list_route_table_associations(
 /// The flags of `create-route-table-association`.
 #[derive(clap::Args, Debug)]
 pub struct CreateRouteTableAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -5898,6 +5956,7 @@ async fn create_route_table_association(
                 ("subnet", args.subnet.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/subnets/{subnet}",
@@ -5945,7 +6004,7 @@ async fn call_create_route_table_association(
 /// The flags of `delete-route-table-association`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteRouteTableAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -5981,6 +6040,7 @@ async fn delete_route_table_association(
                 ("subnet", args.subnet.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/subnets/{subnet}",
@@ -6044,7 +6104,7 @@ async fn call_delete_route_table_association(
 /// The flags of `get-security-group`.
 #[derive(clap::Args, Debug)]
 pub struct GetSecurityGroupArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -6064,6 +6124,7 @@ async fn get_security_group(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
@@ -6099,7 +6160,7 @@ async fn call_get_security_group(
 /// The flags of `list-security-groups`.
 #[derive(clap::Args, Debug)]
 pub struct ListSecurityGroupsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -6126,10 +6187,11 @@ async fn list_security_groups(
     ctx: &Context<'_>,
     args: ListSecurityGroupsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
@@ -6203,7 +6265,7 @@ async fn call_list_security_groups(
 /// The flags of `create-security-group`.
 #[derive(clap::Args, Debug)]
 pub struct CreateSecurityGroupArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -6233,10 +6295,11 @@ async fn create_security_group(
     ctx: &Context<'_>,
     args: CreateSecurityGroupArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = reference(
         &["projects/{project}/regions/{region}/vpcs/{vpc}"],
@@ -6286,7 +6349,7 @@ async fn call_create_security_group(
     )
 )]
 pub struct UpdateSecurityGroupArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -6322,6 +6385,7 @@ async fn update_security_group(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
@@ -6377,7 +6441,7 @@ async fn call_update_security_group(
 /// The flags of `delete-security-group`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteSecurityGroupArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -6406,6 +6470,7 @@ async fn delete_security_group(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/securityGroups/{security_group}"],
@@ -6459,7 +6524,7 @@ async fn call_delete_security_group(
 /// The flags of `get-security-group-association`.
 #[derive(clap::Args, Debug)]
 pub struct GetSecurityGroupAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -6489,6 +6554,7 @@ async fn get_security_group_association(
                 ("network_interface", args.network_interface.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
@@ -6536,7 +6602,7 @@ async fn call_get_security_group_association(
 /// The flags of `list-security-group-associations`.
 #[derive(clap::Args, Debug)]
 pub struct ListSecurityGroupAssociationsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -6569,6 +6635,7 @@ async fn list_security_group_associations(
                 ("network_interface", args.network_interface.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
@@ -6676,7 +6743,7 @@ async fn call_list_security_group_associations(
 /// The flags of `create-security-group-association`.
 #[derive(clap::Args, Debug)]
 pub struct CreateSecurityGroupAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -6710,6 +6777,7 @@ async fn create_security_group_association(
                 ("network_interface", args.network_interface.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
@@ -6760,7 +6828,7 @@ async fn call_create_security_group_association(
 /// The flags of `delete-security-group-association`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteSecurityGroupAssociationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -6799,6 +6867,7 @@ async fn delete_security_group_association(
                 ("network_interface", args.network_interface.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/networkInterfaces/{network_interface}",
@@ -6862,7 +6931,7 @@ async fn call_delete_security_group_association(
 /// The flags of `get-security-group-rule`.
 #[derive(clap::Args, Debug)]
 pub struct GetSecurityGroupRuleArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -6889,6 +6958,7 @@ async fn get_security_group_rule(
                 ("security_group", args.security_group.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/securityGroups/{security_group}",
@@ -6936,7 +7006,7 @@ async fn call_get_security_group_rule(
 /// The flags of `list-security-group-rules`.
 #[derive(clap::Args, Debug)]
 pub struct ListSecurityGroupRulesArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -6969,6 +7039,7 @@ async fn list_security_group_rules(
                 ("security_group", args.security_group.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/securityGroups/{security_group}",
@@ -7062,7 +7133,7 @@ async fn call_list_security_group_rules(
     )
 )]
 pub struct CreateSecurityGroupRuleArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -7133,6 +7204,7 @@ async fn create_security_group_rule(
                 ("security_group", args.security_group.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/securityGroups/{security_group}",
@@ -7210,7 +7282,7 @@ async fn call_create_security_group_rule(
 /// The flags of `delete-security-group-rule`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteSecurityGroupRuleArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -7246,6 +7318,7 @@ async fn delete_security_group_rule(
                 ("security_group", args.security_group.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/regions/{region}/securityGroups/{security_group}",
@@ -7309,7 +7382,7 @@ async fn call_delete_security_group_rule(
 /// The flags of `get-subnet`.
 #[derive(clap::Args, Debug)]
 pub struct GetSubnetArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -7327,6 +7400,7 @@ async fn get_subnet(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/subnets/{subnet}"],
@@ -7362,7 +7436,7 @@ async fn call_get_subnet(
 /// The flags of `list-subnets`.
 #[derive(clap::Args, Debug)]
 pub struct ListSubnetsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -7389,8 +7463,9 @@ async fn list_subnets(
     ctx: &Context<'_>,
     args: ListSubnetsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let vpc = match args.vpc.as_deref() {
         Some(v) => {
             reference(
@@ -7504,7 +7579,7 @@ async fn call_list_subnets(
 /// The flags of `create-subnet`.
 #[derive(clap::Args, Debug)]
 pub struct CreateSubnetArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -7550,8 +7625,9 @@ async fn create_subnet(
     ctx: &Context<'_>,
     args: CreateSubnetArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let vpc = reference(
         &["projects/{project}/regions/{region}/vpcs/{vpc}"],
@@ -7600,7 +7676,7 @@ async fn call_create_subnet(
     )
 )]
 pub struct UpdateSubnetArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -7650,6 +7726,7 @@ async fn update_subnet(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/subnets/{subnet}"],
@@ -7707,7 +7784,7 @@ async fn call_update_subnet(
 /// The flags of `delete-subnet`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteSubnetArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -7734,6 +7811,7 @@ async fn delete_subnet(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/subnets/{subnet}"],
@@ -7785,7 +7863,7 @@ async fn call_delete_subnet(
 /// The flags of `get-vpc`.
 #[derive(clap::Args, Debug)]
 pub struct GetVpcArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -7805,6 +7883,7 @@ async fn get_vpc(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/vpcs/{vpc}"],
@@ -7838,7 +7917,7 @@ async fn call_get_vpc(
 /// The flags of `list-vpcs`.
 #[derive(clap::Args, Debug)]
 pub struct ListVpcsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -7860,10 +7939,11 @@ async fn list_vpcs(
     ctx: &Context<'_>,
     args: ListVpcsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let request = ::origincloud_network::v1beta1::ListVpcsRequest {
         parent,
@@ -7933,7 +8013,7 @@ async fn call_list_vpcs(
 /// The flags of `create-vpc`.
 #[derive(clap::Args, Debug)]
 pub struct CreateVpcArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -7962,10 +8042,11 @@ async fn create_vpc(
     ctx: &Context<'_>,
     args: CreateVpcArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = ::origincloud_network::v1beta1::Vpc {
         ipv4_cidr_block: args.ipv4_cidr_block.clone().unwrap_or_default(),
@@ -8007,7 +8088,7 @@ async fn call_create_vpc(
     )
 )]
 pub struct UpdateVpcArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -8043,6 +8124,7 @@ async fn update_vpc(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/vpcs/{vpc}"],
@@ -8096,7 +8178,7 @@ async fn call_update_vpc(
 /// The flags of `delete-vpc`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteVpcArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -8125,6 +8207,7 @@ async fn delete_vpc(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/vpcs/{vpc}"],
@@ -8176,7 +8259,7 @@ async fn call_delete_vpc(
 /// The flags of `get-operation`.
 #[derive(clap::Args, Debug)]
 pub struct GetOperationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -8194,6 +8277,7 @@ async fn get_operation(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
@@ -8231,7 +8315,7 @@ async fn call_get_operation(
 /// The flags of `wait-operation`.
 #[derive(clap::Args, Debug)]
 pub struct WaitOperationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -8252,6 +8336,7 @@ async fn wait_operation(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/operations/{operation}"],

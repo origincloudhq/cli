@@ -108,7 +108,11 @@ its parents' flags (`--instance` of a volume attachment, any part of the
 pattern but `--project`, `--zone`, `--region` and `--organization`) also
 take ids, completed from those flags and the profile (`runtime.rs`'s
 `Names`); a whole name given to one fills in the other parts, and the
-request's path is the relative name. A reference to another resource, in a
+request's path is the relative name. Of those four, a part that is a
+resource of its own at the root of the pattern (`projects/{project}`,
+`organizations/{organization}`) takes that resource's whole name too, on
+its own service's host (`//resourcemanager.origincloudapis.eu/…`); the
+others, such as the zone of `projects/{project}/zones/{zone}`, are ids. A reference to another resource, in a
 flag, a key or JSON at any depth, is never made of parts (`runtime.rs`'s
 `reference`, `nested.rs`'s `full_names`): it is a full name, sent as
 given, as the API requires of a reference, and a relative name or an id is

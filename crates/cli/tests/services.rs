@@ -1149,6 +1149,88 @@ async fn a_parent_given_by_its_full_name_needs_no_other_flags() {
     assert_eq!(body["peerSecurityGroup"], peer);
 }
 
+/// `--organization` and `--project` take their resource's whole name too,
+/// relative or full on resourcemanager's host, as the id they stand for;
+/// one on another host is refused, and `--zone` stays an id.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_organization_or_a_project_takes_its_own_whole_name() {
+    let server = recording(|_| Response::json("{}")).await;
+    for organization in [
+        "o-1",
+        "organizations/o-1",
+        "//resourcemanager.origincloudapis.eu/organizations/o-1",
+    ] {
+        success(
+            &server
+                .run(
+                    "iam",
+                    &[
+                        "list-audit-log-entries",
+                        "--organization",
+                        organization,
+                        "--page-size",
+                        "1",
+                    ],
+                )
+                .await,
+        );
+    }
+    success(
+        &server
+            .pvs(&[
+                "list-volumes",
+                "--project",
+                "projects/p",
+                "--zone",
+                "z",
+                "--page-size",
+                "1",
+            ])
+            .await,
+    );
+    let paths: Vec<String> = server.requests().iter().map(|r| r.path.clone()).collect();
+    assert_eq!(
+        paths,
+        [
+            "/v1beta1/organizations/o-1/auditLogEntries",
+            "/v1beta1/organizations/o-1/auditLogEntries",
+            "/v1beta1/organizations/o-1/auditLogEntries",
+            "/v1beta1/projects/p/zones/z/volumes",
+        ]
+    );
+
+    let description = failure(
+        &server
+            .run(
+                "iam",
+                &[
+                    "list-audit-log-entries",
+                    "--organization",
+                    "//iam.origincloudapis.eu/organizations/o-1",
+                ],
+            )
+            .await,
+    );
+    assert!(
+        description
+            .contains("but --organization takes a name on resourcemanager.origincloudapis.eu"),
+        "{description}"
+    );
+    let description = failure(
+        &server
+            .pvs(&[
+                "list-volumes",
+                "--project",
+                "p",
+                "--zone",
+                "projects/p/zones/z",
+            ])
+            .await,
+    );
+    assert!(description.contains("isn't an id"), "{description}");
+    assert_eq!(server.requests().len(), 4);
+}
+
 /// `assume-service-account` reads the OIDC token from a file, never from
 /// the command line, and sends it without the file's final newline; a
 /// missing file fails before anything is sent.

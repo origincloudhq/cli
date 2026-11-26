@@ -477,7 +477,7 @@ async fn call_list_image_families(
 /// The flags of `get-image`.
 #[derive(clap::Args, Debug)]
 pub struct GetImageArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -495,6 +495,7 @@ async fn get_image(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/images/{image}"],
@@ -530,7 +531,7 @@ async fn call_get_image(
 /// The flags of `list-images`.
 #[derive(clap::Args, Debug)]
 pub struct ListImagesArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -552,8 +553,9 @@ async fn list_images(
     ctx: &Context<'_>,
     args: ListImagesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let request = ::origincloud_compute::v1beta1::ListImagesRequest {
         parent: String::new(),
         page_size: args.page_size.unwrap_or_default(),
@@ -641,7 +643,7 @@ async fn call_list_images(
 /// The flags of `create-image`.
 #[derive(clap::Args, Debug)]
 pub struct CreateImageArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -698,8 +700,9 @@ async fn create_image(
     ctx: &Context<'_>,
     args: CreateImageArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let mut block_devices = match args.block_devices_json {
         Some(json) => json.0,
@@ -760,7 +763,7 @@ async fn call_create_image(
     )
 )]
 pub struct UpdateImageArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -792,6 +795,7 @@ async fn update_image(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/images/{image}"],
@@ -843,7 +847,7 @@ async fn call_update_image(
 /// The flags of `delete-image`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteImageArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -863,6 +867,7 @@ async fn delete_image(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/images/{image}"],
@@ -909,7 +914,7 @@ async fn call_delete_image(
 /// The flags of `get-instance`.
 #[derive(clap::Args, Debug)]
 pub struct GetInstanceArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -927,6 +932,7 @@ async fn get_instance(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
@@ -962,7 +968,7 @@ async fn call_get_instance(
 /// The flags of `list-instances`.
 #[derive(clap::Args, Debug)]
 pub struct ListInstancesArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -984,8 +990,9 @@ async fn list_instances(
     ctx: &Context<'_>,
     args: ListInstancesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let request = ::origincloud_compute::v1beta1::ListInstancesRequest {
         parent: String::new(),
         page_size: args.page_size.unwrap_or_default(),
@@ -1087,7 +1094,7 @@ async fn call_list_instances(
 /// The flags of `create-instance`.
 #[derive(clap::Args, Debug)]
 pub struct CreateInstanceArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -1216,8 +1223,9 @@ async fn create_instance(
     ctx: &Context<'_>,
     args: CreateInstanceArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let instance_type = reference(
         &["instanceTypes/{instance_type}"],
@@ -1343,7 +1351,7 @@ async fn call_create_instance(
 /// The flags of `launch-instance`.
 #[derive(clap::Args, Debug)]
 pub struct LaunchInstanceArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -1401,8 +1409,9 @@ async fn launch_instance(
     ctx: &Context<'_>,
     args: LaunchInstanceArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let mut launch_template_data = match args.launch_template_data_json {
         Some(json) => Some(json.0),
@@ -1499,7 +1508,7 @@ async fn call_launch_instance(
     )
 )]
 pub struct UpdateInstanceArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -1557,6 +1566,7 @@ async fn update_instance(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
@@ -1628,7 +1638,7 @@ async fn call_update_instance(
 /// The flags of `delete-instance`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteInstanceArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -1655,6 +1665,7 @@ async fn delete_instance(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
@@ -1706,7 +1717,7 @@ async fn call_delete_instance(
 /// The flags of `start-instance`.
 #[derive(clap::Args, Debug)]
 pub struct StartInstanceArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -1731,6 +1742,7 @@ async fn start_instance(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
@@ -1772,7 +1784,7 @@ async fn call_start_instance(
 /// The flags of `stop-instance`.
 #[derive(clap::Args, Debug)]
 pub struct StopInstanceArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -1797,6 +1809,7 @@ async fn stop_instance(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/instances/{instance}"],
@@ -1838,7 +1851,7 @@ async fn call_stop_instance(
 /// The flags of `get-key-pair`.
 #[derive(clap::Args, Debug)]
 pub struct GetKeyPairArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The key pair to return.
@@ -1852,6 +1865,7 @@ async fn get_key_pair(
     args: GetKeyPairArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/keyPairs/{key_pair}"],
@@ -1887,7 +1901,7 @@ async fn call_get_key_pair(
 /// The flags of `list-key-pairs`.
 #[derive(clap::Args, Debug)]
 pub struct ListKeyPairsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The most key pairs to return; the server clamps it, and 0 means its
@@ -1906,7 +1920,8 @@ async fn list_key_pairs(
     ctx: &Context<'_>,
     args: ListKeyPairsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("project", args.project.as_deref())]);
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}")?;
     let request = ::origincloud_compute::v1beta1::ListKeyPairsRequest {
         parent,
@@ -1968,7 +1983,7 @@ async fn call_list_key_pairs(
 /// The flags of `create-key-pair`.
 #[derive(clap::Args, Debug)]
 pub struct CreateKeyPairArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The OpenSSH public key line, such as `ssh-ed25519 AAAA... comment`.
@@ -1993,7 +2008,8 @@ async fn create_key_pair(
     ctx: &Context<'_>,
     args: CreateKeyPairArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("project", args.project.as_deref())]);
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}")?;
     let key_pair = ::origincloud_compute::v1beta1::KeyPair {
         public_key: args.public_key.clone().unwrap_or_default(),
@@ -2034,7 +2050,7 @@ async fn call_create_key_pair(
     )
 )]
 pub struct UpdateKeyPairArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The key pair to change.
@@ -2057,6 +2073,7 @@ async fn update_key_pair(
     args: UpdateKeyPairArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/keyPairs/{key_pair}"],
@@ -2104,7 +2121,7 @@ async fn call_update_key_pair(
 /// The flags of `delete-key-pair`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteKeyPairArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The key pair to delete.
@@ -2120,6 +2137,7 @@ async fn delete_key_pair(
     args: DeleteKeyPairArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/keyPairs/{key_pair}"],
@@ -2166,7 +2184,7 @@ async fn call_delete_key_pair(
 /// The flags of `get-launch-template`.
 #[derive(clap::Args, Debug)]
 pub struct GetLaunchTemplateArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The launch template to return: `projects/{project}/launchTemplates/{launch_template}`
@@ -2182,6 +2200,7 @@ async fn get_launch_template(
     args: GetLaunchTemplateArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/launchTemplates/{launch_template}"],
@@ -2217,7 +2236,7 @@ async fn call_get_launch_template(
 /// The flags of `list-launch-templates`.
 #[derive(clap::Args, Debug)]
 pub struct ListLaunchTemplatesArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The most launch templates to return; the server clamps it, and 0 means
@@ -2236,7 +2255,8 @@ async fn list_launch_templates(
     ctx: &Context<'_>,
     args: ListLaunchTemplatesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("project", args.project.as_deref())]);
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}")?;
     let request = ::origincloud_compute::v1beta1::ListLaunchTemplatesRequest {
         parent,
@@ -2300,7 +2320,7 @@ async fn call_list_launch_templates(
 /// The flags of `create-launch-template`.
 #[derive(clap::Args, Debug)]
 pub struct CreateLaunchTemplateArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     #[arg(
@@ -2351,7 +2371,8 @@ async fn create_launch_template(
     ctx: &Context<'_>,
     args: CreateLaunchTemplateArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("project", args.project.as_deref())]);
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}")?;
     let mut launch_template_data = match args.launch_template_data_json {
         Some(json) => Some(json.0),
@@ -2437,7 +2458,7 @@ async fn call_create_launch_template(
     )
 )]
 pub struct UpdateLaunchTemplateArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The launch template to change.
@@ -2467,6 +2488,7 @@ async fn update_launch_template(
     args: UpdateLaunchTemplateArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/launchTemplates/{launch_template}"],
@@ -2520,7 +2542,7 @@ async fn call_update_launch_template(
 /// The flags of `delete-launch-template`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteLaunchTemplateArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The launch template to delete.
@@ -2536,6 +2558,7 @@ async fn delete_launch_template(
     args: DeleteLaunchTemplateArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/launchTemplates/{launch_template}"],
@@ -2584,7 +2607,7 @@ async fn call_delete_launch_template(
 /// The flags of `create-launch-template-version`.
 #[derive(clap::Args, Debug)]
 pub struct CreateLaunchTemplateVersionArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The launch template to add a version to.
@@ -2626,6 +2649,7 @@ async fn create_launch_template_version(
     args: CreateLaunchTemplateVersionArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/launchTemplates/{launch_template}"],
@@ -2710,7 +2734,7 @@ async fn call_create_launch_template_version(
 /// The flags of `list-launch-template-versions`.
 #[derive(clap::Args, Debug)]
 pub struct ListLaunchTemplateVersionsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The launch template whose versions to list.
@@ -2735,6 +2759,7 @@ async fn list_launch_template_versions(
     args: ListLaunchTemplateVersionsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/launchTemplates/{launch_template}"],
@@ -2811,7 +2836,7 @@ async fn call_list_launch_template_versions(
 /// The flags of `delete-launch-template-version`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteLaunchTemplateVersionArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The version to delete, `projects/{project}/launchTemplates/{launch_template}@{version}`
@@ -2828,6 +2853,7 @@ async fn delete_launch_template_version(
     args: DeleteLaunchTemplateVersionArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/launchTemplates/{launch_template}"],
@@ -2876,7 +2902,7 @@ async fn call_delete_launch_template_version(
 /// The flags of `get-public-image`.
 #[derive(clap::Args, Debug)]
 pub struct GetPublicImageArgs {
-    /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
+    /// The zone, such as `eu-central1-az1`. Its id, or its full name, `//location.origincloudapis.eu/zones/{zone}`, or its relative name, `zones/{zone}`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
     #[arg(long = "zone", value_name = "ZONE")]
     pub zone: Option<String>,
     /// The image to return, `zones/{zone}/images/{image}`.
@@ -2890,6 +2916,7 @@ async fn get_public_image(
     args: GetPublicImageArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("zone", args.zone.as_deref())]);
+    names.learn_part("zones/{zone}", &["location"], "zone")?;
     names
         .learn(
             &["zones/{zone}/images/{image}"],
@@ -2944,7 +2971,8 @@ async fn list_public_images(
     ctx: &Context<'_>,
     args: ListPublicImagesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("zone", args.zone.as_deref())]);
+    let mut names = ctx.names(&[("zone", args.zone.as_deref())]);
+    names.learn_part("zones/{zone}", &["location"], "zone")?;
     let request = ::origincloud_compute::v1beta1::ListPublicImagesRequest {
         parent: String::new(),
         page_size: args.page_size.unwrap_or_default(),
@@ -3033,7 +3061,7 @@ async fn call_list_public_images(
 /// The flags of `get-volume-attachment`.
 #[derive(clap::Args, Debug)]
 pub struct GetVolumeAttachmentArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3060,6 +3088,7 @@ async fn get_volume_attachment(
                 ("instance", args.instance.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/instances/{instance}",
@@ -3107,7 +3136,7 @@ async fn call_get_volume_attachment(
 /// The flags of `list-volume-attachments`.
 #[derive(clap::Args, Debug)]
 pub struct ListVolumeAttachmentsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to list, such as `eu-central1-az1`. Without it, every zone that offers the service is listed, in catalog order; the profile's `default-zone` isn't used for lists.
@@ -3146,6 +3175,7 @@ async fn list_volume_attachments(
                 ("instance", args.instance.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/instances/{instance}",
@@ -3261,7 +3291,7 @@ async fn call_list_volume_attachments(
 /// The flags of `create-volume-attachment`.
 #[derive(clap::Args, Debug)]
 pub struct CreateVolumeAttachmentArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3299,6 +3329,7 @@ async fn create_volume_attachment(
                 ("instance", args.instance.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/instances/{instance}",
@@ -3347,7 +3378,7 @@ async fn call_create_volume_attachment(
 /// The flags of `delete-volume-attachment`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteVolumeAttachmentArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3383,6 +3414,7 @@ async fn delete_volume_attachment(
                 ("instance", args.instance.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/zones/{zone}/instances/{instance}",
@@ -3446,7 +3478,7 @@ async fn call_delete_volume_attachment(
 /// The flags of `get-operation`.
 #[derive(clap::Args, Debug)]
 pub struct GetOperationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3464,6 +3496,7 @@ async fn get_operation(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/operations/{operation}"],
@@ -3501,7 +3534,7 @@ async fn call_get_operation(
 /// The flags of `wait-operation`.
 #[derive(clap::Args, Debug)]
 pub struct WaitOperationArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -3522,6 +3555,7 @@ async fn wait_operation(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/operations/{operation}"],

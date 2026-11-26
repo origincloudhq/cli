@@ -153,7 +153,7 @@ pub(crate) fn service(
 /// The flags of `get-grant`.
 #[derive(clap::Args, Debug)]
 pub struct GetGrantArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -180,6 +180,7 @@ async fn get_grant(
                 ("key", args.key.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names.learn_part("projects/{project}/regions/{region}/keys/{key}", &["kms"], "key")?;
     names
         .learn(
@@ -214,7 +215,7 @@ async fn call_get_grant(
 /// The flags of `list-grants`.
 #[derive(clap::Args, Debug)]
 pub struct ListGrantsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -247,6 +248,7 @@ async fn list_grants(
                 ("key", args.key.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names.learn_part("projects/{project}/regions/{region}/keys/{key}", &["kms"], "key")?;
     let parent = names.name("projects/{project}/regions/{region}/keys/{key}")?;
     let request = ::origincloud_kms::v1beta1::ListGrantsRequest {
@@ -305,7 +307,7 @@ async fn call_list_grants(
 /// The flags of `create-grant`.
 #[derive(clap::Args, Debug)]
 pub struct CreateGrantArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -354,6 +356,7 @@ async fn create_grant(
                 ("key", args.key.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names.learn_part("projects/{project}/regions/{region}/keys/{key}", &["kms"], "key")?;
     let parent = names.name("projects/{project}/regions/{region}/keys/{key}")?;
     let grant = ::origincloud_kms::v1beta1::Grant {
@@ -389,7 +392,7 @@ async fn call_create_grant(
 /// The flags of `renew-grant`.
 #[derive(clap::Args, Debug)]
 pub struct RenewGrantArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -426,6 +429,7 @@ async fn renew_grant(
                 ("key", args.key.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names.learn_part("projects/{project}/regions/{region}/keys/{key}", &["kms"], "key")?;
     names
         .learn(
@@ -461,7 +465,7 @@ async fn call_renew_grant(
 /// The flags of `delete-grant`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteGrantArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -490,6 +494,7 @@ async fn delete_grant(
                 ("key", args.key.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names.learn_part("projects/{project}/regions/{region}/keys/{key}", &["kms"], "key")?;
     names
         .learn(
@@ -537,7 +542,7 @@ async fn call_delete_grant(
 /// The flags of `get-key`.
 #[derive(clap::Args, Debug)]
 pub struct GetKeyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -557,6 +562,7 @@ async fn get_key(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
@@ -587,7 +593,7 @@ async fn call_get_key(
 /// The flags of `list-keys`.
 #[derive(clap::Args, Debug)]
 pub struct ListKeysArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -616,10 +622,11 @@ async fn list_keys(
     ctx: &Context<'_>,
     args: ListKeysArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let request = ::origincloud_kms::v1beta1::ListKeysRequest {
         parent,
@@ -678,7 +685,7 @@ async fn call_list_keys(
 /// The flags of `create-key`.
 #[derive(clap::Args, Debug)]
 pub struct CreateKeyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -712,10 +719,11 @@ async fn create_key(
     ctx: &Context<'_>,
     args: CreateKeyArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/regions/{region}")?;
     let key = ::origincloud_kms::v1beta1::Key {
         purpose: ::origincloud_kms::v1beta1::key::Purpose::from_str_name(&args.purpose)
@@ -753,7 +761,7 @@ async fn call_create_key(
     )
 )]
 pub struct UpdateKeyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -792,6 +800,7 @@ async fn update_key(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
@@ -840,7 +849,7 @@ async fn call_update_key(
 /// The flags of `delete-key`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteKeyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -872,6 +881,7 @@ async fn delete_key(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
@@ -913,7 +923,7 @@ async fn call_delete_key(
 /// The flags of `undelete-key`.
 #[derive(clap::Args, Debug)]
 pub struct UndeleteKeyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -937,6 +947,7 @@ async fn undelete_key(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
@@ -968,7 +979,7 @@ async fn call_undelete_key(
 /// The flags of `rotate-key`.
 #[derive(clap::Args, Debug)]
 pub struct RotateKeyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -992,6 +1003,7 @@ async fn rotate_key(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
@@ -1023,7 +1035,7 @@ async fn call_rotate_key(
 /// The flags of `encrypt`.
 #[derive(clap::Args, Debug)]
 pub struct EncryptArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -1055,6 +1067,7 @@ async fn encrypt(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
@@ -1090,7 +1103,7 @@ async fn call_encrypt(
 /// The flags of `decrypt`.
 #[derive(clap::Args, Debug)]
 pub struct DecryptArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -1120,6 +1133,7 @@ async fn decrypt(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
@@ -1155,7 +1169,7 @@ async fn call_decrypt(
 /// The flags of `generate-data-key`.
 #[derive(clap::Args, Debug)]
 pub struct GenerateDataKeyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -1180,6 +1194,7 @@ async fn generate_data_key(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
@@ -1216,7 +1231,7 @@ async fn call_generate_data_key(
 /// The flags of `sign`.
 #[derive(clap::Args, Debug)]
 pub struct SignArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -1250,6 +1265,7 @@ async fn sign(
         .names(
             &[("project", args.project.as_deref()), ("region", args.region.as_deref())],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/regions/{region}/keys/{key}"],
@@ -1285,7 +1301,7 @@ async fn call_sign(
 /// The flags of `get-public-key`.
 #[derive(clap::Args, Debug)]
 pub struct GetPublicKeyArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The region, such as `eu-central1`. `ORIGINCLOUD_REGION`, else the profile's `region`, else the region of the default zone (`ORIGINCLOUD_ZONE` or `default-zone`), when not given.
@@ -1313,6 +1329,7 @@ async fn get_public_key(
                 ("key", args.key.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names.learn_part("projects/{project}/regions/{region}/keys/{key}", &["kms"], "key")?;
     names
         .learn(
