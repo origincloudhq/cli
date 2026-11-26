@@ -3,8 +3,7 @@
 //! - `sdk` holds the command groups generated from the API definitions,
 //!   one per service (`pvs`, `location`, ...), which call the Rust SDK;
 //! - `handler` holds the hand-written commands (`id`, `config`, `mcp`,
-//!   `completion`); `service_apis` the one GraphQL query left, `id login`'s
-//!   read of the signed-in user, in `graphql/`.
+//!   `completion`).
 
 pub use run_cli::run;
 
@@ -12,7 +11,6 @@ pub(crate) mod client_auth;
 mod config;
 mod confirm;
 mod descriptors;
-pub(crate) mod graphql;
 mod handler;
 mod identity;
 mod output;
@@ -21,7 +19,7 @@ mod progress;
 mod root_command;
 mod run_cli;
 mod sdk;
-pub(crate) mod service_apis;
+mod token;
 
 /// The `origin` command tree, for checking a command line against it
 /// without running it. A tool that prints an `origin` command for someone

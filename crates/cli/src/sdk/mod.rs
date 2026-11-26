@@ -19,4 +19,4 @@ mod generated {
 }
 
 pub(crate) use generated::{run, ServiceCommands};
-pub(crate) use runtime::mcp_client;
+pub(crate) use runtime::{mcp_client, session_client};

@@ -20,11 +20,6 @@ pub struct Cli {
     #[arg(short, long, value_name = "FILE")]
     pub(crate) config: Option<PathBuf>,
 
-    /// GraphQL API endpoint `origin id login` reads the signed-in user from,
-    /// which applies their pending invitations.
-    #[arg(short, long, value_name = "URL", default_value_t = get_default_api_url())]
-    pub(crate) api: String,
-
     /// Output format. Overrides ORIGINCLOUD_OUTPUT_FORMAT and the profile's
     /// `output-format`; without any of them, `table` on a terminal and
     /// `json` when the output goes to a pipe or a file.
@@ -114,9 +109,4 @@ pub(crate) enum Commands {
 
     /// Print version and exit.
     Version,
-}
-
-const API_URL: &str = "https://graph.origincloudapis.eu/graphql";
-fn get_default_api_url() -> String {
-    API_URL.to_string()
 }

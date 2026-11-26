@@ -664,7 +664,7 @@ prints it for the installed version.
 - A leaf's `args` include the global flags of its group, such as
   `--endpoint`; a group's are empty. `global_args` are `origin`'s own
   options: those with `global` set go anywhere on the command line, the
-  others (`--config`, `--api`) before the command.
+  others (`--config`) before the command.
 - `about` and `help` are the first paragraph of the help, on one line.
   `--help` and `--version` aren't listed.
 

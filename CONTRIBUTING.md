@@ -22,10 +22,9 @@ time on it. CI must pass: the checks below, run on every pull request.
 
 - `crates/cli` is the `origin` binary. The command groups `id`, `config`,
   `mcp` and `completion` are written by hand (`src/handler/`). `id login`
-  reads the signed-in user from the GraphQL API once after a login, which
-  applies their pending invitations (`src/service_apis/`), with the query
-  in `graphql/`, checked against `graphql/schema.graphql`, the schema
-  `graph.origincloudapis.eu` serves.
+  calls IAM's `ActivatePendingRoleBindings` once after a user login, as
+  the person who signed in, which grants the roles they were invited to
+  (`src/handler/id/login.rs`).
 - A group per service of the API, such as `origin pvs` and
   `origin location`, is generated (`crates/cli/src/sdk/generated/`) from the
   API definitions in [origincloudhq/api](https://github.com/origincloudhq/api),
@@ -338,8 +337,7 @@ a string flag taking the whole name, unchecked.
 
 ### A service replacing a hand-written group
 
-A hand-written group that calls the GraphQL API is replaced by a service of
-the API in time, as `admin`, `compute`, `network` and `iam` were.
+A hand-written group is replaced by a service of the API in time, as `admin`, `compute`, `network` and `iam` were.
 When the API gains the service that replaces one, the generated group lands
 and the hand-written one goes in the same change, so that `origin` never has
 both. A service replaces the group of its name; one replacing a group under
@@ -352,12 +350,8 @@ regeneration pull request puts the switch on that pull request. The switch:
    `Commands` and its `use`; in `crates/cli/src/run_cli.rs`, its arm; in
    `crates/cli/src/handler/mod.rs`, its module, and delete
    `crates/cli/src/handler/{group}/`.
-2. Delete its GraphQL client, `crates/cli/src/service_apis/{name}.rs`, its
-   module line, and its queries, `crates/cli/graphql/{name}/`, unless another
-   group still uses part of it, as `origin id login` still reads the
-   current user with `service_apis::iam` after `iam` was retired, since
-   that read applies pending invitations; delete the rest (clippy names
-   what nothing uses any more).
+2. Delete whatever only the group used (clippy names what nothing uses
+   any more).
 3. Take the group off `hand_written` in `generator/commands.toml`, and add a
    `[[retired]]` entry, with the reason and what to use instead, for each of
    its commands no command of the same name replaces (such as `admin

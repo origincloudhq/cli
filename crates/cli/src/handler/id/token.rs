@@ -1,6 +1,6 @@
-use crate::graphql::TokenProvider;
 use crate::output::{CommandResult, SerializableOutput, SerializationError};
 use crate::sdk::credentials::{access_token, describe, impersonating};
+use crate::token::TokenProvider;
 use serde::Serialize;
 
 pub(super) async fn perform_token(

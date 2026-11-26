@@ -37,7 +37,6 @@ anyhow = "1"
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive", "env"] }
-graphql_client = { version = "0.14", default-features = false, features = ["graphql_query_derive"] }
 http = "1"
 rand = "0.9"
 reqwest = { version = "0.13", features = ["json", "form", "rustls"] }
