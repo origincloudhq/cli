@@ -664,7 +664,7 @@ pub struct CreateImageArgs {
     pub root_device: String,
     #[arg(
         long = "block-device",
-        long_help = "The image's disks, each created for an instance launched from it.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`device`, required: The device name the disk appears under on every instance launched from the image: `vda` to `vdz` but `vdc`, unique within the image.\n\n`size_gib`, required: The disk's size in GiB, at least the snapshot's.\n\n`source_snapshot`: The full name of the protected snapshot the disk is created from, in the image's project and zone; an empty disk when left empty. Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`; not a relative name or an id.\n\nA value with a comma in it goes through `--block-devices-json` too.",
+        long_help = "The image's disks, each created for an instance launched from it.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`device`, required: The slot the disk takes on every instance launched from the image: `vda` to `vdz` but `vdc`, unique within the image. It is a hint at most, not the name the guest gives the disk. In the guest, the disk's serial is its volume's id, which a Linux guest links as `/dev/disk/by-id/virtio-<volume-id>`.\n\n`size_gib`, required: The disk's size in GiB, at least the snapshot's.\n\n`source_snapshot`: The full name of the protected snapshot the disk is created from, in the image's project and zone; an empty disk when left empty. Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/snapshots/{snapshot}`; not a relative name or an id.\n\nA value with a comma in it goes through `--block-devices-json` too.",
         help = "The image's disks, each created for an instance launched from it: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_image_block_device(text, "--block-devices-json"),
@@ -1191,7 +1191,7 @@ pub struct CreateInstanceArgs {
     pub service_account: Option<String>,
     #[arg(
         long = "local-disk",
-        long_help = "Disks on the machine the instance runs on, beside its boot volume, created blank at launch; at most 16. A local disk is temporary: it comes back empty after every stop and start and after its machine restarts, and it is deleted with the instance. It can't be the boot disk, snapshotted, resized or detached, and an instance with one isn't moved to another machine while it runs. Each appears among the instance's volume attachments.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`size_gib`, required: The size in GiB, at least 1.\n\n`device`: The device name the guest sees the disk under, `vda` to `vdz` but `vdc`, and none the boot volume or another local disk has. The first free one, in the order the disks are listed, when left empty.\n\nA value with a comma in it goes through `--local-disks-json` too.",
+        long_help = "Disks on the machine the instance runs on, beside its boot volume, created blank at launch; at most 16. A local disk is temporary: it comes back empty after every stop and start and after its machine restarts, and it is deleted with the instance. It can't be the boot disk, snapshotted, resized or detached, and an instance with one isn't moved to another machine while it runs. Each appears among the instance's volume attachments.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`size_gib`, required: The size in GiB, at least 1.\n\n`device`: The slot the disk takes on the instance, `vda` to `vdz` but `vdc`, and none the boot volume or another local disk has; the first free one, in the order the disks are listed, when left empty. It is a hint at most, not the name the guest gives the disk. In the guest, the disk's serial is its volume's id, which a Linux guest links as `/dev/disk/by-id/virtio-<volume-id>`.\n\nA value with a comma in it goes through `--local-disks-json` too.",
         help = "Disks on the machine the instance runs on, beside its boot volume, created blank at launch; at most 16: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_local_disk(text, "--local-disks-json"),
@@ -3305,8 +3305,12 @@ pub struct CreateVolumeAttachmentArgs {
     /// Its full name, `//pvs.origincloudapis.eu/projects/{project}/zones/{zone}/volumes/{volume}`; not a relative name or an id.
     #[arg(long = "volume", value_name = "NAME")]
     pub volume: String,
-    /// The device name the guest sees the volume under, `vda` to `vdz`. The
-    /// first free one when left empty.
+    /// The slot the volume's disk takes on the instance, `vda` to `vdz` but
+    /// `vdc`; the first free one when left empty. It is a hint at most, not
+    /// the name the guest gives the disk: a guest names its disks in the
+    /// order it finds them, so a disk attached to a running instance often
+    /// gets another name. In the guest, the disk's serial is the volume's id,
+    /// which a Linux guest links as `/dev/disk/by-id/virtio-<volume-id>`.
     #[arg(long = "device")]
     pub device: Option<String>,
     /// A UUID; a repeat with the same id returns the first request's
