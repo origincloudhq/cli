@@ -8024,6 +8024,12 @@ pub struct CreateVpcArgs {
     /// it in equal sizes.
     #[arg(long = "ipv4-cidr-block")]
     pub ipv4_cidr_block: Option<String>,
+    /// The private IPv6 range, unique local space (RFC 4193) from `/48` to
+    /// `/60`, overlapping none of the organization's other VPCs. A globally
+    /// routable `/56` from the zone's pool when left empty. Each subnet gets a
+    /// range 16 bits longer: a `/64` of a `/48`, a `/72` of a `/56`.
+    #[arg(long = "ipv6-cidr-block")]
+    pub ipv6_cidr_block: Option<String>,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
     ///
@@ -8050,6 +8056,7 @@ async fn create_vpc(
     let parent = names.name("projects/{project}/regions/{region}")?;
     let vpc = ::origincloud_network::v1beta1::Vpc {
         ipv4_cidr_block: args.ipv4_cidr_block.clone().unwrap_or_default(),
+        ipv6_cidr_block: args.ipv6_cidr_block.clone().unwrap_or_default(),
         tags: tags(&args.tag),
         ..::core::default::Default::default()
     };
