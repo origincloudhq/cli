@@ -13,25 +13,25 @@ homepage = "https://origincloud.eu"
 # API_REVISION: the generated commands use its request and response types,
 # so the two must come from the same API definitions. scripts/update.sh moves
 # both together, and scripts/generate.sh --check fails when they differ.
-origincloud-core = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-origincloud-pvs = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-origincloud-location = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-origincloud-compute = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-origincloud-network = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-origincloud-resourcemanager = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-origincloud-iam = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-origincloud-billing = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-origincloud-support = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-origincloud-observability = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-origincloud-dns = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-origincloud-sts = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-origincloud-kms = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
-fake-server = { git = "https://github.com/origincloudhq/sdk-rust", rev = "d2cb781816e7895927084c464e10beb7b8145ef6" }
+origincloud-core = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+origincloud-pvs = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+origincloud-location = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+origincloud-compute = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+origincloud-network = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+origincloud-resourcemanager = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+origincloud-iam = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+origincloud-billing = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+origincloud-support = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+origincloud-observability = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+origincloud-dns = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+origincloud-sts = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+origincloud-kms = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
+fake-server = { git = "https://github.com/origincloudhq/sdk-rust", rev = "c1d474315c636ae3196ad5ab918b827062d086df" }
 # The MCP tools `origin mcp serve` serves, at a commit built on the same SDK
 # commit as the lines above: the CLI hands them the SDK's `Client`, so both
 # must be the same crate. scripts/update.sh moves the three together, and
 # scripts/generate.sh --check fails when they differ.
-origincloud-mcp = { git = "https://github.com/origincloudhq/mcp", rev = "317c2a806ceef855c8081e235aba5e1c27b4b3fd" }
+origincloud-mcp = { git = "https://github.com/origincloudhq/mcp", rev = "bb7a8805ebb67a706f089d4acd94e4aa81b2b5c2" }
 
 anyhow = "1"
 base64 = "0.22"

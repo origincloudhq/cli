@@ -90,14 +90,14 @@ pub enum Commands {
     GetRoleBinding(GetRoleBindingArgs),
     #[command(
         name = "list-role-bindings",
-        about = "Lists an organization's role bindings, active and pending, oldest first, optionally only a member's or a project's",
-        long_about = "Lists an organization's role bindings, active and pending, oldest first, optionally only a member's or a project's. Needs `iam.member.list` on the organization. With the parent `organizations/-` it lists the caller's own active bindings in every organization and needs no permission; `--member` must be empty there."
+        about = "Lists an organization's role bindings, active and pending, oldest first, optionally only a member's, a project's or a service account's",
+        long_about = "Lists an organization's role bindings, active and pending, oldest first, optionally only a member's, a project's or a service account's. Needs `iam.member.list` on the organization. With the parent `organizations/-` it lists the caller's own active bindings in every organization and needs no permission; `--member` must be empty there."
     )]
     ListRoleBindings(ListRoleBindingsArgs),
     #[command(
         name = "create-role-binding",
         about = "Grants a role to a member",
-        long_about = "Grants a role to a member. Needs `iam.role.assign` on the organization, for a project binding as well, and every permission of the role at the binding's scope: a permission held on the organization counts for any scope, one held on a project only for that project. Refused with `NOT_FOUND` when `--member` names a user without an enabled account or a service account of another organization. Refused with `CONFLICT` when the member already holds the role at that scope, and with `BAD_REQUEST` when the member is a deleted service account, names no service agent the platform has, or is a service agent and the role isn't one its service needs.\n\nWith `--member` set to `user:{email}`, the account that verified the address is bound, as above. If no enabled account has verified it, the binding is created `PENDING`, organization-wide, and an invitation email is sent to the address. That also needs `iam.member.create` on the organization, and is refused with `BAD_REQUEST` when `--project` is set and with `CONFLICT` when the address already holds a pending binding of the role in the organization. An address more than one account has verified is refused with `CONFLICT`. Repeated under its `--request-id`, the call answers with the binding it created, pending or since activated."
+        long_about = "Grants a role to a member. Needs `iam.role.assign` on the organization, for a project binding as well, and every permission of the role at the binding's scope: a permission held on the organization counts for any scope, one held on a project only for that project. Refused with `NOT_FOUND` when `--member` names a user without an enabled account or a service account of another organization, and when `--service-account` names an account the organization doesn't have. Refused with `CONFLICT` when the member already holds the role at that scope, and with `BAD_REQUEST` when the member is a deleted service account, names no service agent the platform has, or is a service agent and the role isn't one its service needs; when both `--project` and `--service-account` are set; when `--service-account` names a deleted account; and when the role has a permission that doesn't act on one service account, which only `roles/iam.service-account-token-creator` has none of.\n\nWith `--member` set to `user:{email}`, the account that verified the address is bound, as above. If no enabled account has verified it, the binding is created `PENDING`, organization-wide, and an invitation email is sent to the address. That also needs `iam.member.create` on the organization, and is refused with `BAD_REQUEST` when `--project` or `--service-account` is set and with `CONFLICT` when the address already holds a pending binding of the role in the organization. An address more than one account has verified is refused with `CONFLICT`. Repeated under its `--request-id`, the call answers with the binding it created, pending or since activated."
     )]
     CreateRoleBinding(CreateRoleBindingArgs),
     #[command(
@@ -1046,6 +1046,14 @@ pub struct ListRoleBindingsArgs {
     /// Without `--page-size` or `--page-token`, every page is listed.
     #[arg(long = "page-token")]
     pub page_token: Option<String>,
+    /// Only the bindings limited to this service account, by its full name,
+    /// `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`.
+    /// Every binding, whatever its scope, when empty. Can't be set together
+    /// with `--project`: no binding is limited to both.
+    ///
+    /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`; not a relative name or an id.
+    #[arg(long = "service-account", value_name = "NAME")]
+    pub service_account: Option<String>,
 }
 async fn list_role_bindings(
     ctx: &Context<'_>,
@@ -1065,12 +1073,24 @@ async fn list_role_bindings(
         }
         None => String::new(),
     };
+    let service_account = match args.service_account.as_deref() {
+        Some(v) => {
+            reference(
+                &["organizations/{organization}/serviceAccounts/{service_account}"],
+                &["iam"],
+                "--service-account",
+                v,
+            )?
+        }
+        None => String::new(),
+    };
     let request = ::origincloud_iam::v1beta1::ListRoleBindingsRequest {
         parent,
         member: args.member.clone().unwrap_or_default(),
         project,
         page_size: args.page_size.unwrap_or_default(),
         page_token: args.page_token.clone().unwrap_or_default(),
+        service_account,
     };
     let client = ctx.client()?;
     let listed: Vec<String> = vec![request.parent.clone()];
@@ -1150,11 +1170,25 @@ pub struct CreateRoleBindingArgs {
     /// The full name of the project the binding is limited to, one of the
     /// organization's: `//resourcemanager.origincloudapis.eu/projects/{project}`.
     /// Empty for a binding on the whole organization, which covers every
-    /// project in it.
+    /// project in it, and for a binding on one service account.
     ///
     /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`; not a relative name or an id.
     #[arg(long = "project", value_name = "NAME")]
     pub project: Option<String>,
+    /// The full name of the service account the binding is limited to, one of
+    /// the organization's active accounts:
+    /// `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`.
+    /// Such a binding grants its role on that account alone, and nothing on
+    /// the organization or its projects. Only a role whose every permission
+    /// acts on one service account can be bound so:
+    /// `roles/iam.service-account-token-creator`, which lets the member get an
+    /// access token for that account and no other. Empty for a binding on the
+    /// whole organization or a project; never set together with `--project`.
+    /// The binding is removed when the account is deleted.
+    ///
+    /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`; not a relative name or an id.
+    #[arg(long = "service-account", value_name = "NAME")]
+    pub service_account: Option<String>,
     /// A UUID. A repeat of the request with the same `--request-id` within a
     /// day returns the binding the first request created, as it is now,
     /// instead of being refused as a conflict. One is generated when not given.
@@ -1180,10 +1214,22 @@ async fn create_role_binding(
         }
         None => String::new(),
     };
+    let service_account = match args.service_account.as_deref() {
+        Some(v) => {
+            reference(
+                &["organizations/{organization}/serviceAccounts/{service_account}"],
+                &["iam"],
+                "--service-account",
+                v,
+            )?
+        }
+        None => String::new(),
+    };
     let role_binding = ::origincloud_iam::v1beta1::RoleBinding {
         member: args.member.clone(),
         role,
         project,
+        service_account,
         ..::core::default::Default::default()
     };
     let request = ::origincloud_iam::v1beta1::CreateRoleBindingRequest {
