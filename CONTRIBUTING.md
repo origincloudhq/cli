@@ -249,6 +249,13 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   type's service's host. Generation fails when the
   field isn't a reference to a type the API declares, or the other type
   isn't one;
+- `[[exclusive]]` names fields of a method's request, by their paths from
+  the request (`role_binding.project`, `role_binding.service_account`), at
+  most one of which can be set, although the API doesn't make them a
+  `oneof`, which an existing field can't join without breaking the wire
+  format: their flags are an argument group, as a oneof's are, so that the
+  command refuses them together before sending anything. Generation fails
+  for a field that has no flag;
 - `[[view]]` names the columns of the `table` a list of a message is
   printed as (`compute`, `Instance`, `interface_addresses.ipv4_address`),
   as paths from the message through messages and lists of them; without

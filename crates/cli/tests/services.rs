@@ -1281,3 +1281,68 @@ async fn assume_service_account_reads_the_token_from_a_file() {
     assert!(failure(&output).contains("no-such-token"), "{output:?}");
     assert_eq!(server.requests().len(), 1);
 }
+
+/// A role binding is on the organization, one project or one service
+/// account, never both of the last: `--project` and `--service-account` are
+/// refused together before anything is sent, on a create as on a list,
+/// and either alone reaches the request as its full name.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_role_binding_is_limited_to_a_project_or_a_service_account() {
+    const ACCOUNT: &str = "//iam.origincloudapis.eu/organizations/o/serviceAccounts/sa-1";
+    const PROJECT: &str = "//resourcemanager.origincloudapis.eu/projects/p1";
+    const BINDING: &str = r#"{"name":"organizations/o/roleBindings/rb-1",
+        "member":"//iam.origincloudapis.eu/users/u-1",
+        "role":"roles/iam.service-account-token-creator",
+        "serviceAccount":"//iam.origincloudapis.eu/organizations/o/serviceAccounts/sa-1",
+        "state":"ACTIVE"}"#;
+    let server = recording(|request: &Received| {
+        if request.method == "GET" {
+            Response::json(format!(r#"{{"roleBindings":[{BINDING}]}}"#))
+        } else {
+            Response::json(BINDING)
+        }
+    })
+    .await;
+    let create = [
+        "create-role-binding",
+        "--organization",
+        "o",
+        "--member",
+        "//iam.origincloudapis.eu/users/u-1",
+        "--role",
+        "//iam.origincloudapis.eu/roles/iam.service-account-token-creator",
+    ];
+    let list = ["list-role-bindings", "--organization", "o"];
+
+    for args in [&create[..], &list[..]] {
+        let both = [args, &["--project", PROJECT, "--service-account", ACCOUNT]].concat();
+        let output = server.run("iam", &both).await;
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.code(), Some(2), "{both:?}: {stderr}");
+        assert!(stderr.contains("cannot be used with"), "{stderr}");
+    }
+    assert!(server.requests().is_empty());
+
+    success(
+        &server
+            .run(
+                "iam",
+                &[&create[..], &["--service-account", ACCOUNT]].concat(),
+            )
+            .await,
+    );
+    let printed = success(
+        &server
+            .run(
+                "iam",
+                &[&list[..], &["--service-account", ACCOUNT]].concat(),
+            )
+            .await,
+    );
+    assert_eq!(printed["roleBindings"][0]["serviceAccount"], ACCOUNT);
+    let requests = server.requests();
+    let sent: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+    assert_eq!(sent["serviceAccount"], ACCOUNT);
+    assert!(sent.get("project").is_none(), "{sent}");
+    assert_eq!(requests[1].query_values("serviceAccount"), [ACCOUNT]);
+}

@@ -2233,6 +2233,35 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         }
     }
 
+    // Fields at most one of which can be set: their flags are a group, as
+    // a oneof's are.
+    for entry in cx.policy.exclusive(cx.own, m.name()) {
+        if entry.fields.len() < 2 {
+            return Err(format!(
+                "[[exclusive]] of {} names fewer than two fields",
+                m.name()
+            ));
+        }
+        let mut ids = Vec::new();
+        let mut names = Vec::new();
+        for path in &entry.fields {
+            let last = path.rsplit('.').next().unwrap_or(path);
+            let flag = b
+                .vocabulary
+                .get(last)
+                .and_then(|long| b.flags.iter().find(|f| &f.long == long))
+                .ok_or_else(|| {
+                    format!(
+                        "[[exclusive]] names {path} of {}, which has no flag",
+                        m.name()
+                    )
+                })?;
+            ids.push(arg_id(&flag.ident).to_owned());
+            names.push(last.to_owned());
+        }
+        b.oneofs.push((names.join("_or_"), ids, false));
+    }
+
     // The update's statements, and its mask.
     if update {
         let updates = body_updates.ok_or("an update without a resource")?;
