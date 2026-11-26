@@ -211,6 +211,9 @@ the API sends whether or not it asks for it.
 In `table` and `wide`, a reference to another resource is shown by its id
 (`gp1` for `storageClasses/gp1`) and a time by how long ago it was (`3d
 ago`); a resource's own lines show both whole, the time beside how long ago.
+A list of resources that have tags shows each one's `origin:name` tag, the
+name it has in the console, in a column after its id, empty for one without
+the tag.
 A state is in colour: green for what is up and in use (`RUNNING`,
 `AVAILABLE`), yellow for what is changing (`STARTING`, `PENDING`), red for
 what failed, dim for what is stopped or gone.

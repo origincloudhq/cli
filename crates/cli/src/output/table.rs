@@ -21,6 +21,10 @@ const MOST_PER_CELL: usize = 40;
 /// elsewhere.
 const LEFT_OUT: [&str; 5] = ["urn", "creator", "etag", "uid", "updateTime"];
 
+/// The tag that names a resource for people. Tenant resources have no
+/// name field, only an id, so this tag is the name the console shows.
+const NAME_TAG: &str = "origin:name";
+
 /// A column: the field it shows, by its JSON path from the item.
 #[derive(Debug, Clone)]
 pub(super) struct Spec {
@@ -58,8 +62,50 @@ impl Spec {
 ///   them, `name`, `displayName`, `state` and `status` first and
 ///   `createTime` last; `table` leaves out [`LEFT_OUT`] and maps;
 /// - without `item`, the fields the items hold, by name, kinds told from
-///   their values, objects left out.
+///   their values, objects left out;
+/// - for items that have `tags`, a column with their [`NAME_TAG`] after
+///   `name`, in `table` and `wide`, with or without a view.
 pub(super) fn columns(
+    items: &[&Map<String, Value>],
+    item: Option<&MessageDescriptor>,
+    view: &[&str],
+    wide: bool,
+) -> Vec<Spec> {
+    let mut specs = listed(items, item, view, wide);
+    if has_tags(items, item) {
+        let tag = Spec {
+            path: vec!["tags".to_owned(), NAME_TAG.to_owned()],
+            field: Field {
+                kind: Kind::Text,
+                repeated: false,
+            },
+        };
+        if !specs.iter().any(|s| s.path == tag.path) {
+            let at = specs
+                .iter()
+                .position(|s| s.key() == "name")
+                .map_or(0, |i| i + 1);
+            specs.insert(at, tag);
+        }
+    }
+    specs
+}
+
+/// Whether the items have `tags`: a map field of their message, or, without
+/// one, an object in any of them.
+fn has_tags(items: &[&Map<String, Value>], item: Option<&MessageDescriptor>) -> bool {
+    match item {
+        Some(message) => message
+            .get_field_by_json_name("tags")
+            .is_some_and(|f| Field::of(&f).kind == Kind::Map),
+        None => items
+            .iter()
+            .any(|i| matches!(i.get("tags"), Some(Value::Object(_)))),
+    }
+}
+
+/// The columns of [`columns`] but the name tag's.
+fn listed(
     items: &[&Map<String, Value>],
     item: Option<&MessageDescriptor>,
     view: &[&str],
@@ -361,7 +407,7 @@ mod tests {
             {"name": "projects/acme/zones/z1/instances/web-1", "state": "RUNNING",
              "instanceType": "instanceTypes/s1.small", "createTime": "2026-10-31T09:12:00Z",
              "interfaceAddresses": [{"networkInterface": "n", "ipv4Address": "10.0.1.4"}],
-             "urn": "urn:oc:i:1", "tags": {"env": "prod"}},
+             "urn": "urn:oc:i:1", "tags": {"env": "prod", "origin:name": "frontend"}},
             {"name": "projects/acme/zones/z1/instances/batch-7", "state": "STARTING",
              "instanceType": "instanceTypes/c1.xlarge", "createTime": "2026-11-03T11:59:30Z"},
         ])
@@ -385,9 +431,9 @@ mod tests {
         assert_eq!(
             printed,
             "\
-NAME      STATE      INSTANCE TYPE   IPV4 ADDRESS   CREATE TIME
-web-1     RUNNING    s1.small        10.0.1.4       3d ago
-batch-7   STARTING   c1.xlarge                      30s ago
+NAME      ORIGIN:NAME   STATE      INSTANCE TYPE   IPV4 ADDRESS   CREATE TIME
+web-1     frontend      RUNNING    s1.small        10.0.1.4       3d ago
+batch-7                 STARTING   c1.xlarge                      30s ago
 "
         );
     }
@@ -399,7 +445,8 @@ batch-7   STARTING   c1.xlarge                      30s ago
         // the creator and the tags left out.
         assert_eq!(
             printed.lines().next().unwrap(),
-            "NAME      STATE      INSTANCE TYPE   IMAGE   IMAGE FAMILY   KEY PAIR   LOGIN USER   \
+            "NAME      ORIGIN:NAME   STATE      INSTANCE TYPE   IMAGE   IMAGE FAMILY   KEY PAIR   \
+             LOGIN USER   \
              NETWORK INTERFACES   STATE REASON   SERVICE ACCOUNT   LAUNCH TEMPLATE   CREATE TIME"
         );
     }
@@ -415,10 +462,56 @@ batch-7   STARTING   c1.xlarge                      30s ago
         );
         let header = printed.lines().next().unwrap();
         // The view's columns first, then the fields the default leaves out.
-        assert!(header.starts_with("NAME      STATE      "), "{header}");
+        assert!(
+            header.starts_with("NAME      ORIGIN:NAME   STATE      "),
+            "{header}"
+        );
         assert!(header.contains("CREATOR"), "{header}");
         assert!(header.contains("TAGS"), "{header}");
         assert!(printed.contains("env=prod"), "{printed}");
+    }
+
+    #[test]
+    fn an_item_s_name_tag_is_shown_next_to_its_id_and_nothing_without_one() {
+        let key_pairs = json!([
+            {"name": "projects/acme/keyPairs/kp-7SjLsX7wnvG", "creator": "user:a",
+             "tags": {"origin:name": "bat", "env": "prod"}},
+            {"name": "projects/acme/keyPairs/kp-2bQx9", "creator": "user:a"},
+        ]);
+        let key_pair = Some("origincloud.compute.v1beta1.KeyPair");
+        let expected = "\
+NAME             ORIGIN:NAME
+kp-7SjLsX7wnvG   bat
+kp-2bQx9
+";
+        assert_eq!(
+            render(key_pairs.clone(), key_pair, &["name"], false, None),
+            expected
+        );
+        // Without a view, and without descriptors, too.
+        assert!(render(key_pairs.clone(), key_pair, &[], false, None)
+            .starts_with("NAME             ORIGIN:NAME"));
+        assert!(render(key_pairs.clone(), None, &[], false, None)
+            .starts_with("NAME             ORIGIN:NAME"));
+        // `wide` keeps the tags whole, beside it.
+        let wide = render(key_pairs, key_pair, &["name"], true, None);
+        assert!(
+            wide.starts_with("NAME             ORIGIN:NAME   "),
+            "{wide}"
+        );
+        assert!(wide.contains("env=prod"), "{wide}");
+    }
+
+    #[test]
+    fn a_message_without_tags_has_no_name_tag_column() {
+        let printed = render(
+            json!([{"name": "instanceTypes/a", "vcpu": 2}]),
+            Some("origincloud.compute.v1beta1.InstanceType"),
+            &["name", "vcpu"],
+            false,
+            None,
+        );
+        assert_eq!(printed, "NAME   VCPU\na      2\n");
     }
 
     #[test]
@@ -453,7 +546,9 @@ batch-7   STARTING   c1.xlarge                      30s ago
         );
         assert_eq!(
             printed,
-            "NAME   AVAILABLE   CORES\na      true        2\nb      false       0\n"
+            "NAME   ORIGIN:NAME   AVAILABLE   CORES\n\
+             a                    true        2\n\
+             b                    false       0\n"
         );
     }
 
@@ -533,7 +628,7 @@ batch-7   STARTING   c1.xlarge                      30s ago
         let plain = anstream::adapter::strip_str(&printed).to_string();
         assert_eq!(
             plain,
-            "STATE      NAME\nRUNNING    web-1\nSTARTING   batch-7\n"
+            "STATE      NAME      ORIGIN:NAME\nRUNNING    web-1     frontend\nSTARTING   batch-7\n"
         );
     }
 }
