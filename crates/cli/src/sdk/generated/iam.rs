@@ -66,8 +66,8 @@ pub enum Commands {
     ListPermissions(ListPermissionsArgs),
     #[command(
         name = "test-iam-permissions",
-        about = "Returns the subset of `--permission` the caller holds on an organization or a project",
-        long_about = "Returns the subset of `--permission` the caller holds on an organization or a project. A permission held on the organization counts for each of its projects; one held on a project counts only there. Every resource in a project is governed by the project's permissions, so asking about the project answers for each of its resources. A permission the catalog doesn't name is never held."
+        about = "Returns the subset of `--permission` the caller holds on an organization or a project, or on one resource in it",
+        long_about = "Returns the subset of `--permission` the caller holds on an organization or a project, or on one resource in it. A permission held on the organization counts for each of its projects; one held on a project counts only there. A role binding limited to a list of resources counts only for the resources it lists, never for the organization or the project itself, so asking about the project answers for each of its resources only as far as bindings on the whole project go: name the resource in `--full-resource-name` to have it answered as a call on that resource is. A permission the catalog doesn't name is never held."
     )]
     TestIamPermissions(TestIamPermissionsArgs),
     #[command(
@@ -90,14 +90,14 @@ pub enum Commands {
     GetRoleBinding(GetRoleBindingArgs),
     #[command(
         name = "list-role-bindings",
-        about = "Lists an organization's role bindings, active and pending, oldest first, optionally only a member's, a project's or a service account's",
-        long_about = "Lists an organization's role bindings, active and pending, oldest first, optionally only a member's, a project's or a service account's. Needs `iam.member.list` on the organization. With the parent `organizations/-` it lists the caller's own active bindings in every organization and needs no permission; `--member` must be empty there."
+        about = "Lists an organization's role bindings, active and pending, oldest first, optionally only a member's, a project's or a service account's, or only those that apply to one resource",
+        long_about = "Lists an organization's role bindings, active and pending, oldest first, optionally only a member's, a project's or a service account's, or only those that apply to one resource. Needs `iam.member.list` on the organization. With the parent `organizations/-` it lists the caller's own active bindings in every organization and needs no permission; `--member` must be empty there."
     )]
     ListRoleBindings(ListRoleBindingsArgs),
     #[command(
         name = "create-role-binding",
         about = "Grants a role to a member",
-        long_about = "Grants a role to a member. Needs `iam.role.assign` on the organization, for a project binding as well, and every permission of the role at the binding's scope: a permission held on the organization counts for any scope, one held on a project only for that project. Refused with `NOT_FOUND` when `--member` names a user without an enabled account or a service account of another organization, and when `--service-account` names an account the organization doesn't have. Refused with `CONFLICT` when the member already holds the role at that scope, and with `BAD_REQUEST` when the member is a deleted service account, names no service agent the platform has, or is a service agent and the role isn't one its service needs; when both `--project` and `--service-account` are set; when `--service-account` names a deleted account; and when the role has a permission that doesn't act on one service account, which only `roles/iam.service-account-token-creator` has none of.\n\nWith `--member` set to `user:{email}`, the account that verified the address is bound, as above. If no enabled account has verified it, the binding is created `PENDING`, organization-wide, and an invitation email is sent to the address. That also needs `iam.member.create` on the organization, and is refused with `BAD_REQUEST` when `--project` or `--service-account` is set and with `CONFLICT` when the address already holds a pending binding of the role in the organization. An address more than one account has verified is refused with `CONFLICT`. Repeated under its `--request-id`, the call answers with the binding it created, pending or since activated."
+        long_about = "Grants a role to a member. Needs `iam.role.assign` on the organization, for a project binding as well, and every permission of the role at the binding's scope: a permission held on the organization counts for any scope, one held on a project only for that project. A binding with `--resource` needs every permission of the role on each resource it lists: a permission held on the resource's scope counts, and so does one held through a binding that lists the resource. Refused with `NOT_FOUND` when `--member` names a user without an enabled account or a service account of another organization, and when `--service-account` names an account the organization doesn't have. Refused with `CONFLICT` when the member already holds the role at that scope with the same `--resource`, and, for now, also with other `--resource`: a member holds a role at one scope in one binding. Refused with `BAD_REQUEST`, naming the entry, when an entry of `--resource` isn't a full name, is a resource of a kind that can't be listed, is outside the binding's organization or project, or is listed twice; when `--resource` has more than 100 entries, is set together with `--service-account`, or lists a kind of resource none of the role's permissions applies to. Refused with `BAD_REQUEST` when the member is a deleted service account, names no service agent the platform has, or is a service agent and the role isn't one its service needs; when both `--project` and `--service-account` are set; when `--service-account` names a deleted account; and when the role has a permission that doesn't act on one service account, which only `roles/iam.service-account-token-creator` has none of.\n\nWith `--member` set to `user:{email}`, the account that verified the address is bound, as above. If no enabled account has verified it, the binding is created `PENDING`, organization-wide, and an invitation email is sent to the address. That also needs `iam.member.create` on the organization, and is refused with `BAD_REQUEST` when `--project`, `--service-account` or `--resource` is set and with `CONFLICT` when the address already holds a pending binding of the role in the organization. An address more than one account has verified is refused with `CONFLICT`. Repeated under its `--request-id`, the call answers with the binding it created, pending or since activated."
     )]
     CreateRoleBinding(CreateRoleBindingArgs),
     #[command(
@@ -874,6 +874,19 @@ pub struct TestIamPermissionsArgs {
     /// Repeat for more.
     #[arg(long = "permission", required = true)]
     pub permission: Vec<String>,
+    /// The full name of one resource in `--resource` to test the permissions on
+    /// instead, such as
+    /// `//secretmanager.origincloudapis.eu/projects/{project}/regions/{region}/secrets/{secret}`:
+    /// the answer is what a call on that resource is allowed, counting the
+    /// role bindings that list it as well as those on its organization or
+    /// project. Refused with `BAD_REQUEST` when it isn't a full name, isn't in
+    /// `--resource` (in the organization, or in the project), or names a kind
+    /// of resource a role binding can't list: only the bindings on its
+    /// organization or project apply to such a resource, so testing on the
+    /// project answers for it. The resource need not exist. Empty to test on
+    /// `--resource` itself.
+    #[arg(long = "full-resource-name")]
+    pub full_resource_name: Option<String>,
 }
 async fn test_iam_permissions(
     ctx: &Context<'_>,
@@ -882,6 +895,7 @@ async fn test_iam_permissions(
     let request = ::origincloud_iam::v1beta1::TestIamPermissionsRequest {
         resource: args.resource.clone(),
         permissions: args.permission.clone(),
+        full_resource_name: args.full_resource_name.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
     let response = call_test_iam_permissions(&client, request).await.map_err(api_error)?;
@@ -1061,6 +1075,19 @@ pub struct ListRoleBindingsArgs {
     /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`; not a relative name or an id.
     #[arg(long = "service-account", value_name = "NAME")]
     pub service_account: Option<String>,
+    /// Only the active bindings that apply to this resource, by its full
+    /// name, such as
+    /// `//secretmanager.origincloudapis.eu/projects/{project}/regions/{region}/secrets/{secret}`:
+    /// those that list it in `resources`, and those with `resources` empty on
+    /// the organization or on the resource's project, which cover it as a
+    /// whole. A binding on a service account applies to no resource here, and
+    /// a pending binding to none until it is active. Every binding when empty.
+    /// Combines with the other filters. Refused with `BAD_REQUEST` when it
+    /// isn't a full name or names a kind of resource a binding can't list:
+    /// only the bindings on its organization or project apply to such a
+    /// resource, which the `--project` filter, or none, lists.
+    #[arg(long = "resource")]
+    pub resource: Option<String>,
 }
 async fn list_role_bindings(
     ctx: &Context<'_>,
@@ -1098,6 +1125,7 @@ async fn list_role_bindings(
         page_size: args.page_size.unwrap_or_default(),
         page_token: args.page_token.clone().unwrap_or_default(),
         service_account,
+        resource: args.resource.clone().unwrap_or_default(),
     };
     let client = ctx.client()?;
     let listed: Vec<String> = vec![request.parent.clone()];
@@ -1219,6 +1247,21 @@ pub struct CreateRoleBindingArgs {
     /// Its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`; not a relative name or an id.
     #[arg(long = "service-account", value_name = "NAME")]
     pub service_account: Option<String>,
+    /// The full names of the resources the binding is limited to within its
+    /// organization or project, such as
+    /// `//secretmanager.origincloudapis.eu/projects/{project}/regions/{region}/secrets/{secret}`,
+    /// in name order; at most 100. The binding grants its role on these
+    /// resources alone, and nothing on the rest of its scope or on the
+    /// organization or the project itself. Empty for a binding on its whole
+    /// scope. Each entry must be a resource of the binding's organization, in
+    /// the binding's project if `--project` is set, of a kind that can be
+    /// listed. Never set together with `--service-account`, nor on a pending
+    /// binding. A resource deleted after the binding was created stays listed,
+    /// and the binding covers a resource created later under the same name.
+    ///
+    /// Repeat for more.
+    #[arg(long = "resource")]
+    pub resource: Vec<String>,
     /// A UUID. A repeat of the request with the same `--request-id` within a
     /// day returns the binding the first request created, as it is now,
     /// instead of being refused as a conflict. One is generated when not given.
@@ -1260,6 +1303,7 @@ async fn create_role_binding(
         role,
         project,
         service_account,
+        resources: args.resource.clone(),
         ..::core::default::Default::default()
     };
     let request = ::origincloud_iam::v1beta1::CreateRoleBindingRequest {
