@@ -1081,7 +1081,7 @@ async fn list_role_bindings(
             Listing {
                 field: "roleBindings",
                 item: Some("origincloud.iam.v1beta1.RoleBinding"),
-                columns: &["name", "member", "role", "project", "createTime"],
+                columns: &["name", "member", "role", "state", "project", "createTime"],
                 parents: listed,
                 create: Some("origin iam create-role-binding"),
             },
@@ -1107,7 +1107,7 @@ async fn list_role_bindings(
         Listing {
             field: "roleBindings",
             item: Some("origincloud.iam.v1beta1.RoleBinding"),
-            columns: &["name", "member", "role", "project", "createTime"],
+            columns: &["name", "member", "role", "state", "project", "createTime"],
             parents: listed,
             create: Some("origin iam create-role-binding"),
         },
