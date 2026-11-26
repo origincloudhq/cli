@@ -245,28 +245,43 @@ v2                   ERROR    16         gp1
 async fn role_bindings_are_listed_by_member_and_role() {
     const BINDINGS: &str = r#"{"roleBindings":[
         {"name":"organizations/o/roleBindings/rb-1","urn":"urn:origin:cloud:iam::o::roleBinding/rb-1",
-         "member":"user:ada@example.com","role":"roles/owner","creator":"platform"},
+         "member":"user:ada@example.com","role":"roles/owner","creator":"platform",
+         "state":"PENDING"},
         {"name":"organizations/o/roleBindings/rb-2","member":"serviceAccount:sa-1",
-         "role":"roles/viewer","project":"projects/p1","creator":"user:ada@example.com"}]}"#;
+         "role":"roles/viewer","project":"projects/p1","creator":"user:ada@example.com",
+         "state":"ACTIVE"}]}"#;
     let server = recording(|_| Response::json(BINDINGS)).await;
+    let args = ["list-role-bindings", "--organization", "-"];
     let table = server
-        .run(
-            "iam",
-            &["list-role-bindings", "--organization", "-", "-o", "table"],
-        )
+        .run("iam", &[&args[..], &["-o", "table"]].concat())
         .await;
     assert_eq!(
         text(&table.stdout),
         "\
-NAME   MEMBER                 ROLE     PROJECT   CREATE TIME
-rb-1   user:ada@example.com   owner
-rb-2   serviceAccount:sa-1    viewer   p1
+NAME   MEMBER                 ROLE     STATE     PROJECT   CREATE TIME
+rb-1   user:ada@example.com   owner    PENDING
+rb-2   serviceAccount:sa-1    viewer   ACTIVE    p1
 "
     );
     assert_eq!(
         server.requests()[0].path,
         "/v1beta1/organizations/-/roleBindings"
     );
+
+    // A binding granted to an email address with no account yet says so in
+    // `json` too, through the SDK's decoding of the response.
+    let json = stdout(
+        &server
+            .run("iam", &[&args[..], &["-o", "json"]].concat())
+            .await,
+    );
+    let states: Vec<&str> = json["roleBindings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| b["state"].as_str().unwrap_or_default())
+        .collect();
+    assert_eq!(states, ["PENDING", "ACTIVE"]);
 }
 
 /// Service accounts are listed with the member a role binding names them

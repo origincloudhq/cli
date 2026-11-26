@@ -608,7 +608,7 @@ columns = ["name", "display_name", "state", "create_time"]
 [[view]]
 service = "iam"
 message = "RoleBinding"
-columns = ["name", "member", "role", "project", "create_time"]
+columns = ["name", "member", "role", "state", "project", "create_time"]
 
 [[view]]
 service = "iam"
