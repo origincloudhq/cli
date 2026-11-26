@@ -1452,3 +1452,79 @@ async fn a_role_binding_is_limited_to_a_list_of_resources() {
     let asked: serde_json::Value = serde_json::from_slice(&requests[2].body).unwrap();
     assert_eq!(asked["fullResourceName"], DB, "{asked}");
 }
+
+/// `update-role-binding` replaces a binding's list of resources whole:
+/// `--resource`, repeated, is the new list, and `--no-resources` empties it,
+/// which widens the binding to its whole scope. Either way the mask is
+/// `resources`, the one field a binding can change. Without either, or with
+/// both, nothing is sent.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_update_replaces_a_role_binding_s_resources() {
+    const DB: &str =
+        "//secretmanager.origincloudapis.eu/projects/p1/regions/eu-central1/secrets/billing-db";
+    const STRIPE: &str =
+        "//secretmanager.origincloudapis.eu/projects/p1/regions/eu-central1/secrets/billing-stripe";
+    let server = recording(|request: &Received| {
+        let sent: serde_json::Value =
+            serde_json::from_slice(&request.body).unwrap_or(serde_json::Value::Null);
+        Response::json(
+            serde_json::json!({
+                "name": "organizations/o/roleBindings/rb-1",
+                "member": "//iam.origincloudapis.eu/organizations/o/serviceAccounts/sa-2",
+                "role": "roles/secretmanager.secretAccessor",
+                "project": "projects/p1",
+                "resources": sent.get("resources").cloned().unwrap_or(serde_json::json!([])),
+                "state": "ACTIVE",
+            })
+            .to_string(),
+        )
+    })
+    .await;
+    let update = [
+        "update-role-binding",
+        "--organization",
+        "o",
+        "--role-binding",
+        "rb-1",
+    ];
+
+    for wrong in [
+        &update[..],
+        &[&update[..], &["--resource", DB, "--no-resources"]].concat(),
+    ] {
+        let output = server.run("iam", wrong).await;
+        assert_eq!(output.status.code(), Some(2), "{wrong:?}");
+    }
+    assert!(server.requests().is_empty());
+
+    let updated = success(
+        &server
+            .run(
+                "iam",
+                &[&update[..], &["--resource", DB, "--resource", STRIPE]].concat(),
+            )
+            .await,
+    );
+    assert_eq!(updated["resources"], serde_json::json!([DB, STRIPE]));
+    success(
+        &server
+            .run("iam", &[&update[..], &["--no-resources"]].concat())
+            .await,
+    );
+
+    let requests = server.requests();
+    for request in &requests {
+        assert_eq!(request.method, "PATCH");
+        assert_eq!(request.path, "/v1beta1/organizations/o/roleBindings/rb-1");
+        assert_eq!(request.query_values("updateMask"), ["resources"]);
+    }
+    let replaced: serde_json::Value = serde_json::from_slice(&requests[0].body).unwrap();
+    assert_eq!(replaced["resources"], serde_json::json!([DB, STRIPE]));
+    let emptied: serde_json::Value = serde_json::from_slice(&requests[1].body).unwrap();
+    assert!(
+        emptied
+            .get("resources")
+            .is_none_or(|r| r.as_array().is_some_and(Vec::is_empty)),
+        "{emptied}"
+    );
+}
