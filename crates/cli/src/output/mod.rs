@@ -588,7 +588,8 @@ mod tests {
         );
         assert_eq!(
             printed(OutputFormat::Table, &page).0,
-            "NAME   STATE    SIZE GIB   STORAGE CLASS   ATTACHMENT\nv1     IN_USE   10         gp1\n"
+            "NAME   ORIGIN:NAME   STATE    SIZE GIB   STORAGE CLASS   ATTACHMENT\n\
+             v1                   IN_USE   10         gp1\n"
         );
     }
 

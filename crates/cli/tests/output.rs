@@ -212,9 +212,9 @@ async fn a_list_shows_its_view_s_columns_and_wide_the_rest() {
     assert_eq!(
         text(&table.stdout),
         "\
-NAME   STATE    SIZE GIB   STORAGE CLASS   RESIZE STATE
-v1     IN_USE   8          gp1
-v2     ERROR    16         gp1
+NAME   ORIGIN:NAME   STATE    SIZE GIB   STORAGE CLASS   RESIZE STATE
+v1                   IN_USE   8          gp1
+v2                   ERROR    16         gp1
 "
     );
 
@@ -223,7 +223,9 @@ v2     ERROR    16         gp1
     let header = wide.lines().next().unwrap();
     // The view's columns first, then the fields the default leaves out.
     assert!(
-        header.starts_with("NAME   STATE    SIZE GIB   STORAGE CLASS   RESIZE STATE   "),
+        header.starts_with(
+            "NAME   ORIGIN:NAME   STATE    SIZE GIB   STORAGE CLASS   RESIZE STATE   "
+        ),
         "{header}"
     );
     assert!(
@@ -502,7 +504,7 @@ async fn hosted_zones_are_listed_by_domain_visibility_and_state() {
         {{"name":"projects/p/hostedZones/z-1","dnsName":"example.com","visibility":"PUBLIC",
          "state":"ACTIVE","nameServers":["ns1.origincloud.eu","ns2.origincloud.eu"],
          "challenge":{{"name":"_origin-challenge.example.com","value":"abc"}},
-         "createTime":"{}","tags":{{"env":"prod"}}}},
+         "createTime":"{}","tags":{{"env":"prod","origin:name":"shop"}}}},
         {{"name":"projects/p/hostedZones/z-2","dnsName":"corp","visibility":"PRIVATE",
          "state":"ACTIVE","createTime":"{}"}}]}}"#,
         ago(120),
@@ -512,9 +514,9 @@ async fn hosted_zones_are_listed_by_domain_visibility_and_state() {
     assert_eq!(
         table,
         "\
-NAME   DNS NAME      VISIBILITY   STATE    CREATE TIME
-z-1    example.com   PUBLIC       ACTIVE   5d ago
-z-2    corp          PRIVATE      ACTIVE   3h ago
+NAME   ORIGIN:NAME   DNS NAME      VISIBILITY   STATE    CREATE TIME
+z-1    shop          example.com   PUBLIC       ACTIVE   5d ago
+z-2                  corp          PRIVATE      ACTIVE   3h ago
 "
     );
     assert!(wide.contains("NAME SERVERS"), "{wide}");
