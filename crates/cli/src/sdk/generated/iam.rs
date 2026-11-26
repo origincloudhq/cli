@@ -107,6 +107,12 @@ pub enum Commands {
     )]
     DeleteRoleBinding(DeleteRoleBindingArgs),
     #[command(
+        name = "update-role-binding",
+        about = "Replaces the list of resources a binding is limited to, and answers with the binding as it is now",
+        long_about = "Replaces the list of resources a binding is limited to, and answers with the binding as it is now. `updateMask` must be `--resource`: no other field of a binding can change. The new list replaces the old one at once: the member keeps the role on every entry in both throughout, gains it on the entries added and loses it on those removed. An empty list widens the binding to its whole scope. The new list is checked as on CreateRoleBinding, and refused with `BAD_REQUEST` for the same entries.\n\nNeeds `iam.role.assign` on the organization, and every permission of the role on each resource of the new list and of the old one, as CreateRoleBinding and DeleteRoleBinding need: a permission held on the binding's scope counts, and so does one held through a binding that lists the resource; for a binding on its whole scope, only one held on that scope counts. Refused with `NOT_FOUND` when the organization has no such binding, and with `BAD_REQUEST` when `updateMask` is empty or names another field, and for a pending binding, which is on the whole organization until it is active. Recorded in the audit log, naming the entries added and removed, unless the list stayed the same. Repeated under its `--request-id`, the call answers with the binding as it is now and changes nothing."
+    )]
+    UpdateRoleBinding(UpdateRoleBindingArgs),
+    #[command(
         name = "get-service-account",
         about = "Returns a service account, deleted or not",
         long_about = "Returns a service account, deleted or not. Needs `iam.service_account.list` on the organization."
@@ -202,6 +208,7 @@ pub async fn run(
         Commands::ListRoleBindings(args) => list_role_bindings(ctx, args).await,
         Commands::CreateRoleBinding(args) => create_role_binding(ctx, args).await,
         Commands::DeleteRoleBinding(args) => delete_role_binding(ctx, args).await,
+        Commands::UpdateRoleBinding(args) => update_role_binding(ctx, args).await,
         Commands::GetServiceAccount(args) => get_service_account(ctx, args).await,
         Commands::ListServiceAccounts(args) => list_service_accounts(ctx, args).await,
         Commands::CreateServiceAccount(args) => create_service_account(ctx, args).await,
@@ -1258,6 +1265,7 @@ pub struct CreateRoleBindingArgs {
     /// listed. Never set together with `--service-account`, nor on a pending
     /// binding. A resource deleted after the binding was created stays listed,
     /// and the binding covers a resource created later under the same name.
+    /// The one field UpdateRoleBinding changes.
     ///
     /// Repeat for more.
     #[arg(long = "resource")]
@@ -1397,6 +1405,105 @@ async fn call_delete_role_binding(
 > {
     ::origincloud_iam::v1beta1::RoleBindingClient::new(client.sdk())
         .delete_role_binding(request)
+        .await
+}
+/// The flags of `update-role-binding`.
+#[derive(clap::Args, Debug)]
+#[command(
+    group(
+        clap::ArgGroup::new(
+            "changes"
+        ).required(true).multiple(true).args(["resource", "no_resources"])
+    )
+)]
+pub struct UpdateRoleBindingArgs {
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--role-binding` is given a whole name, which has it.
+    #[arg(long = "organization", value_name = "ORGANIZATION")]
+    pub organization: Option<String>,
+    /// The role binding to change.
+    ///
+    /// Its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/roleBindings/{role_binding}`, or its relative name, `organizations/{organization}/roleBindings/{role_binding}`.
+    #[arg(long = "role-binding", value_name = "ROLE_BINDING")]
+    pub role_binding: String,
+    /// The full names of the resources the binding is limited to within its
+    /// organization or project, such as
+    /// `//secretmanager.origincloudapis.eu/projects/{project}/regions/{region}/secrets/{secret}`,
+    /// in name order; at most 100. The binding grants its role on these
+    /// resources alone, and nothing on the rest of its scope or on the
+    /// organization or the project itself. Empty for a binding on its whole
+    /// scope. Each entry must be a resource of the binding's organization, in
+    /// the binding's project if `project` is set, of a kind that can be
+    /// listed. Never set together with `serviceAccount`, nor on a pending
+    /// binding. A resource deleted after the binding was created stays listed,
+    /// and the binding covers a resource created later under the same name.
+    /// The one field UpdateRoleBinding changes.
+    ///
+    /// Repeat for more. Replaces all of them, so give every one to keep; `--no-resources` removes them all. Left as they are when neither is given.
+    #[arg(long = "resource")]
+    pub resource: Vec<String>,
+    /// Remove all of its resources.
+    #[arg(long = "no-resources", conflicts_with = "resource")]
+    pub no_resources: bool,
+    /// A UUID. A repeat of the request with the same `--request-id` within a
+    /// day answers with the binding as it is now, instead of changing it
+    /// again. One is generated when not given.
+    #[arg(long = "request-id")]
+    pub request_id: Option<String>,
+}
+async fn update_role_binding(
+    ctx: &Context<'_>,
+    args: UpdateRoleBindingArgs,
+) -> anyhow::Result<Box<dyn SerializableOutput>> {
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
+    names
+        .learn(
+            &["organizations/{organization}/roleBindings/{role_binding}"],
+            &["iam"],
+            "role-binding",
+            Some(args.role_binding.as_str()),
+        )?;
+    let name = names
+        .target(
+            &["organizations/{organization}/roleBindings/{role_binding}"],
+            &["iam"],
+            "role-binding",
+            args.role_binding.as_str(),
+        )?;
+    let mut role_binding = ::origincloud_iam::v1beta1::RoleBinding {
+        name: name.clone(),
+        ..::core::default::Default::default()
+    };
+    let mut paths: Vec<String> = Vec::new();
+    if args.no_resources || !args.resource.is_empty() {
+        role_binding.resources = args.resource.clone();
+        paths.push("resources".to_owned());
+    }
+    let request = ::origincloud_iam::v1beta1::UpdateRoleBindingRequest {
+        role_binding: Some(role_binding),
+        request_id: args.request_id.clone().unwrap_or_default(),
+        update_mask: Some(::origincloud_core::protobuf::FieldMask {
+            paths,
+        }),
+    };
+    let client = ctx.client()?;
+    let response = call_update_role_binding(&client, request).await.map_err(api_error)?;
+    json(&response, "origincloud.iam.v1beta1.RoleBinding")
+}
+async fn call_update_role_binding(
+    client: &ReadClient,
+    request: ::origincloud_iam::v1beta1::UpdateRoleBindingRequest,
+) -> ::core::result::Result<
+    ::origincloud_iam::v1beta1::RoleBinding,
+    ::origincloud_core::Error,
+> {
+    ::origincloud_iam::v1beta1::RoleBindingClient::new(client.sdk())
+        .update_role_binding(request)
         .await
 }
 /// The flags of `get-service-account`.
