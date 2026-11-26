@@ -148,7 +148,7 @@ pub(crate) fn service(
 /// The flags of `get-hosted-zone`.
 #[derive(clap::Args, Debug)]
 pub struct GetHostedZoneArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to return.
@@ -162,6 +162,7 @@ async fn get_hosted_zone(
     args: GetHostedZoneArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/hostedZones/{hosted_zone}"],
@@ -197,7 +198,7 @@ async fn call_get_hosted_zone(
 /// The flags of `list-hosted-zones`.
 #[derive(clap::Args, Debug)]
 pub struct ListHostedZonesArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The most zones to return; the server clamps it, and 0 means its
@@ -220,7 +221,8 @@ async fn list_hosted_zones(
     ctx: &Context<'_>,
     args: ListHostedZonesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("project", args.project.as_deref())]);
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}")?;
     let request = ::origincloud_dns::v1beta1::ListHostedZonesRequest {
         parent,
@@ -283,7 +285,7 @@ async fn call_list_hosted_zones(
 /// The flags of `create-hosted-zone`.
 #[derive(clap::Args, Debug)]
 pub struct CreateHostedZoneArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The domain, such as `example.com`, without the final dot; answered in
@@ -315,7 +317,8 @@ async fn create_hosted_zone(
     ctx: &Context<'_>,
     args: CreateHostedZoneArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("project", args.project.as_deref())]);
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}")?;
     let hosted_zone = ::origincloud_dns::v1beta1::HostedZone {
         dns_name: args.dns_name.clone(),
@@ -356,7 +359,7 @@ async fn call_create_hosted_zone(
     )
 )]
 pub struct UpdateHostedZoneArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The hosted zone to change.
@@ -383,6 +386,7 @@ async fn update_hosted_zone(
     args: UpdateHostedZoneArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/hostedZones/{hosted_zone}"],
@@ -431,7 +435,7 @@ async fn call_update_hosted_zone(
 /// The flags of `delete-hosted-zone`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteHostedZoneArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone to delete.
@@ -451,6 +455,7 @@ async fn delete_hosted_zone(
     args: DeleteHostedZoneArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/hostedZones/{hosted_zone}"],
@@ -498,7 +503,7 @@ async fn call_delete_hosted_zone(
 /// The flags of `verify-hosted-zone`.
 #[derive(clap::Args, Debug)]
 pub struct VerifyHostedZoneArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The public zone to verify.
@@ -512,6 +517,7 @@ async fn verify_hosted_zone(
     args: VerifyHostedZoneArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/hostedZones/{hosted_zone}"],
@@ -547,7 +553,7 @@ async fn call_verify_hosted_zone(
 /// The flags of `get-record-set`.
 #[derive(clap::Args, Debug)]
 pub struct GetRecordSetArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`. Needed unless `--record-set` is given a whole name, which has it.
@@ -570,6 +576,7 @@ async fn get_record_set(
                 ("hosted_zone", args.hosted_zone.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/hostedZones/{hosted_zone}",
@@ -611,7 +618,7 @@ async fn call_get_record_set(
 /// The flags of `list-record-sets`.
 #[derive(clap::Args, Debug)]
 pub struct ListRecordSetsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
@@ -656,6 +663,7 @@ async fn list_record_sets(
                 ("hosted_zone", args.hosted_zone.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/hostedZones/{hosted_zone}",
@@ -750,7 +758,7 @@ async fn call_list_record_sets(
     )
 )]
 pub struct CreateRecordSetArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
@@ -828,6 +836,7 @@ async fn create_record_set(
                 ("hosted_zone", args.hosted_zone.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/hostedZones/{hosted_zone}",
@@ -908,7 +917,7 @@ async fn call_create_record_set(
     )
 )]
 pub struct UpdateRecordSetArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`. Needed unless `--record-set` is given a whole name, which has it.
@@ -974,6 +983,7 @@ async fn update_record_set(
                 ("hosted_zone", args.hosted_zone.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/hostedZones/{hosted_zone}",
@@ -1071,7 +1081,7 @@ async fn call_update_record_set(
 /// The flags of `delete-record-set`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteRecordSetArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`. Needed unless `--record-set` is given a whole name, which has it.
@@ -1100,6 +1110,7 @@ async fn delete_record_set(
                 ("hosted_zone", args.hosted_zone.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/hostedZones/{hosted_zone}",
@@ -1153,7 +1164,7 @@ async fn call_delete_record_set(
 /// The flags of `batch-change-record-sets`.
 #[derive(clap::Args, Debug)]
 pub struct BatchChangeRecordSetsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
@@ -1205,6 +1216,7 @@ async fn batch_change_record_sets(
                 ("hosted_zone", args.hosted_zone.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/hostedZones/{hosted_zone}",
@@ -1257,7 +1269,7 @@ async fn call_batch_change_record_sets(
 /// The flags of `get-vpc-attachment`.
 #[derive(clap::Args, Debug)]
 pub struct GetVpcAttachmentArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`. Needed unless `--vpc-attachment` is given a whole name, which has it.
@@ -1280,6 +1292,7 @@ async fn get_vpc_attachment(
                 ("hosted_zone", args.hosted_zone.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/hostedZones/{hosted_zone}",
@@ -1325,7 +1338,7 @@ async fn call_get_vpc_attachment(
 /// The flags of `list-vpc-attachments`.
 #[derive(clap::Args, Debug)]
 pub struct ListVpcAttachmentsArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
@@ -1360,6 +1373,7 @@ async fn list_vpc_attachments(
                 ("hosted_zone", args.hosted_zone.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/hostedZones/{hosted_zone}",
@@ -1439,7 +1453,7 @@ async fn call_list_vpc_attachments(
 /// The flags of `create-vpc-attachment`.
 #[derive(clap::Args, Debug)]
 pub struct CreateVpcAttachmentArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`.
@@ -1467,6 +1481,7 @@ async fn create_vpc_attachment(
                 ("hosted_zone", args.hosted_zone.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/hostedZones/{hosted_zone}",
@@ -1509,7 +1524,7 @@ async fn call_create_vpc_attachment(
 /// The flags of `delete-vpc-attachment`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteVpcAttachmentArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The hosted zone: its id, completed with `--project`, or its full name, `//dns.origincloudapis.eu/projects/{project}/hostedZones/{hosted_zone}`, or its relative name, `projects/{project}/hostedZones/{hosted_zone}`. Needed unless `--vpc-attachment` is given a whole name, which has it.
@@ -1538,6 +1553,7 @@ async fn delete_vpc_attachment(
                 ("hosted_zone", args.hosted_zone.as_deref()),
             ],
         );
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn_part(
             "projects/{project}/hostedZones/{hosted_zone}",

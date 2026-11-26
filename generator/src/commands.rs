@@ -818,10 +818,24 @@ fn full_form(service: &str, pattern: &str) -> String {
     format!("//{service}.origincloudapis.eu/{pattern}")
 }
 
-/// The name parts that stay ids, shorthand for the command's own target
-/// and never whole names: a parent's flag, such as `--security-group`,
-/// takes a whole name as well.
+/// The name parts that are shorthand for the command's own target, ids
+/// whose resource isn't the target's service's: a parent's flag, such as
+/// `--security-group`, takes a whole name of the pattern up to it as well.
+/// One of them that is a resource of its own at the root of the pattern,
+/// such as `organizations/{organization}`, takes that resource's whole
+/// name, on its service's host, as well; the others, such as the zone of
+/// `projects/{project}/zones/{zone}`, stay ids.
 const SHORTHAND: [&str; 4] = ["project", "zone", "region", "organization"];
+
+/// The service of each resource whose name is one part at the root of a
+/// pattern, by the pattern: `resourcemanager` for `projects/{project}`.
+fn root_resources(resources: &BTreeMap<String, Resource>) -> BTreeMap<String, String> {
+    resources
+        .values()
+        .filter(|r| variables(&r.pattern).len() == 1 && r.pattern.split('/').count() == 2)
+        .map(|r| (r.pattern.clone(), r.services[0].clone()))
+        .collect()
+}
 
 fn resources(pool: &DescriptorPool) -> BTreeMap<String, Resource> {
     let mut out = BTreeMap::new();
@@ -1610,6 +1624,9 @@ struct Build {
     /// service it is of: `projects/{project}/regions/{region}/securityGroups/{security_group}`
     /// for `security_group`. Such a flag takes a whole name of it.
     parents: BTreeMap<String, (String, String)>,
+    /// [`root_resources`]: the shorthand parts that take a whole name of
+    /// their own resource.
+    roots: BTreeMap<String, String>,
     /// Statements learning name parts from whole names given.
     learn: Vec<String>,
     /// Statements before the request.
@@ -1653,14 +1670,22 @@ impl Build {
             if !self.components.iter().any(|c| c == var) {
                 self.components.push(var.to_owned());
             }
-            if !SHORTHAND.contains(&var) && !self.parents.contains_key(var) {
-                let prefix = segments[..=i].join("/");
-                for before in variables(&prefix).into_iter().filter(|v| v != var) {
-                    self.gives(&before, &var.to_kebab_case());
-                }
-                self.parents
-                    .insert(var.to_owned(), (prefix, service.to_owned()));
+            if self.parents.contains_key(var) {
+                continue;
             }
+            let prefix = segments[..=i].join("/");
+            if SHORTHAND.contains(&var) {
+                if let Some(owner) = self.roots.get(&prefix) {
+                    let owner = owner.clone();
+                    self.parents.insert(var.to_owned(), (prefix, owner));
+                }
+                continue;
+            }
+            for before in variables(&prefix).into_iter().filter(|v| v != var) {
+                self.gives(&before, &var.to_kebab_case());
+            }
+            self.parents
+                .insert(var.to_owned(), (prefix, service.to_owned()));
         }
     }
 
@@ -1827,6 +1852,21 @@ fn parent_doc(var: &str, pattern: &str, service: &str) -> String {
     )
 }
 
+/// The help of a shorthand part that is a resource of its own at the root
+/// of the pattern, `pattern`, of `service`: [`component_doc`]'s, with the
+/// whole names it takes as well.
+fn root_doc(var: &str, pattern: &str, service: &str) -> String {
+    let forms = format!(
+        "Its id, or its full name, `{}`, or its relative name, `{pattern}`.",
+        full_form(service, pattern)
+    );
+    match component_doc(var).split_once(". ") {
+        // The example, the forms, then where it comes from when not given.
+        Some((example, defaults)) => format!("{example}. {forms} {defaults}"),
+        None => format!("The {}. {forms}", var.replace('_', " ")),
+    }
+}
+
 fn leaf_of(pattern: &str) -> String {
     variables(pattern).pop().unwrap_or_default()
 }
@@ -1888,7 +1928,10 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         text
     };
 
-    let mut b = Build::default();
+    let mut b = Build {
+        roots: root_resources(&cx.resources),
+        ..Build::default()
+    };
     // The kind of resource the command acts on, and the expression of its
     // name, for a refusal.
     let mut target: Option<(String, String)> = None;
@@ -2603,6 +2646,9 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                 .to_owned()
         } else {
             let own = match b.parents.get(var) {
+                Some((pattern, service)) if SHORTHAND.contains(&var.as_str()) => {
+                    root_doc(var, pattern, service)
+                }
                 Some((pattern, service)) => parent_doc(var, pattern, service),
                 None => component_doc(var),
             };

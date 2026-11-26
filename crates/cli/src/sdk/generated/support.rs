@@ -90,7 +90,7 @@ pub(crate) fn service(
 /// The flags of `get-case`.
 #[derive(clap::Args, Debug)]
 pub struct GetCaseArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--case` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--case` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The case to return.
@@ -104,6 +104,12 @@ async fn get_case(
     args: GetCaseArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/cases/{case}"],
@@ -137,7 +143,7 @@ async fn call_get_case(
 /// The flags of `list-cases`.
 #[derive(clap::Args, Debug)]
 pub struct ListCasesArgs {
-    /// The `{organization}` part of the resource names the command builds.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
     /// The most cases to return; the server clamps it, and 0 means its
@@ -156,7 +162,13 @@ async fn list_cases(
     ctx: &Context<'_>,
     args: ListCasesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("organization", args.organization.as_deref())]);
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     let parent = names.name("organizations/{organization}")?;
     let request = ::origincloud_support::v1beta1::ListCasesRequest {
         parent,
@@ -230,7 +242,7 @@ async fn call_list_cases(
 /// The flags of `create-case`.
 #[derive(clap::Args, Debug)]
 pub struct CreateCaseArgs {
-    /// The `{organization}` part of the resource names the command builds.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
     /// The full name of the project the case is about, one of the
@@ -260,7 +272,13 @@ async fn create_case(
     ctx: &Context<'_>,
     args: CreateCaseArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("organization", args.organization.as_deref())]);
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     let parent = names.name("organizations/{organization}")?;
     let project = match args.project.as_deref() {
         Some(v) => {
@@ -298,7 +316,7 @@ async fn call_create_case(
 /// The flags of `close-case`.
 #[derive(clap::Args, Debug)]
 pub struct CloseCaseArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--case` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--case` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The case to close.
@@ -312,6 +330,12 @@ async fn close_case(
     args: CloseCaseArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/cases/{case}"],
@@ -347,7 +371,7 @@ async fn call_close_case(
 /// The flags of `reopen-case`.
 #[derive(clap::Args, Debug)]
 pub struct ReopenCaseArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--case` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--case` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The case to open again.
@@ -361,6 +385,12 @@ async fn reopen_case(
     args: ReopenCaseArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/cases/{case}"],
@@ -396,7 +426,7 @@ async fn call_reopen_case(
 /// The flags of `get-case-message`.
 #[derive(clap::Args, Debug)]
 pub struct GetCaseMessageArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--case` or `--message` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--case` or `--message` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The case: its id, completed with `--organization`, or its full name, `//support.origincloudapis.eu/organizations/{organization}/cases/{case}`, or its relative name, `organizations/{organization}/cases/{case}`. Needed unless `--message` is given a whole name, which has it.
@@ -419,6 +449,12 @@ async fn get_case_message(
                 ("case", args.case.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names.learn_part("organizations/{organization}/cases/{case}", &["support"], "case")?;
     names
         .learn(
@@ -455,7 +491,7 @@ async fn call_get_case_message(
 /// The flags of `list-case-messages`.
 #[derive(clap::Args, Debug)]
 pub struct ListCaseMessagesArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--case` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--case` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The case: its id, completed with `--organization`, or its full name, `//support.origincloudapis.eu/organizations/{organization}/cases/{case}`, or its relative name, `organizations/{organization}/cases/{case}`.
@@ -484,6 +520,12 @@ async fn list_case_messages(
                 ("case", args.case.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names.learn_part("organizations/{organization}/cases/{case}", &["support"], "case")?;
     let parent = names.name("organizations/{organization}/cases/{case}")?;
     let request = ::origincloud_support::v1beta1::ListCaseMessagesRequest {
@@ -546,7 +588,7 @@ async fn call_list_case_messages(
 /// The flags of `create-case-message`.
 #[derive(clap::Args, Debug)]
 pub struct CreateCaseMessageArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--case` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--case` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The case: its id, completed with `--organization`, or its full name, `//support.origincloudapis.eu/organizations/{organization}/cases/{case}`, or its relative name, `organizations/{organization}/cases/{case}`.
@@ -571,6 +613,12 @@ async fn create_case_message(
                 ("case", args.case.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names.learn_part("organizations/{organization}/cases/{case}", &["support"], "case")?;
     let parent = names.name("organizations/{organization}/cases/{case}")?;
     let case_message = ::origincloud_support::v1beta1::CaseMessage {

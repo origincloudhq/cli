@@ -241,7 +241,7 @@ pub(crate) fn service(
 /// The flags of `get-billing-account`.
 #[derive(clap::Args, Debug)]
 pub struct GetBillingAccountArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--billing-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The billing account to return.
@@ -255,6 +255,12 @@ async fn get_billing_account(
     args: GetBillingAccountArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
@@ -290,7 +296,7 @@ async fn call_get_billing_account(
 /// The flags of `list-billing-accounts`.
 #[derive(clap::Args, Debug)]
 pub struct ListBillingAccountsArgs {
-    /// The `{organization}` part of the resource names the command builds.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
     /// The most billing accounts to return; the server clamps it, and 0 means
@@ -309,7 +315,13 @@ async fn list_billing_accounts(
     ctx: &Context<'_>,
     args: ListBillingAccountsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("organization", args.organization.as_deref())]);
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     let parent = names.name("organizations/{organization}")?;
     let request = ::origincloud_billing::v1beta1::ListBillingAccountsRequest {
         parent,
@@ -379,7 +391,7 @@ async fn call_list_billing_accounts(
 /// The flags of `create-billing-account`.
 #[derive(clap::Args, Debug)]
 pub struct CreateBillingAccountArgs {
-    /// The `{organization}` part of the resource names the command builds.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
     /// The name the console and spend-limit alerts show. Not empty. An
@@ -465,7 +477,13 @@ async fn create_billing_account(
     ctx: &Context<'_>,
     args: CreateBillingAccountArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("organization", args.organization.as_deref())]);
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     let parent = names.name("organizations/{organization}")?;
     let billing_address = match args.billing_address_json {
         Some(json) => Some(json.0),
@@ -546,7 +564,7 @@ async fn call_create_billing_account(
     )
 )]
 pub struct UpdateBillingAccountArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--billing-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The billing account to change.
@@ -614,6 +632,12 @@ async fn update_billing_account(
     args: UpdateBillingAccountArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
@@ -704,7 +728,7 @@ async fn call_update_billing_account(
 /// The flags of `delete-billing-account`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteBillingAccountArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--billing-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The billing account to delete.
@@ -720,6 +744,12 @@ async fn delete_billing_account(
     args: DeleteBillingAccountArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
@@ -768,7 +798,7 @@ async fn call_delete_billing_account(
 /// The flags of `start-payment-method-setup`.
 #[derive(clap::Args, Debug)]
 pub struct StartPaymentMethodSetupArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--billing-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The billing account to add a payment method to.
@@ -782,6 +812,12 @@ async fn start_payment_method_setup(
     args: StartPaymentMethodSetupArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
@@ -819,7 +855,7 @@ async fn call_start_payment_method_setup(
 /// The flags of `confirm-payment-method-setup`.
 #[derive(clap::Args, Debug)]
 pub struct ConfirmPaymentMethodSetupArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--billing-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The billing account whose setup to complete.
@@ -833,6 +869,12 @@ async fn confirm_payment_method_setup(
     args: ConfirmPaymentMethodSetupArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
@@ -999,7 +1041,7 @@ async fn call_update_project_billing_info(
 /// The flags of `list-project-billing-info`.
 #[derive(clap::Args, Debug)]
 pub struct ListProjectBillingInfoArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--billing-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The billing account whose projects to list.
@@ -1024,6 +1066,12 @@ async fn list_project_billing_info(
     args: ListProjectBillingInfoArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
@@ -1553,7 +1601,7 @@ async fn call_query_project_usage(
 /// The flags of `list-legal-acceptances`.
 #[derive(clap::Args, Debug)]
 pub struct ListLegalAcceptancesArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--billing-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The billing account: its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`.
@@ -1582,6 +1630,12 @@ async fn list_legal_acceptances(
                 ("billing_account", args.billing_account.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn_part(
             "organizations/{organization}/billingAccounts/{billing_account}",
@@ -1652,7 +1706,7 @@ async fn call_list_legal_acceptances(
 /// The flags of `get-legal-acceptance`.
 #[derive(clap::Args, Debug)]
 pub struct GetLegalAcceptanceArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` or `--legal-acceptance` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--billing-account` or `--legal-acceptance` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The billing account: its id, completed with `--organization`, or its full name, `//billing.origincloudapis.eu/organizations/{organization}/billingAccounts/{billing_account}`, or its relative name, `organizations/{organization}/billingAccounts/{billing_account}`. Needed unless `--legal-acceptance` is given a whole name, which has it.
@@ -1675,6 +1729,12 @@ async fn get_legal_acceptance(
                 ("billing_account", args.billing_account.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn_part(
             "organizations/{organization}/billingAccounts/{billing_account}",
@@ -1720,7 +1780,7 @@ async fn call_get_legal_acceptance(
 /// The flags of `accept-legal-documents`.
 #[derive(clap::Args, Debug)]
 pub struct AcceptLegalDocumentsArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--billing-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The billing account that accepts,
@@ -1772,6 +1832,12 @@ async fn accept_legal_documents(
     args: AcceptLegalDocumentsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
@@ -1832,7 +1898,7 @@ async fn call_accept_legal_documents(
 /// The flags of `query-legal-requirements`.
 #[derive(clap::Args, Debug)]
 pub struct QueryLegalRequirementsArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--billing-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The billing account,
@@ -1847,6 +1913,12 @@ async fn query_legal_requirements(
     args: QueryLegalRequirementsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/billingAccounts/{billing_account}"],
@@ -2171,7 +2243,7 @@ async fn call_get_price_list(
 /// The flags of `get-spend-limit`.
 #[derive(clap::Args, Debug)]
 pub struct GetSpendLimitArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--billing-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The spend limit to return.
@@ -2185,6 +2257,12 @@ async fn get_spend_limit(
     args: GetSpendLimitArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &[
@@ -2242,7 +2320,7 @@ async fn call_get_spend_limit(
     )
 )]
 pub struct UpdateSpendLimitArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--billing-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--billing-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The spend limit to change.
@@ -2287,6 +2365,12 @@ async fn update_spend_limit(
     args: UpdateSpendLimitArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &[

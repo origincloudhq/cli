@@ -232,7 +232,7 @@ pub(crate) fn service(
 /// The flags of `get-audit-log-entry`.
 #[derive(clap::Args, Debug)]
 pub struct GetAuditLogEntryArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--audit-log-entry` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--audit-log-entry` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The entry to return.
@@ -246,6 +246,12 @@ async fn get_audit_log_entry(
     args: GetAuditLogEntryArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/auditLogEntries/{audit_log_entry}"],
@@ -281,7 +287,7 @@ async fn call_get_audit_log_entry(
 /// The flags of `list-audit-log-entries`.
 #[derive(clap::Args, Debug)]
 pub struct ListAuditLogEntriesArgs {
-    /// The `{organization}` part of the resource names the command builds.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
     /// Only the entries of changes limited to this project, by its full name,
@@ -315,7 +321,13 @@ async fn list_audit_log_entries(
     ctx: &Context<'_>,
     args: ListAuditLogEntriesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("organization", args.organization.as_deref())]);
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     let parent = names.name("organizations/{organization}")?;
     let project = match args.project.as_deref() {
         Some(v) => {
@@ -404,7 +416,7 @@ async fn call_list_audit_log_entries(
 /// The flags of `get-federated-credential`.
 #[derive(clap::Args, Debug)]
 pub struct GetFederatedCredentialArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` or `--federated-credential` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--service-account` or `--federated-credential` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`. Needed unless `--federated-credential` is given a whole name, which has it.
@@ -427,6 +439,12 @@ async fn get_federated_credential(
                 ("service_account", args.service_account.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn_part(
             "organizations/{organization}/serviceAccounts/{service_account}",
@@ -474,7 +492,7 @@ async fn call_get_federated_credential(
 /// The flags of `list-federated-credentials`.
 #[derive(clap::Args, Debug)]
 pub struct ListFederatedCredentialsArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--service-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`.
@@ -510,6 +528,12 @@ async fn list_federated_credentials(
                 ("service_account", args.service_account.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn_part(
             "organizations/{organization}/serviceAccounts/{service_account}",
@@ -581,7 +605,7 @@ async fn call_list_federated_credentials(
 /// The flags of `create-federated-credential`.
 #[derive(clap::Args, Debug)]
 pub struct CreateFederatedCredentialArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--service-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`.
@@ -627,6 +651,12 @@ async fn create_federated_credential(
         );
     names
         .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
+    names
+        .learn_part(
             "organizations/{organization}/serviceAccounts/{service_account}",
             &["iam"],
             "service_account",
@@ -665,7 +695,7 @@ async fn call_create_federated_credential(
 /// The flags of `delete-federated-credential`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteFederatedCredentialArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` or `--federated-credential` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--service-account` or `--federated-credential` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`. Needed unless `--federated-credential` is given a whole name, which has it.
@@ -690,6 +720,12 @@ async fn delete_federated_credential(
                 ("service_account", args.service_account.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn_part(
             "organizations/{organization}/serviceAccounts/{service_account}",
@@ -929,7 +965,7 @@ async fn call_list_roles(
 /// The flags of `get-role-binding`.
 #[derive(clap::Args, Debug)]
 pub struct GetRoleBindingArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--role-binding` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--role-binding` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The binding to return.
@@ -943,6 +979,12 @@ async fn get_role_binding(
     args: GetRoleBindingArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/roleBindings/{role_binding}"],
@@ -978,7 +1020,7 @@ async fn call_get_role_binding(
 /// The flags of `list-role-bindings`.
 #[derive(clap::Args, Debug)]
 pub struct ListRoleBindingsArgs {
-    /// The `{organization}` part of the resource names the command builds.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
     /// Only the bindings of this member, by its full name, as a binding's
@@ -1009,7 +1051,13 @@ async fn list_role_bindings(
     ctx: &Context<'_>,
     args: ListRoleBindingsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("organization", args.organization.as_deref())]);
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     let parent = names.name("organizations/{organization}")?;
     let project = match args.project.as_deref() {
         Some(v) => {
@@ -1079,7 +1127,7 @@ async fn call_list_role_bindings(
 /// The flags of `create-role-binding`.
 #[derive(clap::Args, Debug)]
 pub struct CreateRoleBindingArgs {
-    /// The `{organization}` part of the resource names the command builds.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
     /// The full name of who holds the role: a user,
@@ -1117,7 +1165,13 @@ async fn create_role_binding(
     ctx: &Context<'_>,
     args: CreateRoleBindingArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("organization", args.organization.as_deref())]);
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     let parent = names.name("organizations/{organization}")?;
     let role = reference(&["roles/{role}"], &["iam"], "--role", args.role.as_str())?;
     let project = match args.project.as_deref() {
@@ -1155,7 +1209,7 @@ async fn call_create_role_binding(
 /// The flags of `delete-role-binding`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteRoleBindingArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--role-binding` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--role-binding` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The binding to delete.
@@ -1175,6 +1229,12 @@ async fn delete_role_binding(
     args: DeleteRoleBindingArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/roleBindings/{role_binding}"],
@@ -1222,7 +1282,7 @@ async fn call_delete_role_binding(
 /// The flags of `get-service-account`.
 #[derive(clap::Args, Debug)]
 pub struct GetServiceAccountArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--service-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The service account to return.
@@ -1236,6 +1296,12 @@ async fn get_service_account(
     args: GetServiceAccountArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/serviceAccounts/{service_account}"],
@@ -1271,7 +1337,7 @@ async fn call_get_service_account(
 /// The flags of `list-service-accounts`.
 #[derive(clap::Args, Debug)]
 pub struct ListServiceAccountsArgs {
-    /// The `{organization}` part of the resource names the command builds.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
     /// The most service accounts to return; the server clamps it, and 0 means
@@ -1297,7 +1363,13 @@ async fn list_service_accounts(
     ctx: &Context<'_>,
     args: ListServiceAccountsArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("organization", args.organization.as_deref())]);
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     let parent = names.name("organizations/{organization}")?;
     let request = ::origincloud_iam::v1beta1::ListServiceAccountsRequest {
         parent,
@@ -1362,7 +1434,7 @@ async fn call_list_service_accounts(
 /// The flags of `create-service-account`.
 #[derive(clap::Args, Debug)]
 pub struct CreateServiceAccountArgs {
-    /// The `{organization}` part of the resource names the command builds.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`.
     #[arg(long = "organization", value_name = "ORGANIZATION", required = true)]
     pub organization: Option<String>,
     /// A name of your own, shown in the console; at most 100 characters.
@@ -1383,7 +1455,13 @@ async fn create_service_account(
     ctx: &Context<'_>,
     args: CreateServiceAccountArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx.names(&[("organization", args.organization.as_deref())]);
+    let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     let parent = names.name("organizations/{organization}")?;
     let service_account = ::origincloud_iam::v1beta1::ServiceAccount {
         display_name: args.display_name.clone(),
@@ -1419,7 +1497,7 @@ async fn call_create_service_account(
 /// The flags of `delete-service-account`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteServiceAccountArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--service-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The service account to delete.
@@ -1435,6 +1513,12 @@ async fn delete_service_account(
     args: DeleteServiceAccountArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx.names(&[("organization", args.organization.as_deref())]);
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn(
             &["organizations/{organization}/serviceAccounts/{service_account}"],
@@ -1483,7 +1567,7 @@ async fn call_delete_service_account(
 /// The flags of `get-service-account-key`.
 #[derive(clap::Args, Debug)]
 pub struct GetServiceAccountKeyArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` or `--key` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--service-account` or `--key` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`. Needed unless `--key` is given a whole name, which has it.
@@ -1506,6 +1590,12 @@ async fn get_service_account_key(
                 ("service_account", args.service_account.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn_part(
             "organizations/{organization}/serviceAccounts/{service_account}",
@@ -1553,7 +1643,7 @@ async fn call_get_service_account_key(
 /// The flags of `list-service-account-keys`.
 #[derive(clap::Args, Debug)]
 pub struct ListServiceAccountKeysArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--service-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`.
@@ -1589,6 +1679,12 @@ async fn list_service_account_keys(
                 ("service_account", args.service_account.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn_part(
             "organizations/{organization}/serviceAccounts/{service_account}",
@@ -1660,7 +1756,7 @@ async fn call_list_service_account_keys(
 /// The flags of `create-service-account-key`.
 #[derive(clap::Args, Debug)]
 pub struct CreateServiceAccountKeyArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--service-account` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`.
@@ -1692,6 +1788,12 @@ async fn create_service_account_key(
                 ("service_account", args.service_account.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn_part(
             "organizations/{organization}/serviceAccounts/{service_account}",
@@ -1740,7 +1842,7 @@ async fn call_create_service_account_key(
 /// The flags of `delete-service-account-key`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteServiceAccountKeyArgs {
-    /// The `{organization}` part of the resource names the command builds. Needed unless `--service-account` or `--key` is given a whole name, which has it.
+    /// The organization. Its id, or its full name, `//resourcemanager.origincloudapis.eu/organizations/{organization}`, or its relative name, `organizations/{organization}`. Needed unless `--service-account` or `--key` is given a whole name, which has it.
     #[arg(long = "organization", value_name = "ORGANIZATION")]
     pub organization: Option<String>,
     /// The service account: its id, completed with `--organization`, or its full name, `//iam.origincloudapis.eu/organizations/{organization}/serviceAccounts/{service_account}`, or its relative name, `organizations/{organization}/serviceAccounts/{service_account}`. Needed unless `--key` is given a whole name, which has it.
@@ -1765,6 +1867,12 @@ async fn delete_service_account_key(
                 ("service_account", args.service_account.as_deref()),
             ],
         );
+    names
+        .learn_part(
+            "organizations/{organization}",
+            &["resourcemanager"],
+            "organization",
+        )?;
     names
         .learn_part(
             "organizations/{organization}/serviceAccounts/{service_account}",

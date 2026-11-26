@@ -90,7 +90,7 @@ pub(crate) fn service(
 /// The flags of `get-firewall`.
 #[derive(clap::Args, Debug)]
 pub struct GetFirewallArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -108,6 +108,7 @@ async fn get_firewall(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
@@ -159,7 +160,7 @@ async fn call_get_firewall(
     )
 )]
 pub struct CreateFirewallArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -324,8 +325,9 @@ async fn create_firewall(
     ctx: &Context<'_>,
     args: CreateFirewallArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let names = ctx
+    let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     let parent = names.name("projects/{project}/zones/{zone}")?;
     let mut rules = match args.rules_json {
         Some(json) => json.0,
@@ -521,7 +523,7 @@ async fn call_create_firewall(
     )
 )]
 pub struct UpdateFirewallArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -720,6 +722,7 @@ async fn update_firewall(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
@@ -959,7 +962,7 @@ async fn call_update_firewall(
 /// The flags of `delete-firewall`.
 #[derive(clap::Args, Debug)]
 pub struct DeleteFirewallArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -979,6 +982,7 @@ async fn delete_firewall(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
@@ -1023,7 +1027,7 @@ async fn call_delete_firewall(
 /// The flags of `undelete-firewall`.
 #[derive(clap::Args, Debug)]
 pub struct UndeleteFirewallArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -1041,6 +1045,7 @@ async fn undelete_firewall(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
@@ -1083,7 +1088,7 @@ async fn call_undelete_firewall(
     )
 )]
 pub struct SignFirewallDataArgs {
-    /// The project, such as `my-project-123`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
     #[arg(long = "project", value_name = "PROJECT")]
     pub project: Option<String>,
     /// The zone, such as `eu-central1-az1`. `ORIGINCLOUD_ZONE`, else the profile's `default-zone`, when not given.
@@ -1123,6 +1128,7 @@ async fn sign_firewall_data(
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     let mut names = ctx
         .names(&[("project", args.project.as_deref()), ("zone", args.zone.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
     names
         .learn(
             &["projects/{project}/zones/{zone}/firewalls/{firewall}"],
