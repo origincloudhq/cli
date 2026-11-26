@@ -47,7 +47,6 @@ clap_complete = "4"
 # names the command after it.
 heck = "0.5"
 expanduser = "1"
-graphql_client.workspace = true
 # `origin mcp serve` serves the MCP tools on standard input and output.
 rmcp = { workspace = true, features = ["transport-io"] }
 # `origin mcp install` edits the coding agents' files, keeping their

@@ -542,8 +542,7 @@ fn every_hand_written_destructive_command_requires_yes() {
         }
     }
     // As many as the snapshot's destructive commands of the groups still
-    // hand-written, none once the last group calling the GraphQL API is
-    // retired: the test reads the commands it is meant to.
+    // hand-written: the test reads the commands it is meant to.
     let groups = hand_written_groups();
     let retired: Vec<Vec<String>> = table().retired.iter().map(Retired::path).collect();
     let expected = snapshot()

@@ -3,11 +3,9 @@ use crate::config::ClientProfile;
 use crate::handler::id::login::{perform_login, perform_token_login};
 use crate::handler::id::token::perform_token;
 use crate::output::SerializableOutput;
-use url::Url;
 
 pub async fn run_identity_command(
     profile: &ClientProfile,
-    api_url: &Url,
     command: IdentityCommands,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
     match command {
@@ -16,9 +14,7 @@ pub async fn run_identity_command(
             service_account,
             ..
         } => Ok(perform_token_login(&oidc_token_file, service_account).await?),
-        IdentityCommands::Login { device, .. } => {
-            Ok(perform_login(device, profile.default_username.clone(), api_url).await?)
-        }
+        IdentityCommands::Login { device, .. } => Ok(perform_login(profile, device).await?),
         IdentityCommands::Token { as_header, raw } => Ok(perform_token(as_header, raw).await?),
     }
 }

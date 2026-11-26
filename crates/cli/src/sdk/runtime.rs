@@ -131,6 +131,16 @@ impl<'a> Context<'a> {
     }
 
     fn build(&self, endpoint: Option<&str>) -> anyhow::Result<Client> {
+        let credentials = super::credentials::credentials().map_err(api_error)?;
+        self.build_with(endpoint, Shared(credentials))
+    }
+
+    /// [`Context::build`] with `credentials` instead of the CLI's.
+    fn build_with(
+        &self,
+        endpoint: Option<&str>,
+        credentials: impl Credentials + 'static,
+    ) -> anyhow::Result<Client> {
         let mut builder = Client::builder()
             .user_agent(format!("origin-cli/{}", env!("CARGO_PKG_VERSION")))
             .region(
@@ -143,9 +153,8 @@ impl<'a> Context<'a> {
         // flag before the variable before the profile, and wrapped the
         // credentials in it: the empty name keeps the SDK from wrapping
         // them again from the variable.
-        let credentials = super::credentials::credentials().map_err(api_error)?;
         builder = builder
-            .credentials(Shared(credentials))
+            .credentials(credentials)
             .impersonate_service_account("");
         if let Some(endpoint) = endpoint {
             builder = builder.endpoint(endpoint);
@@ -194,6 +203,31 @@ impl<'a> Context<'a> {
 /// [`Context::confirmed_client`]: the MCP client's approval of a tool
 /// marked destructive stands in for `--yes`, which an agent can't give.
 pub(crate) fn mcp_client(profile: &ClientProfile, service: &str) -> anyhow::Result<Client> {
+    let ctx = service_context(profile, service)?;
+    ctx.build(ctx.endpoint.as_deref())
+}
+
+/// The client of `origin id login`'s call to `service` as the person who
+/// has just signed in, with their session's access token `token`: never
+/// the credentials a command would find, where a credentials file or a CI
+/// job's token comes before the session, nor the service account the
+/// commands may impersonate. The group's endpoint variable redirects it,
+/// as it does the group's commands.
+pub(crate) fn session_client(
+    profile: &ClientProfile,
+    service: &str,
+    token: &str,
+) -> anyhow::Result<Client> {
+    let ctx = service_context(profile, service)?;
+    ctx.build_with(
+        ctx.endpoint.as_deref(),
+        origincloud_core::credentials::AccessToken::new(token),
+    )
+}
+
+/// The context of `service`'s group outside its commands, with the
+/// endpoint its variable names, such as `ORIGINCLOUD_PVS_ENDPOINT`.
+fn service_context<'a>(profile: &'a ClientProfile, service: &str) -> anyhow::Result<Context<'a>> {
     let group = super::generated::GROUPS
         .iter()
         .copied()
@@ -202,9 +236,8 @@ pub(crate) fn mcp_client(profile: &ClientProfile, service: &str) -> anyhow::Resu
     let endpoint = std::env::var(group.endpoint_variable)
         .ok()
         .filter(|e| !e.is_empty());
-    let ctx = Context::new(profile, group, endpoint.as_deref())
-        .with_context(|| group.endpoint_variable.to_owned())?;
-    ctx.build(ctx.endpoint.as_deref())
+    Context::new(profile, group, endpoint.as_deref())
+        .with_context(|| group.endpoint_variable.to_owned())
 }
 
 /// `endpoint`, if it is an `https://` URL, or an `http://` one to this

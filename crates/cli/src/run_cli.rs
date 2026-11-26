@@ -9,7 +9,6 @@ use crate::root_command::{Cli, Commands};
 use clap::Parser;
 use serde::Serialize;
 use serde_json::Value;
-use url::Url;
 
 pub async fn run() -> ! {
     // `origin __commands`, the command tree as JSON for tools, is no command
@@ -35,7 +34,6 @@ pub async fn run() -> ! {
     }
     crate::sdk::credentials::configure(&profile);
 
-    let api_url: Url = cli.api.parse().expect("failed to parse API URL");
     let printing = Printing {
         profile: &profile,
         no_pager: cli.no_pager,
@@ -61,7 +59,7 @@ pub async fn run() -> ! {
     match cli.command {
         None => exit(0),
         Some(Commands::Id(id_cmd)) => {
-            printing.exit_with(handler::id::run_identity_command(&profile, &api_url, id_cmd).await)
+            printing.exit_with(handler::id::run_identity_command(&profile, id_cmd).await)
         }
         // The MCP session owns standard output: nothing is printed on it.
         Some(Commands::Mcp(McpCommands::Serve(args))) => {
@@ -119,9 +117,8 @@ impl Printing<'_> {
         let output = match result {
             Ok(output) => output,
             // `err.to_string()` is a curated rendering, not a Rust `Debug`
-            // dump: the GraphQL client's errors carry the server's message,
-            // stable code and correlation id, and the SDK's its message, code
-            // and request id. A refusal of the API's adds what it said of
+            // dump: the SDK's errors carry the server's message, code and
+            // request id. A refusal of the API's adds what it said of
             // it, for `json`.
             Err(err) => Box::new(match err.downcast_ref::<output::Refused>() {
                 Some(refused) => CommandResult::Refused(err.to_string(), refused.refusal.clone()),

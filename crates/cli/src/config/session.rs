@@ -2,7 +2,7 @@ use super::file_io::{create_private_dir, create_private_file, read_file_opt, saf
 use super::paths::{self, ENV_DATA_DIR_USER};
 use crate::client_auth::{assume, refresh};
 use crate::config::env::{env_or, expect_env};
-use crate::graphql::TokenProvider;
+use crate::token::TokenProvider;
 use chrono::{DateTime, Duration, Utc};
 use origincloud_oauth_login::TokenResponse;
 use serde::{Deserialize, Serialize};

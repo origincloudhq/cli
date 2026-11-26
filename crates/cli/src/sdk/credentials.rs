@@ -8,9 +8,10 @@
 //! The SDK can read the session file itself, but renews it only in memory.
 //! This adapter renews it the way every other command does, through
 //! `origin id login`'s client, under the session's lock, and stores the
-//! renewed session, so that the generated commands and the GraphQL commands
-//! share one login. On an instance that runs as a service account, with no
-//! login session, the commands call the API as that service account.
+//! renewed session, so that the generated commands and the hand-written
+//! ones share one login. On an instance that runs as a service account,
+//! with no login session, the commands call the API as that service
+//! account.
 //!
 //! On top of whichever of them is found, the commands may act as another
 //! service account by impersonation: `--impersonate-service-account`,
@@ -18,8 +19,8 @@
 //! `impersonate-service-account` names it, and the SDK's [`Impersonated`]
 //! exchanges the found token for the account's at the STS. The generated
 //! commands, `origin id token` and `origin mcp serve` then act as the
-//! account, through one exchange per process; `origin id login`'s read of
-//! the person who signed in does not.
+//! account, through one exchange per process; `origin id login`'s
+//! activation of the person's pending role bindings does not.
 
 use std::fmt;
 use std::path::PathBuf;
@@ -31,7 +32,7 @@ use origincloud_core::{Error, Federated, Impersonated, InstanceMetadata, Service
 use tokio::sync::Mutex;
 
 use crate::config::{ClientSession, SessionError, EXPIRY_MARGIN};
-use crate::graphql::TokenProvider;
+use crate::token::TokenProvider;
 
 /// What a command says when it has no credentials at all.
 pub(crate) const NOT_LOGGED_IN: &str = "not logged in: log in with `origin id login`, or set \
@@ -129,7 +130,7 @@ fn found_credentials() -> Result<Arc<dyn Credentials>, Error> {
 }
 
 /// The service account the commands impersonate, over the credentials
-/// found, once per process, so that every client and the GraphQL commands
+/// found, once per process, so that every client and `origin id token`
 /// share one exchange, which the SDK renews before it expires; `None` when
 /// none is named. A name that isn't a service account's full name is the
 /// error, as is a credential that can't be found: the commands never act
@@ -251,8 +252,7 @@ fn instance_metadata() -> Option<&'static InstanceMetadata> {
 }
 
 /// An access token of the CLI's credentials, as `origin id token` prints
-/// it and the GraphQL commands send it: the impersonated service account's
-/// when one is named.
+/// it: the impersonated service account's when one is named.
 pub(crate) enum AccessToken {
     Session(ClientSession),
     /// A service account's: its key's, the CI job's, the instance's, or the
