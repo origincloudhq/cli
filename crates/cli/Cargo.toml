@@ -1,6 +1,6 @@
 [package]
 name = "origincloud-cli"
-version = "3.0.0"
+version = "3.1.0"
 # Shown as the summary line of `origin --help`.
 description = "Command-line interface for Origin Cloud"
 edition.workspace = true
