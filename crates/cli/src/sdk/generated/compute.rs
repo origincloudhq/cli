@@ -2025,7 +2025,7 @@ async fn create_key_pair(
     let response = call_create_key_pair(&client, request).await.map_err(api_error)?;
     shown_once(
         &response.private_key,
-        "`privateKey` holds the generated private key, which the API returns this once: the platform keeps only the public key. Save it now to a file only you can read, such as by piping the output through `(umask 077; jq -r .privateKey > my-key)`. A lost key can't be fetched again: delete the key pair and create another.",
+        "`privateKey` holds the generated private key, which the API returns this once: the platform keeps only the public key. Save it now to a file only you can read, such as by running it with `-o json` and piping the output through `(umask 077; jq -r .privateKey > my-key)`. A lost key can't be fetched again: delete the key pair and create another.",
     );
     json(&response, "origincloud.compute.v1beta1.KeyPair")
 }

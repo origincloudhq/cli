@@ -7,23 +7,11 @@ use crate::config::OutputFormat;
 
 /// The format a command prints in: `chosen`, from `--output`,
 /// `ORIGINCLOUD_OUTPUT_FORMAT` or the profile, in that order; without one,
-/// `table` when standard output is a terminal, someone reading it, and
-/// `json` when it is a pipe or a file, a program reading it, so that a
-/// script gets the JSON it always got.
-pub(crate) fn format_in_effect(
-    chosen: Option<OutputFormat>,
-    stdout_is_terminal: bool,
-) -> OutputFormat {
-    chosen.unwrap_or(if stdout_is_terminal {
-        OutputFormat::Table
-    } else {
-        OutputFormat::Json
-    })
-}
-
-/// [`format_in_effect`] for this process's standard output.
+/// `table`, whether standard output is a terminal, a pipe or a file, so
+/// that a command prints the same wherever its output goes. A script asks
+/// for JSON with `-o json`, or `ORIGINCLOUD_OUTPUT_FORMAT=json`.
 pub(crate) fn format_for_stdout(chosen: Option<OutputFormat>) -> OutputFormat {
-    format_in_effect(chosen, std::io::stdout().is_terminal())
+    chosen.unwrap_or(OutputFormat::Table)
 }
 
 /// When the human formats use colour, from `--color`. `json` never does.
@@ -93,22 +81,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn without_a_choice_a_terminal_gets_a_table_and_a_pipe_json() {
-        assert_eq!(format_in_effect(None, true), OutputFormat::Table);
-        assert_eq!(format_in_effect(None, false), OutputFormat::Json);
+    fn without_a_choice_the_format_is_a_table() {
+        assert_eq!(format_for_stdout(None), OutputFormat::Table);
     }
 
     #[test]
-    fn a_choice_holds_on_a_terminal_and_on_a_pipe() {
-        for terminal in [true, false] {
-            for chosen in [
-                OutputFormat::Table,
-                OutputFormat::Wide,
-                OutputFormat::Json,
-                OutputFormat::Name,
-            ] {
-                assert_eq!(format_in_effect(Some(chosen), terminal), chosen);
-            }
+    fn a_choice_holds() {
+        for chosen in [
+            OutputFormat::Table,
+            OutputFormat::Wide,
+            OutputFormat::Json,
+            OutputFormat::Name,
+        ] {
+            assert_eq!(format_for_stdout(Some(chosen)), chosen);
         }
     }
 }
