@@ -77,6 +77,67 @@ pub struct Policy {
     /// The columns of the table a list of a message is printed as.
     #[serde(default)]
     pub view: Vec<View>,
+    /// Fields naming a project that a command takes as `--project`.
+    #[serde(default)]
+    pub project_flag: Vec<ProjectFlag>,
+    /// Enum fields a command defaults.
+    #[serde(default)]
+    pub default: Vec<Defaulted>,
+    /// A time window a command takes with defaults.
+    #[serde(default)]
+    pub window: Vec<Window>,
+}
+
+/// A reference to a project, such as a `parent`, that a command takes as
+/// `--project` like every other command: an id, completed from
+/// `ORIGINCLOUD_PROJECT` and the profile's `default-project`, or the
+/// project's full name, instead of a flag taking only a full name.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectFlag {
+    pub service: String,
+    pub method: String,
+    /// The field, `parent`.
+    pub field: String,
+    /// Why, for whoever reads the table.
+    #[allow(dead_code)]
+    pub why: String,
+}
+
+/// An enum field of a request whose flag has a default the API doesn't
+/// say: the value, by its name.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Defaulted {
+    pub service: String,
+    pub method: String,
+    pub field: String,
+    /// The enum value the flag has when not given, such as `RATE`.
+    pub value: String,
+    /// Why, for whoever reads the table.
+    #[allow(dead_code)]
+    pub why: String,
+}
+
+/// A request's time window, whose three fields (a start and an end, both
+/// timestamps, and a period, a duration) a command takes with defaults:
+/// the end is now, the start is given as `--start-time` or, relative to
+/// the end, `--since`, and the period is the window divided by sixty, but
+/// at least a minute.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Window {
+    pub service: String,
+    pub method: String,
+    /// The start's field, `start_time`.
+    pub start: String,
+    /// The end's field, `end_time`.
+    pub end: String,
+    /// The period's field, `period`.
+    pub period: String,
+    /// Why, for whoever reads the table.
+    #[allow(dead_code)]
+    pub why: String,
 }
 
 /// The help of a service's command group, when its definitions don't say
@@ -381,6 +442,26 @@ impl Policy {
             .any(|f| f.service == service && f.method == method && f.field == field)
     }
 
+    pub fn project_flag(&self, service: &str, method: &str, field: &str) -> bool {
+        self.project_flag
+            .iter()
+            .any(|p| p.service == service && p.method == method && p.field == field)
+    }
+
+    /// The value the enum field `field` has when its flag isn't given.
+    pub fn default_value(&self, service: &str, method: &str, field: &str) -> Option<&str> {
+        self.default
+            .iter()
+            .find(|d| d.service == service && d.method == method && d.field == field)
+            .map(|d| d.value.as_str())
+    }
+
+    pub fn window(&self, service: &str, method: &str) -> Option<&Window> {
+        self.window
+            .iter()
+            .find(|w| w.service == service && w.method == method)
+    }
+
     /// The shortcut flags of the message field `field` of `method`.
     pub fn shortcuts(&self, service: &str, method: &str, field: &str) -> Vec<&Shortcut> {
         self.shortcut
@@ -467,6 +548,19 @@ impl Policy {
                 .iter()
                 .map(move |f| (e.service.as_str(), e.method.as_str(), f.as_str()))
         });
+        let project_flag = self
+            .project_flag
+            .iter()
+            .map(|p| (p.service.as_str(), p.method.as_str(), p.field.as_str()));
+        let default = self
+            .default
+            .iter()
+            .map(|d| (d.service.as_str(), d.method.as_str(), d.field.as_str()));
+        let window = self.window.iter().flat_map(|w| {
+            [&w.start, &w.end, &w.period]
+                .into_iter()
+                .map(move |f| (w.service.as_str(), w.method.as_str(), f.as_str()))
+        });
         no_command
             .chain(exclude)
             .chain(from_file)
@@ -474,6 +568,9 @@ impl Policy {
             .chain(partial)
             .chain(shortcut)
             .chain(exclusive)
+            .chain(project_flag)
+            .chain(default)
+            .chain(window)
     }
 }
 
@@ -601,7 +698,43 @@ mod tests {
             ["project", "service_account"]
         );
         assert!(policy.exclusive("iam", "CreateRoleBinding").is_empty());
-        assert_eq!(policy.entries().count(), 7);
+        assert_eq!(policy.entries().count(), 8);
+        let defaults: Policy = toml::from_str(
+            r#"
+            [[project_flag]]
+            service = "observability"
+            method = "QueryTimeSeries"
+            field = "parent"
+            why = "w"
+
+            [[default]]
+            service = "observability"
+            method = "QueryTimeSeries"
+            field = "statistic"
+            value = "RATE"
+            why = "w"
+
+            [[window]]
+            service = "observability"
+            method = "QueryTimeSeries"
+            start = "start_time"
+            end = "end_time"
+            period = "period"
+            why = "w"
+            "#,
+        )
+        .unwrap();
+        assert!(defaults.project_flag("observability", "QueryTimeSeries", "parent"));
+        assert!(!defaults.project_flag("observability", "QueryTimeSeries", "resource"));
+        assert_eq!(
+            defaults.default_value("observability", "QueryTimeSeries", "statistic"),
+            Some("RATE")
+        );
+        assert!(defaults
+            .window("observability", "QueryTimeSeries")
+            .is_some());
+        assert!(defaults.window("observability", "Other").is_none());
+        assert_eq!(defaults.entries().count(), 5);
         assert_eq!(
             policy.also_names[0].resource,
             "compute.origincloudapis.eu/PublicImage"

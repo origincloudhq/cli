@@ -267,6 +267,20 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   format: their flags are an argument group, as a oneof's are, so that the
   command refuses them together before sending anything. Generation fails
   for a field that has no flag;
+- `[[project_flag]]` names a method's `parent` that is a reference to a
+  project (`observability`, `QueryTimeSeries`): its command takes it as
+  `--project`, as every command does, an id defaulting to
+  `ORIGINCLOUD_PROJECT` and the profile's `default-project`, instead of a
+  flag taking a full name only;
+- `[[default]]` gives an enum field of a request (`statistic`) the value its
+  flag has when not given, which the API's definitions don't say. Generation
+  fails for a field that isn't an enum;
+- `[[window]]` names the three fields of a request's time window, its start
+  and end (timestamps) and its period (a duration): the command takes the
+  end as `--end-time`, now when not given, the start as `--start-time` or,
+  before the end, `--since`, and the period as `--period`, the window's
+  length divided by 60 (at least a minute) when not given
+  (`runtime.rs`'s `time_window`);
 - `[[view]]` names the columns of the `table` a list of a message is
   printed as (`compute`, `Instance`, `interface_addresses.ipv4_address`),
   as paths from the message through messages and lists of them; without
