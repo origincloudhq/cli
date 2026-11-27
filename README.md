@@ -3,7 +3,7 @@
 `origin` is the command-line interface for [Origin Cloud](https://origincloud.eu):
 log in, then manage organisations, projects, access, instances, networks and
 volumes, and look up regions and zones, from a terminal or a script. Every
-command prints JSON.
+command prints a table, or JSON with `-o json`.
 
 ## Install
 
@@ -196,10 +196,11 @@ checks the value first.
 ### Output
 
 Unless `--output` (`-o`), `ORIGINCLOUD_OUTPUT_FORMAT` or the profile's
-`output-format` says otherwise, `origin` prints for whoever reads it:
-`table` on a terminal, and `json` when its output goes to a pipe or a file,
-so that a script, such as `origin pvs list-volumes | jq .`, gets the JSON
-the API sends whether or not it asks for it.
+`output-format` says otherwise, `origin` prints a `table`, on a
+terminal, into a pipe and into a file alike. A script asks for JSON: `origin
+pvs list-volumes -o json | jq .`, or `ORIGINCLOUD_OUTPUT_FORMAT=json` for a
+whole job. Only colour, the pager and the progress spinner depend on whether
+standard output is a terminal.
 
 | Format | Prints |
 |---|---|
@@ -344,19 +345,50 @@ every method of the API, with the API's own descriptions as help:
   the keys of `--launch-template-data` override the version's for that launch
   alone, and none is required; without it, the recipe is `instance_type` and
   `key_pair` at least. A recipe's references are full names, as everywhere.
+- **Launching an instance.** `origin compute launch-instance` launches an
+  instance from a recipe and creates its network interface itself, so the
+  common launch needs no JSON: `--instance-type`, `--image` or
+  `--image-family`, `--key-pair`, `--subnet` and `--security-group`
+  (repeatable) set the matching fields of `--launch-template-data`, and on
+  top of `--launch-template` they override the version's:
+
+  ```sh
+  origin compute launch-instance \
+    --instance-type //compute.origincloudapis.eu/instanceTypes/gp1.core.2 \
+    --image-family //compute.origincloudapis.eu/imageFamilies/debian-12 \
+    --key-pair //compute.origincloudapis.eu/projects/my-project/keyPairs/ops \
+    --subnet //network.origincloudapis.eu/projects/my-project/zones/eu-central1-az1/subnets/web \
+    --security-group //network.origincloudapis.eu/projects/my-project/regions/eu-central1/securityGroups/web
+  ```
+
+  Each is refused when `--launch-template-data` sets the same field too
+  (`--subnet` and `--security-group` share `network_interfaces`), and
+  without `--subnet` the project's default subnet is used. Use
+  `origin compute create-instance` instead to put an instance on network
+  interfaces you created beforehand with `origin network
+  create-network-interface`.
 - **Other flags.** Each other field of the request, and of the volume or
   snapshot it carries, is the flag of its name in kebab case: `size_gib` is
   `--size-gib`. Output-only fields aren't flags, and neither is a field the
   method doesn't take although its request has it (`import-volume` has no
   `--source-snapshot`). A boolean takes its value, `--flag true` or
   `--flag false`; left out, one the API doesn't require is `false`. A
-  duration is given as `30s`, `2m` or `1m30s`, a time as RFC 3339, such as
+  duration is given as `30s`, `2m`, `1m30s` or `7d`, a time as RFC 3339, such as
   `2026-11-01T12:00:00Z`.
 - **Binary data.** A field holding bytes is its flag with `-file`, such as
   `--plaintext-file secret.txt`, which takes a path, or `-` for standard
   input, and sends the file's content byte for byte, with nothing to encode.
   A response's bytes are in the JSON the command prints in base64, as in
-  any of the API's JSON: `jq -r .plaintext | base64 -d` turns one back.
+  any of the API's JSON, unless the field's `-out` flag, such as
+  `--ciphertext-out secret.enc`, writes them byte for byte to a path, or to
+  standard output for `-`, and leaves them out of the JSON (for `-`, nothing
+  else is printed). The file is created readable by you alone, and an
+  existing one is refused unless `--overwrite` is given:
+  `origin kms encrypt --plaintext-file secret.txt --ciphertext-out secret.enc`
+  and `origin kms decrypt --ciphertext-file secret.enc --plaintext-out -`
+  round-trip a secret without `jq` or `base64`. A secret the API returns, such
+  as `generate-data-key`'s plaintext key, has a required `-out` flag instead,
+  and is never printed or written to standard output.
 - **Tags.** `--tag KEY=VALUE`, repeated for more. On an update, `--tag`
   replaces all of a resource's tags, and `--no-tags` removes them all; the two
   exclude each other, so the tags are only emptied when you say so. To set or

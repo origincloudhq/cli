@@ -5,8 +5,8 @@
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
     passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
-    wait_for, waited, waiting, zones, ConfirmedClient, SecretFile, Context, Listing,
-    ReadClient, OPERATION,
+    wait_for, waited, waiting, zones, ConfirmedClient, ByteSink, SecretFile, streamed,
+    Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -57,7 +57,7 @@ pub struct AssumeServiceAccountArgs {
     /// How long the access token lives: from 60 seconds to 1 hour, 15 minutes
     /// when unset.
     ///
-    /// Such as `30s` or `1m`.
+    /// Such as `30s`, `1m`, `12h` or `7d`.
     #[arg(long = "lifetime", value_name = "DURATION", value_parser = duration)]
     pub lifetime: Option<::origincloud_core::protobuf::Duration>,
     /// Who the access token is for: `origincloud:api`, the platform's APIs, when

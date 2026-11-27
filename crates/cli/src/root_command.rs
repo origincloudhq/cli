@@ -21,8 +21,8 @@ pub struct Cli {
     pub(crate) config: Option<PathBuf>,
 
     /// Output format. Overrides ORIGINCLOUD_OUTPUT_FORMAT and the profile's
-    /// `output-format`; without any of them, `table` on a terminal and
-    /// `json` when the output goes to a pipe or a file.
+    /// `output-format`; without any of them, `table`,
+    /// whether the output goes to a terminal, a pipe or a file.
     #[arg(
         short,
         long,

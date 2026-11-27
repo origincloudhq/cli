@@ -111,7 +111,11 @@ Keys are a project's in a region (`--project`, `--region`), never a \
 zone's: every zone of the region serves them. `encrypt`, `decrypt` and \
 `sign` read their data from a file (`--plaintext-file`, `--ciphertext-file`, \
 `--data-file`; `-` for standard input), byte for byte, and print the \
-API's JSON, whose bytes are base64."""
+API's JSON, whose bytes are base64. The bytes of a response are written \
+byte for byte with `--ciphertext-out`, `--plaintext-out` or \
+`--signature-out`: to a file, or to standard output for `-`, so that \
+`encrypt` and `decrypt` fit together without `jq` or `base64`. \
+`generate-data-key` writes its plaintext key to a file only."""
 
 [[service]]
 name = "support"
@@ -473,6 +477,22 @@ method = "ImportVolume"
 field = "volume.source_snapshot"
 why = "An import's content is the downloaded image: it takes a size, a storage class and tags."
 
+[[exclude]]
+service = "kms"
+method = "CreateKey"
+field = "key.state"
+why = "A new key is created `ENABLED`: creating one disabled, or deleted, isn't offered."
+
+# Enum fields of a request whose flag offers some of the enum's values only,
+# in the order given. Generation fails for a value the enum doesn't have, and
+# for a field that isn't an enum.
+[[enum_values]]
+service = "kms"
+method = "UpdateKey"
+field = "key.state"
+values = ["ENABLED", "DISABLED"]
+why = "Deleting a key is `delete-key`'s job, and undeleting `undelete-key`'s."
+
 # Changes that can't be undone aren't listed here: the one list of them is
 # `[[one_way]]` in origincloudhq/mcp's generator/tools.toml, at the commit
 # Cargo.lock pins, which scripts/generate.sh hands the generator. A command
@@ -490,18 +510,18 @@ field = "private_key"
 notice = """
 `privateKey` holds the generated private key, which the API returns this \
 once: the platform keeps only the public key. Save it now to a file only you \
-can read, such as by piping the output through \
+can read, such as by running it with `-o json` and piping the output through \
 `(umask 077; jq -r .privateKey > my-key)`. A lost key can't be fetched \
 again: delete the key pair and create another."""
 
-# A string field of a method's response holding a secret the API returns in
-# that response alone, which the command writes to a file rather than
+# A string or bytes field of a method's response holding a secret, which the
+# command writes to a file rather than
 # print: its flag `--{flag}` names the file, which is required. The file is
 # claimed before the request is sent and created readable by its owner alone
 # (`0600`); an existing one is refused unless `--overwrite` is given, and is
 # then replaced only once the response is in. The printed response leaves
 # the field out, and standard error names the file and the resource.
-# Generation fails for a field that isn't a string of the response.
+# Generation fails for a field that isn't a string or bytes of the response.
 [[to_file]]
 service = "iam"
 method = "CreateServiceAccountKey"
@@ -514,6 +534,20 @@ key: the API returns it this once, and the platform keeps no copy. It is \
 created readable by you alone; an existing file is refused unless \
 `--overwrite` is given. Point `ORIGINCLOUD_CREDENTIALS_FILE`, or the \
 profile's `credentials-file`, at it to call the API as the service account."""
+
+[[to_file]]
+service = "kms"
+method = "GenerateDataKey"
+field = "plaintext"
+flag = "plaintext-out"
+what = "the data key"
+help = """
+Where to write the plaintext data key, byte for byte: it is a secret, so it \
+is never printed, and never written to standard output. The file is created \
+readable by you alone; an existing file is refused unless `--overwrite` is \
+given. Encrypt your data with it, keep only the ciphertext the command \
+prints beside the encrypted data, and recover the key with `decrypt` when \
+you need it."""
 
 # A string field of a request itself that a command reads from a file, or
 # from standard input with `-`, rather than from the command line, where it
@@ -535,6 +569,55 @@ service = "compute"
 method = "LaunchInstance"
 field = "launch_template_data"
 why = "With `--launch-template`, the fields given override the version's, so a key the recipe requires, such as `instance_type`, isn't required here."
+
+# Flags of a method that set one field of a message field of its request,
+# however deep, so that the common case needs no `KEY=VALUE` pairs or JSON.
+# `path` goes from the message through its fields; a list of messages on the
+# way stands for its first element. Setting the field or its parent through
+# the message's own flags as well is refused.
+[[shortcut]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+flag = "instance-type"
+path = "instance_type"
+
+[[shortcut]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+flag = "image"
+path = "image"
+conflicts_with = ["image-family"]
+
+[[shortcut]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+flag = "image-family"
+path = "image_family"
+conflicts_with = ["image"]
+
+[[shortcut]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+flag = "key-pair"
+path = "key_pair"
+
+[[shortcut]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+flag = "subnet"
+path = "network_interfaces.spec.subnet"
+
+[[shortcut]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+flag = "security-group"
+path = "network_interfaces.spec.security_groups"
 
 # Fields of a request at most one of which can be set, by their paths from
 # the request, although the API doesn't make them a `oneof` (an existing

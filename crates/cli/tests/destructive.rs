@@ -326,6 +326,7 @@ async fn an_endpoint_is_https_or_this_machine_and_only_for_generated_groups() {
             "projects/p/zones/z/volumes/v",
         ])
         .env_clear()
+        .env("ORIGINCLOUD_OUTPUT_FORMAT", "json")
         .env("HOME", server.home.path())
         .output()
         .unwrap();

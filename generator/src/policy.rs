@@ -56,10 +56,18 @@ pub struct Policy {
     /// String fields of a request a command reads from a file.
     #[serde(default)]
     pub from_file: Vec<FromFile>,
+    /// Enum fields of a request whose flag offers some of the enum's values
+    /// only.
+    #[serde(default)]
+    pub enum_values: Vec<EnumValues>,
     /// Message fields of a request whose `KEY=VALUE` form requires none of
     /// the keys its message requires.
     #[serde(default)]
     pub partial: Vec<Partial>,
+    /// Flags of a method that set one field, at any depth, of a message
+    /// field of its request.
+    #[serde(default)]
+    pub shortcut: Vec<Shortcut>,
     /// Reference fields that also take the names of another resource type.
     #[serde(default)]
     pub also_names: Vec<AlsoNames>,
@@ -260,6 +268,22 @@ pub struct ToFile {
     pub help: String,
 }
 
+/// An enum field of a request whose flag offers `values` only, because the
+/// others make no sense for the command, such as a key created `DELETED`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnumValues {
+    pub service: String,
+    pub method: String,
+    /// The field, a path from the request, such as `key.state`.
+    pub field: String,
+    /// The values the flag offers, as the enum names them, in this order.
+    pub values: Vec<String>,
+    /// Why, for whoever reads the table.
+    #[allow(dead_code)]
+    pub why: String,
+}
+
 /// A string field of a request itself a command reads from a file, or from
 /// standard input, rather than the command line, where it would be in the
 /// shell's history and every process listing: its flag is `--{field}-file`.
@@ -288,6 +312,30 @@ pub struct Partial {
     /// Why, for whoever reads the table.
     #[allow(dead_code)]
     pub why: String,
+}
+
+/// A flag that sets one field of a message field of a request, however deep
+/// in it, so that the common case needs no `KEY=VALUE` pairs or JSON:
+/// `--subnet` of `LaunchInstance` sets the subnet of the first network
+/// interface of its `launch_template_data`. The message's own flags and the
+/// shortcut can't both set the field, or its parent.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Shortcut {
+    pub service: String,
+    pub method: String,
+    /// The message field of the request, such as `launch_template_data`.
+    pub field: String,
+    /// The flag, without its dashes: `subnet`.
+    pub flag: String,
+    /// The field it sets, as a path from the message through its fields,
+    /// each a message, a oneof's member or a list of messages (whose first
+    /// element is meant): `network_interfaces.spec.subnet`. A list at the
+    /// end (`security_groups`) makes the flag repeatable.
+    pub path: String,
+    /// Flags, without their dashes, that can't be given with it.
+    #[serde(default)]
+    pub conflicts_with: Vec<String>,
 }
 
 /// A reference field that also takes the names of a resource type other
@@ -414,6 +462,14 @@ impl Policy {
             .find(|w| w.service == service && w.method == method)
     }
 
+    /// The shortcut flags of the message field `field` of `method`.
+    pub fn shortcuts(&self, service: &str, method: &str, field: &str) -> Vec<&Shortcut> {
+        self.shortcut
+            .iter()
+            .filter(|s| s.service == service && s.method == method && s.field == field)
+            .collect()
+    }
+
     pub fn partial(&self, service: &str, method: &str, field: &str) -> bool {
         self.partial
             .iter()
@@ -433,6 +489,14 @@ impl Policy {
             .iter()
             .filter(|s| s.service == service && s.method == method)
             .collect()
+    }
+
+    /// The values the flag of `field` of `method` offers, when not all.
+    pub fn enum_values(&self, service: &str, method: &str, field: &str) -> Option<&[String]> {
+        self.enum_values
+            .iter()
+            .find(|e| e.service == service && e.method == method && e.field == field)
+            .map(|e| e.values.as_slice())
     }
 
     pub fn to_file(&self, service: &str, method: &str) -> Option<&ToFile> {
@@ -467,8 +531,16 @@ impl Policy {
             .from_file
             .iter()
             .map(|f| (f.service.as_str(), f.method.as_str(), f.field.as_str()));
+        let enum_values = self
+            .enum_values
+            .iter()
+            .map(|e| (e.service.as_str(), e.method.as_str(), e.field.as_str()));
         let partial = self
             .partial
+            .iter()
+            .map(|p| (p.service.as_str(), p.method.as_str(), p.field.as_str()));
+        let shortcut = self
+            .shortcut
             .iter()
             .map(|p| (p.service.as_str(), p.method.as_str(), p.field.as_str()));
         let exclusive = self.exclusive.iter().flat_map(|e| {
@@ -492,7 +564,9 @@ impl Policy {
         no_command
             .chain(exclude)
             .chain(from_file)
+            .chain(enum_values)
             .chain(partial)
+            .chain(shortcut)
             .chain(exclusive)
             .chain(project_flag)
             .chain(default)
@@ -549,6 +623,13 @@ mod tests {
             field = "token"
             why = "v"
 
+            [[enum_values]]
+            service = "kms"
+            method = "UpdateKey"
+            field = "key.state"
+            values = ["ENABLED", "DISABLED"]
+            why = "t"
+
             [[partial]]
             service = "compute"
             method = "LaunchInstance"
@@ -565,6 +646,14 @@ mod tests {
             field = "origincloud.compute.v1beta1.Instance.image"
             resource = "compute.origincloudapis.eu/PublicImage"
             why = "w"
+
+            [[shortcut]]
+            service = "compute"
+            method = "LaunchInstance"
+            field = "launch_template_data"
+            flag = "image"
+            path = "image"
+            conflicts_with = ["image-family"]
 
             [[view]]
             service = "compute"
@@ -588,8 +677,20 @@ mod tests {
         assert!(!policy.no_command("pvs", "WaitOperation"));
         assert!(policy.excluded("pvs", "ImportVolume", "volume.source_snapshot"));
         assert!(!policy.excluded("other", "ImportVolume", "volume.source_snapshot"));
+        assert_eq!(
+            policy.enum_values("kms", "UpdateKey", "key.state"),
+            Some(&["ENABLED".to_owned(), "DISABLED".to_owned()][..])
+        );
+        assert!(policy
+            .enum_values("kms", "CreateKey", "key.state")
+            .is_none());
         assert!(policy.read_from_file("sts", "AssumeServiceAccount", "token"));
         assert!(!policy.read_from_file("sts", "AssumeServiceAccount", "lifetime"));
+        let shortcuts = policy.shortcuts("compute", "LaunchInstance", "launch_template_data");
+        assert_eq!(shortcuts[0].conflicts_with, ["image-family"]);
+        assert!(policy
+            .shortcuts("compute", "CreateInstance", "launch_template_data")
+            .is_empty());
         assert!(policy.partial("compute", "LaunchInstance", "launch_template_data"));
         assert!(!policy.partial("compute", "CreateInstance", "launch_template_data"));
         assert_eq!(
@@ -597,7 +698,7 @@ mod tests {
             ["project", "service_account"]
         );
         assert!(policy.exclusive("iam", "CreateRoleBinding").is_empty());
-        assert_eq!(policy.entries().count(), 6);
+        assert_eq!(policy.entries().count(), 8);
         let defaults: Policy = toml::from_str(
             r#"
             [[project_flag]]

@@ -184,11 +184,24 @@ impl Recording {
             .env_clear()
             .env("HOME", self.home.path())
             .env("XDG_DATA_HOME", self.home.path())
-            .env("XDG_CONFIG_HOME", self.home.path());
+            .env("XDG_CONFIG_HOME", self.home.path())
+            // The tests read JSON: a default of `table` is for a person, so
+            // it is asked for, as a script does. `env` and `-o` override it.
+            .env("ORIGINCLOUD_OUTPUT_FORMAT", "json");
         for (name, value) in env {
             command.env(name, value);
         }
         command
+    }
+
+    /// Runs `origin {group}` with `args` and no format chosen anywhere, its
+    /// output piped as in every test: the format it has by default.
+    pub async fn run_without_format(&self, group: &str, args: &[&str]) -> Output {
+        let mut command = self.command(group, args, &[]);
+        command.env_remove("ORIGINCLOUD_OUTPUT_FORMAT");
+        tokio::task::spawn_blocking(move || command.output().expect("origin runs"))
+            .await
+            .unwrap()
     }
 
     /// Runs `origin {group}` with `args` against the server, with `env` set.
@@ -256,7 +269,8 @@ pub async fn origin(home: &Path, args: &[&str], env: &[(&str, &str)]) -> Output 
         .env_clear()
         .env("HOME", home)
         .env("XDG_DATA_HOME", home)
-        .env("XDG_CONFIG_HOME", home);
+        .env("XDG_CONFIG_HOME", home)
+        .env("ORIGINCLOUD_OUTPUT_FORMAT", "json");
     for (name, value) in env {
         command.env(name, value);
     }
