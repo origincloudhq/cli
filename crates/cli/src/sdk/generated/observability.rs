@@ -5,8 +5,8 @@
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
     passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
-    wait_for, waited, waiting, zones, ConfirmedClient, SecretFile, Context, Listing,
-    ReadClient, OPERATION,
+    wait_for, waited, waiting, zones, ConfirmedClient, ByteSink, SecretFile, streamed,
+    Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -87,7 +87,7 @@ pub struct QueryTimeSeriesArgs {
     /// value is collected every 30 seconds and a point needs two inside its
     /// period, so a period under 60 seconds often has none.
     ///
-    /// Such as `30s` or `1m`.
+    /// Such as `30s`, `1m`, `12h` or `7d`.
     #[arg(
         long = "period",
         value_name = "DURATION",

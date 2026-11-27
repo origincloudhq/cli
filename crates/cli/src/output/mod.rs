@@ -45,6 +45,13 @@ pub trait SerializableOutput {
         None
     }
 
+    /// Whether the command already wrote its result itself, such as the
+    /// raw bytes of a field to standard output, so that nothing more is
+    /// printed, not even in `json`.
+    fn silent(&self) -> bool {
+        false
+    }
+
     /// What the output is, which the human formats print it as. By
     /// default, what its JSON looks like: see [`Shape::Inferred`].
     fn shape(&self) -> Shape {

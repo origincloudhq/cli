@@ -56,6 +56,10 @@ pub struct Policy {
     /// String fields of a request a command reads from a file.
     #[serde(default)]
     pub from_file: Vec<FromFile>,
+    /// Enum fields of a request whose flag offers some of the enum's values
+    /// only.
+    #[serde(default)]
+    pub enum_values: Vec<EnumValues>,
     /// Message fields of a request whose `KEY=VALUE` form requires none of
     /// the keys its message requires.
     #[serde(default)]
@@ -197,6 +201,22 @@ pub struct ToFile {
     pub what: String,
     /// The flag's help.
     pub help: String,
+}
+
+/// An enum field of a request whose flag offers `values` only, because the
+/// others make no sense for the command, such as a key created `DELETED`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnumValues {
+    pub service: String,
+    pub method: String,
+    /// The field, a path from the request, such as `key.state`.
+    pub field: String,
+    /// The values the flag offers, as the enum names them, in this order.
+    pub values: Vec<String>,
+    /// Why, for whoever reads the table.
+    #[allow(dead_code)]
+    pub why: String,
 }
 
 /// A string field of a request itself a command reads from a file, or from
@@ -354,6 +374,14 @@ impl Policy {
             .collect()
     }
 
+    /// The values the flag of `field` of `method` offers, when not all.
+    pub fn enum_values(&self, service: &str, method: &str, field: &str) -> Option<&[String]> {
+        self.enum_values
+            .iter()
+            .find(|e| e.service == service && e.method == method && e.field == field)
+            .map(|e| e.values.as_slice())
+    }
+
     pub fn to_file(&self, service: &str, method: &str) -> Option<&ToFile> {
         self.to_file
             .iter()
@@ -386,6 +414,10 @@ impl Policy {
             .from_file
             .iter()
             .map(|f| (f.service.as_str(), f.method.as_str(), f.field.as_str()));
+        let enum_values = self
+            .enum_values
+            .iter()
+            .map(|e| (e.service.as_str(), e.method.as_str(), e.field.as_str()));
         let partial = self
             .partial
             .iter()
@@ -398,6 +430,7 @@ impl Policy {
         no_command
             .chain(exclude)
             .chain(from_file)
+            .chain(enum_values)
             .chain(partial)
             .chain(exclusive)
     }
@@ -452,6 +485,13 @@ mod tests {
             field = "token"
             why = "v"
 
+            [[enum_values]]
+            service = "kms"
+            method = "UpdateKey"
+            field = "key.state"
+            values = ["ENABLED", "DISABLED"]
+            why = "t"
+
             [[partial]]
             service = "compute"
             method = "LaunchInstance"
@@ -491,6 +531,13 @@ mod tests {
         assert!(!policy.no_command("pvs", "WaitOperation"));
         assert!(policy.excluded("pvs", "ImportVolume", "volume.source_snapshot"));
         assert!(!policy.excluded("other", "ImportVolume", "volume.source_snapshot"));
+        assert_eq!(
+            policy.enum_values("kms", "UpdateKey", "key.state"),
+            Some(&["ENABLED".to_owned(), "DISABLED".to_owned()][..])
+        );
+        assert!(policy
+            .enum_values("kms", "CreateKey", "key.state")
+            .is_none());
         assert!(policy.read_from_file("sts", "AssumeServiceAccount", "token"));
         assert!(!policy.read_from_file("sts", "AssumeServiceAccount", "lifetime"));
         assert!(policy.partial("compute", "LaunchInstance", "launch_template_data"));
@@ -500,7 +547,7 @@ mod tests {
             ["project", "service_account"]
         );
         assert!(policy.exclusive("iam", "CreateRoleBinding").is_empty());
-        assert_eq!(policy.entries().count(), 6);
+        assert_eq!(policy.entries().count(), 7);
         assert_eq!(
             policy.also_names[0].resource,
             "compute.origincloudapis.eu/PublicImage"

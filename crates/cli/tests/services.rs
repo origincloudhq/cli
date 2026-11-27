@@ -349,7 +349,7 @@ async fn wait_operation_fails_with_a_failed_operation() {
 #[tokio::test(flavor = "multi_thread")]
 async fn operation_commands_refuse_bad_names_and_durations() {
     let server = recording(|_| Response::json(DONE)).await;
-    for timeout in ["30", "1.5s", "-1s", "1d", "s"] {
+    for timeout in ["30", "1.5s", "-1s", "1w", "s"] {
         let output = server
             .pvs(&[
                 "wait-operation",
