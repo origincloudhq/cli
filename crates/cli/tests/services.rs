@@ -422,6 +422,7 @@ async fn the_location_endpoint_is_https_or_this_machine() {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_origin"))
         .args(["location", "--endpoint", "http://192.0.2.1:9", "list-zones"])
         .env_clear()
+        .env("ORIGINCLOUD_OUTPUT_FORMAT", "json")
         .env("HOME", server.home.path())
         .output()
         .unwrap();

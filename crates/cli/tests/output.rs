@@ -39,8 +39,10 @@ fn err(output: &std::process::Output) -> String {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_pipe_gets_json_unless_a_format_is_chosen() {
+async fn a_pipe_gets_a_table_unless_a_format_is_chosen() {
     let server = recording(location).await;
+    let plain = server.run_without_format("location", &["list-zones"]).await;
+    assert!(text(&plain.stdout).starts_with("NAME"), "{plain:?}");
     let printed = stdout(&server.run("location", &["list-zones"]).await);
     assert_eq!(printed["zones"][0]["name"], "zones/z-a");
 
@@ -69,13 +71,13 @@ async fn the_profile_s_format_holds_on_a_pipe_too() {
     .await;
     assert_eq!(set.status.code(), Some(0), "{set:?}");
 
-    let names = server.run("location", &["list-zones"]).await;
+    let names = server.run_without_format("location", &["list-zones"]).await;
     assert_eq!(text(&names.stdout), "zones/z-a\nzones/z-b\n");
 
     let refused = origin(
         home,
         &["config", "profile-set", "output-format", "yaml"],
-        &[],
+        &[("ORIGINCLOUD_OUTPUT_FORMAT", "table")],
     )
     .await;
     // Refused in the profile's format too: as an error.
@@ -156,7 +158,7 @@ async fn an_empty_list_is_said_on_standard_error() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_failure_is_an_error_on_standard_error_in_table_and_json_on_a_pipe() {
+async fn a_failure_is_an_error_on_standard_error_by_default_and_json_when_asked() {
     let server = recording(location).await;
     let failed = server
         .run("location", &["get-zone", "--zone", "z-x", "-o", "table"])
@@ -165,7 +167,16 @@ async fn a_failure_is_an_error_on_standard_error_in_table_and_json_on_a_pipe() {
     assert_eq!(text(&failed.stdout), "");
     assert_eq!(err(&failed), "error: NOT_FOUND: no such zone\n");
 
-    let failed = server.run("location", &["get-zone", "--zone", "z-x"]).await;
+    let failed = server
+        .run_without_format("location", &["get-zone", "--zone", "z-x"])
+        .await;
+    assert_eq!(failed.status.code(), Some(1));
+    assert_eq!(text(&failed.stdout), "");
+    assert_eq!(err(&failed), "error: NOT_FOUND: no such zone\n");
+
+    let failed = server
+        .run("location", &["get-zone", "--zone", "z-x", "-o", "json"])
+        .await;
     let description = common::failure(&failed);
     assert!(description.contains("no such zone"), "{description}");
 }

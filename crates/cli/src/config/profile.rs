@@ -97,9 +97,8 @@ impl RegionSource {
 }
 
 /// How a command's output is printed. When neither `--output`,
-/// `ORIGINCLOUD_OUTPUT_FORMAT` nor the profile names one, the output follows
-/// standard output: `table` on a terminal, `json` otherwise (see
-/// [`crate::output::format_for_stdout`]).
+/// `ORIGINCLOUD_OUTPUT_FORMAT` nor the profile names one, it is `table`,
+/// wherever standard output goes (see [`crate::output::format_for_stdout`]).
 ///
 /// The profile file holds a variant by its Rust name (`"Json"`), as earlier
 /// versions saved it.

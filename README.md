@@ -3,7 +3,7 @@
 `origin` is the command-line interface for [Origin Cloud](https://origincloud.eu):
 log in, then manage organisations, projects, access, instances, networks and
 volumes, and look up regions and zones, from a terminal or a script. Every
-command prints JSON.
+command prints a table, or JSON with `-o json`.
 
 ## Install
 
@@ -196,10 +196,11 @@ checks the value first.
 ### Output
 
 Unless `--output` (`-o`), `ORIGINCLOUD_OUTPUT_FORMAT` or the profile's
-`output-format` says otherwise, `origin` prints for whoever reads it:
-`table` on a terminal, and `json` when its output goes to a pipe or a file,
-so that a script, such as `origin pvs list-volumes | jq .`, gets the JSON
-the API sends whether or not it asks for it.
+`output-format` says otherwise, `origin` prints a `table`, on a
+terminal, into a pipe and into a file alike. A script asks for JSON: `origin
+pvs list-volumes -o json | jq .`, or `ORIGINCLOUD_OUTPUT_FORMAT=json` for a
+whole job. Only colour, the pager and the progress spinner depend on whether
+standard output is a terminal.
 
 | Format | Prints |
 |---|---|
