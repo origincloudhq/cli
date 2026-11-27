@@ -310,6 +310,25 @@ pub struct CreateFirewallArgs {
     /// Read from the file at the path, or from standard input with `-`, byte for byte. Unset when not given.
     #[arg(long = "banner-file", value_name = "PATH")]
     pub banner_file: Option<String>,
+    /// The sources, as CIDR blocks such as `10.0.0.0/8`.
+    ///
+    /// The API doesn't keep their order, and each must be unique.
+    ///
+    /// Repeat for more.
+    #[arg(long = "cidr", conflicts_with = "allowlist_json")]
+    pub cidr: Vec<String>,
+    #[arg(
+        long = "allowlist-json",
+        long_help = "The sources the firewall always allows.\n\nAs the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth.",
+        help = "Allowlist as JSON; sent whole",
+        value_name = "JSON",
+        value_parser = |text:&str|json_arg::<::origincloud_scratch::v1::Allowlist>(
+            text,
+            "origincloud.scratch.v1.Allowlist"
+        ),
+        conflicts_with = "cidr"
+    )]
+    pub allowlist_json: Option<JsonArg<::origincloud_scratch::v1::Allowlist>>,
     /// An email address.
     ///
     /// One of `--notify-email`, `--notify-after-seconds`: give exactly one.
@@ -398,6 +417,16 @@ async fn create_firewall(
     } else {
         None
     };
+    let allowlist = match args.allowlist_json {
+        Some(json) => Some(json.0),
+        None if args.cidr.is_empty() => None,
+        None => {
+            unique(&args.cidr, "--cidr")?;
+            Some(::origincloud_scratch::v1::Allowlist {
+                cidrs: args.cidr.clone(),
+            })
+        }
+    };
     let firewall = ::origincloud_scratch::v1::Firewall {
         rules,
         ports: args.port.clone(),
@@ -423,6 +452,7 @@ async fn create_firewall(
             .transpose()?
             .unwrap_or_default(),
         banner: args.banner_file.as_deref().map(read_bytes_file).transpose()?,
+        allowlist,
         ..::core::default::Default::default()
     };
     #[allow(clippy::manual_map)]
@@ -503,7 +533,10 @@ async fn call_create_firewall(
             "no_mirror",
             "certificate_file",
             "banner_file",
-            "no_banner"]
+            "no_banner",
+            "cidr",
+            "allowlist_json",
+            "no_allowlist"]
         )
     )
 )]
@@ -715,6 +748,30 @@ pub struct UpdateFirewallArgs {
     /// Unsets `--banner-file`; the API's default applies.
     #[arg(long = "no-banner", conflicts_with = "banner_file")]
     pub no_banner: bool,
+    /// The sources, as CIDR blocks such as `10.0.0.0/8`.
+    ///
+    /// The API doesn't keep their order, and each must be unique.
+    ///
+    /// Repeat for more.
+    ///
+    /// The list is replaced whole: give every value to keep. `--no-allowlist` removes it. Left as it is when none of these is given.
+    #[arg(long = "cidr", conflicts_with = "allowlist_json")]
+    pub cidr: Vec<String>,
+    #[arg(
+        long = "allowlist-json",
+        long_help = "The sources the firewall always allows.\n\nAs the API's JSON, an object whose fields are named in camel case, as the command prints them, or as the API definitions name them; `@FILE` reads it from a file. Each field and value is checked before anything is sent, at any depth.\n\nIt is replaced whole: a key not given is reset. `--no-allowlist` removes it. Left as it is when none of these is given.",
+        help = "Allowlist as JSON; replaced whole",
+        value_name = "JSON",
+        value_parser = |text:&str|json_arg::<::origincloud_scratch::v1::Allowlist>(
+            text,
+            "origincloud.scratch.v1.Allowlist"
+        ),
+        conflicts_with = "cidr"
+    )]
+    pub allowlist_json: Option<JsonArg<::origincloud_scratch::v1::Allowlist>>,
+    /// Remove its allowlist.
+    #[arg(long = "no-allowlist", conflicts_with_all = ["allowlist_json", "cidr"])]
+    pub no_allowlist: bool,
 }
 async fn update_firewall(
     ctx: &Context<'_>,
@@ -937,6 +994,24 @@ async fn update_firewall(
     if args.no_banner || args.banner_file.is_some() {
         firewall.banner = args.banner_file.as_deref().map(read_bytes_file).transpose()?;
         paths.push("banner".to_owned());
+    }
+    if args.no_allowlist || !args.cidr.is_empty() || args.allowlist_json.is_some() {
+        let value = match args.allowlist_json {
+            Some(json) => {
+                notice_reset("--allowlist-json", "allowlist", &["cidrs"], &json.1);
+                Some(json.0)
+            }
+            None if args.cidr.is_empty() => None,
+            None => {
+                notice_replaced("--cidr", "allowlist", args.cidr.len());
+                unique(&args.cidr, "--cidr")?;
+                Some(::origincloud_scratch::v1::Allowlist {
+                    cidrs: args.cidr.clone(),
+                })
+            }
+        };
+        firewall.allowlist = value;
+        paths.push("allowlist".to_owned());
     }
     let request = ::origincloud_scratch::v1::UpdateFirewallRequest {
         firewall: Some(firewall),

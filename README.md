@@ -401,6 +401,12 @@ every method of the API, with the API's own descriptions as help:
   --rules-json '[{"protocol": "TCP", "match": {"headers": [{"name": "x-env", "value": "prod"}]}}]'
   ```
 
+- **A message that is only a list.** A field whose message has no other field
+  than one list is that list's repeatable flag, beside its `-json` flag: a
+  DNS record set's `values` is `--value 192.0.2.10 --value 192.0.2.11`, and
+  the flag's help is the list's own, which says what a value is for each
+  `--type`. In a choice, that flag is the alternative to `--alias`.
+
 - **Updates.** An update changes only what its flags name: `update-volume
   --volume vol-123 --tag team=web` replaces its tags and keeps its size. It
   needs at least one. A list, a map or a nested message is replaced whole:

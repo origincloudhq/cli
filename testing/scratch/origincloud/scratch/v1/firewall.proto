@@ -153,6 +153,16 @@ message Firewall {
 
   // What the firewall answers a denied connection with; nothing when unset.
   optional bytes banner = 19;
+
+  // The sources the firewall always allows.
+  Allowlist allowlist = 20;
+}
+
+// A list of sources and nothing else, which its field takes as a flag of
+// its own.
+message Allowlist {
+  // The sources, as CIDR blocks such as `10.0.0.0/8`.
+  repeated string cidrs = 1 [(google.api.field_behavior) = REQUIRED, (google.api.field_behavior) = UNORDERED_LIST];
 }
 
 // A network a firewall can guard: one of the project's own, or one the

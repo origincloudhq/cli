@@ -1094,7 +1094,7 @@ mod tests {
                 option (google.api.http) = {post: "/v1/choices" body: "*"};
               }
             }
-            message Many { repeated string items = 1; }
+            message Many { repeated string items = 1; repeated string more = 2; }
             message MakeChoiceRequest {
               string label = 1;
               oneof pick {
@@ -1113,6 +1113,46 @@ mod tests {
             "{code}"
         );
         assert!(code.contains("One of `--many-json`, `--first`"), "{code}");
+    }
+
+    /// A message that is a single list is that list's repeatable flag, in a
+    /// oneof as well, which names that flag and not the JSON one.
+    #[test]
+    fn a_single_list_message_is_its_lists_flag() {
+        let source = r#"
+            syntax = "proto3";
+            package origincloud.choices.v1;
+            import "google/api/annotations.proto";
+            // Choices.
+            service ChoiceService {
+              // Makes one from `many` or `first`.
+              rpc MakeChoice(MakeChoiceRequest) returns (MakeChoiceRequest) {
+                option (google.api.http) = {post: "/v1/choices" body: "*"};
+              }
+            }
+            message Many {
+              // The items, as the label says.
+              repeated string items = 1;
+            }
+            message MakeChoiceRequest {
+              string label = 1;
+              oneof pick {
+                Many many = 2;
+                string first = 3;
+              }
+            }
+        "#;
+        let dir = api("choices/v1/choices.proto", source);
+        let files = generated(&[dir.path()]).unwrap();
+        let code = file(&files, "choices.rs");
+        assert!(code.contains("long = \"item\""), "{code}");
+        assert!(code.contains("long = \"many-json\""), "{code}");
+        assert!(
+            code.contains("Makes one from `--item` or `--first`"),
+            "{code}"
+        );
+        assert!(code.contains("One of `--item`, `--first`"), "{code}");
+        assert!(code.contains("The items, as the label says."), "{code}");
     }
 
     const FOLDERS: &str = r#"

@@ -57,6 +57,9 @@ pub struct Firewall {
     /// What the firewall answers a denied connection with; nothing when unset.
     #[prost(bytes = "vec", optional, tag = "19")]
     pub banner: ::core::option::Option<::prost::alloc::vec::Vec<u8>>,
+    /// The sources the firewall always allows.
+    #[prost(message, optional, tag = "20")]
+    pub allowlist: ::core::option::Option<Allowlist>,
     /// Where the firewall sends a copy of what it denies.
     #[prost(oneof = "firewall::Mirror", tags = "15, 16, 17")]
     pub mirror: ::core::option::Option<firewall::Mirror>,
@@ -76,6 +79,14 @@ pub mod firewall {
         #[prost(message, tag = "17")]
         MirrorLog(super::Logging),
     }
+}
+/// A list of sources and nothing else, which its field takes as a flag of
+/// its own.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct Allowlist {
+    /// The sources, as CIDR blocks such as `10.0.0.0/8`.
+    #[prost(string, repeated, tag = "1")]
+    pub cidrs: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
 }
 /// A network a firewall can guard: one of the project's own, or one the
 /// zone shares with every project.
@@ -367,6 +378,113 @@ pub struct ListNetworksResponse {
     /// The next page's token; empty on the last page.
     #[prost(string, tag = "2")]
     pub next_page_token: ::prost::alloc::string::String,
+}
+impl serde::Serialize for Allowlist {
+    #[allow(deprecated)]
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut len = 0;
+        if !self.cidrs.is_empty() {
+            len += 1;
+        }
+        let mut struct_ser = serializer
+            .serialize_struct("origincloud.scratch.v1.Allowlist", len)?;
+        if !self.cidrs.is_empty() {
+            struct_ser.serialize_field("cidrs", &self.cidrs)?;
+        }
+        struct_ser.end()
+    }
+}
+impl<'de> serde::Deserialize<'de> for Allowlist {
+    #[allow(deprecated)]
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        const FIELDS: &[&str] = &["cidrs"];
+        #[allow(clippy::enum_variant_names)]
+        enum GeneratedField {
+            Cidrs,
+            __SkipField__,
+        }
+        impl<'de> serde::Deserialize<'de> for GeneratedField {
+            fn deserialize<D>(
+                deserializer: D,
+            ) -> std::result::Result<GeneratedField, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct GeneratedVisitor;
+                impl serde::de::Visitor<'_> for GeneratedVisitor {
+                    type Value = GeneratedField;
+                    fn expecting(
+                        &self,
+                        formatter: &mut std::fmt::Formatter<'_>,
+                    ) -> std::fmt::Result {
+                        write!(formatter, "expected one of: {:?}", & FIELDS)
+                    }
+                    #[allow(unused_variables)]
+                    fn visit_str<E>(
+                        self,
+                        value: &str,
+                    ) -> std::result::Result<GeneratedField, E>
+                    where
+                        E: serde::de::Error,
+                    {
+                        match value {
+                            "cidrs" => Ok(GeneratedField::Cidrs),
+                            _ => Ok(GeneratedField::__SkipField__),
+                        }
+                    }
+                }
+                deserializer.deserialize_identifier(GeneratedVisitor)
+            }
+        }
+        struct GeneratedVisitor;
+        impl<'de> serde::de::Visitor<'de> for GeneratedVisitor {
+            type Value = Allowlist;
+            fn expecting(
+                &self,
+                formatter: &mut std::fmt::Formatter<'_>,
+            ) -> std::fmt::Result {
+                formatter.write_str("struct origincloud.scratch.v1.Allowlist")
+            }
+            fn visit_map<V>(
+                self,
+                mut map_: V,
+            ) -> std::result::Result<Allowlist, V::Error>
+            where
+                V: serde::de::MapAccess<'de>,
+            {
+                let mut cidrs__ = None;
+                while let Some(k) = map_.next_key()? {
+                    match k {
+                        GeneratedField::Cidrs => {
+                            if cidrs__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("cidrs"));
+                            }
+                            cidrs__ = Some(map_.next_value()?);
+                        }
+                        GeneratedField::__SkipField__ => {
+                            let _ = map_.next_value::<serde::de::IgnoredAny>()?;
+                        }
+                    }
+                }
+                Ok(Allowlist {
+                    cidrs: cidrs__.unwrap_or_default(),
+                })
+            }
+        }
+        deserializer
+            .deserialize_struct(
+                "origincloud.scratch.v1.Allowlist",
+                FIELDS,
+                GeneratedVisitor,
+            )
+    }
 }
 impl serde::Serialize for CreateFirewallRequest {
     #[allow(deprecated)]
@@ -712,6 +830,9 @@ impl serde::Serialize for Firewall {
         if self.banner.is_some() {
             len += 1;
         }
+        if self.allowlist.is_some() {
+            len += 1;
+        }
         if self.mirror.is_some() {
             len += 1;
         }
@@ -781,6 +902,9 @@ impl serde::Serialize for Firewall {
                     pbjson::private::base64::encode(&v).as_str(),
                 )?;
         }
+        if let Some(v) = self.allowlist.as_ref() {
+            struct_ser.serialize_field("allowlist", v)?;
+        }
         if let Some(v) = self.mirror.as_ref() {
             match v {
                 firewall::Mirror::MirrorNetwork(v) => {
@@ -824,6 +948,7 @@ impl<'de> serde::Deserialize<'de> for Firewall {
             "note",
             "certificate",
             "banner",
+            "allowlist",
             "mirror_network",
             "mirrorNetwork",
             "mirror_address",
@@ -849,6 +974,7 @@ impl<'de> serde::Deserialize<'de> for Firewall {
             Note,
             Certificate,
             Banner,
+            Allowlist,
             MirrorNetwork,
             MirrorAddress,
             MirrorLog,
@@ -903,6 +1029,7 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                             "note" => Ok(GeneratedField::Note),
                             "certificate" => Ok(GeneratedField::Certificate),
                             "banner" => Ok(GeneratedField::Banner),
+                            "allowlist" => Ok(GeneratedField::Allowlist),
                             "mirrorNetwork" | "mirror_network" => {
                                 Ok(GeneratedField::MirrorNetwork)
                             }
@@ -946,6 +1073,7 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                 let mut note__ = None;
                 let mut certificate__ = None;
                 let mut banner__ = None;
+                let mut allowlist__ = None;
                 let mut mirror__ = None;
                 while let Some(k) = map_.next_key()? {
                     match k {
@@ -1079,6 +1207,12 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                                 >()?
                                 .map(|x| x.0);
                         }
+                        GeneratedField::Allowlist => {
+                            if allowlist__.is_some() {
+                                return Err(serde::de::Error::duplicate_field("allowlist"));
+                            }
+                            allowlist__ = map_.next_value()?;
+                        }
                         GeneratedField::MirrorNetwork => {
                             if mirror__.is_some() {
                                 return Err(
@@ -1129,6 +1263,7 @@ impl<'de> serde::Deserialize<'de> for Firewall {
                     note: note__,
                     certificate: certificate__.unwrap_or_default(),
                     banner: banner__,
+                    allowlist: allowlist__,
                     mirror: mirror__,
                 })
             }

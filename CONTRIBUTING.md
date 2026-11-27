@@ -140,7 +140,9 @@ name), each parsed and checked as such, and its required fields enforced; a
 repeated one is that flag repeated. Every message field also has
 a `--{field}-json` flag taking its JSON, the only form of what pairs can't
 say, such as a message nested deeper or a list inside a message; a message
-with a required field of that kind has the JSON flag alone; a well-known
+with a required field of that kind has the JSON flag alone, unless that field is
+its only one and a repeated scalar (`BasicRecordData.values`): the message's field
+is then that list's repeatable flag (`--value`), beside the JSON one; a well-known
 type, such as a struct, takes its own JSON form. That flag checks its value
 against the message's descriptor, from `api.binpb` (and `test-api.binpb` for
 the test services), at every depth (`crates/cli/src/sdk/nested.rs`): a key
