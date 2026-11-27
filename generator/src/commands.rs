@@ -1209,6 +1209,27 @@ struct Nested {
     /// Whether it is a well-known type, such as a struct, whose JSON is a
     /// form of its own rather than an object of its fields.
     well_known: bool,
+    /// The message's one field, when that is a repeated scalar: the
+    /// message is set by that field's repeatable flag.
+    flat: Option<Flat>,
+}
+
+/// The one field of a single-list message (`BasicRecordData.values`),
+/// which the message's field takes as its own repeatable flag.
+#[derive(Clone)]
+struct Flat {
+    /// The field's name, whose singular is the flag.
+    name: String,
+    /// The field's Rust name.
+    ident: String,
+    elem: Elem,
+    /// The field's comment as the proto has it, which is the flag's help.
+    comment: String,
+    /// Whether the API keeps the list unordered.
+    unordered: bool,
+    /// Whether the message has fields besides it (output only ones), which
+    /// the request leaves at their defaults.
+    others: bool,
 }
 
 /// One key of a nested message's `KEY=VALUE,...` form.
@@ -1570,7 +1591,53 @@ fn nested(cx: &Cx<'_>, m: &MessageDescriptor) -> Result<Nested, String> {
         parser,
         partial,
         well_known: m.package_name().starts_with("google."),
+        flat: flat_list(cx, m),
     })
+}
+
+/// `m`'s one field, when it has exactly one that isn't output only and that
+/// is a repeated scalar, enum or resource name: such a message is no more
+/// than its list, so its field is that list's repeatable flag.
+fn flat_list(cx: &Cx<'_>, m: &MessageDescriptor) -> Option<Flat> {
+    if m.package_name().starts_with("google.") {
+        return None;
+    }
+    let mut fields = m
+        .fields()
+        .filter(|f| !behaviors(cx.pool, f).contains(&OUTPUT_ONLY));
+    let f = fields.next()?;
+    if fields.next().is_some() || !f.is_list() || f.is_map() || f.containing_oneof().is_some() {
+        return None;
+    }
+    let Ok(Kind2::List(elem)) = kind_of(cx, &f) else {
+        return None;
+    };
+    let unordered = behaviors(cx.pool, &f).contains(&UNORDERED_LIST);
+    let mut comment = cx
+        .comments
+        .leading(f.parent_file().name(), f.path())
+        .trim_end()
+        .to_owned();
+    if unordered {
+        comment.push_str("\n\nThe API doesn't keep their order, and each must be unique.");
+    }
+    Some(Flat {
+        name: f.name().to_owned(),
+        ident: ident(f.name()),
+        elem,
+        comment,
+        unordered,
+        others: m.fields().count() > 1,
+    })
+}
+
+/// The flattened list of the message `field` holds, when it is a single
+/// message with a single list.
+fn flat_of(cx: &Cx<'_>, field: &FieldDescriptor) -> Option<Flat> {
+    match field.kind() {
+        Kind::Message(m) if !field.is_list() && !field.is_map() => flat_list(cx, &m),
+        _ => None,
+    }
 }
 
 /// `kind`, a message field `commands.toml` lists under `[[partial]]`, with
@@ -3273,7 +3340,9 @@ fn resource_of(cx: &Cx<'_>, message: &MessageDescriptor) -> Option<Resource> {
 
 /// The flag a field is set by.
 fn flag_name(cx: &Cx<'_>, field: &FieldDescriptor) -> String {
-    if json_flag_alone(cx, field) {
+    if let Some(flat) = flat_of(cx, field) {
+        singular(&flat.name).to_kebab_case()
+    } else if json_flag_alone(cx, field) {
         format!("{}-json", field.name().to_kebab_case())
     } else if field.kind() == Kind::Bytes && !field.is_list() {
         file_long(field)
@@ -4405,6 +4474,50 @@ fn message_flags(
             b.update_ids.push(arg_id(&one).to_owned());
         }
     }
+    // A single-list message: the list's own repeatable flag.
+    let flat = match (&n.flat, repeated) {
+        (Some(flat), false) => Some(flat),
+        _ => None,
+    };
+    let flat_id = flat.map(|f| ident(&singular(&f.name)));
+    if let Some(flat) = flat {
+        let (one_flat, flat_long) = (
+            ident(&singular(&flat.name)),
+            singular(&flat.name).to_kebab_case(),
+        );
+        let comment = docs::help(
+            &flat.comment,
+            &Vocabulary {
+                flags: &b.vocabulary,
+                fields: &BTreeSet::new(),
+            },
+        );
+        let (ty, doc, _) = list_elements(&flat.elem, &one_flat, &flat_long, &comment);
+        let replaced = if update {
+            format!(
+                "\n\nThe list is replaced whole: give every value to keep.{} Left as it is when none of these is given.",
+                if emptied { format!(" `--no-{long}` removes it.") } else { String::new() }
+            )
+        } else {
+            String::new()
+        };
+        let mut attrs = list_attrs(&flat.elem);
+        attrs.push(format!("conflicts_with = {json:?}"));
+        if required && !update {
+            attrs.push(format!("required_unless_present = {json:?}"));
+        }
+        b.add_flag(Flag {
+            ident: one_flat.clone(),
+            long: flat_long,
+            doc: format!("{doc}\n\nRepeat for more.{replaced}"),
+            ty,
+            attrs,
+        })?;
+        conflicts.push(format!("{one_flat:?}"));
+        if update {
+            b.update_ids.push(arg_id(&one_flat).to_owned());
+        }
+    }
     let json_ty = if repeated {
         format!("Vec<{}>", n.rust)
     } else {
@@ -4428,8 +4541,14 @@ fn message_flags(
     attrs.extend(json_attrs(
         &json_ty,
         &n.full_name,
-        required && !update && n.parser.is_none(),
+        required && !update && n.parser.is_none() && flat.is_none(),
     ));
+    if let Some(id) = &flat_id {
+        attrs.push(format!("conflicts_with = {:?}", arg_id(id)));
+        if required && !update {
+            attrs.push(format!("required_unless_present = {:?}", arg_id(id)));
+        }
+    }
     b.add_flag(Flag {
         ident: json.clone(),
         long: json_long.clone(),
@@ -4500,9 +4619,34 @@ fn message_flags(
         (false, true) => format!(
             "{binding} {var} = match args.{json} {{ Some(json) => {{ {notice_json}json.0 }} None => Vec::new() }};"
         ),
-        (false, false) => format!(
-            "{binding} {var} = match args.{json} {{ Some(json) => {{ {notice_json}Some(json.0) }} None => None }};"
-        ),
+        (false, false) => match flat {
+            Some(flat) => {
+                let one_flat = ident(&singular(&flat.name));
+                let flat_long = singular(&flat.name).to_kebab_case();
+                let (_, _, expr) = list_elements(&flat.elem, &one_flat, &flat_long, "");
+                let field_id = &flat.ident;
+                let notice = if update {
+                    format!(
+                        "notice_replaced(\"--{flat_long}\", {name:?}, args.{one_flat}.len()); "
+                    )
+                } else {
+                    String::new()
+                };
+                let rest = if flat.others { ", ..Default::default()" } else { "" };
+                let check = if flat.unordered {
+                    format!("unique(&args.{one_flat}, \"--{flat_long}\")?; ")
+                } else {
+                    String::new()
+                };
+                format!(
+                    "{binding} {var} = match args.{json} {{ Some(json) => {{ {notice_json}Some(json.0) }} None if args.{one_flat}.is_empty() => None, None => {{ {notice}{check}Some({} {{ {field_id}: {expr}{rest} }}) }} }};",
+                    n.rust
+                )
+            }
+            None => format!(
+                "{binding} {var} = match args.{json} {{ Some(json) => {{ {notice_json}Some(json.0) }} None => None }};"
+            ),
+        },
     }];
     if !completions.is_empty() {
         let body = completions.join(" ");
@@ -4528,6 +4672,9 @@ fn message_flags(
         } else {
             format!("args.{one}.is_some()")
         });
+    }
+    if let Some(id) = &flat_id {
+        given.push(format!("!args.{id}.is_empty()"));
     }
     given.push(format!("args.{json}.is_some()"));
     Ok(vec![format!(

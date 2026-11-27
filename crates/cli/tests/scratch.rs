@@ -1537,6 +1537,109 @@ async fn a_soft_delete_says_what_restores_it() {
     assert_eq!(requests[0].path, "/v1/projects/p/zones/z/firewalls/f");
 }
 
+/// A message that is a single list is that list's repeatable flag
+/// (`--cidr`, for `allowlist`), beside its JSON flag, which still takes the
+/// whole message; an update says it replaces the whole list.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_single_list_message_is_a_repeatable_flag() {
+    let server = recording(echo).await;
+    let create =
+        |extra: &[&'static str]| [&CREATE[..], &["--rule", "protocol=TCP"], extra].concat();
+    success(
+        &scratch(
+            &server,
+            &create(&["--cidr", "10.0.0.0/8", "--cidr", "192.0.2.0/24"]),
+        )
+        .await,
+    );
+    success(
+        &scratch(
+            &server,
+            &create(&["--allowlist-json", r#"{"cidrs": ["10.1.0.0/16"]}"#]),
+        )
+        .await,
+    );
+    success(&scratch(&server, &create(&[])).await);
+    let requests = server.requests();
+    assert_eq!(
+        body(&requests[0])["allowlist"],
+        json!({"cidrs": ["10.0.0.0/8", "192.0.2.0/24"]})
+    );
+    assert_eq!(
+        body(&requests[1])["allowlist"],
+        json!({"cidrs": ["10.1.0.0/16"]})
+    );
+    assert!(body(&requests[2]).get("allowlist").is_none());
+
+    // One form at a time, and each element once.
+    refused(
+        &server,
+        &create(&[
+            "--cidr",
+            "10.0.0.0/8",
+            "--allowlist-json",
+            r#"{"cidrs": ["10.1.0.0/16"]}"#,
+        ]),
+        "cannot be used with",
+    )
+    .await;
+    let description = failure(
+        &scratch(
+            &server,
+            &create(&["--cidr", "10.0.0.0/8", "--cidr", "10.0.0.0/8"]),
+        )
+        .await,
+    );
+    assert_eq!(
+        description,
+        "--cidr: the 2nd value is the 1st again; the API keeps each once"
+    );
+    assert_eq!(server.requests().len(), 3);
+
+    // An update names the field and sends the list whole.
+    let update = |extra: &[&'static str]| [&["update-firewall"][..], &FIREWALL, extra].concat();
+    let output = scratch(
+        &server,
+        &update(&["--cidr", "10.0.0.0/8", "--cidr", "192.0.2.0/24"]),
+    )
+    .await;
+    success(&output);
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("--cidr: the update replaces all of allowlist with the 2 given."),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let requests = server.requests();
+    let sent = requests.last().unwrap();
+    assert_eq!(sent.query_values("updateMask"), ["allowlist"]);
+    assert_eq!(
+        body(sent)["allowlist"],
+        json!({"cidrs": ["10.0.0.0/8", "192.0.2.0/24"]})
+    );
+}
+
+/// The help of the flag is the list field's comment.
+#[test]
+fn the_help_of_a_single_list_flag() {
+    let root = origincloud_cli::command();
+    let command = root
+        .find_subcommand("scratch")
+        .unwrap()
+        .find_subcommand("create-firewall")
+        .unwrap();
+    let arg = command
+        .get_arguments()
+        .find(|a| a.get_long() == Some("cidr"))
+        .expect("--cidr");
+    let help = arg
+        .get_long_help()
+        .map(ToString::to_string)
+        .unwrap_or_default();
+    assert!(help.contains("The sources, as CIDR blocks"), "{help}");
+    assert!(help.contains("Repeat for more"), "{help}");
+}
+
 /// A response's `bytes` field is `--{field}-out`, the counterpart of
 /// `--{field}-file`: written byte for byte to a file readable by its owner
 /// alone, or to standard output for `-`, and left out of the printed JSON.
