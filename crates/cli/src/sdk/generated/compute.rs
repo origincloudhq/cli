@@ -1384,6 +1384,58 @@ pub struct LaunchInstanceArgs {
     pub launch_template_data_json: Option<
         JsonArg<::origincloud_compute::v1beta1::LaunchTemplateData>,
     >,
+    /// The instance type by its full name,
+    /// `//compute.origincloudapis.eu/instanceTypes/{instance_type}`, such as
+    /// `//compute.origincloudapis.eu/instanceTypes/gp1.core.2`: one whose
+    /// `available` is true.
+    ///
+    /// Sets `instance_type` of `--launch-template-data`; giving `instance_type` there as well is refused.
+    #[arg(long = "instance-type", value_name = "NAME")]
+    pub instance_type: Option<String>,
+    /// The full name of the image the boot volume is created from, in the
+    /// launch's zone: one of the project's own,
+    /// `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/images/{image}`,
+    /// or a public one, `//compute.origincloudapis.eu/zones/{zone}/images/{image}`. Set exactly one of
+    /// `image` and `imageFamily`.
+    ///
+    /// Sets `image` of `--launch-template-data`; giving `image` there as well is refused.
+    #[arg(long = "image", value_name = "NAME", conflicts_with = "image_family")]
+    pub image: Option<String>,
+    /// The full name of the image family to launch the current public image
+    /// of, `//compute.origincloudapis.eu/imageFamilies/{image_family}`. Set exactly one of `image` and
+    /// `imageFamily`.
+    ///
+    /// Sets `image_family` of `--launch-template-data`; giving `image_family` there as well is refused.
+    #[arg(long = "image-family", value_name = "NAME", conflicts_with = "image")]
+    pub image_family: Option<String>,
+    /// The full name of the key pair whose public key is installed for
+    /// `loginUser`, in the launch's project.
+    ///
+    /// Sets `key_pair` of `--launch-template-data`; giving `key_pair` there as well is refused.
+    #[arg(long = "key-pair", value_name = "NAME")]
+    pub key_pair: Option<String>,
+    /// The full name of the subnet to create the interface in,
+    /// `//network.origincloudapis.eu/projects/{project}/zones/{zone}/subnets/{subnet}`,
+    /// in the launch's project and zone. Left empty, the project's default
+    /// subnet, in its default VPC: the first launch that needs them creates
+    /// both, the VPC with an internet gateway attached and the subnet
+    /// assigning each interface a public address. In a subnet that assigns
+    /// public addresses, a launch whose address can't be assigned ends
+    /// `FAILED` with the reason.
+    ///
+    /// Sets `network_interfaces.spec.subnet` of `--launch-template-data`; giving `network_interfaces` there as well is refused.
+    #[arg(long = "subnet", value_name = "NAME")]
+    pub subnet: Option<String>,
+    /// The full names of the security groups to put the interface in,
+    /// `//network.origincloudapis.eu/projects/{project}/regions/{region}/securityGroups/{security_group}`,
+    /// in the launch's project and region, in the subnet's VPC. Left empty,
+    /// the VPC's default security group when it has one, and none when it
+    /// has none: an interface in no security group admits and sends nothing
+    /// but address resolution and replies to its own traffic.
+    ///
+    /// Sets `network_interfaces.spec.security_groups` of `--launch-template-data`; giving `network_interfaces` there as well is refused.
+    #[arg(long = "security-group", value_name = "NAME")]
+    pub security_group: Vec<String>,
     /// A UUID; a repeat with the same id returns the first request's
     /// operation instead of launching a second instance. One is generated when not given.
     #[arg(long = "request-id")]
@@ -1459,6 +1511,50 @@ async fn launch_instance(
             )?;
         }
     }
+    let launch_template_data = with_shortcuts(
+            launch_template_data,
+            "origincloud.compute.v1beta1.LaunchTemplateData",
+            "--launch-template-data",
+            &[
+                Shortcut {
+                    flag: "--instance-type",
+                    path: "instanceType",
+                    list: false,
+                    values: args.instance_type.iter().cloned().collect(),
+                },
+                Shortcut {
+                    flag: "--image",
+                    path: "image",
+                    list: false,
+                    values: args.image.iter().cloned().collect(),
+                },
+                Shortcut {
+                    flag: "--image-family",
+                    path: "imageFamily",
+                    list: false,
+                    values: args.image_family.iter().cloned().collect(),
+                },
+                Shortcut {
+                    flag: "--key-pair",
+                    path: "keyPair",
+                    list: false,
+                    values: args.key_pair.iter().cloned().collect(),
+                },
+                Shortcut {
+                    flag: "--subnet",
+                    path: "networkInterfaces.0.spec.subnet",
+                    list: false,
+                    values: args.subnet.iter().cloned().collect(),
+                },
+                Shortcut {
+                    flag: "--security-group",
+                    path: "networkInterfaces.0.spec.securityGroups",
+                    list: true,
+                    values: args.security_group.clone(),
+                },
+            ],
+        )
+        .map_err(::anyhow::Error::msg)?;
     let launch_template = match args.launch_template.as_deref() {
         Some(v) => {
             reference(
@@ -3791,5 +3887,6 @@ fn parse_local_disk(
 }
 #[allow(unused_imports)]
 use crate::sdk::runtime::{
-    json_arg, key_scalar, key_values, required_keys, unknown_key, JsonArg, Keyed,
+    json_arg, key_scalar, key_values, required_keys, unknown_key, with_shortcuts,
+    JsonArg, Keyed, Shortcut,
 };

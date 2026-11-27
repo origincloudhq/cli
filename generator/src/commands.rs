@@ -429,6 +429,7 @@ pub fn generate(
         "timestamp",
         "unique",
         "unknown_key",
+        "with_shortcuts",
     ]
     .into_iter()
     .filter(|f| {
@@ -437,7 +438,7 @@ pub fn generate(
             || code.contains(&format!("= {f}"))
     })
     .chain(
-        ["JsonArg", "Keyed"]
+        ["JsonArg", "Keyed", "Shortcut"]
             .into_iter()
             .filter(|t| code.contains(&format!("{t}<")) || code.contains(&format!("{t} {{"))),
     )
@@ -2263,6 +2264,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                     .to_owned();
             }
         }
+        shortcut_flags(cx, &mut b, m.name(), &field, &fid, &comment)?;
         b.request.push(init(&fid, &expr));
         if let Some(entry) = cx.policy.one_way(cx.own, m.name(), &name) {
             one_way.push(one_way_use(&mut b, &field, &k, !required, entry)?);
@@ -3435,6 +3437,118 @@ fn value(
             fid
         }
     })
+}
+
+/// The flags `[[shortcut]]` gives a message field `field` of `method`'s
+/// request, each setting one field of the message however deep it is, and
+/// the statement that puts what they were given into the message, which the
+/// field's own flags built as `var`.
+fn shortcut_flags(
+    cx: &Cx<'_>,
+    b: &mut Build,
+    method: &str,
+    field: &FieldDescriptor,
+    var: &str,
+    comment: &dyn Fn(&FieldDescriptor) -> String,
+) -> Result<(), String> {
+    let entries = cx.policy.shortcuts(cx.own, method, field.name());
+    if entries.is_empty() {
+        return Ok(());
+    }
+    let Kind::Message(message) = field.kind() else {
+        return Err(format!(
+            "{} has [[shortcut]], but isn't a message",
+            field.full_name()
+        ));
+    };
+    let source = format!("--{}", field.name().to_kebab_case());
+    let mut uses = Vec::new();
+    for entry in entries {
+        // Walk the path: every step but the last a message, or a list of
+        // messages, whose first element is the one meant.
+        let mut json_path = Vec::new();
+        let mut at = message.clone();
+        let mut leaf = None;
+        let steps: Vec<&str> = entry.path.split('.').collect();
+        for (i, step) in steps.iter().enumerate() {
+            let f = at.get_field_by_name(step).ok_or_else(|| {
+                format!(
+                    "[[shortcut]] {}: {} has no field {step}",
+                    entry.flag,
+                    at.full_name()
+                )
+            })?;
+            json_path.push(f.json_name().to_owned());
+            if i + 1 == steps.len() {
+                leaf = Some(f);
+                break;
+            }
+            let Kind::Message(next) = f.kind() else {
+                return Err(format!(
+                    "[[shortcut]] {}: {step} isn't a message",
+                    entry.flag
+                ));
+            };
+            if f.is_list() {
+                json_path.push("0".to_owned());
+            }
+            at = next;
+        }
+        let leaf = leaf.ok_or_else(|| format!("[[shortcut]] {} has an empty path", entry.flag))?;
+        if leaf.kind() != Kind::String {
+            return Err(format!(
+                "[[shortcut]] {}: {} isn't a string or a list of them",
+                entry.flag, entry.path
+            ));
+        }
+        let list = leaf.is_list();
+        let ident = ident(&entry.flag.replace('-', "_"));
+        let vocabulary = b.vocabulary.clone();
+        let doc = format!(
+            "{}\n\nSets `{}` of `{source}`; giving `{}` there as well is refused.",
+            docs::help(
+                &comment(&leaf),
+                &Vocabulary {
+                    flags: &vocabulary,
+                    fields: &cx.fields
+                },
+            ),
+            entry.path,
+            steps[0]
+        );
+        let mut attrs = vec![format!("value_name = {:?}", "NAME")];
+        for other in &entry.conflicts_with {
+            attrs.push(format!("conflicts_with = {:?}", other.replace('-', "_")));
+        }
+        b.add_flag(Flag {
+            ident: ident.clone(),
+            long: entry.flag.clone(),
+            doc,
+            ty: if list {
+                "Vec<String>"
+            } else {
+                "Option<String>"
+            }
+            .to_owned(),
+            attrs,
+        })?;
+        let values = if list {
+            format!("args.{ident}.clone()")
+        } else {
+            format!("args.{ident}.iter().cloned().collect()")
+        };
+        uses.push(format!(
+            "Shortcut {{ flag: \"--{}\", path: {:?}, list: {list}, values: {values} }}",
+            entry.flag,
+            json_path.join(".")
+        ));
+    }
+    b.prelude.push(format!(
+        "let {var} = with_shortcuts({var}, {:?}, {source:?}, &[{}]).map_err(::anyhow::Error::msg)?;",
+        message.full_name(),
+        uses.join(", ")
+    ));
+    Ok(())
 }
 
 /// Adds the flag of a field an update may change, and returns the statement

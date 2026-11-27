@@ -241,3 +241,121 @@ async fn launch_instance_launches_from_a_named_version_with_an_override() {
     assert!(description.contains("key_pair"), "{description}");
     assert_eq!(server.requests().len(), before);
 }
+
+const SUBNET: &str = "//network.origincloudapis.eu/projects/p/zones/z/subnets/web";
+const GROUP: &str = "//network.origincloudapis.eu/projects/p/regions/r/securityGroups/web";
+const OTHER_GROUP: &str = "//network.origincloudapis.eu/projects/p/regions/r/securityGroups/db";
+
+/// `launch-instance`'s flags for the common launch build the recipe without
+/// JSON: the instance type, image, key pair, and the subnet and security
+/// groups of one network interface the launch creates.
+#[tokio::test(flavor = "multi_thread")]
+async fn launch_instance_flags_build_the_recipe() {
+    let server = recording(|_| Response::json(OPERATION)).await;
+    let server_ref = &server;
+    let launch = |extra: &[&str]| {
+        let args: Vec<String> = [
+            "launch-instance",
+            "--project",
+            "p",
+            "--zone",
+            "z",
+            "--no-wait",
+        ]
+        .iter()
+        .chain(extra)
+        .map(|a| (*a).to_owned())
+        .collect();
+        async move {
+            let args: Vec<&str> = args.iter().map(String::as_str).collect();
+            server_ref.run("compute", &args).await
+        }
+    };
+    success(
+        &launch(&[
+            "--instance-type",
+            TYPE,
+            "--image-family",
+            FAMILY,
+            "--key-pair",
+            KEY_PAIR,
+            "--subnet",
+            SUBNET,
+            "--security-group",
+            GROUP,
+            "--security-group",
+            OTHER_GROUP,
+        ])
+        .await,
+    );
+    assert_eq!(
+        sent(&server.requests()[0])["launchTemplateData"],
+        json!({
+            "instanceType": TYPE,
+            "imageFamily": FAMILY,
+            "keyPair": KEY_PAIR,
+            "networkInterfaces": [{"spec": {
+                "subnet": SUBNET,
+                "securityGroups": [GROUP, OTHER_GROUP],
+            }}],
+        })
+    );
+
+    // On top of a template, and beside the recipe's other keys.
+    success(
+        &launch(&[
+            "--launch-template",
+            TEMPLATE,
+            "--launch-template-data",
+            "login_user=ops",
+            "--instance-type",
+            BIGGER_TYPE,
+        ])
+        .await,
+    );
+    let body = sent(&server.requests()[1]);
+    assert_eq!(body["launchTemplate"], TEMPLATE);
+    assert_eq!(
+        body["launchTemplateData"],
+        json!({"loginUser": "ops", "instanceType": BIGGER_TYPE})
+    );
+
+    let before = server.requests().len();
+    // The recipe's own key for the same field, or the interfaces it lists,
+    // is refused, and so are an image and a family together, a name that
+    // isn't a full name, and a security group that is another type's.
+    let description = failure(
+        &launch(&[
+            "--launch-template-data",
+            &format!("instance_type={TYPE}"),
+            "--instance-type",
+            BIGGER_TYPE,
+        ])
+        .await,
+    );
+    assert!(
+        description.contains("--instance-type can't be combined"),
+        "{description}"
+    );
+    let description = failure(
+        &launch(&[
+            "--launch-template-data-json",
+            r#"{"networkInterfaces":[{"networkInterface":"//network.origincloudapis.eu/projects/p/zones/z/networkInterfaces/n"}]}"#,
+            "--subnet",
+            SUBNET,
+        ])
+        .await,
+    );
+    assert!(
+        description.contains("--subnet can't be combined"),
+        "{description}"
+    );
+    let image = "//compute.origincloudapis.eu/projects/p/zones/z/images/i";
+    let output = launch(&["--image", image, "--image-family", FAMILY]).await;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(2), "{stderr}");
+    assert!(stderr.contains("cannot be used with"), "{stderr}");
+    let description = failure(&launch(&["--subnet", "web"]).await);
+    assert!(description.contains("subnet"), "{description}");
+    assert_eq!(server.requests().len(), before);
+}

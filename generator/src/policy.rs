@@ -64,6 +64,10 @@ pub struct Policy {
     /// the keys its message requires.
     #[serde(default)]
     pub partial: Vec<Partial>,
+    /// Flags of a method that set one field, at any depth, of a message
+    /// field of its request.
+    #[serde(default)]
+    pub shortcut: Vec<Shortcut>,
     /// Reference fields that also take the names of another resource type.
     #[serde(default)]
     pub also_names: Vec<AlsoNames>,
@@ -249,6 +253,30 @@ pub struct Partial {
     pub why: String,
 }
 
+/// A flag that sets one field of a message field of a request, however deep
+/// in it, so that the common case needs no `KEY=VALUE` pairs or JSON:
+/// `--subnet` of `LaunchInstance` sets the subnet of the first network
+/// interface of its `launch_template_data`. The message's own flags and the
+/// shortcut can't both set the field, or its parent.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Shortcut {
+    pub service: String,
+    pub method: String,
+    /// The message field of the request, such as `launch_template_data`.
+    pub field: String,
+    /// The flag, without its dashes: `subnet`.
+    pub flag: String,
+    /// The field it sets, as a path from the message through its fields,
+    /// each a message, a oneof's member or a list of messages (whose first
+    /// element is meant): `network_interfaces.spec.subnet`. A list at the
+    /// end (`security_groups`) makes the flag repeatable.
+    pub path: String,
+    /// Flags, without their dashes, that can't be given with it.
+    #[serde(default)]
+    pub conflicts_with: Vec<String>,
+}
+
 /// A reference field that also takes the names of a resource type other
 /// than the one its `google.api.resource_reference` declares, which can
 /// name one type only: its flag takes a whole name of either, and an id
@@ -353,6 +381,14 @@ impl Policy {
             .any(|f| f.service == service && f.method == method && f.field == field)
     }
 
+    /// The shortcut flags of the message field `field` of `method`.
+    pub fn shortcuts(&self, service: &str, method: &str, field: &str) -> Vec<&Shortcut> {
+        self.shortcut
+            .iter()
+            .filter(|s| s.service == service && s.method == method && s.field == field)
+            .collect()
+    }
+
     pub fn partial(&self, service: &str, method: &str, field: &str) -> bool {
         self.partial
             .iter()
@@ -422,6 +458,10 @@ impl Policy {
             .partial
             .iter()
             .map(|p| (p.service.as_str(), p.method.as_str(), p.field.as_str()));
+        let shortcut = self
+            .shortcut
+            .iter()
+            .map(|p| (p.service.as_str(), p.method.as_str(), p.field.as_str()));
         let exclusive = self.exclusive.iter().flat_map(|e| {
             e.fields
                 .iter()
@@ -432,6 +472,7 @@ impl Policy {
             .chain(from_file)
             .chain(enum_values)
             .chain(partial)
+            .chain(shortcut)
             .chain(exclusive)
     }
 }
@@ -509,6 +550,14 @@ mod tests {
             resource = "compute.origincloudapis.eu/PublicImage"
             why = "w"
 
+            [[shortcut]]
+            service = "compute"
+            method = "LaunchInstance"
+            field = "launch_template_data"
+            flag = "image"
+            path = "image"
+            conflicts_with = ["image-family"]
+
             [[view]]
             service = "compute"
             message = "Instance"
@@ -540,6 +589,11 @@ mod tests {
             .is_none());
         assert!(policy.read_from_file("sts", "AssumeServiceAccount", "token"));
         assert!(!policy.read_from_file("sts", "AssumeServiceAccount", "lifetime"));
+        let shortcuts = policy.shortcuts("compute", "LaunchInstance", "launch_template_data");
+        assert_eq!(shortcuts[0].conflicts_with, ["image-family"]);
+        assert!(policy
+            .shortcuts("compute", "CreateInstance", "launch_template_data")
+            .is_empty());
         assert!(policy.partial("compute", "LaunchInstance", "launch_template_data"));
         assert!(!policy.partial("compute", "CreateInstance", "launch_template_data"));
         assert_eq!(

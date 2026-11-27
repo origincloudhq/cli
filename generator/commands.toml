@@ -542,6 +542,55 @@ method = "LaunchInstance"
 field = "launch_template_data"
 why = "With `--launch-template`, the fields given override the version's, so a key the recipe requires, such as `instance_type`, isn't required here."
 
+# Flags of a method that set one field of a message field of its request,
+# however deep, so that the common case needs no `KEY=VALUE` pairs or JSON.
+# `path` goes from the message through its fields; a list of messages on the
+# way stands for its first element. Setting the field or its parent through
+# the message's own flags as well is refused.
+[[shortcut]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+flag = "instance-type"
+path = "instance_type"
+
+[[shortcut]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+flag = "image"
+path = "image"
+conflicts_with = ["image-family"]
+
+[[shortcut]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+flag = "image-family"
+path = "image_family"
+conflicts_with = ["image"]
+
+[[shortcut]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+flag = "key-pair"
+path = "key_pair"
+
+[[shortcut]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+flag = "subnet"
+path = "network_interfaces.spec.subnet"
+
+[[shortcut]]
+service = "compute"
+method = "LaunchInstance"
+field = "launch_template_data"
+flag = "security-group"
+path = "network_interfaces.spec.security_groups"
+
 # Fields of a request at most one of which can be set, by their paths from
 # the request, although the API doesn't make them a `oneof` (an existing
 # field can't join one without breaking the wire format): their flags are a
