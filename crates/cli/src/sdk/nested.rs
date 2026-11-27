@@ -97,6 +97,113 @@ pub fn json_arg<T: DeserializeOwned>(value: &str, message: &str) -> Result<JsonA
         .map_err(|e| format!("not its JSON: {e}"))
 }
 
+/// One flag that sets a field of a message flag's message, as `--subnet`
+/// sets the subnet of the first network interface in `--launch-template-data`:
+/// the flag, the JSON path of the field (a number is an element of a list)
+/// and the values given, one for a field, any number for a list.
+pub struct Shortcut<'a> {
+    pub flag: &'a str,
+    pub path: &'a str,
+    pub list: bool,
+    pub values: Vec<String>,
+}
+
+/// `current`, the message the flags of the message field `source`
+/// (`--launch-template-data`) built, with the
+/// fields the shortcut flags given set in it, checked as the message's JSON
+/// form is. A shortcut whose field the message already sets, through
+/// `--launch-template-data`, is refused, naming the flag: so is one whose
+/// parent field (`network_interfaces` for the subnet) is set, since the
+/// shortcut would replace what is there.
+pub fn with_shortcuts<T: serde::Serialize + DeserializeOwned>(
+    current: Option<T>,
+    message: &str,
+    source: &str,
+    shortcuts: &[Shortcut<'_>],
+) -> Result<Option<T>, String> {
+    let given: Vec<&Shortcut<'_>> = shortcuts.iter().filter(|s| !s.values.is_empty()).collect();
+    if given.is_empty() {
+        return Ok(current);
+    }
+    let mut json = match &current {
+        Some(value) => serde_json::to_value(value).map_err(|e| e.to_string())?,
+        None => serde_json::Value::Object(Default::default()),
+    };
+    prune(&mut json);
+    for shortcut in &given {
+        let top = shortcut.path.split('.').next().unwrap_or_default();
+        if json.get(top).is_some() {
+            return Err(format!(
+                "{} can't be combined with `{top}` given through {source} or {source}-json: \
+                 set it there alone",
+                shortcut.flag
+            ));
+        }
+    }
+    for shortcut in given {
+        let leaf = if shortcut.list {
+            serde_json::Value::Array(shortcut.values.iter().cloned().map(Into::into).collect())
+        } else {
+            serde_json::Value::String(shortcut.values[0].clone())
+        };
+        set_path(&mut json, shortcut.path, leaf);
+    }
+    json_arg::<T>(&json.to_string(), message)
+        .map(|arg| Some(arg.0))
+        .map_err(|e| {
+            let flags: Vec<&str> = shortcuts.iter().map(|s| s.flag).collect();
+            format!("{e} (from {})", flags.join(", "))
+        })
+}
+
+/// Sets the field `path` of `json`, creating the objects and lists on the
+/// way: a segment that is a number is an element of a list, which is
+/// created when it is the next one.
+fn set_path(json: &mut serde_json::Value, path: &str, leaf: serde_json::Value) {
+    let mut at = json;
+    for segment in path.split('.') {
+        at = match segment.parse::<usize>() {
+            Ok(index) => {
+                if !at.is_array() {
+                    *at = serde_json::Value::Array(Vec::new());
+                }
+                let items = at.as_array_mut().expect("just made a list");
+                while items.len() <= index {
+                    items.push(serde_json::Value::Object(Default::default()));
+                }
+                &mut items[index]
+            }
+            Err(_) => {
+                if !at.is_object() {
+                    *at = serde_json::Value::Object(Default::default());
+                }
+                at.as_object_mut()
+                    .expect("just made an object")
+                    .entry(segment)
+                    .or_insert(serde_json::Value::Null)
+            }
+        };
+    }
+    *at = leaf;
+}
+
+/// Removes what a message's JSON holds only because a field is unset: a null,
+/// an empty string, an empty list.
+fn prune(json: &mut serde_json::Value) {
+    match json {
+        serde_json::Value::Object(object) => {
+            object.retain(|_, v| {
+                prune(v);
+                !(v.is_null()
+                    || v.as_str().is_some_and(str::is_empty)
+                    || v.as_array().is_some_and(Vec::is_empty))
+            });
+        }
+        serde_json::Value::Array(items) => items.iter_mut().for_each(prune),
+        _ => {}
+    }
+}
+
 /// The field `key` names: by its name in the definitions, or its JSON name,
 /// as the API's JSON parser accepts either.
 fn field_of(message: &MessageDescriptor, key: &str) -> Option<FieldDescriptor> {

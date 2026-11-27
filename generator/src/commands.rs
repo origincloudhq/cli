@@ -31,7 +31,7 @@
 //!   `{name=projects/*/zones/*/operations/*}` is
 //!   `projects/{project}/zones/{zone}/operations/{operation}`, given as
 //!   `--operation`.
-//! - A duration is given as `30s`, `2m` or `1m30s`.
+//! - A duration is given as `30s`, `2m`, `1m30s` or `7d`.
 //! - The methods of the operations package (`origincloud.longrunning`) are
 //!   commands of every group whose methods answer with operations, sent to
 //!   that group's host, which serves its operations. A method answering
@@ -71,7 +71,7 @@ pub const OPERATIONS: &str = "longrunning";
 
 /// The Rust type of a duration flag, and what its help says of its form.
 const DURATION_TYPE: &str = "::origincloud_core::protobuf::Duration";
-const DURATION_FORMAT: &str = "\n\nSuch as `30s` or `1m`.";
+const DURATION_FORMAT: &str = "\n\nSuch as `30s`, `1m`, `12h` or `7d`.";
 
 /// The Rust type of a timestamp flag, and what its help says of its form.
 const TIMESTAMP_TYPE: &str = "::origincloud_core::protobuf::Timestamp";
@@ -347,7 +347,7 @@ pub fn generate(
              api_error, deadline_after, deleted, duration, json, list_json, names_any, pace, passed,\n\
              read_bytes_file, read_value_file, reference, shown_once, success, tags, wait, wait_for,\n\
              waited, waiting, zones,\n\
-             ConfirmedClient, SecretFile,\n\
+             ConfirmedClient, ByteSink, SecretFile, streamed,\n\
              Context, Listing, ReadClient, OPERATION,\n\
          };\n\
          #[allow(unused_imports)]\n\
@@ -429,6 +429,7 @@ pub fn generate(
         "timestamp",
         "unique",
         "unknown_key",
+        "with_shortcuts",
     ]
     .into_iter()
     .filter(|f| {
@@ -437,7 +438,7 @@ pub fn generate(
             || code.contains(&format!("= {f}"))
     })
     .chain(
-        ["JsonArg", "Keyed"]
+        ["JsonArg", "Keyed", "Shortcut"]
             .into_iter()
             .filter(|t| code.contains(&format!("{t}<")) || code.contains(&format!("{t} {{"))),
     )
@@ -1152,7 +1153,7 @@ enum Kind2 {
     List(Elem),
     /// A resource name, from its id or whole name.
     Reference(Resource),
-    /// `google.protobuf.Duration`, as `30s`, `2m` or `1m30s`.
+    /// `google.protobuf.Duration`, as `30s`, `2m`, `1m30s` or `7d`.
     Duration,
     /// `google.protobuf.Timestamp`, as RFC 3339.
     Timestamp,
@@ -1284,6 +1285,42 @@ fn enum_kind(e: &prost_reflect::EnumDescriptor) -> Result<(String, Vec<String>),
         .map(|v| v.name().to_owned())
         .collect();
     Ok((sdk_type(e.package_name(), e.full_name())?, values))
+}
+
+/// The expression taking a `bytes` field out of `response`: a field with
+/// explicit presence is an `Option` in the SDK.
+fn taken(field: &FieldDescriptor) -> String {
+    let name = ident(field.name());
+    if field.supports_presence() {
+        format!("response.{name}.take().unwrap_or_default()")
+    } else {
+        format!("::std::mem::take(&mut response.{name})")
+    }
+}
+
+/// `kind`, an enum offering only the values `commands.toml`'s `enum_values`
+/// names for the field at `path` of the method, when it names any.
+fn narrowed(cx: &Cx<'_>, method: &str, path: &str, kind: Kind2) -> Result<Kind2, String> {
+    let Some(offered) = cx.policy.enum_values(cx.own, method, path) else {
+        return Ok(kind);
+    };
+    match kind {
+        Kind2::Enum(enum_path, values) => {
+            if let Some(unknown) = offered.iter().find(|v| !values.contains(v)) {
+                return Err(format!(
+                    "commands.toml's enum_values for {path} names {unknown}, which isn't a \
+                     value of its enum"
+                ));
+            }
+            Ok(Kind2::Enum(enum_path, offered.to_vec()))
+        }
+        Kind2::Optional(inner) => Ok(Kind2::Optional(Box::new(narrowed(
+            cx, method, path, *inner,
+        )?))),
+        _ => Err(format!(
+            "commands.toml's enum_values names {path}, which isn't an enum"
+        )),
+    }
 }
 
 fn kind(cx: &Cx<'_>, field: &FieldDescriptor) -> Result<Kind2, String> {
@@ -2153,7 +2190,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                 if update && fb.contains(&IMMUTABLE) {
                     continue;
                 }
-                let k = kind(cx, &f)?;
+                let k = narrowed(cx, m.name(), &path, kind(cx, &f)?)?;
                 let field_required = !update && fb.contains(&REQUIRED);
                 let unordered = fb.contains(&UNORDERED_LIST);
                 if update {
@@ -2294,6 +2331,7 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                     .to_owned();
             }
         }
+        shortcut_flags(cx, &mut b, m.name(), &field, &fid, &comment)?;
         b.request.push(init(&fid, &expr));
         if let Some(entry) = cx.policy.one_way(cx.own, m.name(), &name) {
             one_way.push(one_way_use(&mut b, &field, &k, !required, entry)?);
@@ -2408,6 +2446,9 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     };
 
     let mut call = String::new();
+    // The `bytes` fields of a plain response written to a file or standard
+    // output when their flag is given: (the field, its flag, what it is).
+    let mut byte_outs: Vec<(String, String, String)> = Vec::new();
     if destructive {
         let (singular, target_expr) = target
             .clone()
@@ -2518,6 +2559,76 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                 "let secret_file = SecretFile::claim(&args.{ident}, args.overwrite, {:?})?;",
                 entry.flag
             );
+        }
+        // A `bytes` field of the response, which isn't a secret written to
+        // a file, is the counterpart of `--{field}-file`: `--{field}-out`
+        // writes it, byte for byte, to a file or, for `-`, to standard
+        // output. The file is claimed before the request, as a secret's is.
+        if result.is_none() && unpaged_list.is_none() && response.full_name() != EMPTY {
+            let secret = cx
+                .policy
+                .to_file(cx.own, m.name())
+                .map(|e| e.field.as_str());
+            for field in response.fields() {
+                if field.kind() != Kind::Bytes
+                    || field.is_list()
+                    || field.is_map()
+                    || Some(field.name()) == secret
+                {
+                    continue;
+                }
+                let flag = format!("{}-out", field.name().to_kebab_case());
+                let ident = ident(&flag.to_snake_case());
+                if b.flags.iter().any(|f| f.ident == ident) {
+                    return Err(format!(
+                        "the flag --{flag} of the response's {} is a flag of the request",
+                        field.name()
+                    ));
+                }
+                let what = field.name().replace('_', " ");
+                b.flags.push(Flag {
+                    ident: ident.clone(),
+                    long: flag.clone(),
+                    doc: format!(
+                        "Write the response's {what}, byte for byte, to this file, or to \
+                         standard output for `-`, instead of printing it in base64 with the \
+                         rest of the response. The file is created readable by you alone; an \
+                         existing file is refused unless `--overwrite` is given. For `-`, \
+                         nothing else is printed."
+                    ),
+                    ty: "Option<::std::path::PathBuf>".to_owned(),
+                    attrs: vec!["value_name = \"PATH\"".to_owned()],
+                });
+                let _ = writeln!(
+                    call,
+                    "let sink_{ident} = args.{ident}.as_deref().map(|path| ByteSink::claim(path, args.overwrite, {flag:?})).transpose()?;"
+                );
+                byte_outs.push((field.name().to_owned(), ident, what));
+            }
+            if !byte_outs.is_empty() {
+                // One `--overwrite` covers every file the command writes.
+                let mut files: Vec<String> = byte_outs
+                    .iter()
+                    .map(|(_, ident, _)| format!("`--{}`", ident.replace('_', "-")))
+                    .collect();
+                if let Some(entry) = cx.policy.to_file(cx.own, m.name()) {
+                    files.insert(0, format!("`--{}`", entry.flag));
+                }
+                let doc = format!(
+                    "Replace a file {} names when it exists, once the response is in.",
+                    files.join(" or ")
+                );
+                match b.flags.iter_mut().find(|f| f.ident == "overwrite") {
+                    Some(flag) => flag.doc = doc,
+                    None => b.flags.push(Flag {
+                        ident: "overwrite".to_owned(),
+                        long: "overwrite".to_owned(),
+                        doc,
+                        ty: "bool".to_owned(),
+                        attrs: Vec::new(),
+                    }),
+                }
+            }
         }
         let _ = writeln!(
             call,
@@ -2654,35 +2765,68 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                     );
                 }
                 // A secret written to a file leaves the printed response.
-                if let Some(entry) = cx.policy.to_file(cx.own, m.name()) {
+                let to_file = cx.policy.to_file(cx.own, m.name());
+                if to_file.is_some() || !byte_outs.is_empty() {
+                    tail.push_str("let mut response = response;\n");
+                }
+                let named = response
+                    .get_field_by_name("name")
+                    .filter(|f| f.kind() == Kind::String && !f.is_list())
+                    .map(|_| "&response.name")
+                    .unwrap_or("\"\"");
+                if let Some(entry) = to_file {
                     let field = response
                         .get_field_by_name(&entry.field)
-                        .filter(|f| f.kind() == Kind::String && !f.is_list())
+                        .filter(|f| matches!(f.kind(), Kind::String | Kind::Bytes) && !f.is_list())
                         .ok_or_else(|| {
                             format!(
-                                "commands.toml's to_file names {}, which isn't a string of \
-                                 its response",
+                                "commands.toml's to_file names {}, which isn't a string or \
+                                 bytes of its response",
                                 entry.field
                             )
                         })?;
-                    let named = response
-                        .get_field_by_name("name")
-                        .filter(|f| f.kind() == Kind::String && !f.is_list())
-                        .map(|_| "&response.name")
-                        .unwrap_or("\"\"");
+                    let _ = if field.kind() == Kind::Bytes {
+                        writeln!(
+                            tail,
+                            "secret_file.write_bytes(&{}, {:?}, {named})?;",
+                            taken(&field),
+                            entry.what
+                        )
+                    } else {
+                        writeln!(
+                            tail,
+                            "secret_file.write(::std::mem::take(&mut response.{}), {:?}, {named})?;",
+                            ident(field.name()),
+                            entry.what
+                        )
+                    };
+                }
+                if !byte_outs.is_empty() {
+                    tail.push_str("let mut streamed_out = false;\n");
+                }
+                for (field, flag, what) in &byte_outs {
                     let _ = writeln!(
                         tail,
-                        "let mut response = response;\n\
-                         secret_file.write(::std::mem::take(&mut response.{}), {:?}, {named})?;",
-                        ident(field.name()),
-                        entry.what
+                        "if let Some(sink) = sink_{flag} {{\n\
+                             streamed_out |= sink.is_stdout();\n\
+                             sink.write(&{}, {:?}, {named})?;\n\
+                         }}",
+                        taken(
+                            &response
+                                .get_field_by_name(field)
+                                .expect("a field of the response")
+                        ),
+                        format!("the {what}")
                     );
+                }
+                if !byte_outs.is_empty() {
+                    tail.push_str("if streamed_out { return Ok(streamed()); }\n");
                 }
                 let _ = writeln!(tail, "json(&response, {:?})", response.full_name());
             }
         },
     }
-    if cx.policy.to_file(cx.own, m.name()).is_some() && !tail.contains("secret_file.write(") {
+    if cx.policy.to_file(cx.own, m.name()).is_some() && !tail.contains("secret_file.write") {
         return Err(
             "commands.toml's to_file is only for a method answering with its response, \
              not a list, an operation or nothing"
@@ -3364,6 +3508,118 @@ fn value(
     })
 }
 
+/// The flags `[[shortcut]]` gives a message field `field` of `method`'s
+/// request, each setting one field of the message however deep it is, and
+/// the statement that puts what they were given into the message, which the
+/// field's own flags built as `var`.
+fn shortcut_flags(
+    cx: &Cx<'_>,
+    b: &mut Build,
+    method: &str,
+    field: &FieldDescriptor,
+    var: &str,
+    comment: &dyn Fn(&FieldDescriptor) -> String,
+) -> Result<(), String> {
+    let entries = cx.policy.shortcuts(cx.own, method, field.name());
+    if entries.is_empty() {
+        return Ok(());
+    }
+    let Kind::Message(message) = field.kind() else {
+        return Err(format!(
+            "{} has [[shortcut]], but isn't a message",
+            field.full_name()
+        ));
+    };
+    let source = format!("--{}", field.name().to_kebab_case());
+    let mut uses = Vec::new();
+    for entry in entries {
+        // Walk the path: every step but the last a message, or a list of
+        // messages, whose first element is the one meant.
+        let mut json_path = Vec::new();
+        let mut at = message.clone();
+        let mut leaf = None;
+        let steps: Vec<&str> = entry.path.split('.').collect();
+        for (i, step) in steps.iter().enumerate() {
+            let f = at.get_field_by_name(step).ok_or_else(|| {
+                format!(
+                    "[[shortcut]] {}: {} has no field {step}",
+                    entry.flag,
+                    at.full_name()
+                )
+            })?;
+            json_path.push(f.json_name().to_owned());
+            if i + 1 == steps.len() {
+                leaf = Some(f);
+                break;
+            }
+            let Kind::Message(next) = f.kind() else {
+                return Err(format!(
+                    "[[shortcut]] {}: {step} isn't a message",
+                    entry.flag
+                ));
+            };
+            if f.is_list() {
+                json_path.push("0".to_owned());
+            }
+            at = next;
+        }
+        let leaf = leaf.ok_or_else(|| format!("[[shortcut]] {} has an empty path", entry.flag))?;
+        if leaf.kind() != Kind::String {
+            return Err(format!(
+                "[[shortcut]] {}: {} isn't a string or a list of them",
+                entry.flag, entry.path
+            ));
+        }
+        let list = leaf.is_list();
+        let ident = ident(&entry.flag.replace('-', "_"));
+        let vocabulary = b.vocabulary.clone();
+        let doc = format!(
+            "{}\n\nSets `{}` of `{source}`; giving `{}` there as well is refused.",
+            docs::help(
+                &comment(&leaf),
+                &Vocabulary {
+                    flags: &vocabulary,
+                    fields: &cx.fields
+                },
+            ),
+            entry.path,
+            steps[0]
+        );
+        let mut attrs = vec![format!("value_name = {:?}", "NAME")];
+        for other in &entry.conflicts_with {
+            attrs.push(format!("conflicts_with = {:?}", other.replace('-', "_")));
+        }
+        b.add_flag(Flag {
+            ident: ident.clone(),
+            long: entry.flag.clone(),
+            doc,
+            ty: if list {
+                "Vec<String>"
+            } else {
+                "Option<String>"
+            }
+            .to_owned(),
+            attrs,
+        })?;
+        let values = if list {
+            format!("args.{ident}.clone()")
+        } else {
+            format!("args.{ident}.iter().cloned().collect()")
+        };
+        uses.push(format!(
+            "Shortcut {{ flag: \"--{}\", path: {:?}, list: {list}, values: {values} }}",
+            entry.flag,
+            json_path.join(".")
+        ));
+    }
+    b.prelude.push(format!(
+        "let {var} = with_shortcuts({var}, {:?}, {source:?}, &[{}]).map_err(::anyhow::Error::msg)?;",
+        message.full_name(),
+        uses.join(", ")
+    ));
+    Ok(())
+}
+
 /// Adds the flag of a field an update may change, and returns the statement
 /// that sets it on the resource `body` and adds it to the mask when given.
 #[allow(clippy::too_many_arguments)]
@@ -3992,7 +4248,7 @@ fn key_hint(kind: &Kind2) -> String {
             format!(" One of {}.", quoted.join(", "))
         }
         Kind2::Bool => " `true` or `false`.".to_owned(),
-        Kind2::Duration => " Such as `30s` or `1m`.".to_owned(),
+        Kind2::Duration => " Such as `30s`, `1m`, `12h` or `7d`.".to_owned(),
         Kind2::Timestamp => " As RFC 3339, such as `2026-11-01T12:00:00Z`.".to_owned(),
         Kind2::Reference(resource) => format!(" {}", reference_doc("", resource)),
         _ => String::new(),

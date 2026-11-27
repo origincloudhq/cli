@@ -670,14 +670,22 @@ fn parse_any<'p>(
         })
 }
 
-/// A duration flag's value: whole numbers of hours, minutes, seconds and
-/// milliseconds, largest first, such as `30s`, `2m`, `1m30s` or `500ms`.
+/// A duration flag's value: whole numbers of days, hours, minutes, seconds
+/// and milliseconds, largest first, such as `30s`, `2m`, `1m30s`, `500ms` or
+/// `7d`. A day is 24 hours.
 pub fn duration(value: &str) -> Result<origincloud_core::protobuf::Duration, String> {
-    let invalid = || format!("{value:?} isn't a duration: expected one such as 30s, 2m or 1m30s");
+    let invalid =
+        || format!("{value:?} isn't a duration: expected one such as 30s, 2m, 1m30s or 7d");
     let mut total = std::time::Duration::ZERO;
     let mut rest = value;
     // The units in the order they may appear, each at most once.
-    let mut units: &[(&str, u64)] = &[("h", 3_600_000), ("m", 60_000), ("s", 1_000), ("ms", 1)];
+    let mut units: &[(&str, u64)] = &[
+        ("d", 86_400_000),
+        ("h", 3_600_000),
+        ("m", 60_000),
+        ("s", 1_000),
+        ("ms", 1),
+    ];
     while !rest.is_empty() {
         let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
         if digits == 0 {
@@ -708,7 +716,8 @@ pub fn duration(value: &str) -> Result<origincloud_core::protobuf::Duration, Str
 #[allow(unused_imports)]
 pub use super::nested::{
     json_arg, key_bool, key_duration, key_enum, key_scalar, key_timestamp, key_values,
-    notice_replaced, notice_reset, required_keys, timestamp, unique, unknown_key, JsonArg, Keyed,
+    notice_replaced, notice_reset, required_keys, timestamp, unique, unknown_key, with_shortcuts,
+    JsonArg, Keyed, Shortcut,
 };
 
 /// `--tag KEY=VALUE` values as a map field.
@@ -1024,26 +1033,18 @@ impl SecretFile {
     /// Writes `secret`, `what` the response for `resource` holds, to the
     /// file, and says on standard error which file holds it.
     pub fn write(mut self, secret: String, what: &str, resource: &str) -> anyhow::Result<()> {
+        let path = self.path.clone();
         let kept = |e: &dyn std::fmt::Display| {
             anyhow!(
                 "{resource} was created, but {what} couldn't be written to {}: {e}. The API \
                  returns it only once: delete {resource} and create another",
-                self.path.display()
+                path.display()
             )
         };
         if secret.is_empty() {
             return Err(kept(&"the response holds none"));
         }
-        let mut file = self.file.take().expect("a claimed file is written once");
-        std::io::Write::write_all(&mut file, secret.as_bytes())
-            .and_then(|()| file.sync_all())
-            .map_err(|e| kept(&e))?;
-        drop(file);
-        if self.writing != self.path {
-            std::fs::rename(&self.writing, &self.path).map_err(|e| kept(&e))?;
-        }
-        // Written: the claim is kept.
-        self.writing = std::path::PathBuf::new();
+        self.persist(secret.as_bytes()).map_err(|e| kept(&e))?;
         eprintln!(
             "Wrote {what} of {resource} to {}, readable by you alone. The API returns it this \
              once: keep the file, it can't be fetched again.",
@@ -1051,6 +1052,98 @@ impl SecretFile {
         );
         Ok(())
     }
+
+    /// Writes `bytes`, `what` the response for `resource` holds, to the
+    /// file, and says on standard error which file holds it. Unlike
+    /// [`SecretFile::write`], the content may be empty, and the request
+    /// isn't one the API answers only once: the command can be run again.
+    pub fn write_bytes(mut self, bytes: &[u8], what: &str, resource: &str) -> anyhow::Result<()> {
+        let path = self.path.clone();
+        self.persist(bytes)
+            .map_err(|e| anyhow!("{what} couldn't be written to {}: {e}", path.display()))?;
+        let of = if resource.is_empty() {
+            String::new()
+        } else {
+            format!(" of {resource}")
+        };
+        eprintln!(
+            "Wrote {what}{of} to {}, readable by you alone.",
+            self.path.display()
+        );
+        Ok(())
+    }
+
+    /// Writes `bytes` into the claimed file and, for an existing one,
+    /// renames it over that file; then the claim is kept.
+    fn persist(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        let mut file = self.file.take().expect("a claimed file is written once");
+        std::io::Write::write_all(&mut file, bytes).and_then(|()| file.sync_all())?;
+        drop(file);
+        if self.writing != self.path {
+            std::fs::rename(&self.writing, &self.path)?;
+        }
+        // Written: the claim is kept.
+        self.writing = std::path::PathBuf::new();
+        Ok(())
+    }
+}
+
+/// Where a command writes a `bytes` field of its response
+/// (`--{field}-out`): standard output for `-`, else a file claimed before
+/// the request is sent, as a [`SecretFile`] is.
+pub enum ByteSink {
+    Stdout,
+    File(SecretFile),
+}
+
+impl ByteSink {
+    /// Claims what the flag `--{flag}` names.
+    pub fn claim(path: &std::path::Path, overwrite: bool, flag: &str) -> anyhow::Result<Self> {
+        if path.as_os_str() == "-" {
+            Ok(Self::Stdout)
+        } else {
+            SecretFile::claim(path, overwrite, flag).map(Self::File)
+        }
+    }
+
+    /// Whether this is standard output.
+    pub fn is_stdout(&self) -> bool {
+        matches!(self, Self::Stdout)
+    }
+
+    /// Writes `bytes`, byte for byte, `what` the response for `resource`
+    /// holds.
+    pub fn write(self, bytes: &[u8], what: &str, resource: &str) -> anyhow::Result<()> {
+        match self {
+            Self::Stdout => {
+                let mut out = std::io::stdout().lock();
+                std::io::Write::write_all(&mut out, bytes)
+                    .and_then(|()| std::io::Write::flush(&mut out))
+                    .map_err(|e| anyhow!("{what} couldn't be written to standard output: {e}"))
+            }
+            Self::File(file) => file.write_bytes(bytes, what, resource),
+        }
+    }
+}
+
+/// The result of a command that wrote its output itself, to standard
+/// output, byte for byte: nothing is printed beside it.
+struct Streamed;
+
+impl SerializableOutput for Streamed {
+    fn to_json(&self) -> Result<serde_json::Value, SerializationError> {
+        Ok(serde_json::Value::Null)
+    }
+
+    fn silent(&self) -> bool {
+        true
+    }
+}
+
+/// The result of a command whose response's bytes went to standard output
+/// (`--{field}-out -`).
+pub fn streamed() -> Box<dyn SerializableOutput> {
+    Box::new(Streamed)
 }
 
 impl Drop for SecretFile {
@@ -1575,7 +1668,7 @@ mod tests {
     }
 
     #[test]
-    fn a_duration_is_hours_minutes_seconds_and_milliseconds() {
+    fn a_duration_is_days_hours_minutes_seconds_and_milliseconds() {
         let seconds = |v: &str| {
             let d = duration(v).unwrap();
             (d.seconds, d.nanos)
@@ -1584,6 +1677,9 @@ mod tests {
         assert_eq!(seconds("2m"), (120, 0));
         assert_eq!(seconds("1m30s"), (90, 0));
         assert_eq!(seconds("1h"), (3600, 0));
+        assert_eq!(seconds("7d"), (604_800, 0));
+        assert_eq!(seconds("1d12h"), (129_600, 0));
+        assert_eq!(seconds("90d"), (7_776_000, 0));
         assert_eq!(seconds("500ms"), (0, 500_000_000));
         assert_eq!(seconds("1s500ms"), (1, 500_000_000));
         assert_eq!(seconds("0s"), (0, 0));
@@ -1596,7 +1692,8 @@ mod tests {
             "1m1m",
             "-1s",
             "1 s",
-            "1d",
+            "1h1d",
+            "1w",
             "18446744073709551616s",
         ] {
             assert!(duration(bad).is_err(), "{bad:?}");

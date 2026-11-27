@@ -5,8 +5,8 @@
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
     passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
-    wait_for, waited, waiting, zones, ConfirmedClient, SecretFile, Context, Listing,
-    ReadClient, OPERATION,
+    wait_for, waited, waiting, zones, ConfirmedClient, ByteSink, SecretFile, streamed,
+    Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -787,7 +787,7 @@ pub struct CreateRecordSetArgs {
     /// How long resolvers may keep the answer, from 30 seconds to 7 days, in
     /// whole seconds. 300 seconds when left out.
     ///
-    /// Such as `30s` or `1m`.
+    /// Such as `30s`, `1m`, `12h` or `7d`.
     #[arg(long = "ttl", value_name = "DURATION", value_parser = duration)]
     pub ttl: Option<::origincloud_core::protobuf::Duration>,
     /// The records' values, 1 to 100, each once, written as `--type` says. Names
@@ -965,7 +965,7 @@ pub struct UpdateRecordSetArgs {
     /// How long resolvers may keep the answer, from 30 seconds to 7 days, in
     /// whole seconds. 300 seconds when left out.
     ///
-    /// Such as `30s` or `1m`.
+    /// Such as `30s`, `1m`, `12h` or `7d`.
     ///
     /// Left as it is when not given.
     #[arg(long = "ttl", value_name = "DURATION", value_parser = duration)]

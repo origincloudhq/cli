@@ -243,6 +243,17 @@ service, method and request field (`pvs`, `UpdateVolume`, `volume.size_gib`):
   none of the keys its message requires, because the field overrides another
   message's, such as a launch template version's, and sets only what it
   changes. Generation fails for a field that has no `KEY=VALUE` form;
+- `[[shortcut]]` adds a flag to a method that sets one field of a message
+  field of its request, however deep in it (`LaunchInstance`'s `--subnet`
+  sets `launch_template_data.network_interfaces[0].spec.subnet`), so that the
+  common case needs no `KEY=VALUE` pairs or JSON. Its `path` goes from the
+  message through its fields, a list of messages standing for its first
+  element, and ends at a string or a list of strings; `conflicts_with` names
+  flags it can't be given with. The values are put into the message
+  as its JSON and checked as `--{field}-json` is (`nested.rs`'s
+  `with_shortcuts`); a command refuses a shortcut whose field, or whose
+  top field of the path, the message's own flags set too. Generation fails
+  for a path the message doesn't have;
 - `[[also_names]]` names a reference field, by its full name
   (`origincloud.compute.v1beta1.Instance.image`), that takes the names of
   another resource type too (`compute.origincloudapis.eu/PublicImage`),

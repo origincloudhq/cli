@@ -136,6 +136,9 @@ impl Printing<'_> {
     }
 
     fn print(&self, output: Box<dyn SerializableOutput>) -> anyhow::Result<i32> {
+        if output.silent() {
+            return Ok(output.exit_code());
+        }
         let format = output::format_for_stdout(self.profile.output_format);
         let printed = output::render(format, output.as_ref(), &output::Context::current())?;
         if format == OutputFormat::Json || output.to_raw().is_some() {

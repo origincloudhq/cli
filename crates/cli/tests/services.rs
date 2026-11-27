@@ -349,7 +349,7 @@ async fn wait_operation_fails_with_a_failed_operation() {
 #[tokio::test(flavor = "multi_thread")]
 async fn operation_commands_refuse_bad_names_and_durations() {
     let server = recording(|_| Response::json(DONE)).await;
-    for timeout in ["30", "1.5s", "-1s", "1d", "s"] {
+    for timeout in ["30", "1.5s", "-1s", "1w", "s"] {
         let output = server
             .pvs(&[
                 "wait-operation",
@@ -422,6 +422,7 @@ async fn the_location_endpoint_is_https_or_this_machine() {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_origin"))
         .args(["location", "--endpoint", "http://192.0.2.1:9", "list-zones"])
         .env_clear()
+        .env("ORIGINCLOUD_OUTPUT_FORMAT", "json")
         .env("HOME", server.home.path())
         .output()
         .unwrap();

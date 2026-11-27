@@ -5,8 +5,8 @@
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
     passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
-    wait_for, waited, waiting, zones, ConfirmedClient, SecretFile, Context, Listing,
-    ReadClient, OPERATION,
+    wait_for, waited, waiting, zones, ConfirmedClient, ByteSink, SecretFile, streamed,
+    Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -101,6 +101,15 @@ pub struct GetFirewallArgs {
     /// Its id, completed with `--project` and `--zone`, or its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/firewalls/{firewall}`, or its relative name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
     #[arg(long = "firewall", value_name = "FIREWALL")]
     pub firewall: String,
+    /// Write the response's certificate, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "certificate-out", value_name = "PATH")]
+    pub certificate_out: Option<::std::path::PathBuf>,
+    /// Write the response's banner, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "banner-out", value_name = "PATH")]
+    pub banner_out: Option<::std::path::PathBuf>,
+    /// Replace a file `--certificate-out` or `--banner-out` names when it exists, once the response is in.
+    #[arg(long = "overwrite")]
+    pub overwrite: bool,
 }
 async fn get_firewall(
     ctx: &Context<'_>,
@@ -126,8 +135,39 @@ async fn get_firewall(
     let request = ::origincloud_scratch::v1::GetFirewallRequest {
         name,
     };
+    let sink_certificate_out = args
+        .certificate_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "certificate-out"))
+        .transpose()?;
+    let sink_banner_out = args
+        .banner_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "banner-out"))
+        .transpose()?;
     let client = ctx.client()?;
     let response = call_get_firewall(&client, request).await.map_err(api_error)?;
+    let mut response = response;
+    let mut streamed_out = false;
+    if let Some(sink) = sink_certificate_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(
+            &::std::mem::take(&mut response.certificate),
+            "the certificate",
+            &response.name,
+        )?;
+    }
+    if let Some(sink) = sink_banner_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(
+            &response.banner.take().unwrap_or_default(),
+            "the banner",
+            &response.name,
+        )?;
+    }
+    if streamed_out {
+        return Ok(streamed());
+    }
     json(&response, "origincloud.scratch.v1.Firewall")
 }
 async fn call_get_firewall(
@@ -168,7 +208,7 @@ pub struct CreateFirewallArgs {
     pub zone: Option<String>,
     #[arg(
         long = "rule",
-        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`; not a relative name or an id.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.",
+        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s`, `1m`, `12h` or `7d`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`; not a relative name or an id.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.",
         help = "The rules, in the order they are evaluated; the first that matches decides: one element per flag, as KEY=VALUE pairs; the list is sent whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_rule(text, "--rules-json"),
@@ -339,6 +379,15 @@ pub struct CreateFirewallArgs {
     /// One of `--notify-email`, `--notify-after-seconds`: give exactly one.
     #[arg(long = "notify-after-seconds")]
     pub notify_after_seconds: Option<i32>,
+    /// Write the response's certificate, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "certificate-out", value_name = "PATH")]
+    pub certificate_out: Option<::std::path::PathBuf>,
+    /// Write the response's banner, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "banner-out", value_name = "PATH")]
+    pub banner_out: Option<::std::path::PathBuf>,
+    /// Replace a file `--certificate-out` or `--banner-out` names when it exists, once the response is in.
+    #[arg(long = "overwrite")]
+    pub overwrite: bool,
 }
 async fn create_firewall(
     ctx: &Context<'_>,
@@ -476,8 +525,39 @@ async fn create_firewall(
         firewall: Some(firewall),
         notify,
     };
+    let sink_certificate_out = args
+        .certificate_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "certificate-out"))
+        .transpose()?;
+    let sink_banner_out = args
+        .banner_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "banner-out"))
+        .transpose()?;
     let client = ctx.client()?;
     let response = call_create_firewall(&client, request).await.map_err(api_error)?;
+    let mut response = response;
+    let mut streamed_out = false;
+    if let Some(sink) = sink_certificate_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(
+            &::std::mem::take(&mut response.certificate),
+            "the certificate",
+            &response.name,
+        )?;
+    }
+    if let Some(sink) = sink_banner_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(
+            &response.banner.take().unwrap_or_default(),
+            "the banner",
+            &response.name,
+        )?;
+    }
+    if streamed_out {
+        return Ok(streamed());
+    }
     json(&response, "origincloud.scratch.v1.Firewall")
 }
 async fn call_create_firewall(
@@ -569,7 +649,7 @@ pub struct UpdateFirewallArgs {
     pub firewall: String,
     #[arg(
         long = "rule",
-        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s` or `1m`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`; not a relative name or an id.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
+        long_help = "The rules, in the order they are evaluated; the first that matches decides.\n\nOne element as comma-separated KEY=VALUE pairs; repeat the flag for more. A key is a field's name, with `_` or `-`. The keys:\n\n`protocol`, required: The protocol the rule matches. One of `TCP`, `UDP`.\n\n`port`: The port the rule matches; every port when zero.\n\n`cidr`: The sources the rule matches, as a CIDR block such as `10.0.0.0/8`.\n\n`idle_timeout`: How long the rule keeps an idle connection open. Such as `30s`, `1m`, `12h` or `7d`.\n\n`network`: The network the rule applies to; every network the firewall guards when empty. Its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/networks/{network}` or `//scratch.origincloudapis.eu/zones/{zone}/networks/{network}`; not a relative name or an id.\n\n`allow`: Whether the rule allows what it matches, rather than denying it. `true` or `false`.\n\n`not_after`: When the rule stops matching. As RFC 3339, such as `2026-11-01T12:00:00Z`.\n\n`priority`: The rule's priority among rules of the same port; the order given when unset. Unset when not given.\n\n`match` is set only through `--rules-json`. A value with a comma in it goes through `--rules-json` too.\n\nThe list is replaced whole: give every element to keep. Left as it is when none of these is given.",
         help = "The rules, in the order they are evaluated; the first that matches decides: one element per flag, as KEY=VALUE pairs; the list is replaced whole",
         value_name = "KEY=VALUE,...",
         value_parser = |text:&str|parse_rule(text, "--rules-json"),
@@ -772,6 +852,15 @@ pub struct UpdateFirewallArgs {
     /// Remove its allowlist.
     #[arg(long = "no-allowlist", conflicts_with_all = ["allowlist_json", "cidr"])]
     pub no_allowlist: bool,
+    /// Write the response's certificate, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "certificate-out", value_name = "PATH")]
+    pub certificate_out: Option<::std::path::PathBuf>,
+    /// Write the response's banner, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "banner-out", value_name = "PATH")]
+    pub banner_out: Option<::std::path::PathBuf>,
+    /// Replace a file `--certificate-out` or `--banner-out` names when it exists, once the response is in.
+    #[arg(long = "overwrite")]
+    pub overwrite: bool,
 }
 async fn update_firewall(
     ctx: &Context<'_>,
@@ -1019,8 +1108,39 @@ async fn update_firewall(
             paths,
         }),
     };
+    let sink_certificate_out = args
+        .certificate_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "certificate-out"))
+        .transpose()?;
+    let sink_banner_out = args
+        .banner_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "banner-out"))
+        .transpose()?;
     let client = ctx.client()?;
     let response = call_update_firewall(&client, request).await.map_err(api_error)?;
+    let mut response = response;
+    let mut streamed_out = false;
+    if let Some(sink) = sink_certificate_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(
+            &::std::mem::take(&mut response.certificate),
+            "the certificate",
+            &response.name,
+        )?;
+    }
+    if let Some(sink) = sink_banner_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(
+            &response.banner.take().unwrap_or_default(),
+            "the banner",
+            &response.name,
+        )?;
+    }
+    if streamed_out {
+        return Ok(streamed());
+    }
     json(&response, "origincloud.scratch.v1.Firewall")
 }
 async fn call_update_firewall(
@@ -1113,6 +1233,15 @@ pub struct UndeleteFirewallArgs {
     /// Its id, completed with `--project` and `--zone`, or its full name, `//scratch.origincloudapis.eu/projects/{project}/zones/{zone}/firewalls/{firewall}`, or its relative name, `projects/{project}/zones/{zone}/firewalls/{firewall}`.
     #[arg(long = "firewall", value_name = "FIREWALL")]
     pub firewall: String,
+    /// Write the response's certificate, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "certificate-out", value_name = "PATH")]
+    pub certificate_out: Option<::std::path::PathBuf>,
+    /// Write the response's banner, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "banner-out", value_name = "PATH")]
+    pub banner_out: Option<::std::path::PathBuf>,
+    /// Replace a file `--certificate-out` or `--banner-out` names when it exists, once the response is in.
+    #[arg(long = "overwrite")]
+    pub overwrite: bool,
 }
 async fn undelete_firewall(
     ctx: &Context<'_>,
@@ -1138,8 +1267,39 @@ async fn undelete_firewall(
     let request = ::origincloud_scratch::v1::UndeleteFirewallRequest {
         name,
     };
+    let sink_certificate_out = args
+        .certificate_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "certificate-out"))
+        .transpose()?;
+    let sink_banner_out = args
+        .banner_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "banner-out"))
+        .transpose()?;
     let client = ctx.client()?;
     let response = call_undelete_firewall(&client, request).await.map_err(api_error)?;
+    let mut response = response;
+    let mut streamed_out = false;
+    if let Some(sink) = sink_certificate_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(
+            &::std::mem::take(&mut response.certificate),
+            "the certificate",
+            &response.name,
+        )?;
+    }
+    if let Some(sink) = sink_banner_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(
+            &response.banner.take().unwrap_or_default(),
+            "the banner",
+            &response.name,
+        )?;
+    }
+    if streamed_out {
+        return Ok(streamed());
+    }
     json(&response, "origincloud.scratch.v1.Firewall")
 }
 async fn call_undelete_firewall(
@@ -1196,6 +1356,12 @@ pub struct SignFirewallDataArgs {
     /// One of `--label-text`, `--label-bytes-file`: give at most one.
     #[arg(long = "label-bytes-file", value_name = "PATH")]
     pub label_bytes_file: Option<String>,
+    /// Write the response's signature, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "signature-out", value_name = "PATH")]
+    pub signature_out: Option<::std::path::PathBuf>,
+    /// Replace a file `--signature-out` names when it exists, once the response is in.
+    #[arg(long = "overwrite")]
+    pub overwrite: bool,
 }
 async fn sign_firewall_data(
     ctx: &Context<'_>,
@@ -1245,8 +1411,22 @@ async fn sign_firewall_data(
         salt: args.salt_file.as_deref().map(read_bytes_file).transpose()?,
         label,
     };
+    let sink_signature_out = args
+        .signature_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "signature-out"))
+        .transpose()?;
     let client = ctx.client()?;
     let response = call_sign_firewall_data(&client, request).await.map_err(api_error)?;
+    let mut response = response;
+    let mut streamed_out = false;
+    if let Some(sink) = sink_signature_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(&::std::mem::take(&mut response.signature), "the signature", "")?;
+    }
+    if streamed_out {
+        return Ok(streamed());
+    }
     json(&response, "origincloud.scratch.v1.SignFirewallDataResponse")
 }
 async fn call_sign_firewall_data(

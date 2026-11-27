@@ -5,8 +5,8 @@
 use crate::sdk::runtime::{
     api_error, deadline_after, deleted, duration, json, list_json, names_any, pace,
     passed, read_bytes_file, read_value_file, reference, shown_once, success, tags, wait,
-    wait_for, waited, waiting, zones, ConfirmedClient, SecretFile, Context, Listing,
-    ReadClient, OPERATION,
+    wait_for, waited, waiting, zones, ConfirmedClient, ByteSink, SecretFile, streamed,
+    Context, Listing, ReadClient, OPERATION,
 };
 #[allow(unused_imports)]
 use crate::confirm;
@@ -331,7 +331,7 @@ pub struct CreateGrantArgs {
     pub encryption_context: Vec<TagArg>,
     /// How long the grant lives from now: 1 to 60 minutes.
     ///
-    /// Such as `30s` or `1m`.
+    /// Such as `30s`, `1m`, `12h` or `7d`.
     #[arg(
         long = "ttl",
         value_name = "DURATION",
@@ -408,7 +408,7 @@ pub struct RenewGrantArgs {
     pub grant: String,
     /// How long the grant lives from now: 1 to 60 minutes.
     ///
-    /// Such as `30s` or `1m`.
+    /// Such as `30s`, `1m`, `12h` or `7d`.
     #[arg(
         long = "ttl",
         value_name = "DURATION",
@@ -699,10 +699,6 @@ pub struct CreateKeyArgs {
         "SIGN_ED25519"]
     )]
     pub purpose: String,
-    /// Whether the key can be used. A new key is `ENABLED`; UpdateKey sets it
-    /// to `ENABLED` or `DISABLED`, and DeleteKey makes it `DELETED`.
-    #[arg(long = "state", value_parser = ["ENABLED", "DISABLED", "DELETED"])]
-    pub state: Option<String>,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
     ///
@@ -727,11 +723,6 @@ async fn create_key(
     let parent = names.name("projects/{project}/regions/{region}")?;
     let key = ::origincloud_kms::v1beta1::Key {
         purpose: ::origincloud_kms::v1beta1::key::Purpose::from_str_name(&args.purpose)
-            .map_or(0, |v| v as i32),
-        state: args
-            .state
-            .as_deref()
-            .and_then(::origincloud_kms::v1beta1::key::State::from_str_name)
             .map_or(0, |v| v as i32),
         tags: tags(&args.tag),
         ..::core::default::Default::default()
@@ -776,7 +767,7 @@ pub struct UpdateKeyArgs {
     /// to `ENABLED` or `DISABLED`, and DeleteKey makes it `DELETED`.
     ///
     /// Left as it is when not given.
-    #[arg(long = "state", value_parser = ["ENABLED", "DISABLED", "DELETED"])]
+    #[arg(long = "state", value_parser = ["ENABLED", "DISABLED"])]
     pub state: Option<String>,
     /// Labels of your own, at most 50. The `origin:name` tag is the name the
     /// console shows.
@@ -863,7 +854,7 @@ pub struct DeleteKeyArgs {
     /// How long until the key's material is destroyed: whole days, from 1 to
     /// 90; 30 days when unset.
     ///
-    /// Such as `30s` or `1m`.
+    /// Such as `30s`, `1m`, `12h` or `7d`.
     #[arg(long = "destroy-delay", value_name = "DURATION", value_parser = duration)]
     pub destroy_delay: Option<::origincloud_core::protobuf::Duration>,
     /// A UUID; a repeat with the same id within a day returns the key as the
@@ -1058,6 +1049,12 @@ pub struct EncryptArgs {
     /// As KEY=VALUE; repeat for more.
     #[arg(long = "encryption-context", value_name = "KEY=VALUE")]
     pub encryption_context: Vec<TagArg>,
+    /// Write the response's ciphertext, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "ciphertext-out", value_name = "PATH")]
+    pub ciphertext_out: Option<::std::path::PathBuf>,
+    /// Replace a file `--ciphertext-out` names when it exists, once the response is in.
+    #[arg(long = "overwrite")]
+    pub overwrite: bool,
 }
 async fn encrypt(
     ctx: &Context<'_>,
@@ -1087,8 +1084,22 @@ async fn encrypt(
         plaintext: read_bytes_file(&args.plaintext_file)?,
         encryption_context: tags(&args.encryption_context),
     };
+    let sink_ciphertext_out = args
+        .ciphertext_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "ciphertext-out"))
+        .transpose()?;
     let client = ctx.client()?;
     let response = call_encrypt(&client, request).await.map_err(api_error)?;
+    let mut response = response;
+    let mut streamed_out = false;
+    if let Some(sink) = sink_ciphertext_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(&::std::mem::take(&mut response.ciphertext), "the ciphertext", "")?;
+    }
+    if streamed_out {
+        return Ok(streamed());
+    }
     json(&response, "origincloud.kms.v1beta1.EncryptResponse")
 }
 async fn call_encrypt(
@@ -1124,6 +1135,12 @@ pub struct DecryptArgs {
     /// As KEY=VALUE; repeat for more.
     #[arg(long = "encryption-context", value_name = "KEY=VALUE")]
     pub encryption_context: Vec<TagArg>,
+    /// Write the response's plaintext, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "plaintext-out", value_name = "PATH")]
+    pub plaintext_out: Option<::std::path::PathBuf>,
+    /// Replace a file `--plaintext-out` names when it exists, once the response is in.
+    #[arg(long = "overwrite")]
+    pub overwrite: bool,
 }
 async fn decrypt(
     ctx: &Context<'_>,
@@ -1153,8 +1170,22 @@ async fn decrypt(
         ciphertext: read_bytes_file(&args.ciphertext_file)?,
         encryption_context: tags(&args.encryption_context),
     };
+    let sink_plaintext_out = args
+        .plaintext_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "plaintext-out"))
+        .transpose()?;
     let client = ctx.client()?;
     let response = call_decrypt(&client, request).await.map_err(api_error)?;
+    let mut response = response;
+    let mut streamed_out = false;
+    if let Some(sink) = sink_plaintext_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(&::std::mem::take(&mut response.plaintext), "the plaintext", "")?;
+    }
+    if streamed_out {
+        return Ok(streamed());
+    }
     json(&response, "origincloud.kms.v1beta1.DecryptResponse")
 }
 async fn call_decrypt(
@@ -1185,6 +1216,15 @@ pub struct GenerateDataKeyArgs {
     /// As KEY=VALUE; repeat for more.
     #[arg(long = "encryption-context", value_name = "KEY=VALUE")]
     pub encryption_context: Vec<TagArg>,
+    /// Where to write the plaintext data key, byte for byte: it is a secret, so it is never printed, and never written to standard output. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. Encrypt your data with it, keep only the ciphertext the command prints beside the encrypted data, and recover the key with `decrypt` when you need it.
+    #[arg(long = "plaintext-out", value_name = "PLAINTEXT_OUT")]
+    pub plaintext_out: ::std::path::PathBuf,
+    /// Replace a file `--plaintext-out` or `--ciphertext-out` names when it exists, once the response is in.
+    #[arg(long = "overwrite")]
+    pub overwrite: bool,
+    /// Write the response's ciphertext, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "ciphertext-out", value_name = "PATH")]
+    pub ciphertext_out: Option<::std::path::PathBuf>,
 }
 async fn generate_data_key(
     ctx: &Context<'_>,
@@ -1213,8 +1253,29 @@ async fn generate_data_key(
         name,
         encryption_context: tags(&args.encryption_context),
     };
+    let secret_file = SecretFile::claim(
+        &args.plaintext_out,
+        args.overwrite,
+        "plaintext-out",
+    )?;
+    let sink_ciphertext_out = args
+        .ciphertext_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "ciphertext-out"))
+        .transpose()?;
     let client = ctx.client()?;
     let response = call_generate_data_key(&client, request).await.map_err(api_error)?;
+    let mut response = response;
+    secret_file
+        .write_bytes(&::std::mem::take(&mut response.plaintext), "the data key", "")?;
+    let mut streamed_out = false;
+    if let Some(sink) = sink_ciphertext_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(&::std::mem::take(&mut response.ciphertext), "the ciphertext", "")?;
+    }
+    if streamed_out {
+        return Ok(streamed());
+    }
     json(&response, "origincloud.kms.v1beta1.GenerateDataKeyResponse")
 }
 async fn call_generate_data_key(
@@ -1256,6 +1317,12 @@ pub struct SignArgs {
     /// for a version of another key or a destroyed version.
     #[arg(long = "key-version")]
     pub key_version: Option<String>,
+    /// Write the response's signature, byte for byte, to this file, or to standard output for `-`, instead of printing it in base64 with the rest of the response. The file is created readable by you alone; an existing file is refused unless `--overwrite` is given. For `-`, nothing else is printed.
+    #[arg(long = "signature-out", value_name = "PATH")]
+    pub signature_out: Option<::std::path::PathBuf>,
+    /// Replace a file `--signature-out` names when it exists, once the response is in.
+    #[arg(long = "overwrite")]
+    pub overwrite: bool,
 }
 async fn sign(
     ctx: &Context<'_>,
@@ -1285,8 +1352,22 @@ async fn sign(
         data: read_bytes_file(&args.data_file)?,
         key_version: args.key_version.clone().unwrap_or_default(),
     };
+    let sink_signature_out = args
+        .signature_out
+        .as_deref()
+        .map(|path| ByteSink::claim(path, args.overwrite, "signature-out"))
+        .transpose()?;
     let client = ctx.client()?;
     let response = call_sign(&client, request).await.map_err(api_error)?;
+    let mut response = response;
+    let mut streamed_out = false;
+    if let Some(sink) = sink_signature_out {
+        streamed_out |= sink.is_stdout();
+        sink.write(&::std::mem::take(&mut response.signature), "the signature", "")?;
+    }
+    if streamed_out {
+        return Ok(streamed());
+    }
     json(&response, "origincloud.kms.v1beta1.SignResponse")
 }
 async fn call_sign(
