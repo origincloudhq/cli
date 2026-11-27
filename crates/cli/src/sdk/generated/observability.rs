@@ -41,12 +41,10 @@ pub(crate) fn service(
 /// The flags of `query-time-series`.
 #[derive(clap::Args, Debug)]
 pub struct QueryTimeSeriesArgs {
-    /// The project the resource is in, `projects/{project}`.
-    ///
-    /// Its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`; not a relative name or an id.
-    #[arg(long = "parent", value_name = "NAME")]
-    pub parent: String,
-    /// The full name of the resource whose metrics to return, in `parent`: an
+    /// The project, such as `my-project-123`. Its id, or its full name, `//resourcemanager.origincloudapis.eu/projects/{project}`, or its relative name, `projects/{project}`. `ORIGINCLOUD_PROJECT`, else the profile's `default-project`, when not given.
+    #[arg(long = "project", value_name = "PROJECT")]
+    pub project: Option<String>,
+    /// The full name of the resource whose metrics to return, in `--project`: an
     /// instance,
     /// `//compute.origincloudapis.eu/projects/{project}/zones/{zone}/instances/{instance}`,
     /// a volume,
@@ -62,64 +60,68 @@ pub struct QueryTimeSeriesArgs {
     /// Repeat for more.
     #[arg(long = "metric", required = true)]
     pub metric: Vec<String>,
+    /// How each point is computed.
+    #[arg(
+        long = "statistic",
+        value_parser = ["RATE",
+        "INCREASE"],
+        default_value = "RATE"
+    )]
+    pub statistic: String,
     /// The start of the window: the first point is at it.
     ///
-    /// As RFC 3339, such as `2026-11-01T12:00:00Z`.
+    /// As RFC 3339, such as `2026-11-01T12:00:00Z`. Give this or `--since`.
     #[arg(
         long = "start-time",
         value_name = "TIME",
         value_parser = timestamp,
-        required = true
+        required_unless_present = "since",
+        conflicts_with = "since"
     )]
-    pub start_time: ::origincloud_core::protobuf::Timestamp,
+    pub start_time: Option<::origincloud_core::protobuf::Timestamp>,
+    /// How long before the end of the window it starts, instead of `--start-time`.
+    ///
+    /// Such as `1h`, `30m` or `2h30m`.
+    #[arg(long = "since", value_name = "DURATION", value_parser = duration)]
+    pub since: Option<::origincloud_core::protobuf::Duration>,
     /// The end of the window, not before `--start-time`.
     ///
-    /// As RFC 3339, such as `2026-11-01T12:00:00Z`.
-    #[arg(
-        long = "end-time",
-        value_name = "TIME",
-        value_parser = timestamp,
-        required = true
-    )]
-    pub end_time: ::origincloud_core::protobuf::Timestamp,
+    /// As RFC 3339, such as `2026-11-01T12:00:00Z`. Now when not given.
+    #[arg(long = "end-time", value_name = "TIME", value_parser = timestamp)]
+    pub end_time: Option<::origincloud_core::protobuf::Timestamp>,
     /// The length of each period, in whole seconds, at least one: the points
     /// are this far apart, and each covers the period that ends at it. A
     /// value is collected every 30 seconds and a point needs two inside its
     /// period, so a period under 60 seconds often has none.
     ///
-    /// Such as `30s` or `1m`.
-    #[arg(
-        long = "period",
-        value_name = "DURATION",
-        value_parser = duration,
-        required = true
-    )]
-    pub period: ::origincloud_core::protobuf::Duration,
-    /// How each point is computed.
-    #[arg(long = "statistic", value_parser = ["RATE", "INCREASE"])]
-    pub statistic: String,
+    /// Such as `30s` or `1m`. When not given, the window's length divided by 60, but at least `60s`.
+    #[arg(long = "period", value_name = "DURATION", value_parser = duration)]
+    pub period: Option<::origincloud_core::protobuf::Duration>,
 }
 async fn query_time_series(
     ctx: &Context<'_>,
     args: QueryTimeSeriesArgs,
 ) -> anyhow::Result<Box<dyn SerializableOutput>> {
-    let parent = reference(
-        &["projects/{project}"],
-        &["resourcemanager"],
-        "--parent",
-        args.parent.as_str(),
+    let mut names = ctx.names(&[("project", args.project.as_deref())]);
+    names.learn_part("projects/{project}", &["resourcemanager"], "project")?;
+    let parent = names.name("projects/{project}")?;
+    let (start_time, end_time, period) = crate::sdk::runtime::time_window(
+        args.start_time,
+        args.since,
+        args.end_time,
+        args.period,
     )?;
     let request = ::origincloud_observability::v1beta1::QueryTimeSeriesRequest {
         parent,
         resource: args.resource.clone(),
         metrics: args.metric.clone(),
-        start_time: Some(args.start_time),
-        end_time: Some(args.end_time),
-        period: Some(args.period),
         statistic: ::origincloud_observability::v1beta1::query_time_series_request::Statistic::from_str_name(
                 &args.statistic,
             )
             .map_or(0, |v| v as i32),
+        start_time: Some(start_time),
+        end_time: Some(end_time),
+        period: Some(period),
     };
     let client = ctx.client()?;
     let response = call_query_time_series(&client, request).await.map_err(api_error)?;

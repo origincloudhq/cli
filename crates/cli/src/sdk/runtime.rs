@@ -670,6 +670,77 @@ fn parse_any<'p>(
         })
 }
 
+/// The shortest period a point can be computed over: a value is collected
+/// every 30 seconds and a point needs two inside its period.
+const SHORTEST_PERIOD_SECONDS: i64 = 60;
+
+/// The points a window asks for, by default.
+const WINDOW_POINTS: i64 = 60;
+
+/// A time window from the flags of a command taking one: the end is `end`,
+/// else now; the start is `start`, else `since` before the end; the period
+/// is `period`, else the window's length divided by 60, rounded up to whole
+/// seconds, at least a minute.
+pub fn time_window(
+    start: Option<origincloud_core::protobuf::Timestamp>,
+    since: Option<origincloud_core::protobuf::Duration>,
+    end: Option<origincloud_core::protobuf::Timestamp>,
+    period: Option<origincloud_core::protobuf::Duration>,
+) -> anyhow::Result<(
+    origincloud_core::protobuf::Timestamp,
+    origincloud_core::protobuf::Timestamp,
+    origincloud_core::protobuf::Duration,
+)> {
+    window_at(chrono::Utc::now(), start, since, end, period)
+}
+
+fn window_at(
+    now: chrono::DateTime<chrono::Utc>,
+    start: Option<origincloud_core::protobuf::Timestamp>,
+    since: Option<origincloud_core::protobuf::Duration>,
+    end: Option<origincloud_core::protobuf::Timestamp>,
+    period: Option<origincloud_core::protobuf::Duration>,
+) -> anyhow::Result<(
+    origincloud_core::protobuf::Timestamp,
+    origincloud_core::protobuf::Timestamp,
+    origincloud_core::protobuf::Duration,
+)> {
+    use origincloud_core::protobuf::{Duration, Timestamp};
+    // Now, to the second: the window then ends where the periods can.
+    let end = end.unwrap_or(Timestamp {
+        seconds: now.timestamp(),
+        nanos: 0,
+    });
+    let start = match (start, since) {
+        (Some(start), _) => start,
+        (None, Some(since)) => {
+            let seconds = end
+                .seconds
+                .checked_sub(since.seconds)
+                .filter(|_| since.seconds >= 0 && since.nanos >= 0)
+                .ok_or_else(|| anyhow!("--since: {}s is too long before the end", since.seconds))?;
+            let (seconds, nanos) = if since.nanos > end.nanos {
+                (seconds - 1, 1_000_000_000 - (since.nanos - end.nanos))
+            } else {
+                (seconds, end.nanos - since.nanos)
+            };
+            Timestamp { seconds, nanos }
+        }
+        (None, None) => bail!("give --start-time or --since"),
+    };
+    if end < start {
+        bail!("the window ends before it starts: give an end not before the start");
+    }
+    let period = period.unwrap_or_else(|| {
+        let length = end.seconds - start.seconds + i64::from(end.nanos > start.nanos);
+        Duration {
+            seconds: ((length + WINDOW_POINTS - 1) / WINDOW_POINTS).max(SHORTEST_PERIOD_SECONDS),
+            nanos: 0,
+        }
+    });
+    Ok((start, end, period))
+}
+
 /// A duration flag's value: whole numbers of hours, minutes, seconds and
 /// milliseconds, largest first, such as `30s`, `2m`, `1m30s` or `500ms`.
 pub fn duration(value: &str) -> Result<origincloud_core::protobuf::Duration, String> {
@@ -1100,6 +1171,85 @@ pub fn api_error(err: origincloud_core::Error) -> anyhow::Error {
 
 #[cfg(test)]
 mod tests {
+
+    mod time_window {
+        use super::super::window_at;
+        use origincloud_core::protobuf::{Duration, Timestamp};
+
+        fn now() -> chrono::DateTime<chrono::Utc> {
+            "2026-11-27T12:00:00.250Z".parse().unwrap()
+        }
+        fn at(seconds: i64) -> Timestamp {
+            Timestamp { seconds, nanos: 0 }
+        }
+        fn secs(seconds: i64) -> Duration {
+            Duration { seconds, nanos: 0 }
+        }
+
+        #[test]
+        fn the_window_ends_now_and_starts_since_before() {
+            let (start, end, period) =
+                window_at(now(), None, Some(secs(3600)), None, None).unwrap();
+            assert_eq!(end, at(now().timestamp()));
+            assert_eq!(start, at(now().timestamp() - 3600));
+            assert_eq!(period, secs(60));
+        }
+
+        #[test]
+        fn a_given_start_and_end_are_kept() {
+            let (start, end, period) =
+                window_at(now(), Some(at(1000)), None, Some(at(1000 + 6 * 3600)), None).unwrap();
+            assert_eq!((start, end), (at(1000), at(1000 + 6 * 3600)));
+            assert_eq!(period, secs(360));
+        }
+
+        #[test]
+        fn a_period_is_rounded_up_and_at_least_a_minute() {
+            let derived = |length| {
+                window_at(now(), Some(at(0)), None, Some(at(length)), None)
+                    .unwrap()
+                    .2
+            };
+            assert_eq!(derived(600), secs(60));
+            assert_eq!(derived(3601), secs(61));
+            assert_eq!(derived(86_400), secs(1440));
+        }
+
+        #[test]
+        fn a_given_period_is_kept() {
+            let (_, _, period) =
+                window_at(now(), None, Some(secs(3600)), None, Some(secs(30))).unwrap();
+            assert_eq!(period, secs(30));
+        }
+
+        #[test]
+        fn the_nanoseconds_of_a_given_end_are_kept_by_since() {
+            let end = Timestamp {
+                seconds: 100,
+                nanos: 100,
+            };
+            let since = Duration {
+                seconds: 10,
+                nanos: 200,
+            };
+            let (start, _, _) = window_at(now(), None, Some(since), Some(end), None).unwrap();
+            assert_eq!(
+                start,
+                Timestamp {
+                    seconds: 89,
+                    nanos: 999_999_900
+                }
+            );
+        }
+
+        #[test]
+        fn a_window_without_a_start_or_ending_before_it_is_refused() {
+            assert!(window_at(now(), None, None, None, None).is_err());
+            let err = window_at(now(), Some(at(10)), None, Some(at(5)), None).unwrap_err();
+            assert!(err.to_string().contains("ends before"), "{err}");
+            assert!(window_at(now(), None, Some(secs(i64::MIN)), None, None).is_err());
+        }
+    }
     use super::*;
 
     fn names(given: &[(&'static str, Option<&'static str>)]) -> Names {

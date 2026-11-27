@@ -1937,6 +1937,9 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
     let mut target: Option<(String, String)> = None;
     let mut body_updates: Option<Vec<String>> = None;
     let mut one_way: Vec<OneWayUse> = Vec::new();
+    // The help of the fields of a time window, whose flags are made once
+    // all of them are known.
+    let mut window_docs: BTreeMap<String, String> = BTreeMap::new();
     // The parent pattern of a list that pages through every zone.
     let mut zonal_parent: Option<String> = None;
 
@@ -1976,6 +1979,9 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         } else if cx.policy.read_from_file(cx.own, m.name(), field.name()) {
             b.vocabulary
                 .insert(field.name().to_owned(), file_long(&field));
+        } else if field.name() == "parent" && cx.policy.project_flag(cx.own, m.name(), "parent") {
+            b.vocabulary
+                .insert("parent".to_owned(), "project".to_owned());
         } else if field.name() != "parent" && field.name() != "update_mask" {
             b.vocabulary
                 .insert(field.name().to_owned(), flag_name(cx, &field));
@@ -2017,6 +2023,13 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
 
         if (name == "update_mask" && update) || excluded(&name) {
             continue;
+        }
+
+        if let Some(w) = cx.policy.window(cx.own, m.name()) {
+            if [&w.start, &w.end, &w.period].contains(&&name) {
+                window_docs.insert(name.clone(), help(&comment(&field)));
+                continue;
+            }
         }
 
         if let Some(body) = body_message(cx, &field) {
@@ -2149,6 +2162,15 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
             },
             None => None,
         };
+        if name == "parent" && cx.policy.project_flag(cx.own, m.name(), &name) {
+            // The project the command acts in, as every command takes it.
+            b.add_components("projects/{project}", "resourcemanager", None);
+            b.prelude.push(format!(
+                "let {fid} = names.name(\"projects/{{project}}\")?;"
+            ));
+            b.request.push(fid);
+            continue;
+        }
         if let Some((resource, child)) = referenced {
             if child {
                 let pattern = parent_pattern(&resource.pattern);
@@ -2212,6 +2234,22 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
                 ));
             }
             file_flag(&mut b, &field, &k, required, &doc)?
+        } else if let Some(default) = cx.policy.default_value(cx.own, m.name(), &name) {
+            if !matches!(k, Kind2::Enum(..)) {
+                return Err(format!(
+                    "{} has a [[default]], but isn't an enum",
+                    field.full_name()
+                ));
+            }
+            // As a required flag, whose value is always there: the default.
+            let expr = value(&mut b, &field, &k, true, unordered, &doc)?;
+            let flag = b
+                .flags
+                .iter_mut()
+                .find(|f| f.ident == fid)
+                .ok_or("a defaulted enum without its flag")?;
+            flag.attrs.push(format!("default_value = {default:?}"));
+            expr
         } else {
             value(&mut b, &field, &k, required, unordered, &doc)?
         };
@@ -2230,6 +2268,83 @@ fn command(cx: &Cx<'_>, m: &MethodDescriptor) -> Result<Command, String> {
         b.request.push(init(&fid, &expr));
         if let Some(entry) = cx.policy.one_way(cx.own, m.name(), &name) {
             one_way.push(one_way_use(&mut b, &field, &k, !required, entry)?);
+        }
+    }
+
+    // A time window: its end defaults to now, its start is `--start-time` or
+    // `--since`, its period is derived from its length.
+    if let Some(w) = cx.policy.window(cx.own, m.name()) {
+        let mut take = |field: &str| {
+            window_docs.remove(field).ok_or_else(|| {
+                format!(
+                    "[[window]] of {} names {field}, which has no flag",
+                    m.name()
+                )
+            })
+        };
+        let (start_doc, end_doc, period_doc) = (take(&w.start)?, take(&w.end)?, take(&w.period)?);
+        let timestamp = |doc: String, field: &str, note: &str, mut attrs: Vec<String>| {
+            attrs.splice(
+                0..0,
+                ["value_name = \"TIME\"", "value_parser = timestamp"].map(str::to_owned),
+            );
+            Flag {
+                ident: ident(field),
+                long: field.to_kebab_case(),
+                doc: format!("{doc}{TIMESTAMP_FORMAT}{note}"),
+                ty: format!("Option<{TIMESTAMP_TYPE}>"),
+                attrs,
+            }
+        };
+        b.add_flag(timestamp(
+            start_doc,
+            &w.start,
+            " Give this or `--since`.",
+            vec![
+                "required_unless_present = \"since\"".to_owned(),
+                "conflicts_with = \"since\"".to_owned(),
+            ],
+        ))?;
+        b.add_flag(Flag {
+            ident: "since".to_owned(),
+            long: "since".to_owned(),
+            doc: format!(
+                "How long before the end of the window it starts, instead of `--{}`.\n\nSuch as \
+                 `1h`, `30m` or `2h30m`.",
+                w.start.to_kebab_case()
+            ),
+            ty: format!("Option<{DURATION_TYPE}>"),
+            attrs: vec![
+                "value_name = \"DURATION\"".to_owned(),
+                "value_parser = duration".to_owned(),
+            ],
+        })?;
+        b.add_flag(timestamp(
+            end_doc,
+            &w.end,
+            " Now when not given.",
+            Vec::new(),
+        ))?;
+        b.add_flag(Flag {
+            ident: ident(&w.period),
+            long: w.period.to_kebab_case(),
+            doc: format!(
+                "{period_doc}{DURATION_FORMAT} When not given, the window's length divided by \
+                 60, but at least `60s`."
+            ),
+            ty: format!("Option<{DURATION_TYPE}>"),
+            attrs: vec![
+                "value_name = \"DURATION\"".to_owned(),
+                "value_parser = duration".to_owned(),
+            ],
+        })?;
+        let (start, end, period) = (ident(&w.start), ident(&w.end), ident(&w.period));
+        b.prelude.push(format!(
+            "let ({start}, {end}, {period}) = crate::sdk::runtime::time_window(args.{start}, \
+             args.since, args.{end}, args.{period})?;"
+        ));
+        for field in [start, end, period] {
+            b.request.push(format!("{field}: Some({field})"));
         }
     }
 

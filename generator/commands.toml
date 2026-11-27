@@ -133,6 +133,34 @@ field = "origincloud.compute.v1beta1.Instance.image"
 resource = "compute.origincloudapis.eu/PublicImage"
 why = "An instance boots from one of the project's own images or a public one, `zones/{zone}/images/{image}`, as the field's comment says; its reference declares the project's own alone."
 
+# A reference to a project that a command takes as `--project`, as every
+# other command does: an id, completed from `ORIGINCLOUD_PROJECT` and the
+# profile's `default-project`, or the project's full name.
+[[project_flag]]
+service = "observability"
+method = "QueryTimeSeries"
+field = "parent"
+why = "The project is where the command acts, as for every other command; a flag taking only a full name, `--parent`, was unlike them all."
+
+# Enum fields whose flag has a default the API doesn't state.
+[[default]]
+service = "observability"
+method = "QueryTimeSeries"
+field = "statistic"
+value = "RATE"
+why = "The common query is a counter's rate; the API's other statistic, `INCREASE`, is the exception."
+
+# A time window taken with defaults: the end is now, the start is
+# `--start-time` or `--since` before the end, and the period is the window's
+# length divided by 60, at least a minute.
+[[window]]
+service = "observability"
+method = "QueryTimeSeries"
+start = "start_time"
+end = "end_time"
+period = "period"
+why = "Two RFC 3339 timestamps and a period for every query is the least common case: a recent window, at a resolution the window implies, is the usual one."
+
 # A hand-written command the CLI no longer has, which no command of the same
 # name replaces (a generated `origin compute get-instance` replaces the
 # hand-written one), with the reason and what to use instead. Every command
