@@ -1536,3 +1536,93 @@ async fn a_soft_delete_says_what_restores_it() {
     assert_eq!(requests[0].method, "DELETE");
     assert_eq!(requests[0].path, "/v1/projects/p/zones/z/firewalls/f");
 }
+
+/// A response's `bytes` field is `--{field}-out`, the counterpart of
+/// `--{field}-file`: written byte for byte to a file readable by its owner
+/// alone, or to standard output for `-`, and left out of the printed JSON.
+/// The file is claimed before the request, an existing one refused without
+/// `--overwrite`, and a new one removed again when the call fails.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_responses_bytes_field_is_written_byte_for_byte_by_its_out_flag() {
+    let answer = json!({
+        "name": "projects/p/zones/z/firewalls/f",
+        "certificate": base64(RAW),
+        "banner": base64(b"hello"),
+    })
+    .to_string();
+    let server = recording(move |_: &Received| Response::json(answer.clone())).await;
+    fn get<'a>(extra: &[&'a str]) -> Vec<&'a str> {
+        [&["get-firewall"][..], &FIREWALL, extra].concat()
+    }
+    let dir = server.home.path();
+
+    // Without a flag the JSON is as the API has it.
+    let printed = success(&scratch(&server, &get(&[])).await);
+    assert_eq!(printed["certificate"], base64(RAW));
+
+    // To a file: the bytes, only the owner can read them, and the rest of
+    // the response is printed without them.
+    let file = dir.join("certificate.bin");
+    let path = file.to_str().unwrap();
+    let output = scratch(&server, &get(&["--certificate-out", path])).await;
+    let printed = success(&output);
+    assert_eq!(std::fs::read(&file).unwrap(), RAW);
+    assert!(printed.get("certificate").is_none(), "{printed}");
+    assert_eq!(printed["banner"], base64(b"hello"));
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("Wrote the certificate"),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    #[cfg(unix)]
+    assert_eq!(
+        std::os::unix::fs::PermissionsExt::mode(&std::fs::metadata(&file).unwrap().permissions())
+            & 0o777,
+        0o600
+    );
+
+    // An existing file is refused before the request, and replaced with
+    // `--overwrite`.
+    let before = server.requests().len();
+    let said = failure(&scratch(&server, &get(&["--certificate-out", path])).await);
+    assert!(said.contains("--overwrite"), "{said}");
+    assert_eq!(server.requests().len(), before);
+    std::fs::write(&file, b"old").unwrap();
+    success(&scratch(&server, &get(&["--certificate-out", path, "--overwrite"])).await);
+    assert_eq!(std::fs::read(&file).unwrap(), RAW);
+
+    // `-` is standard output: the bytes, nothing else.
+    let output = scratch(&server, &get(&["--certificate-out", "-"])).await;
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stdout, RAW);
+
+    // Both fields: one to a file, the other to standard output.
+    let banner = dir.join("banner.txt");
+    let output = scratch(
+        &server,
+        &get(&[
+            "--banner-out",
+            banner.to_str().unwrap(),
+            "--certificate-out",
+            "-",
+        ]),
+    )
+    .await;
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(output.stdout, RAW);
+    assert_eq!(std::fs::read(&banner).unwrap(), b"hello");
+
+    // A call that fails leaves no file behind.
+    let failing = recording(|_: &Received| {
+        Response::json(r#"{"error":{"code":5,"message":"no such firewall"}}"#).with_status(404)
+    })
+    .await;
+    let missing = failing.home.path().join("never.bin");
+    let output = scratch(
+        &failing,
+        &get(&["--certificate-out", missing.to_str().unwrap()]),
+    )
+    .await;
+    assert_eq!(output.status.code(), Some(1));
+    assert!(!missing.exists());
+}

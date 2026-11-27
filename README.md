@@ -350,13 +350,22 @@ every method of the API, with the API's own descriptions as help:
   method doesn't take although its request has it (`import-volume` has no
   `--source-snapshot`). A boolean takes its value, `--flag true` or
   `--flag false`; left out, one the API doesn't require is `false`. A
-  duration is given as `30s`, `2m` or `1m30s`, a time as RFC 3339, such as
+  duration is given as `30s`, `2m`, `1m30s` or `7d`, a time as RFC 3339, such as
   `2026-11-01T12:00:00Z`.
 - **Binary data.** A field holding bytes is its flag with `-file`, such as
   `--plaintext-file secret.txt`, which takes a path, or `-` for standard
   input, and sends the file's content byte for byte, with nothing to encode.
   A response's bytes are in the JSON the command prints in base64, as in
-  any of the API's JSON: `jq -r .plaintext | base64 -d` turns one back.
+  any of the API's JSON, unless the field's `-out` flag, such as
+  `--ciphertext-out secret.enc`, writes them byte for byte to a path, or to
+  standard output for `-`, and leaves them out of the JSON (for `-`, nothing
+  else is printed). The file is created readable by you alone, and an
+  existing one is refused unless `--overwrite` is given:
+  `origin kms encrypt --plaintext-file secret.txt --ciphertext-out secret.enc`
+  and `origin kms decrypt --ciphertext-file secret.enc --plaintext-out -`
+  round-trip a secret without `jq` or `base64`. A secret the API returns, such
+  as `generate-data-key`'s plaintext key, has a required `-out` flag instead,
+  and is never printed or written to standard output.
 - **Tags.** `--tag KEY=VALUE`, repeated for more. On an update, `--tag`
   replaces all of a resource's tags, and `--no-tags` removes them all; the two
   exclude each other, so the tags are only emptied when you say so. To set or

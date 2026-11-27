@@ -228,7 +228,7 @@ pub enum ServiceCommands {
     #[command(
         name = "kms",
         about = "Key management: encryption and signing keys whose material never leaves the platform, their versions and public keys, and the grants that let a platform host use one",
-        long_about = "Key management: encryption and signing keys whose material never leaves the platform, their versions and public keys, and the grants that let a platform host use one.\n\nKeys are a project's in a region (`--project`, `--region`), never a zone's: every zone of the region serves them. `encrypt`, `decrypt` and `sign` read their data from a file (`--plaintext-file`, `--ciphertext-file`, `--data-file`; `-` for standard input), byte for byte, and print the API's JSON, whose bytes are base64."
+        long_about = "Key management: encryption and signing keys whose material never leaves the platform, their versions and public keys, and the grants that let a platform host use one.\n\nKeys are a project's in a region (`--project`, `--region`), never a zone's: every zone of the region serves them. `encrypt`, `decrypt` and `sign` read their data from a file (`--plaintext-file`, `--ciphertext-file`, `--data-file`; `-` for standard input), byte for byte, and print the API's JSON, whose bytes are base64. The bytes of a response are written byte for byte with `--ciphertext-out`, `--plaintext-out` or `--signature-out`: to a file, or to standard output for `-`, so that `encrypt` and `decrypt` fit together without `jq` or `base64`. `generate-data-key` writes its plaintext key to a file only."
     )]
     Kms(KmsCli),
     #[command(
